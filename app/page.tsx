@@ -104,12 +104,15 @@ export default function HomePage() {
       <div className="flex-1 flex gap-2 px-3 py-2 min-h-0 overflow-hidden">
 
         {/* ── Left: Chart column ────────────────────────────────────────── */}
-        <div className="flex-1 flex flex-col min-w-0 min-h-0 gap-2">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 gap-1.5">
 
-          {/* Chart area */}
-          <div className={`relative flex-1 flex flex-col min-h-0 transition-opacity ${isLoadingStock ? 'opacity-40 pointer-events-none' : ''}`}>
+          {/* Chart wrapper — fixed height proportional to viewport */}
+          <div
+            className={`relative flex flex-col rounded-xl border border-slate-700 overflow-hidden bg-slate-900 transition-opacity ${isLoadingStock ? 'opacity-40 pointer-events-none' : ''}`}
+            style={{ height: 'calc(100vh - 148px)' }}
+          >
             {isLoadingStock && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-900/80 rounded-xl">
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-900/80">
                 <div className="text-center">
                   <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
                   <p className="text-sm text-slate-300">載入資料中...</p>
@@ -118,50 +121,47 @@ export default function HomePage() {
             )}
 
             {/* OHLCV bar */}
-            <div className="bg-slate-900 rounded-t-xl border border-b-0 border-slate-700 overflow-hidden shrink-0">
-              {displayCandle && (
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-1.5 text-xs font-mono">
-                  <span className={hoverCandle ? 'text-blue-400' : 'text-slate-400'}>{displayCandle.date}</span>
-                  <span className={`text-sm font-bold ${isUp ? 'text-red-400' : 'text-green-400'}`}>
-                    {displayCandle.close.toFixed(2)}
+            {displayCandle && (
+              <div className="shrink-0 flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-1.5 border-b border-slate-800 text-xs font-mono">
+                <span className={hoverCandle ? 'text-blue-400' : 'text-slate-400'}>{displayCandle.date}</span>
+                <span className={`text-sm font-bold ${isUp ? 'text-red-400' : 'text-green-400'}`}>
+                  {displayCandle.close.toFixed(2)}
+                </span>
+                <span className={`font-bold ${isUp ? 'text-red-400' : 'text-green-400'}`}>
+                  {isUp ? '▲' : '▼'}{Math.abs(chg).toFixed(2)} ({Math.abs(chgPct).toFixed(2)}%)
+                </span>
+                <span className="text-slate-500">開<span className="text-white ml-0.5">{displayCandle.open.toFixed(2)}</span></span>
+                <span className="text-slate-500">高<span className="text-red-400 ml-0.5">{displayCandle.high.toFixed(2)}</span></span>
+                <span className="text-slate-500">低<span className="text-green-400 ml-0.5">{displayCandle.low.toFixed(2)}</span></span>
+                <span className="text-slate-500">量<span className="text-slate-300 ml-0.5">{(displayCandle.volume / 1000).toFixed(0)}K</span></span>
+                {metrics.shares > 0 && (
+                  <span className="ml-auto text-slate-500">
+                    均價<span className="text-yellow-400 font-bold ml-0.5">{metrics.avgCost.toFixed(2)}</span>
                   </span>
-                  <span className={`font-bold ${isUp ? 'text-red-400' : 'text-green-400'}`}>
-                    {isUp ? '▲' : '▼'}{Math.abs(chg).toFixed(2)} ({Math.abs(chgPct).toFixed(2)}%)
-                  </span>
-                  <span className="text-slate-500">開<span className="text-white ml-0.5">{displayCandle.open.toFixed(2)}</span></span>
-                  <span className="text-slate-500">高<span className="text-red-400 ml-0.5">{displayCandle.high.toFixed(2)}</span></span>
-                  <span className="text-slate-500">低<span className="text-green-400 ml-0.5">{displayCandle.low.toFixed(2)}</span></span>
-                  <span className="text-slate-500">量<span className="text-slate-300 ml-0.5">{(displayCandle.volume / 1000).toFixed(0)}K</span></span>
-                  {metrics.shares > 0 && (
-                    <span className="ml-auto text-slate-500">
-                      均價<span className="text-yellow-400 font-bold ml-0.5">{metrics.avgCost.toFixed(2)}</span>
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
 
-            {/* K-line chart — fills remaining height */}
-            <div className="flex-1 min-h-0 border border-t-0 border-b-0 border-slate-700 bg-slate-900">
+            {/* K-line chart — 55% of chart area */}
+            <div className="shrink-0 border-b border-slate-800" style={{ height: '55%' }}>
               <CandleChart
                 candles={visibleCandles}
                 signals={currentSignals}
                 chartMarkers={chartMarkers}
                 avgCost={metrics.shares > 0 ? metrics.avgCost : undefined}
                 onCrosshairMove={setHoverCandle}
-                height={undefined}
                 fillContainer
               />
             </div>
 
-            {/* Indicator charts */}
-            <div className="shrink-0 rounded-b-xl border border-t-0 border-slate-700 overflow-hidden">
+            {/* Indicator charts — remaining 45% */}
+            <div className="flex-1 min-h-0 overflow-hidden">
               <IndicatorCharts candles={visibleCandles} hoverCandle={hoverCandle} />
             </div>
           </div>
 
-          {/* Trend bar + Replay controls — always visible under chart */}
-          <div className="shrink-0 space-y-1.5">
+          {/* Trend bar + Replay controls */}
+          <div className="shrink-0 space-y-1">
             <div className="bg-slate-800/60 rounded-lg border border-slate-700 px-2 py-1">
               <TrendStateBar />
             </div>

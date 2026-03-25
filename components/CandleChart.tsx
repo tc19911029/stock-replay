@@ -174,7 +174,13 @@ export default function CandleChart({
     // scrollToPosition 後稍等一個 tick 再廣播，確保 range 已更新
     const chart = chartRef.current;
     if (chart) {
-      chart.timeScale().scrollToPosition(8, false);
+      // 預設顯示最近 80 根K棒（仿 WantGoo 6個月日線），讓K棒大小清晰
+      const totalBars = candles.length;
+      const visibleBars = 80;
+      chart.timeScale().setVisibleLogicalRange({
+        from: totalBars - visibleBars - 1,
+        to:   totalBars + 3,
+      });
       requestAnimationFrame(() => {
         const range = chart.timeScale().getVisibleRange();
         if (range) broadcastRange(range as { from: Time; to: Time });
