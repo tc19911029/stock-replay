@@ -99,7 +99,7 @@ export default function CandleChart({
         horzLines: { color: '#1e293b' },
       },
       crosshair: { mode: 1 },
-      rightPriceScale: { borderColor: '#334155', minimumWidth: 65 },
+      rightPriceScale: { borderColor: '#334155' },
       timeScale: { borderColor: '#334155', timeVisible: true },
       width: containerRef.current.clientWidth,
       height,

@@ -25,7 +25,7 @@ function makeChart(container: HTMLElement, height: number, showTimeAxis: boolean
       textColor: '#94a3b8',
     },
     grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
-    rightPriceScale: { borderColor: '#334155', minimumWidth: 65 },
+    rightPriceScale: { borderColor: '#334155' },
     timeScale: { borderColor: '#334155', timeVisible: showTimeAxis, visible: true },
     crosshair: { mode: 1 },
     width: container.clientWidth,
@@ -180,7 +180,6 @@ function KDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; ho
   useEffect(() => {
     if (!containerRef.current) return;
     const chart = makeChart(containerRef.current, 100, true);
-    chart.priceScale('right').applyOptions({ autoScale: true });
 
     const kSeries = chart.addSeries(LineSeries, { color: '#3b82f6', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     const dSeries = chart.addSeries(LineSeries, { color: '#f97316', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
