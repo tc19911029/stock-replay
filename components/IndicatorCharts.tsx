@@ -18,7 +18,7 @@ import { subscribeRangeSync, getLastRange } from './CandleChart';
 
 function toTime(date: string): Time { return date as Time; }
 
-function makeChart(container: HTMLElement, height: number, showTimeAxis: boolean): IChartApi {
+function makeChart(container: HTMLElement, showTimeAxis: boolean): IChartApi {
   return createChart(container, {
     layout: {
       background: { type: ColorType.Solid, color: '#0f172a' },
@@ -29,7 +29,7 @@ function makeChart(container: HTMLElement, height: number, showTimeAxis: boolean
     timeScale: { borderColor: '#334155', timeVisible: showTimeAxis, visible: true },
     crosshair: { mode: 1 },
     width: container.clientWidth,
-    height,
+    height: container.clientHeight || 80,
   });
 }
 
@@ -43,19 +43,21 @@ function VolumeChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]
 
   useEffect(() => {
     if (!containerRef.current) return;
-    const chart = makeChart(containerRef.current, 90, false);
+    const chart = makeChart(containerRef.current, false);
     volRef.current  = chart.addSeries(HistogramSeries, { priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false });
     mv5Ref.current  = chart.addSeries(LineSeries, { color: '#3b82f6', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     mv20Ref.current = chart.addSeries(LineSeries, { color: '#f59e0b', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     chartRef.current = chart;
 
-    // 單向接收 sync（主圖廣播 → 指標圖接收）
     const unsub = subscribeRangeSync(range => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (range) chart.timeScale().setVisibleRange(range as any);
     });
     const ro = new ResizeObserver(() => {
-      if (containerRef.current) chart.applyOptions({ width: containerRef.current.clientWidth });
+      if (containerRef.current) chart.applyOptions({
+        width: containerRef.current.clientWidth,
+        height: containerRef.current.clientHeight || 80,
+      });
     });
     ro.observe(containerRef.current);
     return () => { ro.disconnect(); unsub(); chart.remove(); };
@@ -95,13 +97,13 @@ function VolumeChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]
   const volColor = display && prevDisp ? (display.volume >= prevDisp.volume ? 'text-red-400' : 'text-green-400') : 'text-slate-400';
 
   return (
-    <div className="relative">
+    <div className="relative h-full">
       <div className="absolute top-1 left-2 z-10 flex gap-3 text-xs font-mono pointer-events-none">
         <span className="text-slate-400">成交量</span>
         <span className="text-blue-400">MV5 {display?.avgVol5 ? (display.avgVol5 / 1000).toFixed(0) + 'K' : '—'}</span>
         <span className={`font-bold ${volColor}`}>量 {display ? (display.volume / 1000).toFixed(0) + 'K' : '—'} {volArrow}</span>
       </div>
-      <div ref={containerRef} className="w-full" style={{ height: 90 }} />
+      <div ref={containerRef} className="w-full h-full" />
     </div>
   );
 }
@@ -116,7 +118,7 @@ function MACDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; 
 
   useEffect(() => {
     if (!containerRef.current) return;
-    const chart = makeChart(containerRef.current, 110, false);
+    const chart = makeChart(containerRef.current, false);
     difRef.current    = chart.addSeries(LineSeries, { color: '#3b82f6', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     signalRef.current = chart.addSeries(LineSeries, { color: '#f59e0b', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     histRef.current   = chart.addSeries(HistogramSeries, { priceLineVisible: false, lastValueVisible: false });
@@ -127,7 +129,10 @@ function MACDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; 
       if (range) chart.timeScale().setVisibleRange(range as any);
     });
     const ro = new ResizeObserver(() => {
-      if (containerRef.current) chart.applyOptions({ width: containerRef.current.clientWidth });
+      if (containerRef.current) chart.applyOptions({
+        width: containerRef.current.clientWidth,
+        height: containerRef.current.clientHeight || 80,
+      });
     });
     ro.observe(containerRef.current);
     return () => { ro.disconnect(); unsub(); chart.remove(); };
@@ -155,7 +160,7 @@ function MACDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; 
   const oscArrow = display?.macdOSC != null && prevDisp?.macdOSC != null ? (display.macdOSC >= prevDisp.macdOSC ? '↑' : '↓') : '';
 
   return (
-    <div className="relative">
+    <div className="relative h-full">
       <div className="absolute top-1 left-2 z-10 flex gap-3 text-xs font-mono pointer-events-none">
         <span className="text-slate-400">MACD</span>
         <span className="text-amber-400">MACD9 {display?.macdSignal?.toFixed(2) ?? '—'}</span>
@@ -164,7 +169,7 @@ function MACDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; 
           OSC {display?.macdOSC?.toFixed(2) ?? '—'} {oscArrow}
         </span>
       </div>
-      <div ref={containerRef} className="w-full" style={{ height: 110 }} />
+      <div ref={containerRef} className="w-full h-full" />
     </div>
   );
 }
@@ -179,7 +184,7 @@ function KDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; ho
 
   useEffect(() => {
     if (!containerRef.current) return;
-    const chart = makeChart(containerRef.current, 100, true);
+    const chart = makeChart(containerRef.current, true);
 
     const kSeries = chart.addSeries(LineSeries, { color: '#3b82f6', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     const dSeries = chart.addSeries(LineSeries, { color: '#f97316', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
@@ -193,7 +198,10 @@ function KDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; ho
       if (range) chart.timeScale().setVisibleRange(range as any);
     });
     const ro = new ResizeObserver(() => {
-      if (containerRef.current) chart.applyOptions({ width: containerRef.current.clientWidth });
+      if (containerRef.current) chart.applyOptions({
+        width: containerRef.current.clientWidth,
+        height: containerRef.current.clientHeight || 80,
+      });
     });
     ro.observe(containerRef.current);
     return () => { ro.disconnect(); unsub(); chart.remove(); };
@@ -227,14 +235,13 @@ function KDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; ho
   const dArrow = display?.kdD != null && prevDisp?.kdD != null ? (display.kdD >= prevDisp.kdD ? '↑' : '↓') : '';
 
   return (
-    <div className="relative">
+    <div className="relative h-full">
       <div className="absolute top-1 left-2 z-10 flex gap-3 text-xs font-mono pointer-events-none">
         <span className="text-slate-400">KD</span>
         <span className="text-blue-400">K9 {display?.kdK?.toFixed(2) ?? '—'} {kArrow}</span>
         <span className="text-orange-400">D9 {display?.kdD?.toFixed(2) ?? '—'} {dArrow}</span>
-        <span className="text-slate-500 hidden sm:inline">K&gt;80為紅點　K&lt;20為綠點</span>
       </div>
-      <div ref={containerRef} className="w-full" style={{ height: 100 }} />
+      <div ref={containerRef} className="w-full h-full" />
     </div>
   );
 }
@@ -243,10 +250,10 @@ function KDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; ho
 export default function IndicatorCharts({ candles, hoverCandle }: { candles: CandleWithIndicators[]; hoverCandle?: CandleWithIndicators | null }) {
   if (candles.length === 0) return null;
   return (
-    <div className="border border-slate-700 rounded-b-xl overflow-hidden divide-y divide-slate-700">
-      <div className="bg-slate-900"><VolumeChart candles={candles} hoverCandle={hoverCandle} /></div>
-      <div className="bg-slate-900"><KDChart candles={candles} hoverCandle={hoverCandle} /></div>
-      <div className="bg-slate-900"><MACDChart candles={candles} hoverCandle={hoverCandle} /></div>
+    <div className="h-full flex flex-col divide-y divide-slate-700 overflow-hidden">
+      <div className="flex-1 min-h-0 bg-slate-900"><VolumeChart candles={candles} hoverCandle={hoverCandle} /></div>
+      <div className="flex-1 min-h-0 bg-slate-900"><KDChart candles={candles} hoverCandle={hoverCandle} /></div>
+      <div className="flex-[1.4] min-h-0 bg-slate-900"><MACDChart candles={candles} hoverCandle={hoverCandle} /></div>
     </div>
   );
 }

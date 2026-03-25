@@ -142,8 +142,8 @@ export default function HomePage() {
               </div>
             )}
 
-            {/* K-line chart — 55% of chart area */}
-            <div className="shrink-0 border-b border-slate-800" style={{ height: '55%' }}>
+            {/* K-line chart — 48% of chart area */}
+            <div className="shrink-0 border-b border-slate-800" style={{ height: '48%' }}>
               <CandleChart
                 candles={visibleCandles}
                 signals={currentSignals}
@@ -154,7 +154,7 @@ export default function HomePage() {
               />
             </div>
 
-            {/* Indicator charts — remaining 45% */}
+            {/* Indicator charts — remaining 52% */}
             <div className="flex-1 min-h-0 overflow-hidden">
               <IndicatorCharts candles={visibleCandles} hoverCandle={hoverCandle} />
             </div>
