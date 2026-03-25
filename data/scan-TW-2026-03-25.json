@@ -1,10 +1,774 @@
 {
-  "id": "TW-2026-03-25-1774448237753",
+  "id": "TW-2026-03-25-1774449422592",
   "market": "TW",
   "date": "2026-03-25",
-  "scanTime": "2026-03-25T14:17:17.753Z",
-  "resultCount": 11,
+  "scanTime": "2026-03-25T14:37:02.592Z",
+  "resultCount": 96,
   "results": [
+    {
+      "symbol": "3031.TW",
+      "name": "佰鴻",
+      "market": "TW",
+      "price": 24.4,
+      "changePercent": 6.55,
+      "volume": 12392332,
+      "triggeredRules": [
+        {
+          "ruleId": "bullish-trend-confirm",
+          "ruleName": "多頭突破買點",
+          "signalType": "BUY",
+          "reason": "帶量（量增）長紅K棒收盤 24.4 突破前5日高點 24.05"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 21.9 觸及 MA10(21.93)，今日紅K反彈確認支撐有效"
+        },
+        {
+          "ruleId": "volume-breakout-high",
+          "ruleName": "攻擊量突破",
+          "signalType": "BUY",
+          "reason": "量比 2.4倍（12,392,332 / 均量 5,159,283），突破近20日高點 24.05"
+        },
+        {
+          "ruleId": "high-deviation-warning",
+          "ruleName": "乖離超15% 改MA5停利",
+          "signalType": "WATCH",
+          "reason": "收盤乖離月線 16.1%（高於+15%門檻），停利機制切換"
+        },
+        {
+          "ruleId": "macd-bearish-divergence",
+          "ruleName": "MACD高檔背離",
+          "signalType": "WATCH",
+          "reason": "股價創新高 24.4，但MACD OSC(0.328) < 前高時OSC(0.400)，動能衰竭警示"
+        }
+      ],
+      "sixConditionsScore": 6,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": true,
+        "ma": true,
+        "volume": true,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:35:18.111Z"
+    },
+    {
+      "symbol": "8433.TWO",
+      "name": "弘帆",
+      "market": "TW",
+      "price": 61.9,
+      "changePercent": 4.03,
+      "volume": 194921,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 61.9 突破 MA5 (60.7)"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 59.5 觸及 MA10(59.05)，今日紅K反彈確認支撐有效"
+        }
+      ],
+      "sixConditionsScore": 6,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": true,
+        "ma": true,
+        "volume": true,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:36:57.023Z"
+    },
+    {
+      "symbol": "2851.TW",
+      "name": "中再保",
+      "market": "TW",
+      "price": 31.6,
+      "changePercent": 3.44,
+      "volume": 4298183,
+      "triggeredRules": [
+        {
+          "ruleId": "bullish-trend-confirm",
+          "ruleName": "多頭突破買點",
+          "signalType": "BUY",
+          "reason": "帶量（量增）長紅K棒收盤 31.6 突破前5日高點 30.80"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 30.4 觸及 MA10(29.83)，今日紅K反彈確認支撐有效"
+        },
+        {
+          "ruleId": "macd-bearish-divergence",
+          "ruleName": "MACD高檔背離",
+          "signalType": "WATCH",
+          "reason": "股價創新高 31.6，但MACD OSC(0.269) < 前高時OSC(0.297)，動能衰竭警示"
+        }
+      ],
+      "sixConditionsScore": 6,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": true,
+        "ma": true,
+        "volume": true,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:35:00.618Z"
+    },
+    {
+      "symbol": "2548.TW",
+      "name": "華固",
+      "market": "TW",
+      "price": 123.5,
+      "changePercent": 3.35,
+      "volume": 3900758,
+      "triggeredRules": [
+        {
+          "ruleId": "bullish-trend-confirm",
+          "ruleName": "多頭突破買點",
+          "signalType": "BUY",
+          "reason": "帶量（量增）長紅K棒收盤 123.5 突破前5日高點 123.00"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 118 觸及 MA10(117.45)，今日紅K反彈確認支撐有效"
+        }
+      ],
+      "sixConditionsScore": 6,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": true,
+        "ma": true,
+        "volume": true,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:34:57.793Z"
+    },
+    {
+      "symbol": "5292.TW",
+      "name": "華懋",
+      "market": "TW",
+      "price": 220,
+      "changePercent": 10,
+      "volume": 1079750,
+      "triggeredRules": [
+        {
+          "ruleId": "bullish-trend-confirm",
+          "ruleName": "多頭突破買點",
+          "signalType": "BUY",
+          "reason": "帶量（量增）長紅K棒收盤 220 突破前5日高點 203.00"
+        },
+        {
+          "ruleId": "volume-breakout-high",
+          "ruleName": "攻擊量突破",
+          "signalType": "BUY",
+          "reason": "量比 2.9倍（1,079,750 / 均量 378,531），突破近20日高點 203.00"
+        },
+        {
+          "ruleId": "high-deviation-warning",
+          "ruleName": "乖離超15% 改MA5停利",
+          "signalType": "WATCH",
+          "reason": "收盤乖離月線 18.4%（高於+15%門檻），停利機制切換"
+        }
+      ],
+      "sixConditionsScore": 5,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": true,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:35:22.775Z"
+    },
+    {
+      "symbol": "7547.TWO",
+      "name": "碩網",
+      "market": "TW",
+      "price": 76.3,
+      "changePercent": 9.94,
+      "volume": 1580383,
+      "triggeredRules": [
+        {
+          "ruleId": "bullish-trend-confirm",
+          "ruleName": "多頭突破買點",
+          "signalType": "BUY",
+          "reason": "帶量（量增）長紅K棒收盤 76.3 突破前5日高點 75.20"
+        }
+      ],
+      "sixConditionsScore": 5,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": true,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:43.688Z"
+    },
+    {
+      "symbol": "8028.TW",
+      "name": "昇陽半導體",
+      "market": "TW",
+      "price": 199.5,
+      "changePercent": 9.92,
+      "volume": 23670291,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 199.5 突破 MA5 (187.2)"
+        },
+        {
+          "ruleId": "macd-bearish-divergence",
+          "ruleName": "MACD高檔背離",
+          "signalType": "WATCH",
+          "reason": "股價創新高 199.5，但MACD OSC(1.291) < 前高時OSC(2.349)，動能衰竭警示"
+        }
+      ],
+      "sixConditionsScore": 5,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": true,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:35:56.296Z"
+    },
+    {
+      "symbol": "4741.TWO",
+      "name": "泓瀚",
+      "market": "TW",
+      "price": 27.4,
+      "changePercent": 9.82,
+      "volume": 436656,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 27.4 突破 MA5 (26.23)"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 24.3 觸及 MA10(24.52)，今日紅K反彈確認支撐有效"
+        },
+        {
+          "ruleId": "macd-bearish-divergence",
+          "ruleName": "MACD高檔背離",
+          "signalType": "WATCH",
+          "reason": "股價創新高 27.4，但MACD OSC(0.341) < 前高時OSC(0.474)，動能衰竭警示"
+        }
+      ],
+      "sixConditionsScore": 5,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:36:19.805Z"
+    },
+    {
+      "symbol": "6147.TWO",
+      "name": "頎邦",
+      "market": "TW",
+      "price": 70.8,
+      "changePercent": 9.77,
+      "volume": 27366794,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 70.8 突破 MA5 (67.52)"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 63.5 觸及 MA10(63.89)，今日紅K反彈確認支撐有效"
+        },
+        {
+          "ruleId": "high-deviation-warning",
+          "ruleName": "乖離超15% 改MA5停利",
+          "signalType": "WATCH",
+          "reason": "收盤乖離月線 19.1%（高於+15%門檻），停利機制切換"
+        }
+      ],
+      "sixConditionsScore": 5,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:36:37.258Z"
+    },
+    {
+      "symbol": "6761.TWO",
+      "name": "穩得",
+      "market": "TW",
+      "price": 189,
+      "changePercent": 9.25,
+      "volume": 4490748,
+      "triggeredRules": [
+        {
+          "ruleId": "bullish-trend-confirm",
+          "ruleName": "多頭突破買點",
+          "signalType": "BUY",
+          "reason": "帶量（量增）長紅K棒收盤 189 突破前5日高點 181.00"
+        },
+        {
+          "ruleId": "volume-breakout-high",
+          "ruleName": "攻擊量突破",
+          "signalType": "BUY",
+          "reason": "量比 2.4倍（4,490,748 / 均量 1,909,698），突破近20日高點 181.00"
+        },
+        {
+          "ruleId": "high-deviation-warning",
+          "ruleName": "乖離超15% 改MA5停利",
+          "signalType": "WATCH",
+          "reason": "收盤乖離月線 15.4%（高於+15%門檻），停利機制切換"
+        },
+        {
+          "ruleId": "macd-golden-cross",
+          "ruleName": "MACD金叉（0軸上）",
+          "signalType": "WATCH",
+          "reason": "DIF(6.8445) 上穿 MACD(5.7268)，OSC由負轉正（綠轉紅柱）"
+        }
+      ],
+      "sixConditionsScore": 5,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": true,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:42.856Z"
+    },
+    {
+      "symbol": "4576.TW",
+      "name": "大銀微系統",
+      "market": "TW",
+      "price": 129,
+      "changePercent": 8.4,
+      "volume": 3966771,
+      "triggeredRules": [
+        {
+          "ruleId": "bullish-trend-confirm",
+          "ruleName": "多頭突破買點",
+          "signalType": "BUY",
+          "reason": "帶量（量增）長紅K棒收盤 129 突破前5日高點 124.50"
+        },
+        {
+          "ruleId": "ma-cluster-breakout",
+          "ruleName": "均線糾結突破",
+          "signalType": "BUY",
+          "reason": "三均線差距僅 0.8%（糾結），帶量紅K突破所有均線"
+        },
+        {
+          "ruleId": "break-above-ma20",
+          "ruleName": "突破月線買點",
+          "signalType": "BUY",
+          "reason": "收盤 129 突破月線 MA20 (120.1)，同時站上季線"
+        },
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 129 突破 MA5 (121.1)"
+        },
+        {
+          "ruleId": "macd-golden-cross",
+          "ruleName": "MACD金叉（0軸上）",
+          "signalType": "WATCH",
+          "reason": "DIF(1.5694) 上穿 MACD(1.1811)，OSC由負轉正（綠轉紅柱）"
+        }
+      ],
+      "sixConditionsScore": 5,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": true,
+        "ma": false,
+        "volume": true,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:35:21.902Z"
+    },
+    {
+      "symbol": "6788.TWO",
+      "name": "華景電",
+      "market": "TW",
+      "price": 401,
+      "changePercent": 6.23,
+      "volume": 6967130,
+      "triggeredRules": [
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 354.5 觸及 MA10(356.70)，今日紅K反彈確認支撐有效"
+        },
+        {
+          "ruleId": "high-deviation-warning",
+          "ruleName": "乖離超15% 改MA5停利",
+          "signalType": "WATCH",
+          "reason": "收盤乖離月線 15.4%（高於+15%門檻），停利機制切換"
+        }
+      ],
+      "sixConditionsScore": 5,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": true,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:42.858Z"
+    },
+    {
+      "symbol": "8476.TW",
+      "name": "台境*",
+      "market": "TW",
+      "price": 20.25,
+      "changePercent": 4.65,
+      "volume": 942927,
+      "triggeredRules": [
+        {
+          "ruleId": "ma-cluster-breakout",
+          "ruleName": "均線糾結突破",
+          "signalType": "BUY",
+          "reason": "三均線差距僅 2.0%（糾結），帶量紅K突破所有均線"
+        },
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 20.25 突破 MA5 (19.7)"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 19.3 觸及 MA10(19.36)，今日紅K反彈確認支撐有效"
+        },
+        {
+          "ruleId": "piercing-red-candle",
+          "ruleName": "穿心紅K（低檔反轉）",
+          "signalType": "BUY",
+          "reason": "今日紅K收盤 20.25 突破昨日長黑K棒1/2價 19.83，低檔穿心紅K反轉訊號"
+        }
+      ],
+      "sixConditionsScore": 5,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:35:58.460Z"
+    },
+    {
+      "symbol": "3580.TWO",
+      "name": "友威科",
+      "market": "TW",
+      "price": 74,
+      "changePercent": 4.23,
+      "volume": 1064070,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 74 突破 MA5 (72.6)"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 71 觸及 MA10(71.50)，今日紅K反彈確認支撐有效"
+        }
+      ],
+      "sixConditionsScore": 5,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:36:15.901Z"
+    },
+    {
+      "symbol": "2010.TW",
+      "name": "春源",
+      "market": "TW",
+      "price": 25.8,
+      "changePercent": 3.82,
+      "volume": 2628301,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 25.8 突破 MA5 (25.13)"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 24.7 觸及 MA10(24.39)，今日紅K反彈確認支撐有效"
+        },
+        {
+          "ruleId": "macd-bearish-divergence",
+          "ruleName": "MACD高檔背離",
+          "signalType": "WATCH",
+          "reason": "股價創新高 25.8，但MACD OSC(0.158) < 前高時OSC(0.204)，動能衰竭警示"
+        }
+      ],
+      "sixConditionsScore": 5,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:34:40.752Z"
+    },
+    {
+      "symbol": "8176.TWO",
+      "name": "智捷",
+      "market": "TW",
+      "price": 12.25,
+      "changePercent": 3.38,
+      "volume": 180489,
+      "triggeredRules": [
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 11.8 觸及 MA10(11.96)，今日紅K反彈確認支撐有效"
+        }
+      ],
+      "sixConditionsScore": 5,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:36:45.256Z"
+    },
+    {
+      "symbol": "2816.TW",
+      "name": "旺旺保",
+      "market": "TW",
+      "price": 31.6,
+      "changePercent": 3.27,
+      "volume": 390369,
+      "triggeredRules": [
+        {
+          "ruleId": "ma-cluster-breakout",
+          "ruleName": "均線糾結突破",
+          "signalType": "BUY",
+          "reason": "三均線差距僅 1.2%（糾結），帶量紅K突破所有均線"
+        },
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 31.6 突破 MA5 (30.9)"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 30.4 觸及 MA10(30.59)，今日紅K反彈確認支撐有效"
+        },
+        {
+          "ruleId": "macd-golden-cross",
+          "ruleName": "MACD金叉（0軸上）",
+          "signalType": "WATCH",
+          "reason": "DIF(0.4052) 上穿 MACD(0.3574)，OSC由負轉正（綠轉紅柱）"
+        }
+      ],
+      "sixConditionsScore": 5,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": false,
+        "ma": true,
+        "volume": true,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:34:58.514Z"
+    },
+    {
+      "symbol": "7718.TWO",
+      "name": "友鋮",
+      "market": "TW",
+      "price": 48.2,
+      "changePercent": 2.34,
+      "volume": 142134,
+      "triggeredRules": [
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 46.8 觸及 MA10(48.20)，今日紅K反彈確認支撐有效"
+        },
+        {
+          "ruleId": "piercing-red-candle",
+          "ruleName": "穿心紅K（低檔反轉）",
+          "signalType": "BUY",
+          "reason": "今日紅K收盤 48.2 突破昨日長黑K棒1/2價 47.97，低檔穿心紅K反轉訊號"
+        }
+      ],
+      "sixConditionsScore": 5,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:36:43.904Z"
+    },
+    {
+      "symbol": "1595.TWO",
+      "name": "川寶",
+      "market": "TW",
+      "price": 42.85,
+      "changePercent": 2.02,
+      "volume": 354267,
+      "triggeredRules": [
+        {
+          "ruleId": "piercing-red-candle",
+          "ruleName": "穿心紅K（低檔反轉）",
+          "signalType": "BUY",
+          "reason": "今日紅K收盤 42.85 突破昨日長黑K棒1/2價 42.70，低檔穿心紅K反轉訊號"
+        }
+      ],
+      "sixConditionsScore": 5,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:36:03.967Z"
+    },
+    {
+      "symbol": "4527.TWO",
+      "name": "方土霖",
+      "market": "TW",
+      "price": 42.6,
+      "changePercent": 0.24,
+      "volume": 35122,
+      "triggeredRules": [
+        {
+          "ruleId": "ma-cluster-breakout",
+          "ruleName": "均線糾結突破",
+          "signalType": "BUY",
+          "reason": "三均線差距僅 1.6%（糾結），帶量紅K突破所有均線"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 42.2 觸及 MA10(42.08)，今日紅K反彈確認支撐有效"
+        }
+      ],
+      "sixConditionsScore": 5,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": false,
+        "ma": true,
+        "volume": true,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "起漲段",
+      "scanTime": "2026-03-25T14:36:17.334Z"
+    },
     {
       "symbol": "3533.TW",
       "name": "嘉澤",
@@ -43,7 +807,241 @@
       },
       "trendState": "多頭",
       "trendPosition": "末升段(高檔)",
-      "scanTime": "2026-03-25T14:17:15.922Z"
+      "scanTime": "2026-03-25T14:35:19.537Z"
+    },
+    {
+      "symbol": "4977.TW",
+      "name": "眾達-KY",
+      "market": "TW",
+      "price": 199.5,
+      "changePercent": 9.92,
+      "volume": 6719968,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 199.5 突破 MA5 (191.7)"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 179.5 觸及 MA10(183.45)，今日紅K反彈確認支撐有效"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:35:22.538Z"
+    },
+    {
+      "symbol": "3715.TW",
+      "name": "定穎投控",
+      "market": "TW",
+      "price": 183,
+      "changePercent": 9.91,
+      "volume": 37000079,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 183 突破 MA5 (177.8)"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:35:20.024Z"
+    },
+    {
+      "symbol": "3563.TW",
+      "name": "牧德",
+      "market": "TW",
+      "price": 744,
+      "changePercent": 9.9,
+      "volume": 2925411,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 744 突破 MA5 (716.4)"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 677 觸及 MA10(697.40)，今日紅K反彈確認支撐有效"
+        },
+        {
+          "ruleId": "macd-bearish-divergence",
+          "ruleName": "MACD高檔背離",
+          "signalType": "WATCH",
+          "reason": "股價創新高 744，但MACD OSC(2.804) < 前高時OSC(12.705)，動能衰竭警示"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:35:19.524Z"
+    },
+    {
+      "symbol": "6291.TWO",
+      "name": "沛亨",
+      "market": "TW",
+      "price": 372,
+      "changePercent": 9.9,
+      "volume": 2260913,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 372 突破 MA5 (354.4)"
+        },
+        {
+          "ruleId": "high-deviation-warning",
+          "ruleName": "乖離超15% 改MA5停利",
+          "signalType": "WATCH",
+          "reason": "收盤乖離月線 20.8%（高於+15%門檻），停利機制切換"
+        },
+        {
+          "ruleId": "macd-bearish-divergence",
+          "ruleName": "MACD高檔背離",
+          "signalType": "WATCH",
+          "reason": "股價創新高 372，但MACD OSC(3.090) < 前高時OSC(5.188)，動能衰竭警示"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:40.930Z"
+    },
+    {
+      "symbol": "2345.TW",
+      "name": "智邦",
+      "market": "TW",
+      "price": 1685,
+      "changePercent": 9.77,
+      "volume": 6909370,
+      "triggeredRules": [
+        {
+          "ruleId": "bullish-trend-confirm",
+          "ruleName": "多頭突破買點",
+          "signalType": "BUY",
+          "reason": "帶量（量增）長紅K棒收盤 1685 突破前5日高點 1675.00"
+        },
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 1685 突破 MA5 (1597)"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 1515 觸及 MA10(1515.50)，今日紅K反彈確認支撐有效"
+        },
+        {
+          "ruleId": "macd-bearish-divergence",
+          "ruleName": "MACD高檔背離",
+          "signalType": "WATCH",
+          "reason": "股價創新高 1685，但MACD OSC(10.976) < 前高時OSC(11.911)，動能衰竭警示"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:34:53.843Z"
+    },
+    {
+      "symbol": "6640.TWO",
+      "name": "均華",
+      "market": "TW",
+      "price": 1180,
+      "changePercent": 9.77,
+      "volume": 464611,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 1180 突破 MA5 (1127)"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 1040 觸及 MA10(1059.90)，今日紅K反彈確認支撐有效"
+        },
+        {
+          "ruleId": "high-deviation-warning",
+          "ruleName": "乖離超15% 改MA5停利",
+          "signalType": "WATCH",
+          "reason": "收盤乖離月線 23.3%（高於+15%門檻），停利機制切換"
+        },
+        {
+          "ruleId": "macd-bearish-divergence",
+          "ruleName": "MACD高檔背離",
+          "signalType": "WATCH",
+          "reason": "股價創新高 1180，但MACD OSC(17.228) < 前高時OSC(27.900)，動能衰竭警示"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:42.234Z"
     },
     {
       "symbol": "3006.TW",
@@ -71,7 +1069,41 @@
       },
       "trendState": "多頭",
       "trendPosition": "末升段(高檔)",
-      "scanTime": "2026-03-25T14:17:16.920Z"
+      "scanTime": "2026-03-25T14:35:15.614Z"
+    },
+    {
+      "symbol": "6588.TWO",
+      "name": "東典光電",
+      "market": "TW",
+      "price": 105.5,
+      "changePercent": 9.55,
+      "volume": 1112290,
+      "triggeredRules": [
+        {
+          "ruleId": "bullish-ma-alignment",
+          "ruleName": "多頭排列確認",
+          "signalType": "WATCH",
+          "reason": "MA5(103.62) > MA10(95.33) > MA20(93.63) 三線多頭排列剛成形"
+        },
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 105.5 突破 MA5 (103.62)"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:41.991Z"
     },
     {
       "symbol": "2308.TW",
@@ -123,7 +1155,7 @@
       },
       "trendState": "多頭",
       "trendPosition": "末升段(高檔)",
-      "scanTime": "2026-03-25T14:16:52.973Z"
+      "scanTime": "2026-03-25T14:34:50.293Z"
     },
     {
       "symbol": "3017.TW",
@@ -163,7 +1195,905 @@
       },
       "trendState": "多頭",
       "trendPosition": "末升段(高檔)",
-      "scanTime": "2026-03-25T14:16:56.523Z"
+      "scanTime": "2026-03-25T14:35:15.775Z"
+    },
+    {
+      "symbol": "6831.TW",
+      "name": "邁科",
+      "market": "TW",
+      "price": 363,
+      "changePercent": 7.4,
+      "volume": 1205202,
+      "triggeredRules": [
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 325 觸及 MA10(323.25)，今日紅K反彈確認支撐有效"
+        },
+        {
+          "ruleId": "high-deviation-warning",
+          "ruleName": "乖離超15% 改MA5停利",
+          "signalType": "WATCH",
+          "reason": "收盤乖離月線 15.9%（高於+15%門檻），停利機制切換"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:35:55.287Z"
+    },
+    {
+      "symbol": "6274.TWO",
+      "name": "台燿",
+      "market": "TW",
+      "price": 580,
+      "changePercent": 7.21,
+      "volume": 15685765,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 580 突破 MA5 (559.4)"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 528 觸及 MA10(519.45)，今日紅K反彈確認支撐有效"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:40.939Z"
+    },
+    {
+      "symbol": "8155.TWO",
+      "name": "博智",
+      "market": "TW",
+      "price": 268,
+      "changePercent": 7.2,
+      "volume": 1411973,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 268 突破 MA5 (265.5)"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:44.960Z"
+    },
+    {
+      "symbol": "6568.TWO",
+      "name": "宏觀",
+      "market": "TW",
+      "price": 217.5,
+      "changePercent": 7.14,
+      "volume": 1531094,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 217.5 突破 MA5 (210.7)"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 203 觸及 MA10(200.05)，今日紅K反彈確認支撐有效"
+        },
+        {
+          "ruleId": "high-deviation-warning",
+          "ruleName": "乖離超15% 改MA5停利",
+          "signalType": "WATCH",
+          "reason": "收盤乖離月線 17.4%（高於+15%門檻），停利機制切換"
+        },
+        {
+          "ruleId": "macd-bearish-divergence",
+          "ruleName": "MACD高檔背離",
+          "signalType": "WATCH",
+          "reason": "股價創新高 217.5，但MACD OSC(1.788) < 前高時OSC(2.792)，動能衰竭警示"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:41.868Z"
+    },
+    {
+      "symbol": "6509.TWO",
+      "name": "聚和",
+      "market": "TW",
+      "price": 45.3,
+      "changePercent": 5.84,
+      "volume": 11098322,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 45.3 突破 MA5 (44.37)"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 42.8 觸及 MA10(43.03)，今日紅K反彈確認支撐有效"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:41.602Z"
+    },
+    {
+      "symbol": "2458.TW",
+      "name": "義隆",
+      "market": "TW",
+      "price": 135,
+      "changePercent": 5.47,
+      "volume": 5796222,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma20",
+          "ruleName": "突破月線買點",
+          "signalType": "BUY",
+          "reason": "收盤 135 突破月線 MA20 (133.075)，同時站上季線"
+        },
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 135 突破 MA5 (133.3)"
+        },
+        {
+          "ruleId": "piercing-red-candle",
+          "ruleName": "穿心紅K（低檔反轉）",
+          "signalType": "BUY",
+          "reason": "今日紅K收盤 135 突破昨日長黑K棒1/2價 130.50，低檔穿心紅K反轉訊號"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": true,
+        "ma": false,
+        "volume": true,
+        "indicator": false
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:34:55.434Z"
+    },
+    {
+      "symbol": "8064.TWO",
+      "name": "東捷",
+      "market": "TW",
+      "price": 68,
+      "changePercent": 5.26,
+      "volume": 10824471,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 68 突破 MA5 (66.96)"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 63.8 觸及 MA10(63.11)，今日紅K反彈確認支撐有效"
+        },
+        {
+          "ruleId": "macd-bearish-divergence",
+          "ruleName": "MACD高檔背離",
+          "signalType": "WATCH",
+          "reason": "股價創新高 68，但MACD OSC(1.306) < 前高時OSC(2.033)，動能衰竭警示"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:44.518Z"
+    },
+    {
+      "symbol": "6190.TWO",
+      "name": "萬泰科",
+      "market": "TW",
+      "price": 54.9,
+      "changePercent": 4.57,
+      "volume": 9701108,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 54.9 突破 MA5 (54.4)"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 52.5 觸及 MA10(52.18)，今日紅K反彈確認支撐有效"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:36:40.026Z"
+    },
+    {
+      "symbol": "6597.TWO",
+      "name": "立誠",
+      "market": "TW",
+      "price": 64.6,
+      "changePercent": 4.19,
+      "volume": 7553,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 64.6 突破 MA5 (62.62)"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": false,
+        "ma": false,
+        "volume": true,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:36:42.114Z"
+    },
+    {
+      "symbol": "6168.TW",
+      "name": "宏齊",
+      "market": "TW",
+      "price": 26.85,
+      "changePercent": 3.27,
+      "volume": 62369067,
+      "triggeredRules": [
+        {
+          "ruleId": "volume-breakout-high",
+          "ruleName": "攻擊量突破",
+          "signalType": "BUY",
+          "reason": "量比 2.3倍（62,369,067 / 均量 27,431,612），突破近20日高點 26.10"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": false,
+        "ma": true,
+        "volume": true,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:35:26.350Z"
+    },
+    {
+      "symbol": "3289.TWO",
+      "name": "宜特",
+      "market": "TW",
+      "price": 145,
+      "changePercent": 3.2,
+      "volume": 11366444,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 145 突破 MA5 (143.5)"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:36:12.617Z"
+    },
+    {
+      "symbol": "5452.TWO",
+      "name": "佶優",
+      "market": "TW",
+      "price": 35.9,
+      "changePercent": 3.01,
+      "volume": 4936522,
+      "triggeredRules": [
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 34.1 觸及 MA10(34.95)，今日紅K反彈確認支撐有效"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:36.077Z"
+    },
+    {
+      "symbol": "5483.TWO",
+      "name": "中美晶",
+      "market": "TW",
+      "price": 118,
+      "changePercent": 2.61,
+      "volume": 3652524,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma20",
+          "ruleName": "突破月線買點",
+          "signalType": "BUY",
+          "reason": "收盤 118 突破月線 MA20 (115.175)，同時站上季線"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:36:36.200Z"
+    },
+    {
+      "symbol": "3158.TWO",
+      "name": "嘉實",
+      "market": "TW",
+      "price": 94.9,
+      "changePercent": 2.15,
+      "volume": 35622,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 94.9 突破 MA5 (93.82)"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "起漲段",
+      "scanTime": "2026-03-25T14:36:05.657Z"
+    },
+    {
+      "symbol": "8105.TW",
+      "name": "凌巨",
+      "market": "TW",
+      "price": 13.05,
+      "changePercent": 1.95,
+      "volume": 1010267,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma20",
+          "ruleName": "突破月線買點",
+          "signalType": "BUY",
+          "reason": "收盤 13.05 突破月線 MA20 (12.925)，同時站上季線"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:35:56.641Z"
+    },
+    {
+      "symbol": "2501.TW",
+      "name": "國建",
+      "market": "TW",
+      "price": 24.05,
+      "changePercent": 1.91,
+      "volume": 4022059,
+      "triggeredRules": [
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 23.4 觸及 MA10(23.23)，今日紅K反彈確認支撐有效"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:34:57.272Z"
+    },
+    {
+      "symbol": "1531.TW",
+      "name": "高林股",
+      "market": "TW",
+      "price": 12.65,
+      "changePercent": 1.61,
+      "volume": 150667,
+      "triggeredRules": [
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 12.45 觸及 MA10(12.49)，今日紅K反彈確認支撐有效"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "起漲段",
+      "scanTime": "2026-03-25T14:34:36.804Z"
+    },
+    {
+      "symbol": "3168.TW",
+      "name": "眾福科",
+      "market": "TW",
+      "price": 41.6,
+      "changePercent": 1.46,
+      "volume": 33393,
+      "triggeredRules": [
+        {
+          "ruleId": "ma-cluster-breakout",
+          "ruleName": "均線糾結突破",
+          "signalType": "BUY",
+          "reason": "三均線差距僅 0.2%（糾結），帶量紅K突破所有均線"
+        },
+        {
+          "ruleId": "break-above-ma20",
+          "ruleName": "突破月線買點",
+          "signalType": "BUY",
+          "reason": "收盤 41.6 突破月線 MA20 (41.1)，同時站上季線"
+        },
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 41.6 突破 MA5 (41.19)"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": false,
+        "ma": false,
+        "volume": true,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "起漲段",
+      "scanTime": "2026-03-25T14:35:18.898Z"
+    },
+    {
+      "symbol": "3679.TW",
+      "name": "新至陞",
+      "market": "TW",
+      "price": 120,
+      "changePercent": 1.27,
+      "volume": 33355,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 120 突破 MA5 (119.6)"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "起漲段",
+      "scanTime": "2026-03-25T14:35:19.920Z"
+    },
+    {
+      "symbol": "2535.TW",
+      "name": "達欣工",
+      "market": "TW",
+      "price": 73.9,
+      "changePercent": 1.09,
+      "volume": 344132,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 73.9 突破 MA5 (73.28)"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:34:57.520Z"
+    },
+    {
+      "symbol": "4721.TWO",
+      "name": "美琪瑪",
+      "market": "TW",
+      "price": 73.7,
+      "changePercent": 0.82,
+      "volume": 887332,
+      "triggeredRules": [
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 71.7 觸及 MA10(70.54)，今日紅K反彈確認支撐有效"
+        },
+        {
+          "ruleId": "macd-bearish-divergence",
+          "ruleName": "MACD高檔背離",
+          "signalType": "WATCH",
+          "reason": "股價創新高 73.7，但MACD OSC(0.806) < 前高時OSC(0.915)，動能衰竭警示"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:36:19.689Z"
+    },
+    {
+      "symbol": "2906.TW",
+      "name": "高林",
+      "market": "TW",
+      "price": 13.25,
+      "changePercent": 0.76,
+      "volume": 122730,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 13.25 突破 MA5 (13.18)"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "起漲段",
+      "scanTime": "2026-03-25T14:35:15.336Z"
+    },
+    {
+      "symbol": "1219.TW",
+      "name": "福壽",
+      "market": "TW",
+      "price": 13.75,
+      "changePercent": 0.73,
+      "volume": 338133,
+      "triggeredRules": [
+        {
+          "ruleId": "bullish-ma-alignment",
+          "ruleName": "多頭排列確認",
+          "signalType": "WATCH",
+          "reason": "MA5(13.64) > MA10(13.59) > MA20(13.578) 三線多頭排列剛成形"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 13.55 觸及 MA10(13.56)，今日紅K反彈確認支撐有效"
+        }
+      ],
+      "sixConditionsScore": 4,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "起漲段",
+      "scanTime": "2026-03-25T14:34:24.236Z"
+    },
+    {
+      "symbol": "6465.TWO",
+      "name": "威潤",
+      "market": "TW",
+      "price": 45.1,
+      "changePercent": 10,
+      "volume": 582673,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 45.1 突破 MA5 (44.37)"
+        },
+        {
+          "ruleId": "high-deviation-warning",
+          "ruleName": "乖離超15% 改MA5停利",
+          "signalType": "WATCH",
+          "reason": "收盤乖離月線 22.3%（高於+15%門檻），停利機制切換"
+        }
+      ],
+      "sixConditionsScore": 3,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:41.277Z"
+    },
+    {
+      "symbol": "4768.TWO",
+      "name": "晶呈科技",
+      "market": "TW",
+      "price": 485,
+      "changePercent": 9.98,
+      "volume": 1246241,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma20",
+          "ruleName": "突破月線買點",
+          "signalType": "BUY",
+          "reason": "收盤 485 突破月線 MA20 (461.9)，同時站上季線"
+        },
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 485 突破 MA5 (477.4)"
+        }
+      ],
+      "sixConditionsScore": 3,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": false
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:19.960Z"
+    },
+    {
+      "symbol": "3508.TWO",
+      "name": "位速",
+      "market": "TW",
+      "price": 43.65,
+      "changePercent": 9.95,
+      "volume": 1840507,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma20",
+          "ruleName": "突破月線買點",
+          "signalType": "BUY",
+          "reason": "收盤 43.65 突破月線 MA20 (40.375)，同時站上季線"
+        }
+      ],
+      "sixConditionsScore": 3,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": false
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:15.382Z"
+    },
+    {
+      "symbol": "3105.TWO",
+      "name": "穩懋",
+      "market": "TW",
+      "price": 344.5,
+      "changePercent": 9.89,
+      "volume": 5355148,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 344.5 突破 MA5 (334.3)"
+        },
+        {
+          "ruleId": "macd-golden-cross",
+          "ruleName": "MACD金叉（0軸上）",
+          "signalType": "WATCH",
+          "reason": "DIF(19.8933) 上穿 MACD(19.7571)，OSC由負轉正（綠轉紅柱）"
+        }
+      ],
+      "sixConditionsScore": 3,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:05.424Z"
+    },
+    {
+      "symbol": "3529.TWO",
+      "name": "力旺",
+      "market": "TW",
+      "price": 2785,
+      "changePercent": 9.86,
+      "volume": 720427,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 2785 突破 MA5 (2679)"
+        },
+        {
+          "ruleId": "macd-bearish-divergence",
+          "ruleName": "MACD高檔背離",
+          "signalType": "WATCH",
+          "reason": "股價創新高 2785，但MACD OSC(-1.523) < 前高時OSC(28.362)，動能衰竭警示"
+        }
+      ],
+      "sixConditionsScore": 3,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": false
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:15.624Z"
     },
     {
       "symbol": "2360.TW",
@@ -197,7 +2127,143 @@
       },
       "trendState": "多頭",
       "trendPosition": "末升段(高檔)",
-      "scanTime": "2026-03-25T14:16:58.457Z"
+      "scanTime": "2026-03-25T14:34:54.123Z"
+    },
+    {
+      "symbol": "2313.TW",
+      "name": "華通",
+      "market": "TW",
+      "price": 230,
+      "changePercent": 9.79,
+      "volume": 60388130,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma20",
+          "ruleName": "突破月線買點",
+          "signalType": "BUY",
+          "reason": "收盤 230 突破月線 MA20 (213)，同時站上季線"
+        },
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 230 突破 MA5 (220.2)"
+        }
+      ],
+      "sixConditionsScore": 3,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": false
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:34:50.311Z"
+    },
+    {
+      "symbol": "3234.TWO",
+      "name": "光環",
+      "market": "TW",
+      "price": 95.5,
+      "changePercent": 9.14,
+      "volume": 4933482,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 95.5 突破 MA5 (92.88)"
+        }
+      ],
+      "sixConditionsScore": 3,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": false
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:06.739Z"
+    },
+    {
+      "symbol": "6285.TW",
+      "name": "啟碁",
+      "market": "TW",
+      "price": 180,
+      "changePercent": 7.78,
+      "volume": 19491009,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma20",
+          "ruleName": "突破月線買點",
+          "signalType": "BUY",
+          "reason": "收盤 180 突破月線 MA20 (170.975)，同時站上季線"
+        },
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 180 突破 MA5 (171.9)"
+        }
+      ],
+      "sixConditionsScore": 3,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": false,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:35:30.041Z"
+    },
+    {
+      "symbol": "4760.TWO",
+      "name": "勤凱",
+      "market": "TW",
+      "price": 191,
+      "changePercent": 7,
+      "volume": 409939,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma20",
+          "ruleName": "突破月線買點",
+          "signalType": "BUY",
+          "reason": "收盤 191 突破月線 MA20 (183.8)，同時站上季線"
+        },
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 191 突破 MA5 (185.1)"
+        },
+        {
+          "ruleId": "piercing-red-candle",
+          "ruleName": "穿心紅K（低檔反轉）",
+          "signalType": "BUY",
+          "reason": "今日紅K收盤 191 突破昨日長黑K棒1/2價 182.50，低檔穿心紅K反轉訊號"
+        }
+      ],
+      "sixConditionsScore": 3,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": false,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:19.963Z"
     },
     {
       "symbol": "2383.TW",
@@ -231,7 +2297,41 @@
       },
       "trendState": "多頭",
       "trendPosition": "末升段(高檔)",
-      "scanTime": "2026-03-25T14:16:56.778Z"
+      "scanTime": "2026-03-25T14:34:54.404Z"
+    },
+    {
+      "symbol": "3702.TW",
+      "name": "大聯大",
+      "market": "TW",
+      "price": 95.8,
+      "changePercent": 5.62,
+      "volume": 35739018,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 95.8 突破 MA5 (92.32)"
+        },
+        {
+          "ruleId": "macd-bearish-divergence",
+          "ruleName": "MACD高檔背離",
+          "signalType": "WATCH",
+          "reason": "股價創新高 95.8，但MACD OSC(1.656) < 前高時OSC(2.301)，動能衰竭警示"
+        }
+      ],
+      "sixConditionsScore": 3,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:35:19.927Z"
     },
     {
       "symbol": "4958.TW",
@@ -265,11 +2365,101 @@
       },
       "trendState": "多頭",
       "trendPosition": "末升段(高檔)",
-      "scanTime": "2026-03-25T14:16:56.113Z"
+      "scanTime": "2026-03-25T14:35:22.421Z"
+    },
+    {
+      "symbol": "1711.TW",
+      "name": "永光",
+      "market": "TW",
+      "price": 40.6,
+      "changePercent": 5.18,
+      "volume": 7492500,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 40.6 突破 MA5 (40.54)"
+        }
+      ],
+      "sixConditionsScore": 3,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:34:38.635Z"
+    },
+    {
+      "symbol": "4908.TWO",
+      "name": "前鼎",
+      "market": "TW",
+      "price": 114,
+      "changePercent": 4.59,
+      "volume": 9766893,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 114 突破 MA5 (111.4)"
+        }
+      ],
+      "sixConditionsScore": 3,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:20.096Z"
+    },
+    {
+      "symbol": "3665.TW",
+      "name": "貿聯-KY",
+      "market": "TW",
+      "price": 1805,
+      "changePercent": 4.34,
+      "volume": 4300715,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 1805 突破 MA5 (1770)"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 1710 觸及 MA10(1700.00)，今日紅K反彈確認支撐有效"
+        }
+      ],
+      "sixConditionsScore": 3,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:35:19.815Z"
     },
     {
       "symbol": "6415.TW",
-      "name": "矽力-KY",
+      "name": "矽力*-KY",
       "market": "TW",
       "price": 293.5,
       "changePercent": 3.89,
@@ -299,7 +2489,205 @@
       },
       "trendState": "多頭",
       "trendPosition": "末升段(高檔)",
-      "scanTime": "2026-03-25T14:16:51.228Z"
+      "scanTime": "2026-03-25T14:35:30.147Z"
+    },
+    {
+      "symbol": "2855.TW",
+      "name": "統一證",
+      "market": "TW",
+      "price": 32.2,
+      "changePercent": 3.87,
+      "volume": 5185678,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma20",
+          "ruleName": "突破月線買點",
+          "signalType": "BUY",
+          "reason": "收盤 32.2 突破月線 MA20 (31.113)，同時站上季線"
+        },
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 32.2 突破 MA5 (31.96)"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 30.65 觸及 MA10(31.56)，今日紅K反彈確認支撐有效"
+        },
+        {
+          "ruleId": "piercing-red-candle",
+          "ruleName": "穿心紅K（低檔反轉）",
+          "signalType": "BUY",
+          "reason": "今日紅K收盤 32.2 突破昨日長黑K棒1/2價 31.23，低檔穿心紅K反轉訊號"
+        }
+      ],
+      "sixConditionsScore": 3,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": true,
+        "volume": false,
+        "indicator": false
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:35:01.442Z"
+    },
+    {
+      "symbol": "6805.TW",
+      "name": "富世達",
+      "market": "TW",
+      "price": 1905,
+      "changePercent": 3.81,
+      "volume": 2265059,
+      "triggeredRules": [
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 1795 觸及 MA10(1847.00)，今日紅K反彈確認支撐有效"
+        }
+      ],
+      "sixConditionsScore": 3,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:35:55.306Z"
+    },
+    {
+      "symbol": "2481.TW",
+      "name": "強茂",
+      "market": "TW",
+      "price": 100,
+      "changePercent": 2.99,
+      "volume": 35139633,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 100 突破 MA5 (96.98)"
+        }
+      ],
+      "sixConditionsScore": 3,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": false,
+        "ma": false,
+        "volume": true,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:34:57.002Z"
+    },
+    {
+      "symbol": "6693.TWO",
+      "name": "廣閎科",
+      "market": "TW",
+      "price": 105.5,
+      "changePercent": 2.93,
+      "volume": 1406545,
+      "triggeredRules": [
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 98.6 觸及 MA10(99.64)，今日紅K反彈確認支撐有效"
+        },
+        {
+          "ruleId": "macd-bearish-divergence",
+          "ruleName": "MACD高檔背離",
+          "signalType": "WATCH",
+          "reason": "股價創新高 105.5，但MACD OSC(1.098) < 前高時OSC(1.538)，動能衰竭警示"
+        }
+      ],
+      "sixConditionsScore": 3,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:42.460Z"
+    },
+    {
+      "symbol": "3707.TWO",
+      "name": "漢磊",
+      "market": "TW",
+      "price": 59.9,
+      "changePercent": 2.92,
+      "volume": 2955532,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 59.9 突破 MA5 (59.32)"
+        },
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 57.6 觸及 MA10(58.49)，今日紅K反彈確認支撐有效"
+        }
+      ],
+      "sixConditionsScore": 3,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:16.278Z"
+    },
+    {
+      "symbol": "6223.TWO",
+      "name": "旺矽",
+      "market": "TW",
+      "price": 3750,
+      "changePercent": 2.18,
+      "volume": 1550188,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 3750 突破 MA5 (3732)"
+        }
+      ],
+      "sixConditionsScore": 3,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:40.541Z"
     },
     {
       "symbol": "4938.TW",
@@ -327,7 +2715,125 @@
       },
       "trendState": "多頭",
       "trendPosition": "起漲段",
-      "scanTime": "2026-03-25T14:16:55.729Z"
+      "scanTime": "2026-03-25T14:35:22.430Z"
+    },
+    {
+      "symbol": "6670.TW",
+      "name": "復盛應用",
+      "market": "TW",
+      "price": 277.5,
+      "changePercent": 0.54,
+      "volume": 201859,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 277.5 突破 MA5 (276.6)"
+        }
+      ],
+      "sixConditionsScore": 3,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": false,
+        "ma": false,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:35:54.697Z"
+    },
+    {
+      "symbol": "6894.TWO",
+      "name": "衛司特",
+      "market": "TW",
+      "price": 375.5,
+      "changePercent": 0.27,
+      "volume": 299545,
+      "triggeredRules": [
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 343.5 觸及 MA10(347.60)，今日紅K反彈確認支撐有效"
+        },
+        {
+          "ruleId": "macd-bearish-divergence",
+          "ruleName": "MACD高檔背離",
+          "signalType": "WATCH",
+          "reason": "股價創新高 375.5，但MACD OSC(3.492) < 前高時OSC(6.570)，動能衰竭警示"
+        }
+      ],
+      "sixConditionsScore": 3,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:43.274Z"
+    },
+    {
+      "symbol": "4987.TWO",
+      "name": "科誠",
+      "market": "TW",
+      "price": 81.2,
+      "changePercent": 0.12,
+      "volume": 14200,
+      "triggeredRules": [
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 81.1 觸及 MA10(81.01)，今日紅K反彈確認支撐有效"
+        }
+      ],
+      "sixConditionsScore": 3,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": false
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:36:20.341Z"
+    },
+    {
+      "symbol": "4744.TWO",
+      "name": "皇將",
+      "market": "TW",
+      "price": 34.8,
+      "changePercent": -0.57,
+      "volume": 381905,
+      "triggeredRules": [
+        {
+          "ruleId": "bullish-pullback-buy",
+          "ruleName": "回踩加碼點",
+          "signalType": "ADD",
+          "reason": "多頭排列中，前日低點 34.25 觸及 MA10(34.74)，今日紅K反彈確認支撐有效"
+        }
+      ],
+      "sixConditionsScore": 3,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:19.808Z"
     },
     {
       "symbol": "3037.TW",
@@ -361,7 +2867,41 @@
       },
       "trendState": "多頭",
       "trendPosition": "末升段(高檔)",
-      "scanTime": "2026-03-25T14:16:56.897Z"
+      "scanTime": "2026-03-25T14:35:18.345Z"
+    },
+    {
+      "symbol": "3081.TWO",
+      "name": "聯亞",
+      "market": "TW",
+      "price": 1540,
+      "changePercent": 10,
+      "volume": 213049,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma20",
+          "ruleName": "突破月線買點",
+          "signalType": "BUY",
+          "reason": "收盤 1540 突破月線 MA20 (1441.25)，同時站上季線"
+        },
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 1540 突破 MA5 (1520)"
+        }
+      ],
+      "sixConditionsScore": 2,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": false,
+        "ma": true,
+        "volume": false,
+        "indicator": false
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:05.417Z"
     },
     {
       "symbol": "2367.TW",
@@ -395,7 +2935,357 @@
       },
       "trendState": "多頭",
       "trendPosition": "末升段(高檔)",
-      "scanTime": "2026-03-25T14:17:15.491Z"
+      "scanTime": "2026-03-25T14:34:54.121Z"
+    },
+    {
+      "symbol": "6213.TW",
+      "name": "聯茂",
+      "market": "TW",
+      "price": 145.5,
+      "changePercent": 9.81,
+      "volume": 10983249,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma20",
+          "ruleName": "突破月線買點",
+          "signalType": "BUY",
+          "reason": "收盤 145.5 突破月線 MA20 (136.475)，同時站上季線"
+        },
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 145.5 突破 MA5 (141.8)"
+        }
+      ],
+      "sixConditionsScore": 2,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": false,
+        "volume": false,
+        "indicator": false
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:35:26.633Z"
+    },
+    {
+      "symbol": "6877.TWO",
+      "name": "鏵友益",
+      "market": "TW",
+      "price": 115,
+      "changePercent": 9,
+      "volume": 916695,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma20",
+          "ruleName": "突破月線買點",
+          "signalType": "BUY",
+          "reason": "收盤 115 突破月線 MA20 (108.8)，同時站上季線"
+        },
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 115 突破 MA5 (112.6)"
+        }
+      ],
+      "sixConditionsScore": 2,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": false,
+        "volume": false,
+        "indicator": false
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:43.264Z"
+    },
+    {
+      "symbol": "6937.TW",
+      "name": "天虹",
+      "market": "TW",
+      "price": 266,
+      "changePercent": 6.19,
+      "volume": 690484,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma20",
+          "ruleName": "突破月線買點",
+          "signalType": "BUY",
+          "reason": "收盤 266 突破月線 MA20 (255.5)，同時站上季線"
+        },
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 266 突破 MA5 (263)"
+        },
+        {
+          "ruleId": "piercing-red-candle",
+          "ruleName": "穿心紅K（低檔反轉）",
+          "signalType": "BUY",
+          "reason": "今日紅K收盤 266 突破昨日長黑K棒1/2價 258.25，低檔穿心紅K反轉訊號"
+        }
+      ],
+      "sixConditionsScore": 2,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": false,
+        "volume": false,
+        "indicator": false
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:35:55.843Z"
+    },
+    {
+      "symbol": "6290.TWO",
+      "name": "良維",
+      "market": "TW",
+      "price": 217.5,
+      "changePercent": 4.57,
+      "volume": 3782553,
+      "triggeredRules": [
+        {
+          "ruleId": "piercing-red-candle",
+          "ruleName": "穿心紅K（低檔反轉）",
+          "signalType": "BUY",
+          "reason": "今日紅K收盤 217.5 突破昨日長黑K棒1/2價 215.00，低檔穿心紅K反轉訊號"
+        }
+      ],
+      "sixConditionsScore": 2,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": true,
+        "ma": false,
+        "volume": false,
+        "indicator": false
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:40.934Z"
+    },
+    {
+      "symbol": "6153.TW",
+      "name": "嘉聯益",
+      "market": "TW",
+      "price": 16.55,
+      "changePercent": 1.85,
+      "volume": 2583118,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma20",
+          "ruleName": "突破月線買點",
+          "signalType": "BUY",
+          "reason": "收盤 16.55 突破月線 MA20 (16.268)，同時站上季線"
+        }
+      ],
+      "sixConditionsScore": 2,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": false,
+        "ma": false,
+        "volume": false,
+        "indicator": true
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:35:26.220Z"
+    },
+    {
+      "symbol": "8016.TW",
+      "name": "矽創",
+      "market": "TW",
+      "price": 197,
+      "changePercent": 1.29,
+      "volume": 360148,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma20",
+          "ruleName": "突破月線買點",
+          "signalType": "BUY",
+          "reason": "收盤 197 突破月線 MA20 (196)，同時站上季線"
+        }
+      ],
+      "sixConditionsScore": 2,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": false,
+        "ma": false,
+        "volume": false,
+        "indicator": false
+      },
+      "trendState": "多頭",
+      "trendPosition": "起漲段",
+      "scanTime": "2026-03-25T14:35:56.307Z"
+    },
+    {
+      "symbol": "2248.TW",
+      "name": "華勝-KY",
+      "market": "TW",
+      "price": 49.3,
+      "changePercent": 1.23,
+      "volume": 18000,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma20",
+          "ruleName": "突破月線買點",
+          "signalType": "BUY",
+          "reason": "收盤 49.3 突破月線 MA20 (49.25)，同時站上季線"
+        },
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 49.3 突破 MA5 (49.3)"
+        }
+      ],
+      "sixConditionsScore": 2,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": false,
+        "ma": false,
+        "volume": false,
+        "indicator": false
+      },
+      "trendState": "多頭",
+      "trendPosition": "主升段",
+      "scanTime": "2026-03-25T14:34:49.915Z"
+    },
+    {
+      "symbol": "9905.TW",
+      "name": "大華",
+      "market": "TW",
+      "price": 20.9,
+      "changePercent": 1.21,
+      "volume": 48128,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma20",
+          "ruleName": "突破月線買點",
+          "signalType": "BUY",
+          "reason": "收盤 20.9 突破月線 MA20 (20.852)，同時站上季線"
+        },
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 20.9 突破 MA5 (20.87)"
+        }
+      ],
+      "sixConditionsScore": 2,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": false,
+        "ma": false,
+        "volume": false,
+        "indicator": false
+      },
+      "trendState": "多頭",
+      "trendPosition": "起漲段",
+      "scanTime": "2026-03-25T14:36:02.786Z"
+    },
+    {
+      "symbol": "4506.TWO",
+      "name": "崇友",
+      "market": "TW",
+      "price": 117,
+      "changePercent": 0.43,
+      "volume": 42201,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma20",
+          "ruleName": "突破月線買點",
+          "signalType": "BUY",
+          "reason": "收盤 117 突破月線 MA20 (116.825)，同時站上季線"
+        },
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 117 突破 MA5 (117)"
+        }
+      ],
+      "sixConditionsScore": 2,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": true,
+        "kbar": false,
+        "ma": false,
+        "volume": false,
+        "indicator": false
+      },
+      "trendState": "多頭",
+      "trendPosition": "起漲段",
+      "scanTime": "2026-03-25T14:36:17.317Z"
+    },
+    {
+      "symbol": "2486.TW",
+      "name": "一詮",
+      "market": "TW",
+      "price": 154.5,
+      "changePercent": 5.82,
+      "volume": 1696623,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma5",
+          "ruleName": "短線買點",
+          "signalType": "BUY",
+          "reason": "收盤 154.5 突破 MA5 (151.9)"
+        }
+      ],
+      "sixConditionsScore": 1,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": false,
+        "ma": false,
+        "volume": false,
+        "indicator": false
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:34:57.133Z"
+    },
+    {
+      "symbol": "6233.TWO",
+      "name": "旺玖",
+      "market": "TW",
+      "price": 27.35,
+      "changePercent": 1.67,
+      "volume": 333138,
+      "triggeredRules": [
+        {
+          "ruleId": "break-above-ma20",
+          "ruleName": "突破月線買點",
+          "signalType": "BUY",
+          "reason": "收盤 27.35 突破月線 MA20 (27.228)，同時站上季線"
+        }
+      ],
+      "sixConditionsScore": 1,
+      "sixConditionsBreakdown": {
+        "trend": true,
+        "position": false,
+        "kbar": false,
+        "ma": false,
+        "volume": false,
+        "indicator": false
+      },
+      "trendState": "多頭",
+      "trendPosition": "末升段(高檔)",
+      "scanTime": "2026-03-25T14:36:40.544Z"
     }
   ]
 }

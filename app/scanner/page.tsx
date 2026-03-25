@@ -94,13 +94,13 @@ export default function ScannerPage() {
   const {
     activeMarket, setActiveMarket,
     isScanning, scanProgress, scanningStock, scanningIndex, scanningTotal,
-    currentResults, lastScanTime, error, runScan, loadHistory, history,
+    currentResults, lastScanTime, error, runScan, getHistory,
   } = useScannerStore();
+  const history = getHistory(activeMarket);
 
   const { add: addToWatchlist, has: inWatchlist } = useWatchlistStore();
   const { notifyEmail, notifyMinScore } = useSettingsStore();
 
-  useEffect(() => { loadHistory(activeMarket); }, [activeMarket, loadHistory]);
   const emailNotified = useNotifyOnScanComplete(currentResults, notifyEmail, notifyMinScore, activeMarket);
 
   return (
