@@ -15,12 +15,16 @@ const POSITION_OPTIONS = [
 interface Trade {
   buyDate: string;
   buyPrice: number;
+  buyLabel: string;
+  buyDescription: string;
   buyReason: string;
   sellDate: string | null;
   sellPrice: number | null;
+  sellLabel: string | null;
+  sellDescription: string | null;
   sellReason: string | null;
   shares: number;
-  invested: number;      // shares * buyPrice
+  invested: number;
   pnl: number | null;
   pnlPct: number | null;
   open: boolean;
@@ -41,6 +45,84 @@ interface BacktestResult {
 
 function parseYMD(dateStr: string): number {
   return new Date(dateStr).getTime();
+}
+
+function TradeCard({ trade: t, index: i, fmt }: { trade: Trade; index: number; fmt: (n: number) => string }) {
+  const [expanded, setExpanded] = useState(false);
+  const pnlPos = (t.pnl ?? 0) >= 0;
+
+  return (
+    <div className="bg-slate-900 rounded-lg overflow-hidden">
+      {/* Summary row — always visible */}
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-800/60 transition text-left"
+      >
+        <span className="text-slate-600 text-xs w-4 shrink-0">{i + 1}</span>
+        <div className="flex-1 min-w-0 text-xs font-mono">
+          <span className="text-red-400 font-bold">買 </span>
+          <span className="text-slate-300">{t.buyDate}</span>
+          <span className="text-slate-500 mx-1">@{t.buyPrice.toFixed(2)}</span>
+          {!t.open && (
+            <>
+              <span className="text-slate-600 mx-1">→</span>
+              <span className="text-green-400 font-bold">賣 </span>
+              <span className="text-slate-300">{t.sellDate}</span>
+              <span className="text-slate-500 mx-1">@{t.sellPrice?.toFixed(2)}</span>
+            </>
+          )}
+          {t.open && <span className="text-yellow-400 ml-2">持倉中</span>}
+        </div>
+        <div className={`text-xs font-bold shrink-0 ${pnlPos ? 'text-red-400' : 'text-green-400'}`}>
+          {pnlPos ? '+' : ''}{fmt(t.pnl ?? 0)}
+          <span className="text-[10px] ml-1 opacity-70">({t.pnlPct?.toFixed(1)}%)</span>
+        </div>
+        <span className="text-slate-600 text-[10px] shrink-0">{expanded ? '▲' : '▼'}</span>
+      </button>
+
+      {/* Detail — expanded */}
+      {expanded && (
+        <div className="px-3 pb-3 space-y-2 border-t border-slate-800 pt-2 text-xs">
+          {/* Buy detail */}
+          <div className="space-y-0.5">
+            <div className="flex flex-wrap gap-x-3 text-slate-400 font-mono">
+              <span className="text-red-400 font-bold">買進</span>
+              <span>{t.buyDate} @{t.buyPrice.toFixed(2)}</span>
+              <span>{t.shares.toLocaleString()} 股</span>
+              <span>投入 {fmt(t.invested)} 元</span>
+            </div>
+            <div className="text-amber-300 font-semibold">▶ {t.buyLabel}</div>
+            <div className="text-slate-400 leading-relaxed">{t.buyDescription}</div>
+            {t.buyReason && (
+              <div className="text-slate-500 leading-relaxed whitespace-pre-line border-l-2 border-amber-900/50 pl-2 mt-1">
+                {t.buyReason}
+              </div>
+            )}
+          </div>
+
+          {/* Sell detail */}
+          {!t.open && (
+            <div className="space-y-0.5 border-t border-slate-800 pt-2">
+              <div className="flex flex-wrap gap-x-3 text-slate-400 font-mono">
+                <span className="text-green-400 font-bold">賣出</span>
+                <span>{t.sellDate} @{t.sellPrice?.toFixed(2)}</span>
+                <span className={pnlPos ? 'text-red-400' : 'text-green-400'}>
+                  損益 {pnlPos ? '+' : ''}{fmt(t.pnl ?? 0)} ({t.pnlPct?.toFixed(1)}%)
+                </span>
+              </div>
+              {t.sellLabel && <div className="text-teal-300 font-semibold">▶ {t.sellLabel}</div>}
+              {t.sellDescription && <div className="text-slate-400 leading-relaxed">{t.sellDescription}</div>}
+              {t.sellReason && (
+                <div className="text-slate-500 leading-relaxed whitespace-pre-line border-l-2 border-teal-900/50 pl-2 mt-1">
+                  {t.sellReason}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function BacktestPanel() {
@@ -70,9 +152,11 @@ export default function BacktestPanel() {
 
     let cash     = initialCapital;
     let shares   = 0;
-    let buyPrice = 0;
-    let buyDate  = '';
-    let buyReason = '';
+    let buyPrice       = 0;
+    let buyDate        = '';
+    let buyLabel       = '';
+    let buyDescription = '';
+    let buyReason      = '';
     const trades: Trade[] = [];
 
     // For max drawdown
@@ -107,19 +191,22 @@ export default function BacktestPanel() {
       );
 
       if ((best.type === 'BUY' || best.type === 'ADD') && shares === 0 && cash > 0) {
-        const budget = cash * positionPct;
-        shares    = Math.floor(budget / c.close);
-        buyPrice  = c.close;
-        buyDate   = c.date;
-        buyReason = best.label;
-        cash     -= shares * c.close;
+        const budget   = cash * positionPct;
+        shares         = Math.floor(budget / c.close);
+        buyPrice       = c.close;
+        buyDate        = c.date;
+        buyLabel       = best.label;
+        buyDescription = best.description;
+        buyReason      = best.reason;
+        cash          -= shares * c.close;
       } else if ((best.type === 'SELL' || best.type === 'REDUCE') && shares > 0) {
         const revenue  = shares * c.close;
         const invested = shares * buyPrice;
         const pnl      = revenue - invested;
         trades.push({
-          buyDate, buyPrice, buyReason,
-          sellDate: c.date, sellPrice: c.close, sellReason: best.label,
+          buyDate, buyPrice, buyLabel, buyDescription, buyReason,
+          sellDate: c.date, sellPrice: c.close,
+          sellLabel: best.label, sellDescription: best.description, sellReason: best.reason,
           shares, invested, pnl,
           pnlPct: (pnl / invested) * 100,
           open: false,
@@ -135,8 +222,9 @@ export default function BacktestPanel() {
       const invested  = shares * buyPrice;
       const pnl       = shares * lastPrice - invested;
       trades.push({
-        buyDate, buyPrice, buyReason,
-        sellDate: null, sellPrice: lastPrice, sellReason: null,
+        buyDate, buyPrice, buyLabel, buyDescription, buyReason,
+        sellDate: null, sellPrice: lastPrice,
+        sellLabel: null, sellDescription: null, sellReason: null,
         shares, invested, pnl,
         pnlPct: (pnl / invested) * 100,
         open: true,
@@ -263,49 +351,9 @@ export default function BacktestPanel() {
 
               {/* Trade list */}
               {result.trades.length > 0 ? (
-                <div className="max-h-96 overflow-y-auto space-y-1.5 pr-1">
+                <div className="max-h-[32rem] overflow-y-auto space-y-2 pr-1">
                   {result.trades.map((t, i) => (
-                    <div key={i} className="bg-slate-900 rounded-lg px-3 py-2.5 text-xs font-mono">
-                      {/* Row 1: index + buy info + pnl */}
-                      <div className="flex items-start gap-2">
-                        <span className="text-slate-600 w-4 shrink-0 pt-px">{i + 1}</span>
-                        <div className="flex-1 min-w-0 space-y-1">
-                          {/* Buy */}
-                          <div className="flex flex-wrap items-center gap-x-2">
-                            <span className="text-red-400 font-bold">買進</span>
-                            <span className="text-slate-300">{t.buyDate}</span>
-                            <span className="text-white">@{t.buyPrice.toFixed(2)}</span>
-                            <span className="text-slate-500">{t.shares.toLocaleString()} 股</span>
-                            <span className="text-slate-500">投入 {fmt(t.invested)}</span>
-                          </div>
-                          {/* Buy reason */}
-                          <div className="text-[10px] text-amber-400/80 truncate">↳ {t.buyReason}</div>
-
-                          {/* Sell */}
-                          <div className="flex flex-wrap items-center gap-x-2 mt-0.5">
-                            {t.open ? (
-                              <span className="text-yellow-400">持倉中 @{t.sellPrice?.toFixed(2)}</span>
-                            ) : (
-                              <>
-                                <span className="text-green-400 font-bold">賣出</span>
-                                <span className="text-slate-300">{t.sellDate}</span>
-                                <span className="text-white">@{t.sellPrice?.toFixed(2)}</span>
-                              </>
-                            )}
-                          </div>
-                          {/* Sell reason */}
-                          {!t.open && t.sellReason && (
-                            <div className="text-[10px] text-teal-400/80 truncate">↳ {t.sellReason}</div>
-                          )}
-                        </div>
-
-                        {/* P&L */}
-                        <div className={`text-right shrink-0 font-bold ${(t.pnl ?? 0) >= 0 ? 'text-red-400' : 'text-green-400'}`}>
-                          <div>{(t.pnl ?? 0) >= 0 ? '+' : ''}{fmt(t.pnl ?? 0)}</div>
-                          <div className="text-[10px] opacity-70">{t.pnlPct?.toFixed(1)}%</div>
-                        </div>
-                      </div>
-                    </div>
+                    <TradeCard key={i} trade={t} index={i} fmt={fmt} />
                   ))}
                 </div>
               ) : (
