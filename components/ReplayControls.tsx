@@ -16,6 +16,7 @@ export default function ReplayControls() {
   const {
     allCandles, currentIndex, isPlaying, playSpeed, currentInterval,
     nextCandle, prevCandle, startPlay, stopPlay, setPlaySpeed, resetReplay, jumpToIndex,
+    jumpToNextBuySignal, jumpToPrevBuySignal,
   } = useReplayStore();
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -38,6 +39,20 @@ export default function ReplayControls() {
 
   return (
     <div className="bg-slate-800/80 border border-slate-700 rounded-lg px-2 py-1.5 flex items-center gap-2">
+      {/* Jump to prev/next buy signal */}
+      <div className="flex gap-0.5 shrink-0">
+        <button onClick={jumpToPrevBuySignal} disabled={isPlaying}
+          suppressHydrationWarning title="上一個買點"
+          className="px-1.5 h-7 rounded bg-red-900/60 hover:bg-red-800/80 disabled:opacity-30 text-[10px] font-bold text-red-300 transition whitespace-nowrap">
+          ◀買
+        </button>
+        <button onClick={jumpToNextBuySignal} disabled={isPlaying}
+          suppressHydrationWarning title="下一個買點"
+          className="px-1.5 h-7 rounded bg-red-900/60 hover:bg-red-800/80 disabled:opacity-30 text-[10px] font-bold text-red-300 transition whitespace-nowrap">
+          買▶
+        </button>
+      </div>
+
       {/* Prev / Play / Next */}
       <div className="flex gap-1 shrink-0">
         <button onClick={prevCandle} disabled={currentIndex <= 0 || isPlaying}

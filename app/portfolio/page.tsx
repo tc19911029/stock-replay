@@ -1,0 +1,225 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { usePortfolioStore, PortfolioHolding } from '@/store/portfolioStore';
+
+interface PriceData {
+  price: number;
+  changePercent: number;
+  loading?: boolean;
+  error?: string;
+}
+
+export default function PortfolioPage() {
+  const { holdings, add, remove } = usePortfolioStore();
+  const [prices, setPrices] = useState<Record<string, PriceData>>({});
+  const [form, setForm] = useState({ symbol: '', name: '', shares: '', costPrice: '', buyDate: new Date().toISOString().split('T')[0] });
+  const [formLoading, setFormLoading] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+
+  async function fetchPrice(symbol: string) {
+    setPrices(prev => ({ ...prev, [symbol]: { ...prev[symbol], loading: true } as PriceData }));
+    try {
+      const res = await fetch(`/api/watchlist/conditions?symbol=${encodeURIComponent(symbol)}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      setPrices(prev => ({ ...prev, [symbol]: { price: json.price, changePercent: json.changePercent, loading: false } }));
+    } catch {
+      setPrices(prev => ({ ...prev, [symbol]: { price: 0, changePercent: 0, loading: false, error: '無法取得' } }));
+    }
+  }
+
+  useEffect(() => {
+    holdings.forEach(h => fetchPrice(h.symbol));
+  }, [holdings.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleAdd() {
+    if (!form.symbol || !form.shares || !form.costPrice) return;
+    setFormLoading(true);
+    try {
+      const res = await fetch(`/api/watchlist/conditions?symbol=${encodeURIComponent(form.symbol)}`);
+      const json = await res.json();
+      const name = res.ok ? json.name : form.symbol;
+      const symbol = res.ok ? json.symbol : form.symbol.toUpperCase();
+      add({ symbol, name, shares: Number(form.shares), costPrice: Number(form.costPrice), buyDate: form.buyDate });
+      if (res.ok) setPrices(prev => ({ ...prev, [symbol]: { price: json.price, changePercent: json.changePercent, loading: false } }));
+      setForm({ symbol: '', name: '', shares: '', costPrice: '', buyDate: new Date().toISOString().split('T')[0] });
+      setShowForm(false);
+    } finally {
+      setFormLoading(false);
+    }
+  }
+
+  // Portfolio summary
+  const summary = holdings.reduce((acc, h) => {
+    const p = prices[h.symbol];
+    const currentPrice = p?.price ?? 0;
+    const currentValue = h.shares * currentPrice;
+    const costValue = h.shares * h.costPrice;
+    const pnl = currentPrice > 0 ? currentValue - costValue : 0;
+    acc.totalCost += costValue;
+    acc.totalValue += currentPrice > 0 ? currentValue : costValue;
+    acc.totalPnL += pnl;
+    return acc;
+  }, { totalCost: 0, totalValue: 0, totalPnL: 0 });
+
+  const totalReturn = summary.totalCost > 0 ? (summary.totalPnL / summary.totalCost) * 100 : 0;
+
+  return (
+    <div className="min-h-screen bg-[#0b1120] text-white">
+      <header className="border-b border-slate-800 px-4 py-2.5 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Link href="/" className="text-slate-400 hover:text-white text-sm transition">← 返回走圖</Link>
+          <span className="text-base font-bold">💼 持倉追蹤</span>
+        </div>
+        <button onClick={() => setShowForm(v => !v)}
+          className="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold transition">
+          + 新增持倉
+        </button>
+      </header>
+
+      <div className="p-4 max-w-3xl mx-auto space-y-4">
+
+        {/* Summary */}
+        {holdings.length > 0 && (
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: '總持倉市值', value: `$${summary.totalValue.toLocaleString('zh-TW', { maximumFractionDigits: 0 })}`, color: 'text-yellow-400' },
+              { label: '總損益', value: `${summary.totalPnL >= 0 ? '+' : ''}$${Math.abs(summary.totalPnL).toLocaleString('zh-TW', { maximumFractionDigits: 0 })}`, color: summary.totalPnL >= 0 ? 'text-red-400' : 'text-green-400' },
+              { label: '總報酬率', value: `${totalReturn >= 0 ? '+' : ''}${totalReturn.toFixed(2)}%`, color: totalReturn >= 0 ? 'text-red-400' : 'text-green-400' },
+            ].map(({ label, value, color }) => (
+              <div key={label} className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-center">
+                <p className="text-[10px] text-slate-500 mb-1">{label}</p>
+                <p className={`text-base font-bold font-mono ${color}`}>{value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Add form */}
+        {showForm && (
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3">
+            <h3 className="text-sm font-bold text-slate-200">新增持倉</h3>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">股票代號</label>
+                <input value={form.symbol} onChange={e => setForm(f => ({ ...f, symbol: e.target.value }))}
+                  placeholder="2330 / AAPL"
+                  className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">買進日期</label>
+                <input type="date" value={form.buyDate} onChange={e => setForm(f => ({ ...f, buyDate: e.target.value }))}
+                  className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">股數</label>
+                <input type="number" value={form.shares} onChange={e => setForm(f => ({ ...f, shares: e.target.value }))}
+                  placeholder="1000"
+                  className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">買進均價</label>
+                <input type="number" value={form.costPrice} onChange={e => setForm(f => ({ ...f, costPrice: e.target.value }))}
+                  placeholder="150.00"
+                  className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500" />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleAdd} disabled={formLoading || !form.symbol || !form.shares || !form.costPrice}
+                className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 rounded-lg text-sm font-bold transition">
+                {formLoading ? '載入中...' : '確認新增'}
+              </button>
+              <button onClick={() => setShowForm(false)}
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">取消</button>
+            </div>
+          </div>
+        )}
+
+        {holdings.length === 0 && !showForm && (
+          <div className="text-center py-16 text-slate-500">
+            <p className="text-4xl mb-3">💼</p>
+            <p className="text-sm">尚未新增任何持倉</p>
+            <p className="text-xs text-slate-600 mt-1">僅供學習參考，非實際交易記錄</p>
+          </div>
+        )}
+
+        {/* Holdings list */}
+        <div className="space-y-2">
+          {holdings.map(h => {
+            const p = prices[h.symbol];
+            const currentPrice = p?.price ?? 0;
+            const pnl = currentPrice > 0 ? (currentPrice - h.costPrice) * h.shares : 0;
+            const pnlPct = h.costPrice > 0 ? ((currentPrice - h.costPrice) / h.costPrice) * 100 : 0;
+            const pnlPos = pnl >= 0;
+            const ma5StopLoss = currentPrice * 0.95; // simplified
+            const costStopLoss = h.costPrice * 0.93;
+            const stopLoss = Math.max(ma5StopLoss, costStopLoss);
+
+            return (
+              <div key={h.id} className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-white">{h.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</span>
+                      <span className="text-xs text-slate-400 truncate">{h.name}</span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">
+                      {h.shares.toLocaleString()} 股 · 均價 <span className="text-yellow-400 font-mono">${h.costPrice.toFixed(2)}</span>
+                      · 買進 {h.buyDate}
+                    </div>
+                  </div>
+
+                  {/* Current price */}
+                  <div className="text-right shrink-0">
+                    {p?.loading ? (
+                      <span className="text-xs text-slate-500 animate-pulse">載入中</span>
+                    ) : p?.error ? (
+                      <span className="text-xs text-red-400">{p.error}</span>
+                    ) : currentPrice > 0 ? (
+                      <>
+                        <div className="font-mono font-bold text-white">${currentPrice.toFixed(2)}</div>
+                        <div className={`text-xs font-mono ${p?.changePercent >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                          {(p?.changePercent ?? 0) >= 0 ? '+' : ''}{(p?.changePercent ?? 0).toFixed(2)}%
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+
+                  {/* P&L */}
+                  {currentPrice > 0 && (
+                    <div className={`text-right shrink-0 text-xs font-bold font-mono ${pnlPos ? 'text-red-400' : 'text-green-400'}`}>
+                      <div>{pnlPos ? '+' : ''}${Math.abs(pnl).toLocaleString('zh-TW', { maximumFractionDigits: 0 })}</div>
+                      <div>{pnlPos ? '+' : ''}{pnlPct.toFixed(2)}%</div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-1 shrink-0">
+                    <Link href={`/?load=${h.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}`}
+                      className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs font-bold transition">走圖</Link>
+                    <button onClick={() => remove(h.id)}
+                      className="px-2 py-1 bg-slate-700 hover:bg-red-900/60 hover:text-red-300 rounded text-xs text-slate-400 transition">✕</button>
+                  </div>
+                </div>
+
+                {/* Stop loss row */}
+                {currentPrice > 0 && (
+                  <div className="px-4 pb-2 flex items-center gap-4 text-[10px] text-slate-500">
+                    <span>建議停損 <span className="text-red-400 font-mono font-bold">${stopLoss.toFixed(2)}</span></span>
+                    <span>成本 -7% <span className="font-mono">${costStopLoss.toFixed(2)}</span></span>
+                    <span className="ml-auto">
+                      成本 <span className="font-mono">${(h.costPrice * h.shares).toLocaleString('zh-TW', { maximumFractionDigits: 0 })}</span>
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <p className="text-[10px] text-slate-600 text-center">* 僅供學習參考，停損計算為簡化版本，非投資建議</p>
+      </div>
+    </div>
+  );
+}

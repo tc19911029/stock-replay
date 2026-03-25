@@ -14,7 +14,7 @@ import {
   SeriesMarker,
 } from 'lightweight-charts';
 import { CandleWithIndicators } from '@/types';
-import { subscribeRangeSync, getLastRange } from './CandleChart';
+import { subscribeRangeSync, getLastRange, LogicalRange } from './CandleChart';
 
 function toTime(date: string): Time { return date as Time; }
 
@@ -49,9 +49,8 @@ function VolumeChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]
     mv20Ref.current = chart.addSeries(LineSeries, { color: '#f59e0b', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     chartRef.current = chart;
 
-    const unsub = subscribeRangeSync(range => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (range) chart.timeScale().setVisibleRange(range as any);
+    const unsub = subscribeRangeSync((range: LogicalRange | null) => {
+      if (range) chart.timeScale().setVisibleLogicalRange(range);
     });
     const ro = new ResizeObserver(() => {
       if (containerRef.current) chart.applyOptions({
@@ -85,7 +84,7 @@ function VolumeChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]
     const chart = chartRef.current;
     requestAnimationFrame(() => {
       const r = getLastRange();
-      if (r && chart) chart.timeScale().setVisibleRange(r as any);
+      if (r && chart) chart.timeScale().setVisibleLogicalRange(r);
     });
   }, [candles]);
 
@@ -140,16 +139,17 @@ function MACDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; 
 
   useEffect(() => {
     if (!difRef.current || !signalRef.current || !histRef.current || candles.length === 0) return;
-    difRef.current.setData(candles.filter(c => c.macdDIF != null).map(c => ({ time: toTime(c.date), value: c.macdDIF! })));
-    signalRef.current.setData(candles.filter(c => c.macdSignal != null).map(c => ({ time: toTime(c.date), value: c.macdSignal! })));
-    histRef.current.setData(candles.filter(c => c.macdOSC != null).map(c => ({
-      time: toTime(c.date), value: c.macdOSC!,
-      color: c.macdOSC! >= 0 ? '#ef444499' : '#22c55e99',
+    // Include all bars (pad warmup with 0) so bar count matches main chart → logical range sync works
+    difRef.current.setData(candles.map(c => ({ time: toTime(c.date), value: c.macdDIF ?? 0 })));
+    signalRef.current.setData(candles.map(c => ({ time: toTime(c.date), value: c.macdSignal ?? 0 })));
+    histRef.current.setData(candles.map(c => ({
+      time: toTime(c.date), value: c.macdOSC ?? 0,
+      color: (c.macdOSC ?? 0) >= 0 ? '#ef444499' : '#22c55e99',
     })));
     const chart = chartRef.current;
     requestAnimationFrame(() => {
       const r = getLastRange();
-      if (r && chart) chart.timeScale().setVisibleRange(r as any);
+      if (r && chart) chart.timeScale().setVisibleLogicalRange(r);
     });
   }, [candles]);
 
@@ -209,8 +209,9 @@ function KDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; ho
 
   useEffect(() => {
     if (!kRef.current || !dRef.current || candles.length === 0) return;
-    kRef.current.setData(candles.filter(c => c.kdK != null).map(c => ({ time: toTime(c.date), value: c.kdK! })));
-    dRef.current.setData(candles.filter(c => c.kdD != null).map(c => ({ time: toTime(c.date), value: c.kdD! })));
+    // Pad warmup bars with 50 (neutral KD) so bar count matches main chart
+    kRef.current.setData(candles.map(c => ({ time: toTime(c.date), value: c.kdK ?? 50 })));
+    dRef.current.setData(candles.map(c => ({ time: toTime(c.date), value: c.kdD ?? 50 })));
     if (kMarkRef.current) {
       const dots: SeriesMarker<Time>[] = candles
         .filter(c => c.kdK != null && (c.kdK >= 80 || c.kdK <= 20))
@@ -223,7 +224,7 @@ function KDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; ho
     const chart = chartRef.current;
     requestAnimationFrame(() => {
       const r = getLastRange();
-      if (r && chart) chart.timeScale().setVisibleRange(r as any);
+      if (r && chart) chart.timeScale().setVisibleLogicalRange(r);
     });
   }, [candles]);
 

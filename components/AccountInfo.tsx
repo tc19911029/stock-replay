@@ -25,6 +25,11 @@ export default function AccountInfo() {
           <p className={`text-base font-bold font-mono ${pnlClass(metrics.unrealizedPnL)}`}>
             {pnlSign(metrics.unrealizedPnL)}${formatCurrency(metrics.unrealizedPnL)}
           </p>
+          {metrics.shares > 0 && metrics.avgCost > 0 && (
+            <p className={`text-[10px] font-mono mt-0.5 ${pnlClass(metrics.unrealizedPnL)}`}>
+              {pnlSign(metrics.unrealizedPnL)}{((metrics.unrealizedPnL / (metrics.shares * metrics.avgCost)) * 100).toFixed(2)}%
+            </p>
+          )}
         </div>
         <div className="px-3 py-3 text-center">
           <p className="text-[10px] text-slate-500 mb-1">總報酬率</p>

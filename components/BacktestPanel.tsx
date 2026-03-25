@@ -44,28 +44,45 @@ interface BacktestResult {
   maxDrawdown: number;
   avgHoldDays: number;
   equityCurve: EquityPoint[];
+  bahCurve: EquityPoint[];
+  bahReturn: number;
 }
 
-function EquityCurve({ data, initial }: { data: EquityPoint[]; initial: number }) {
+function EquityCurve({ data, initial, bah }: { data: EquityPoint[]; initial: number; bah?: EquityPoint[] }) {
   if (data.length < 2) return null;
-  const W = 500; const H = 60;
-  const values = data.map(d => d.equity);
-  const min = Math.min(...values, initial * 0.95);
-  const max = Math.max(...values, initial * 1.05);
+  const W = 500; const H = 90;
+  const allValues = [
+    ...data.map(d => d.equity),
+    ...(bah ?? []).map(d => d.equity),
+    initial * 0.93,
+    initial * 1.05,
+  ];
+  const min = Math.min(...allValues);
+  const max = Math.max(...allValues);
   const range = max - min || 1;
   const toY = (v: number) => H - ((v - min) / range) * H;
-  const toX = (i: number) => (i / (data.length - 1)) * W;
-  const pts = data.map((d, i) => `${toX(i).toFixed(1)},${toY(d.equity).toFixed(1)}`).join(' ');
+  const toX = (i: number, len: number) => (i / (len - 1)) * W;
+  const pts = data.map((d, i) => `${toX(i, data.length).toFixed(1)},${toY(d.equity).toFixed(1)}`).join(' ');
   const fillPts = `0,${H} ${pts} ${W},${H}`;
   const baselineY = toY(initial);
   const lastColor = data[data.length - 1].equity >= initial ? '#ef4444' : '#22c55e';
+  const bahPts = bah && bah.length > 1
+    ? bah.map((d, i) => `${toX(i, bah.length).toFixed(1)},${toY(d.equity).toFixed(1)}`).join(' ')
+    : null;
   return (
     <div>
-      <p className="text-xs text-slate-400 mb-1">資產曲線</p>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-14" preserveAspectRatio="none">
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-xs text-slate-400">資產曲線</p>
+        <div className="flex items-center gap-3 text-[10px]">
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-red-400"></span>策略</span>
+          {bahPts && <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-slate-400" style={{ borderTop: '1px dashed #94a3b8' }}></span>買進持有</span>}
+        </div>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-24" preserveAspectRatio="none">
         <line x1="0" y1={baselineY} x2={W} y2={baselineY} stroke="#475569" strokeWidth="1" strokeDasharray="4,4" />
         <polygon points={fillPts} fill={`${lastColor}18`} />
         <polyline points={pts} fill="none" stroke={lastColor} strokeWidth="1.5" />
+        {bahPts && <polyline points={bahPts} fill="none" stroke="#94a3b8" strokeWidth="1" strokeDasharray="4,3" />}
       </svg>
       <div className="flex justify-between text-[10px] text-slate-500 mt-0.5">
         <span>{data[0]?.date}</span>
@@ -186,9 +203,22 @@ export default function BacktestPanel() {
     const idxMap  = new Map(allCandles.map((c, i) => [c.date, i]));
     const filtered = allCandles.filter(c => c.date >= startDate && c.date <= endDate);
     if (filtered.length === 0) {
-      setResult({ trades: [], initialCapital, totalPnL: 0, winCount: 0, lossCount: 0, winRate: 0, finalValue: initialCapital, returnRate: 0, maxDrawdown: 0, avgHoldDays: 0, equityCurve: [] });
+      setResult({ trades: [], initialCapital, totalPnL: 0, winCount: 0, lossCount: 0, winRate: 0, finalValue: initialCapital, returnRate: 0, maxDrawdown: 0, avgHoldDays: 0, equityCurve: [], bahCurve: [], bahReturn: 0 });
       return;
     }
+
+    // Buy-and-hold curve: buy at first close, hold to end
+    const bahShares = filtered[0].close > 0 ? Math.floor(initialCapital / filtered[0].close) : 0;
+    const bahLeftover = initialCapital - bahShares * filtered[0].close;
+    const bahCurveRaw: EquityPoint[] = filtered.map(c => ({
+      date: c.date,
+      equity: bahLeftover + bahShares * c.close,
+    }));
+    const bahReturn = filtered[0].close > 0
+      ? ((filtered[filtered.length - 1].close - filtered[0].close) / filtered[0].close) * 100
+      : 0;
+    const bahStep = Math.max(1, Math.floor(bahCurveRaw.length / 200));
+    const bahCurve = bahCurveRaw.filter((_, i) => i % bahStep === 0 || i === bahCurveRaw.length - 1);
 
     let cash     = initialCapital;
     let shares   = 0;
@@ -345,6 +375,8 @@ export default function BacktestPanel() {
       maxDrawdown,
       avgHoldDays,
       equityCurve: sampledCurve,
+      bahCurve,
+      bahReturn,
     });
   }
 
@@ -462,7 +494,17 @@ export default function BacktestPanel() {
               {/* Equity curve */}
               {result.equityCurve.length > 1 && (
                 <div className="bg-slate-900 rounded-lg p-3">
-                  <EquityCurve data={result.equityCurve} initial={result.initialCapital} />
+                  <EquityCurve data={result.equityCurve} initial={result.initialCapital} bah={result.bahCurve} />
+                  <div className="flex items-center justify-end gap-2 mt-1 text-[10px] text-slate-500">
+                    <span>買進持有報酬：</span>
+                    <span className={result.bahReturn >= 0 ? 'text-red-400 font-mono' : 'text-green-400 font-mono'}>
+                      {result.bahReturn >= 0 ? '+' : ''}{result.bahReturn.toFixed(2)}%
+                    </span>
+                    <span className="text-slate-600">vs 策略</span>
+                    <span className={result.returnRate >= 0 ? 'text-red-400 font-mono' : 'text-green-400 font-mono'}>
+                      {result.returnRate >= 0 ? '+' : ''}{result.returnRate.toFixed(2)}%
+                    </span>
+                  </div>
                 </div>
               )}
 

@@ -153,25 +153,36 @@ export default function TradePanel() {
           <div>
             <p className="text-xs text-slate-400 mb-1.5">買入（現金比例）</p>
             <div className="grid grid-cols-4 gap-1.5">
-              {[0.25, 0.5, 0.75, 1].map(p => (
-                <button key={p} onClick={() => handleBuyPct(p)}
-                  disabled={mounted && (metrics.cash <= 0 || currentPrice <= 0)}
-                  className="py-2 rounded-lg bg-red-700 hover:bg-red-600 active:bg-red-500 disabled:opacity-30 text-xs font-bold transition">
-                  {p * 100}%
-                </button>
-              ))}
+              {[0.25, 0.5, 0.75, 1].map(p => {
+                const amt = metrics.cash * p;
+                const amtLabel = amt >= 10000 ? `${(amt / 10000).toFixed(0)}萬` : amt > 0 ? `${(amt / 1000).toFixed(0)}K` : '';
+                return (
+                  <button key={p} onClick={() => handleBuyPct(p)}
+                    disabled={mounted && (metrics.cash <= 0 || currentPrice <= 0)}
+                    className="py-1.5 rounded-lg bg-red-700 hover:bg-red-600 active:bg-red-500 disabled:opacity-30 transition flex flex-col items-center gap-0">
+                    <span className="text-xs font-bold">{p * 100}%</span>
+                    {amtLabel && <span className="text-[9px] opacity-70">${amtLabel}</span>}
+                  </button>
+                );
+              })}
             </div>
           </div>
           <div>
             <p className="text-xs text-slate-400 mb-1.5">賣出（持倉比例）</p>
             <div className="grid grid-cols-4 gap-1.5">
-              {[0.25, 0.5, 0.75, 1].map(p => (
-                <button key={p} onClick={() => handleSellPct(p)}
-                  disabled={metrics.shares <= 0}
-                  className="py-2 rounded-lg bg-green-700 hover:bg-green-600 active:bg-green-500 disabled:opacity-30 text-xs font-bold transition">
-                  {p * 100}%
-                </button>
-              ))}
+              {[0.25, 0.5, 0.75, 1].map(p => {
+                const sellShares = Math.floor(metrics.shares * p);
+                const sellAmt = sellShares * currentPrice;
+                const amtLabel = sellAmt >= 10000 ? `${(sellAmt / 10000).toFixed(0)}萬` : sellAmt > 0 ? `${(sellAmt / 1000).toFixed(0)}K` : '';
+                return (
+                  <button key={p} onClick={() => handleSellPct(p)}
+                    disabled={metrics.shares <= 0}
+                    className="py-1.5 rounded-lg bg-green-700 hover:bg-green-600 active:bg-green-500 disabled:opacity-30 transition flex flex-col items-center gap-0">
+                    <span className="text-xs font-bold">{p * 100}%</span>
+                    {amtLabel && <span className="text-[9px] opacity-70">${amtLabel}</span>}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </>

@@ -82,9 +82,25 @@ export default function AnalysisChat({ sidebar = false }: Props) {
     }
   }, [sidebar]); // eslint-disable-line
 
-  async function handleSend() {
-    const text = input.trim();
-    if (!text || loading) return;
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
+  }
+
+  function insertContext() {
+    const ctx = buildContext();
+    setInput(prev => prev ? `${prev}\n\n[當前走圖資訊]\n${ctx}` : `[當前走圖資訊]\n${ctx}\n\n請問：`);
+    inputRef.current?.focus();
+  }
+
+  const QUICK_QUESTIONS = [
+    '這個買點符合朱老師理論嗎？',
+    'MACD黃金交叉在哪？',
+    '現在是多頭還是空頭趨勢？',
+    '停損應該設在哪？',
+  ];
+
+  async function sendMessage(text: string) {
+    if (!text.trim() || loading) return;
     const userMsg: Message = { role: 'user', content: text };
     const nextMessages = [...messages, userMsg];
     setMessages(nextMessages);
@@ -126,34 +142,17 @@ export default function AnalysisChat({ sidebar = false }: Props) {
     }
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
-  }
-
-  function insertContext() {
-    const ctx = buildContext();
-    setInput(prev => prev ? `${prev}\n\n[當前走圖資訊]\n${ctx}` : `[當前走圖資訊]\n${ctx}\n\n請問：`);
-    inputRef.current?.focus();
-  }
-
-  const QUICK_QUESTIONS = [
-    '這個買點符合朱老師理論嗎？',
-    'MACD黃金交叉在哪？',
-    '現在是多頭還是空頭趨勢？',
-    '停損應該設在哪？',
-  ];
-
   const chatBody = (
     <div className={`flex flex-col ${sidebar ? 'h-full' : ''}`}>
       {/* Messages */}
       <div className={`overflow-y-auto p-3 space-y-3 ${sidebar ? 'flex-1 min-h-0' : 'h-72'}`}>
         {messages.length === 0 && (
           <div className="py-4">
-            <p className="text-slate-500 text-xs mb-2 text-center">有任何走圖問題，都可以問我！</p>
+            <p className="text-slate-500 text-xs mb-2 text-center">點擊快速提問，或自行輸入問題</p>
             <div className="flex flex-wrap gap-1.5 text-xs">
               {QUICK_QUESTIONS.map(q => (
-                <button key={q} onClick={() => { setInput(q); inputRef.current?.focus(); }}
-                  className="px-2 py-1 bg-slate-700 text-slate-300 rounded hover:bg-slate-600 transition-colors text-left leading-tight">
+                <button key={q} onClick={() => sendMessage(`${q}\n\n[當前走圖資訊]\n${buildContext()}`)}
+                  className="px-2 py-1 bg-blue-700/60 text-blue-200 rounded hover:bg-blue-600/70 transition-colors text-left leading-tight border border-blue-600/30">
                   {q}
                 </button>
               ))}
@@ -193,7 +192,7 @@ export default function AnalysisChat({ sidebar = false }: Props) {
             placeholder="輸入問題（Enter 發送）..."
             className="flex-1 bg-slate-900 text-slate-200 text-xs rounded px-2 py-1.5 resize-none outline-none border border-slate-600 focus:border-blue-500 placeholder-slate-500 min-h-[36px] max-h-20"
             rows={2} disabled={loading} />
-          <button onClick={handleSend} disabled={!input.trim() || loading}
+          <button onClick={() => sendMessage(input)} disabled={!input.trim() || loading}
             className="px-2.5 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium self-end">
             送出
           </button>

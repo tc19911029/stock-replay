@@ -29,9 +29,10 @@ function toTime(date: string): Time { return date as Time; }
 
 // ── Module-level time range sync ─────────────────────────────────────────────
 let _syncing = false;
-let _lastRange: { from: Time; to: Time } | null = null;
+let _lastRange: { from: number; to: number } | null = null;
 
-export type RangeSyncCallback = (range: { from: Time; to: Time } | null) => void;
+export type LogicalRange = { from: number; to: number };
+export type RangeSyncCallback = (range: LogicalRange | null) => void;
 const syncListeners = new Set<RangeSyncCallback>();
 
 export function subscribeRangeSync(cb: RangeSyncCallback) {
@@ -39,7 +40,7 @@ export function subscribeRangeSync(cb: RangeSyncCallback) {
   return () => syncListeners.delete(cb);
 }
 export function getLastRange() { return _lastRange; }
-export function broadcastRange(range: { from: Time; to: Time } | null) {
+export function broadcastRange(range: LogicalRange | null) {
   if (_syncing) return;
   _syncing = true;
   if (range) _lastRange = range;
@@ -65,20 +66,22 @@ interface CandleChartProps {
   signals: RuleSignal[];
   chartMarkers?: ChartSignalMarker[];
   avgCost?: number;
+  stopLossPrice?: number;
   onCrosshairMove?: (candle: CandleWithIndicators | null) => void;
   height?: number;
   fillContainer?: boolean;
 }
 
 export default function CandleChart({
-  candles, signals, chartMarkers = [], avgCost, onCrosshairMove, height = 400, fillContainer = false,
+  candles, signals, chartMarkers = [], avgCost, stopLossPrice, onCrosshairMove, height = 400, fillContainer = false,
 }: CandleChartProps) {
   const containerRef   = useRef<HTMLDivElement>(null);
   const chartRef       = useRef<IChartApi | null>(null);
   const candleRef      = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const maRefs         = useRef<Record<string, ISeriesApi<'Line'>>>({});
   const markersPlugRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
-  const avgCostLineRef = useRef<ReturnType<ISeriesApi<'Candlestick'>['createPriceLine']> | null>(null);
+  const avgCostLineRef   = useRef<ReturnType<ISeriesApi<'Candlestick'>['createPriceLine']> | null>(null);
+  const stopLossLineRef  = useRef<ReturnType<ISeriesApi<'Candlestick'>['createPriceLine']> | null>(null);
   // Keep latest candles accessible inside event closures without re-subscribing
   const candlesRef     = useRef<CandleWithIndicators[]>(candles);
   const onCrosshairRef = useRef(onCrosshairMove);
@@ -129,9 +132,9 @@ export default function CandleChart({
     maRefs.current    = newMARef;
     markersPlugRef.current = createSeriesMarkers(candleSeries, []);
 
-    // ── 主圖廣播時間範圍給指標圖（單向，time-based） ─────────────────
-    chart.timeScale().subscribeVisibleTimeRangeChange(range => {
-      broadcastRange(range as { from: Time; to: Time } | null);
+    // ── 主圖廣播 logical range 給指標圖（bar-index 同步，對齊更精確） ──
+    chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
+      broadcastRange(range as { from: number; to: number } | null);
     });
 
     // ── Crosshair → OHLCV display ─────────────────────────────────────
@@ -182,8 +185,8 @@ export default function CandleChart({
         to:   totalBars + 3,
       });
       requestAnimationFrame(() => {
-        const range = chart.timeScale().getVisibleRange();
-        if (range) broadcastRange(range as { from: Time; to: Time });
+        const range = chart.timeScale().getVisibleLogicalRange();
+        if (range) broadcastRange(range as { from: number; to: number });
       });
     }
   }, [candles]);
@@ -202,6 +205,21 @@ export default function CandleChart({
       });
     }
   }, [avgCost]);
+
+  // ── Stop-loss price line ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (!candleRef.current) return;
+    if (stopLossLineRef.current) {
+      try { candleRef.current.removePriceLine(stopLossLineRef.current); } catch {}
+      stopLossLineRef.current = null;
+    }
+    if (stopLossPrice && stopLossPrice > 0) {
+      stopLossLineRef.current = candleRef.current.createPriceLine({
+        price: stopLossPrice, color: '#ef4444', lineWidth: 1,
+        lineStyle: 1, axisLabelVisible: true, title: '停損',
+      });
+    }
+  }, [stopLossPrice]);
 
   // ── Chart markers ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -237,20 +255,23 @@ export default function CandleChart({
         })}
       </div>
 
-      {/* Signal badges */}
-      {signals.length > 0 && (
-        <div className="absolute top-2 right-3 z-10 flex flex-col items-end gap-1 pointer-events-none">
-          {signals.map((sig, i) => (
-            <span key={i} className={`px-2 py-0.5 rounded text-xs font-bold shadow ${
-              sig.type === 'BUY'    ? 'bg-red-600 text-white'    :
-              sig.type === 'ADD'    ? 'bg-orange-500 text-white' :
-              sig.type === 'SELL'   ? 'bg-green-700 text-white'  :
-              sig.type === 'REDUCE' ? 'bg-teal-500 text-white'   :
-                                      'bg-yellow-500 text-black'
-            }`}>{sig.label}</span>
-          ))}
-        </div>
-      )}
+      {/* Signal badge — only show highest-priority non-WATCH signal */}
+      {(() => {
+        const PRIORITY: Record<string, number> = { SELL: 4, BUY: 3, REDUCE: 2, ADD: 1 };
+        const filtered = signals.filter(s => s.type !== 'WATCH');
+        if (filtered.length === 0) return null;
+        const best = filtered.reduce((a, b) => (PRIORITY[b.type] ?? 0) > (PRIORITY[a.type] ?? 0) ? b : a);
+        return (
+          <div className="absolute top-2 right-3 z-10 pointer-events-none">
+            <span className={`px-2.5 py-1 rounded text-xs font-bold shadow-lg ${
+              best.type === 'BUY'    ? 'bg-red-600 text-white'    :
+              best.type === 'ADD'    ? 'bg-orange-500 text-white' :
+              best.type === 'SELL'   ? 'bg-green-700 text-white'  :
+                                       'bg-teal-500 text-white'
+            }`}>{best.label}</span>
+          </div>
+        );
+      })()}
 
       <div ref={containerRef} className={fillContainer ? 'w-full h-full' : 'w-full'} style={fillContainer ? undefined : { height }} />
     </div>

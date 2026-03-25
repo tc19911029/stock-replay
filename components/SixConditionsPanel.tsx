@@ -129,14 +129,21 @@ export default function SixConditionsPanel() {
       </div>
 
       {/* Summary */}
-      <div className="px-3 py-2 border-t border-gray-700 bg-gray-800/60">
-        <p className="text-xs text-gray-500">
+      <div className={`px-3 py-2.5 border-t border-gray-700 ${
+        score >= 5 ? 'bg-green-900/40' : score >= 3 ? 'bg-yellow-900/30' : 'bg-slate-800/60'
+      }`}>
+        <p className={`text-xs font-bold ${
+          score >= 5 ? 'text-green-300' : score >= 3 ? 'text-yellow-300' : 'text-slate-400'
+        }`}>
           {score >= 5
-            ? '條件充分，可考慮進場（仍需確認K線實際走勢）'
+            ? '✅ 條件充分 — 可考慮進場'
             : score >= 3
-            ? '條件部分符合，觀察後續發展'
-            : '條件不足，建議觀望'}
+            ? '⏳ 條件部分符合 — 觀察後續'
+            : '🚫 條件不足 — 建議觀望'}
         </p>
+        {score >= 5 && (
+          <p className="text-[10px] text-green-500 mt-0.5">仍需確認K線實際走勢與成交量</p>
+        )}
       </div>
     </div>
   );

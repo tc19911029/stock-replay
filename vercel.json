@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/scan-tw",
+      "schedule": "0 5 * * 1-5"
+    },
+    {
+      "path": "/api/cron/scan-cn",
+      "schedule": "30 6 * * 1-5"
+    }
+  ]
+}

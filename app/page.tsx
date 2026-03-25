@@ -26,7 +26,7 @@ const CandleChart = dynamic(() => import('@/components/CandleChart'), {
 
 const IndicatorCharts = dynamic(() => import('@/components/IndicatorCharts'), { ssr: false });
 
-type SideTab = 'conditions' | 'trade' | 'account' | 'signals' | 'chat';
+type SideTab = 'conditions' | 'trade' | 'signals' | 'chat';
 
 export default function HomePage() {
   const {
@@ -38,13 +38,15 @@ export default function HomePage() {
 
   useEffect(() => { initData(); }, [initData]);
 
-  // Handle ?load=SYMBOL from scanner page
+  // Handle ?load=SYMBOL from scanner page, or auto-load 2330 on first visit
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const sym = params.get('load');
     if (sym) {
       loadStock(sym, '1d', '2y');
       window.history.replaceState({}, '', '/');
+    } else if (allCandles.length === 0) {
+      loadStock('2330', '1d', '2y');
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -60,8 +62,10 @@ export default function HomePage() {
     return () => window.removeEventListener('keydown', handleKey);
   }, [handleKey]);
 
+  const { sixConditions } = useReplayStore();
   const [hoverCandle, setHoverCandle] = useState<typeof allCandles[0] | null>(null);
   const [sideTab, setSideTab] = useState<SideTab>('conditions');
+  const [showMarkers, setShowMarkers] = useState(true);
 
   const displayCandle = hoverCandle ?? allCandles[currentIndex];
   const prev = hoverCandle
@@ -71,10 +75,20 @@ export default function HomePage() {
   const chgPct = displayCandle && prev ? (chg / prev.close) * 100 : 0;
   const isUp   = chg >= 0;
 
-  const SIDE_TABS: Array<{ key: SideTab; label: string }> = [
-    { key: 'conditions', label: '六大條件' },
-    { key: 'trade',      label: '交易' },
-    { key: 'account',    label: '帳戶' },
+  const condScore = sixConditions?.totalScore ?? 0;
+  const condAlert = condScore >= 5;
+
+  // Stop-loss price line on chart (when holding)
+  const currentCandle = allCandles[currentIndex];
+  const ma5StopLoss  = metrics.shares > 0 ? (currentCandle?.ma5 ?? null) : null;
+  const costStopLoss = metrics.shares > 0 && metrics.avgCost > 0 ? metrics.avgCost * 0.93 : null;
+  const stopLossPrice = ma5StopLoss != null && costStopLoss != null
+    ? Math.max(ma5StopLoss, costStopLoss)
+    : (ma5StopLoss ?? costStopLoss ?? undefined);
+
+  const SIDE_TABS: Array<{ key: SideTab; label: string; alert?: boolean }> = [
+    { key: 'conditions', label: '六大條件', alert: condAlert },
+    { key: 'trade',      label: '交易/帳戶' },
     { key: 'signals',    label: '訊號' },
     { key: 'chat',       label: '問老師' },
   ];
@@ -86,11 +100,12 @@ export default function HomePage() {
       <header className="shrink-0 border-b border-slate-800 px-3 py-1.5 flex items-center gap-2">
         <span className="text-sm font-bold text-white whitespace-nowrap shrink-0">📈</span>
         <StockSelector />
-        <div className="flex items-center gap-2 shrink-0 ml-auto">
-          <Link href="/scanner" className="text-xs px-2.5 py-1 bg-blue-600/80 hover:bg-blue-500 rounded text-white font-medium transition">
-            🔍 掃描
-          </Link>
-          <span className="text-xs text-slate-600 hidden lg:block">← → Space</span>
+        <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+          <Link href="/scanner" className="text-xs px-2.5 py-1 bg-blue-600/80 hover:bg-blue-500 rounded text-white font-medium transition">🔍 掃描</Link>
+          <Link href="/watchlist" className="text-xs px-2.5 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-300 font-medium transition">⭐ 自選</Link>
+          <Link href="/portfolio" className="text-xs px-2.5 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-300 font-medium transition">💼 持倉</Link>
+          <Link href="/settings" className="text-xs px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-400 transition">⚙</Link>
+          <span className="text-xs text-slate-600 hidden lg:block ml-1">← → Space</span>
         </div>
       </header>
 
@@ -126,11 +141,31 @@ export default function HomePage() {
                 <span className="text-slate-500">高<span className="text-red-400 ml-0.5">{displayCandle.high.toFixed(2)}</span></span>
                 <span className="text-slate-500">低<span className="text-green-400 ml-0.5">{displayCandle.low.toFixed(2)}</span></span>
                 <span className="text-slate-500">量<span className="text-slate-300 ml-0.5">{(displayCandle.volume / 1000).toFixed(0)}K</span></span>
-                {metrics.shares > 0 && (
-                  <span className="ml-auto text-slate-500">
-                    均價<span className="text-yellow-400 font-bold ml-0.5">{metrics.avgCost.toFixed(2)}</span>
-                  </span>
-                )}
+                <button
+                  onClick={() => setShowMarkers(v => !v)}
+                  className={`ml-auto shrink-0 px-2 py-0.5 rounded text-[10px] font-medium transition ${
+                    showMarkers ? 'bg-blue-600/60 text-blue-200' : 'bg-slate-700 text-slate-500'
+                  }`}
+                  title="顯示/隱藏買賣訊號標記"
+                >
+                  {showMarkers ? '訊號 ●' : '訊號 ○'}
+                </button>
+                {metrics.shares > 0 && displayCandle && (() => {
+                  const unrealizedPct = metrics.avgCost > 0
+                    ? ((displayCandle.close - metrics.avgCost) / metrics.avgCost) * 100
+                    : 0;
+                  const pnlPos = unrealizedPct >= 0;
+                  return (
+                    <span className="ml-auto flex items-center gap-2">
+                      <span className="text-slate-500">
+                        均價<span className="text-yellow-400 font-bold ml-0.5">{metrics.avgCost.toFixed(2)}</span>
+                      </span>
+                      <span className={`font-bold text-xs ${pnlPos ? 'text-red-400' : 'text-green-400'}`}>
+                        {pnlPos ? '+' : ''}{unrealizedPct.toFixed(2)}%
+                      </span>
+                    </span>
+                  );
+                })()}
               </div>
             )}
 
@@ -138,8 +173,9 @@ export default function HomePage() {
               <CandleChart
                 candles={visibleCandles}
                 signals={currentSignals}
-                chartMarkers={chartMarkers}
+                chartMarkers={showMarkers ? chartMarkers : []}
                 avgCost={metrics.shares > 0 ? metrics.avgCost : undefined}
+                stopLossPrice={stopLossPrice}
                 onCrosshairMove={setHoverCandle}
                 fillContainer
               />
@@ -164,26 +200,32 @@ export default function HomePage() {
           <div className="shrink-0 flex rounded-lg overflow-hidden border border-slate-700 text-xs">
             {SIDE_TABS.map(t => (
               <button key={t.key} onClick={() => setSideTab(t.key)}
-                className={`flex-1 py-1.5 font-medium transition-colors ${
+                className={`flex-1 py-1.5 font-medium transition-colors relative ${
                   sideTab === t.key ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                }`}>
+                } ${t.alert && sideTab !== t.key ? 'bg-green-900/40 text-green-300' : ''}`}>
                 {t.label}
+                {t.alert && sideTab !== t.key && (
+                  <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                )}
               </button>
             ))}
           </div>
 
           {/* Tab content */}
           {sideTab === 'chat' ? (
-            // Chat fills the full sidebar height
             <div className="flex-1 min-h-0">
               <AnalysisChat sidebar />
             </div>
           ) : (
             <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-0.5">
               {sideTab === 'conditions' && <SixConditionsPanel />}
-              {sideTab === 'trade'      && <TradePanel />}
-              {sideTab === 'account'    && <AccountInfo />}
-              {sideTab === 'signals'    && (
+              {sideTab === 'trade' && (
+                <>
+                  <AccountInfo />
+                  <TradePanel />
+                </>
+              )}
+              {sideTab === 'signals' && (
                 <div className="space-y-2">
                   <RuleAlerts />
                   <TradeHistory />

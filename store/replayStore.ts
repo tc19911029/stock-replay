@@ -110,6 +110,8 @@ interface ReplayStore {
   nextCandle: () => void;
   prevCandle: () => void;
   jumpToIndex: (index: number) => void;
+  jumpToNextBuySignal: () => void;
+  jumpToPrevBuySignal: () => void;
   startPlay: () => void;
   stopPlay: () => void;
   setPlaySpeed: (ms: number) => void;
@@ -245,6 +247,30 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
     const { allCandles, account } = get();
     const clamped = Math.max(0, Math.min(index, allCandles.length - 1));
     set({ currentIndex: clamped, isPlaying: false, ...buildState(allCandles, clamped, account) });
+  },
+
+  jumpToNextBuySignal: () => {
+    const { allCandles, currentIndex } = get();
+    const currentDate = allCandles[currentIndex]?.date ?? '';
+    const next = _cachedMarkers.find(m =>
+      m.date > currentDate && (m.type === 'BUY' || m.type === 'ADD')
+    );
+    if (next) {
+      const idx = allCandles.findIndex(c => c.date === next.date);
+      if (idx !== -1) get().jumpToIndex(idx);
+    }
+  },
+
+  jumpToPrevBuySignal: () => {
+    const { allCandles, currentIndex } = get();
+    const currentDate = allCandles[currentIndex]?.date ?? '';
+    const prev = [..._cachedMarkers].reverse().find(m =>
+      m.date < currentDate && (m.type === 'BUY' || m.type === 'ADD')
+    );
+    if (prev) {
+      const idx = allCandles.findIndex(c => c.date === prev.date);
+      if (idx !== -1) get().jumpToIndex(idx);
+    }
   },
 
   startPlay: () => set({ isPlaying: true }),

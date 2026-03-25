@@ -7,6 +7,15 @@ export interface TriggeredRule {
   reason: string;
 }
 
+export interface SixConditionsBreakdown {
+  trend: boolean;
+  position: boolean;
+  kbar: boolean;
+  ma: boolean;
+  volume: boolean;
+  indicator: boolean;
+}
+
 export interface StockScanResult {
   symbol: string;
   name: string;
@@ -16,6 +25,7 @@ export interface StockScanResult {
   volume: number;
   triggeredRules: TriggeredRule[];
   sixConditionsScore: number;   // 0–6
+  sixConditionsBreakdown: SixConditionsBreakdown;
   trendState: '多頭' | '空頭' | '盤整';
   trendPosition: string;
   scanTime: string;             // ISO timestamp
