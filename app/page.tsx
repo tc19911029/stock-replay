@@ -9,6 +9,7 @@ import TradePanel from '@/components/TradePanel';
 import AccountInfo from '@/components/AccountInfo';
 import RuleAlerts from '@/components/RuleAlerts';
 import TradeHistory from '@/components/TradeHistory';
+import BacktestPanel from '@/components/BacktestPanel';
 
 const CandleChart = dynamic(() => import('@/components/CandleChart'), {
   ssr: false,
@@ -139,6 +140,9 @@ export default function HomePage() {
           <RuleAlerts />
           <TradeHistory />
         </div>
+
+        {/* ── Row 5: Backtest ───────────────────────────────────────────── */}
+        <BacktestPanel />
 
       </div>
 
