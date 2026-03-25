@@ -5,12 +5,14 @@ import { useReplayStore } from '@/store/replayStore';
 import { maxBuyShares } from '@/lib/engines/tradeEngine';
 
 type Mode = 'percent' | 'shares' | 'amount';
+type Confirm = { action: 'buy' | 'sell'; shares: number; price: number } | null;
 
 export default function TradePanel() {
   const { allCandles, currentIndex, metrics, buy, sell, buyPercent, sellPercent } = useReplayStore();
   const [input,   setInput]   = useState('');
   const [mode,    setMode]    = useState<Mode>('percent');
   const [mounted, setMounted] = useState(false);
+  const [confirm, setConfirm] = useState<Confirm>(null);
   useEffect(() => setMounted(true), []);
 
   const currentCandle = allCandles[currentIndex];
@@ -18,41 +20,54 @@ export default function TradePanel() {
   const currentPrice  = currentCandle?.close ?? 0;
   const maxBuy = maxBuyShares(metrics.cash, currentPrice);
 
-  // Stop-loss helpers (only shown when holding position)
-  const ma5StopLoss = currentCandle?.ma5 ?? null;
+  const ma5StopLoss  = currentCandle?.ma5 ?? null;
   const costStopLoss = metrics.avgCost > 0 ? +(metrics.avgCost * 0.93).toFixed(2) : null;
   const stopLossPrice = ma5StopLoss != null && costStopLoss != null
     ? Math.max(ma5StopLoss, costStopLoss)
     : (ma5StopLoss ?? costStopLoss);
 
-  // Warn: black K closing below MA5 (from above)
   const isBlackK = currentCandle && currentCandle.close < currentCandle.open;
   const brokeMA5 = isBlackK && prevCandle && prevCandle.ma5 != null && currentCandle!.ma5 != null
     && prevCandle.close >= prevCandle.ma5 && currentCandle!.close < currentCandle!.ma5;
   const showStopLossWarn = metrics.shares > 0 && brokeMA5;
 
-  // Estimated shares / cost preview
   const inputNum = parseFloat(input) || 0;
   const estimatedSharesFromAmount = currentPrice > 0 ? Math.floor(inputNum / currentPrice) : 0;
   const estimatedCostFromShares   = inputNum * currentPrice;
 
-  const handleBuy = () => {
-    if (mode === 'shares') {
-      const n = parseInt(input, 10);
-      if (!isNaN(n) && n > 0) buy(n);
-    } else if (mode === 'amount') {
-      if (estimatedSharesFromAmount > 0) buy(estimatedSharesFromAmount);
-    }
-  };
+  // ── Confirm helpers ──────────────────────────────────────────────────────
+  function requestConfirm(action: 'buy' | 'sell', shares: number) {
+    if (shares <= 0) return;
+    setConfirm({ action, shares, price: currentPrice });
+  }
 
-  const handleSell = () => {
-    if (mode === 'shares') {
-      const n = parseInt(input, 10);
-      if (!isNaN(n) && n > 0) sell(n);
-    } else if (mode === 'amount') {
-      if (estimatedSharesFromAmount > 0) sell(estimatedSharesFromAmount);
-    }
-  };
+  function executeConfirmed() {
+    if (!confirm) return;
+    if (confirm.action === 'buy')  buy(confirm.shares);
+    else                            sell(confirm.shares);
+    setConfirm(null);
+    setInput('');
+  }
+
+  // Percent-mode handlers go through confirm too
+  function handleBuyPct(p: number) {
+    const budget = metrics.cash * p;
+    const shares = currentPrice > 0 ? Math.floor(budget / currentPrice) : 0;
+    requestConfirm('buy', shares);
+  }
+  function handleSellPct(p: number) {
+    const shares = Math.floor(metrics.shares * p);
+    requestConfirm('sell', shares);
+  }
+
+  function handleBuy() {
+    if (mode === 'shares')      requestConfirm('buy', parseInt(input, 10) || 0);
+    else if (mode === 'amount') requestConfirm('buy', estimatedSharesFromAmount);
+  }
+  function handleSell() {
+    if (mode === 'shares')      requestConfirm('sell', parseInt(input, 10) || 0);
+    else if (mode === 'amount') requestConfirm('sell', estimatedSharesFromAmount);
+  }
 
   const MODES: { key: Mode; label: string }[] = [
     { key: 'percent', label: '倉位 %' },
@@ -64,7 +79,17 @@ export default function TradePanel() {
     <div suppressHydrationWarning className="bg-slate-800/80 border border-slate-700 rounded-xl p-4 space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-bold text-slate-200">交易操作</h2>
+        <div>
+          <h2 className="text-sm font-bold text-slate-200">交易操作</h2>
+          {metrics.cash > 0 && (
+            <p className="text-xs text-slate-400 mt-0.5">
+              現金 <span className="text-white font-mono">${metrics.cash.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+              {metrics.shares > 0 && (
+                <span className="ml-2">· 持股 <span className="text-yellow-400 font-mono">{metrics.shares.toLocaleString()}</span> 股</span>
+              )}
+            </p>
+          )}
+        </div>
         <div className="text-right">
           <span className="text-xs text-slate-500">現價</span>
           <span className="ml-1.5 text-base font-mono font-bold text-yellow-400">
@@ -76,33 +101,62 @@ export default function TradePanel() {
       {/* Mode toggle */}
       <div className="flex rounded-lg overflow-hidden border border-slate-600 text-xs">
         {MODES.map(m => (
-          <button
-            key={m.key}
-            onClick={() => setMode(m.key)}
+          <button key={m.key} onClick={() => { setMode(m.key); setConfirm(null); }}
             className={`flex-1 py-1.5 font-medium transition-colors ${
-              mode === m.key
-                ? 'bg-blue-600 text-white'
-                : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-            }`}
-          >
+              mode === m.key ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+            }`}>
             {m.label}
           </button>
         ))}
       </div>
 
+      {/* ── Confirm dialog ── */}
+      {confirm && (
+        <div className="rounded-lg border border-blue-500 bg-blue-900/30 p-3 space-y-2">
+          <p className="text-xs text-blue-200 font-semibold">
+            確認{confirm.action === 'buy' ? '買入' : '賣出'}？
+          </p>
+          <div className="text-xs font-mono text-slate-300 space-y-0.5">
+            <div className="flex justify-between">
+              <span className="text-slate-400">股數</span>
+              <span>{confirm.shares.toLocaleString()} 股</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">價格</span>
+              <span>${confirm.price.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between font-bold">
+              <span className="text-slate-400">金額</span>
+              <span className={confirm.action === 'buy' ? 'text-red-300' : 'text-green-300'}>
+                {confirm.action === 'buy' ? '-' : '+'}${(confirm.shares * confirm.price).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </span>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={executeConfirmed}
+              className={`flex-1 py-1.5 rounded text-xs font-bold transition ${
+                confirm.action === 'buy' ? 'bg-red-600 hover:bg-red-500' : 'bg-green-700 hover:bg-green-600'
+              }`}>
+              確認{confirm.action === 'buy' ? '買入' : '賣出'}
+            </button>
+            <button onClick={() => setConfirm(null)}
+              className="flex-1 py-1.5 rounded bg-slate-600 hover:bg-slate-500 text-xs text-slate-300 transition">
+              取消
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Percent mode ── */}
-      {mode === 'percent' && (
+      {!confirm && mode === 'percent' && (
         <>
           <div>
             <p className="text-xs text-slate-400 mb-1.5">買入（現金比例）</p>
             <div className="grid grid-cols-4 gap-1.5">
               {[0.25, 0.5, 0.75, 1].map(p => (
-                <button
-                  key={p}
-                  onClick={() => buyPercent(p)}
+                <button key={p} onClick={() => handleBuyPct(p)}
                   disabled={mounted && (metrics.cash <= 0 || currentPrice <= 0)}
-                  className="py-2 rounded-lg bg-red-700 hover:bg-red-600 active:bg-red-500 disabled:opacity-30 text-xs font-bold transition"
-                >
+                  className="py-2 rounded-lg bg-red-700 hover:bg-red-600 active:bg-red-500 disabled:opacity-30 text-xs font-bold transition">
                   {p * 100}%
                 </button>
               ))}
@@ -112,12 +166,9 @@ export default function TradePanel() {
             <p className="text-xs text-slate-400 mb-1.5">賣出（持倉比例）</p>
             <div className="grid grid-cols-4 gap-1.5">
               {[0.25, 0.5, 0.75, 1].map(p => (
-                <button
-                  key={p}
-                  onClick={() => sellPercent(p)}
+                <button key={p} onClick={() => handleSellPct(p)}
                   disabled={metrics.shares <= 0}
-                  className="py-2 rounded-lg bg-green-700 hover:bg-green-600 active:bg-green-500 disabled:opacity-30 text-xs font-bold transition"
-                >
+                  className="py-2 rounded-lg bg-green-700 hover:bg-green-600 active:bg-green-500 disabled:opacity-30 text-xs font-bold transition">
                   {p * 100}%
                 </button>
               ))}
@@ -127,19 +178,15 @@ export default function TradePanel() {
       )}
 
       {/* ── Shares mode ── */}
-      {mode === 'shares' && (
+      {!confirm && mode === 'shares' && (
         <>
           <div>
             <p className="text-xs text-slate-400 mb-1.5">
               可買最多 <span className="text-white font-mono">{maxBuy.toLocaleString()}</span> 股
             </p>
-            <input
-              type="number"
-              value={input}
-              onChange={e => setInput(e.target.value)}
+            <input type="number" value={input} onChange={e => setInput(e.target.value)}
               placeholder="輸入股數"
-              className="w-full bg-slate-700 rounded-lg px-3 py-2 text-sm text-white border border-slate-600 focus:border-blue-500 focus:outline-none"
-            />
+              className="w-full bg-slate-700 rounded-lg px-3 py-2 text-sm text-white border border-slate-600 focus:border-blue-500 focus:outline-none" />
             {inputNum > 0 && currentPrice > 0 && (
               <p className="text-xs text-slate-500 mt-1">
                 預估金額 ≈ <span className="text-slate-300">${estimatedCostFromShares.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
@@ -148,19 +195,15 @@ export default function TradePanel() {
           </div>
           <div className="grid grid-cols-2 gap-2">
             <button onClick={handleBuy} disabled={mounted && (metrics.cash <= 0 || currentPrice <= 0)}
-              className="py-2.5 rounded-lg bg-red-700 hover:bg-red-600 disabled:opacity-30 text-sm font-bold transition">
-              買入
-            </button>
+              className="py-2.5 rounded-lg bg-red-700 hover:bg-red-600 disabled:opacity-30 text-sm font-bold transition">買入</button>
             <button onClick={handleSell} disabled={metrics.shares <= 0}
-              className="py-2.5 rounded-lg bg-green-700 hover:bg-green-600 disabled:opacity-30 text-sm font-bold transition">
-              賣出
-            </button>
+              className="py-2.5 rounded-lg bg-green-700 hover:bg-green-600 disabled:opacity-30 text-sm font-bold transition">賣出</button>
           </div>
         </>
       )}
 
       {/* ── Amount mode ── */}
-      {mode === 'amount' && (
+      {!confirm && mode === 'amount' && (
         <>
           <div>
             <p className="text-xs text-slate-400 mb-1.5">
@@ -168,13 +211,9 @@ export default function TradePanel() {
             </p>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
-              <input
-                type="number"
-                value={input}
-                onChange={e => setInput(e.target.value)}
+              <input type="number" value={input} onChange={e => setInput(e.target.value)}
                 placeholder="輸入金額（例：50000）"
-                className="w-full bg-slate-700 rounded-lg pl-7 pr-3 py-2 text-sm text-white border border-slate-600 focus:border-blue-500 focus:outline-none"
-              />
+                className="w-full bg-slate-700 rounded-lg pl-7 pr-3 py-2 text-sm text-white border border-slate-600 focus:border-blue-500 focus:outline-none" />
             </div>
             {inputNum > 0 && currentPrice > 0 && (
               <p className="text-xs text-slate-500 mt-1">
@@ -182,7 +221,6 @@ export default function TradePanel() {
               </p>
             )}
           </div>
-          {/* Quick amount buttons */}
           <div className="grid grid-cols-4 gap-1.5">
             {[50000, 100000, 200000, 500000].map(amt => (
               <button key={amt} onClick={() => setInput(String(amt))}
@@ -193,13 +231,9 @@ export default function TradePanel() {
           </div>
           <div className="grid grid-cols-2 gap-2">
             <button onClick={handleBuy} disabled={mounted && (metrics.cash <= 0 || estimatedSharesFromAmount <= 0)}
-              className="py-2.5 rounded-lg bg-red-700 hover:bg-red-600 disabled:opacity-30 text-sm font-bold transition">
-              買入
-            </button>
+              className="py-2.5 rounded-lg bg-red-700 hover:bg-red-600 disabled:opacity-30 text-sm font-bold transition">買入</button>
             <button onClick={handleSell} disabled={metrics.shares <= 0 || estimatedSharesFromAmount <= 0}
-              className="py-2.5 rounded-lg bg-green-700 hover:bg-green-600 disabled:opacity-30 text-sm font-bold transition">
-              賣出
-            </button>
+              className="py-2.5 rounded-lg bg-green-700 hover:bg-green-600 disabled:opacity-30 text-sm font-bold transition">賣出</button>
           </div>
         </>
       )}
@@ -214,18 +248,8 @@ export default function TradePanel() {
             <span>建議停損</span>
             <span className="text-red-300 font-mono font-bold">${stopLossPrice.toFixed(2)}</span>
           </div>
-          {ma5StopLoss != null && (
-            <div className="flex justify-between text-slate-500">
-              <span>MA5</span>
-              <span className="font-mono">${ma5StopLoss.toFixed(2)}</span>
-            </div>
-          )}
-          {costStopLoss != null && (
-            <div className="flex justify-between text-slate-500">
-              <span>成本 -7%</span>
-              <span className="font-mono">${costStopLoss.toFixed(2)}</span>
-            </div>
-          )}
+          {ma5StopLoss != null && <div className="flex justify-between text-slate-500"><span>MA5</span><span className="font-mono">${ma5StopLoss.toFixed(2)}</span></div>}
+          {costStopLoss != null && <div className="flex justify-between text-slate-500"><span>成本 -7%</span><span className="font-mono">${costStopLoss.toFixed(2)}</span></div>}
         </div>
       )}
 

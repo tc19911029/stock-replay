@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useReplayStore } from '@/store/replayStore';
 
 const QUICK_STOCKS = [
@@ -34,8 +34,13 @@ const PERIODS: Record<string, { label: string; value: string }[]> = {
   '1mo': [{ label:'5年', value:'5y' }, { label:'10年', value:'10y' }, { label:'20年', value:'20y' }],
 };
 
+// Extract raw symbol from ticker (e.g. "2330.TW" → "2330", "AAPL" → "AAPL")
+function rawSymbol(ticker: string) {
+  return ticker.replace(/\.(TW|TWO|SS|SZ)$/i, '');
+}
+
 export default function StockSelector() {
-  const { loadStock, isLoadingStock } = useReplayStore();
+  const { loadStock, isLoadingStock, currentStock } = useReplayStore();
   const [input,    setInput]    = useState('');
   const [interval, setInterval] = useState('1d');
   const [period,   setPeriod]   = useState('2y');
@@ -43,28 +48,37 @@ export default function StockSelector() {
   const [error,    setError]    = useState('');
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const opts = PERIODS[interval];
-    if (opts && !opts.find(o => o.value === period)) setPeriod(opts[0].value);
-  }, [interval]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleLoad = async (symbol: string, iv?: string, pd?: string) => {
+  const handleLoad = async (symbol: string, iv = interval, pd = period) => {
     setError('');
     setShowDrop(false);
     try {
-      await loadStock(symbol, iv ?? interval, pd ?? period);
+      await loadStock(symbol, iv, pd);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '載入失敗');
     }
   };
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setShowDrop(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  // Auto-reload when interval changes
+  const handleIntervalChange = (newIv: string) => {
+    const opts = PERIODS[newIv] ?? [];
+    const newPd = opts.find(o => o.value === period) ? period : (opts[0]?.value ?? period);
+    setInterval(newIv);
+    setPeriod(newPd);
+    if (currentStock) handleLoad(rawSymbol(currentStock.ticker), newIv, newPd);
+  };
+
+  // Auto-reload when period changes
+  const handlePeriodChange = (newPd: string) => {
+    setPeriod(newPd);
+    if (currentStock) handleLoad(rawSymbol(currentStock.ticker), interval, newPd);
+  };
+
+  // Close dropdown on outside click
+  const handleWrapClick = () => {};
+  typeof handleWrapClick; // suppress unused warning
+  const closeOnOutside = (e: React.MouseEvent) => {
+    if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setShowDrop(false);
+  };
 
   const filtered = input.length > 0
     ? QUICK_STOCKS.filter(s => s.symbol.toUpperCase().includes(input.toUpperCase()) || s.name.includes(input))
@@ -73,7 +87,7 @@ export default function StockSelector() {
   const periodOpts = PERIODS[interval] ?? PERIODS['1d'];
 
   return (
-    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+    <div className="flex items-center gap-1.5 min-w-0 flex-1" onClick={closeOnOutside}>
       {/* Search input + dropdown */}
       <div ref={wrapRef} className="relative w-44 shrink-0">
         <input
@@ -108,13 +122,12 @@ export default function StockSelector() {
           : '載入'}
       </button>
 
-      {/* Divider */}
       <span className="text-slate-600 text-xs shrink-0">|</span>
 
-      {/* Interval buttons */}
+      {/* Interval buttons — auto-reload on click */}
       <div className="flex gap-0.5 shrink-0">
         {INTERVALS.map(opt => (
-          <button key={opt.value} onClick={() => setInterval(opt.value)}
+          <button key={opt.value} onClick={() => handleIntervalChange(opt.value)}
             className={`px-2 py-1 rounded text-xs font-bold transition ${
               interval === opt.value ? 'bg-blue-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-300'
             }`}>
@@ -123,10 +136,10 @@ export default function StockSelector() {
         ))}
       </div>
 
-      {/* Period buttons */}
+      {/* Period buttons — auto-reload on click */}
       <div className="flex gap-0.5 shrink-0">
         {periodOpts.map(opt => (
-          <button key={opt.value} onClick={() => setPeriod(opt.value)}
+          <button key={opt.value} onClick={() => handlePeriodChange(opt.value)}
             className={`px-2 py-1 rounded text-xs transition ${
               period === opt.value ? 'bg-slate-500 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'
             }`}>

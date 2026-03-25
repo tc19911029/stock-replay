@@ -1,8 +1,8 @@
 {
-  "id": "CN-2026-03-25-1774438500235",
+  "id": "CN-2026-03-25-1774440993834",
   "market": "CN",
   "date": "2026-03-25",
-  "scanTime": "2026-03-25T11:35:00.235Z",
+  "scanTime": "2026-03-25T12:16:33.834Z",
   "resultCount": 1,
   "results": [
     {
@@ -23,7 +23,7 @@
       "sixConditionsScore": 4,
       "trendState": "多頭",
       "trendPosition": "起漲段",
-      "scanTime": "2026-03-25T11:34:58.039Z"
+      "scanTime": "2026-03-25T12:16:31.467Z"
     }
   ]
 }

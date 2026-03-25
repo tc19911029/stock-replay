@@ -30,6 +30,8 @@ interface Trade {
   open: boolean;
 }
 
+interface EquityPoint { date: string; equity: number; }
+
 interface BacktestResult {
   trades: Trade[];
   initialCapital: number;
@@ -39,8 +41,38 @@ interface BacktestResult {
   winRate: number;
   finalValue: number;
   returnRate: number;
-  maxDrawdown: number;   // % from peak
+  maxDrawdown: number;
   avgHoldDays: number;
+  equityCurve: EquityPoint[];
+}
+
+function EquityCurve({ data, initial }: { data: EquityPoint[]; initial: number }) {
+  if (data.length < 2) return null;
+  const W = 500; const H = 60;
+  const values = data.map(d => d.equity);
+  const min = Math.min(...values, initial * 0.95);
+  const max = Math.max(...values, initial * 1.05);
+  const range = max - min || 1;
+  const toY = (v: number) => H - ((v - min) / range) * H;
+  const toX = (i: number) => (i / (data.length - 1)) * W;
+  const pts = data.map((d, i) => `${toX(i).toFixed(1)},${toY(d.equity).toFixed(1)}`).join(' ');
+  const fillPts = `0,${H} ${pts} ${W},${H}`;
+  const baselineY = toY(initial);
+  const lastColor = data[data.length - 1].equity >= initial ? '#ef4444' : '#22c55e';
+  return (
+    <div>
+      <p className="text-xs text-slate-400 mb-1">資產曲線</p>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-14" preserveAspectRatio="none">
+        <line x1="0" y1={baselineY} x2={W} y2={baselineY} stroke="#475569" strokeWidth="1" strokeDasharray="4,4" />
+        <polygon points={fillPts} fill={`${lastColor}18`} />
+        <polyline points={pts} fill="none" stroke={lastColor} strokeWidth="1.5" />
+      </svg>
+      <div className="flex justify-between text-[10px] text-slate-500 mt-0.5">
+        <span>{data[0]?.date}</span>
+        <span>{data[data.length - 1]?.date}</span>
+      </div>
+    </div>
+  );
 }
 
 function parseYMD(dateStr: string): number {
@@ -154,7 +186,7 @@ export default function BacktestPanel() {
     const idxMap  = new Map(allCandles.map((c, i) => [c.date, i]));
     const filtered = allCandles.filter(c => c.date >= startDate && c.date <= endDate);
     if (filtered.length === 0) {
-      setResult({ trades: [], initialCapital, totalPnL: 0, winCount: 0, lossCount: 0, winRate: 0, finalValue: initialCapital, returnRate: 0, maxDrawdown: 0, avgHoldDays: 0 });
+      setResult({ trades: [], initialCapital, totalPnL: 0, winCount: 0, lossCount: 0, winRate: 0, finalValue: initialCapital, returnRate: 0, maxDrawdown: 0, avgHoldDays: 0, equityCurve: [] });
       return;
     }
 
@@ -166,8 +198,8 @@ export default function BacktestPanel() {
     let buyDescription = '';
     let buyReason      = '';
     const trades: Trade[] = [];
+    const equityCurve: EquityPoint[] = [];
 
-    // For max drawdown
     let peak = initialCapital;
     let maxDrawdown = 0;
 
@@ -176,8 +208,8 @@ export default function BacktestPanel() {
       const globalIdx = idxMap.get(c.date);
       if (globalIdx == null) continue;
 
-      // Update equity peak / drawdown
       const equity = cash + shares * c.close;
+      equityCurve.push({ date: c.date, equity });
       if (equity > peak) peak = equity;
       const dd = (peak - equity) / peak * 100;
       if (dd > maxDrawdown) maxDrawdown = dd;
@@ -298,6 +330,10 @@ export default function BacktestPanel() {
       .map(t => Math.round((parseYMD(t.sellDate!) - parseYMD(t.buyDate)) / 86400000));
     const avgHoldDays = holdDays.length > 0 ? holdDays.reduce((a, b) => a + b, 0) / holdDays.length : 0;
 
+    // Sample equity curve (max 200 points for performance)
+    const step = Math.max(1, Math.floor(equityCurve.length / 200));
+    const sampledCurve = equityCurve.filter((_, i) => i % step === 0 || i === equityCurve.length - 1);
+
     setResult({
       trades, initialCapital,
       totalPnL,
@@ -308,6 +344,7 @@ export default function BacktestPanel() {
       returnRate: ((finalValue - initialCapital) / initialCapital) * 100,
       maxDrawdown,
       avgHoldDays,
+      equityCurve: sampledCurve,
     });
   }
 
@@ -421,6 +458,13 @@ export default function BacktestPanel() {
                   </div>
                 ))}
               </div>
+
+              {/* Equity curve */}
+              {result.equityCurve.length > 1 && (
+                <div className="bg-slate-900 rounded-lg p-3">
+                  <EquityCurve data={result.equityCurve} initial={result.initialCapital} />
+                </div>
+              )}
 
               {/* Trade list */}
               {result.trades.length > 0 ? (

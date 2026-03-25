@@ -1,8 +1,8 @@
 {
-  "id": "TW-2026-03-25-1774438472487",
+  "id": "TW-2026-03-25-1774440794078",
   "market": "TW",
   "date": "2026-03-25",
-  "scanTime": "2026-03-25T11:34:32.487Z",
+  "scanTime": "2026-03-25T12:13:14.078Z",
   "resultCount": 4,
   "results": [
     {
@@ -47,7 +47,7 @@
       "sixConditionsScore": 4,
       "trendState": "多頭",
       "trendPosition": "末升段(高檔)",
-      "scanTime": "2026-03-25T11:34:22.808Z"
+      "scanTime": "2026-03-25T12:13:07.637Z"
     },
     {
       "symbol": "2360.TW",
@@ -73,7 +73,7 @@
       "sixConditionsScore": 3,
       "trendState": "多頭",
       "trendPosition": "末升段(高檔)",
-      "scanTime": "2026-03-25T11:34:30.672Z"
+      "scanTime": "2026-03-25T12:13:12.502Z"
     },
     {
       "symbol": "4958.TW",
@@ -99,7 +99,7 @@
       "sixConditionsScore": 3,
       "trendState": "多頭",
       "trendPosition": "末升段(高檔)",
-      "scanTime": "2026-03-25T11:34:31.418Z"
+      "scanTime": "2026-03-25T12:13:13.139Z"
     },
     {
       "symbol": "6415.TW",
@@ -125,7 +125,7 @@
       "sixConditionsScore": 3,
       "trendState": "多頭",
       "trendPosition": "末升段(高檔)",
-      "scanTime": "2026-03-25T11:34:31.318Z"
+      "scanTime": "2026-03-25T12:13:13.029Z"
     }
   ]
 }

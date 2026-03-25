@@ -97,10 +97,18 @@ export default function ScannerPage() {
               <h3 className="text-sm font-bold text-slate-200">
                 掃描結果 <span className="text-blue-400">{currentResults.length}</span> 檔符合條件
               </h3>
-              <span className="text-xs text-slate-500">按六大條件得分排序</span>
+              <span className="text-xs text-slate-500">按六大條件得分排序 · 點「走圖」可直接載入</span>
             </div>
             {currentResults.map((r) => (
-              <ScanResultCard key={r.symbol} result={r} />
+              <div key={r.symbol} className="relative">
+                <ScanResultCard result={r} />
+                <Link
+                  href={`/?load=${r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}`}
+                  className="absolute top-3 right-3 px-2.5 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs font-bold text-white transition z-10"
+                >
+                  走圖 →
+                </Link>
+              </div>
             ))}
           </div>
         )}

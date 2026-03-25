@@ -26,16 +26,27 @@ const CandleChart = dynamic(() => import('@/components/CandleChart'), {
 
 const IndicatorCharts = dynamic(() => import('@/components/IndicatorCharts'), { ssr: false });
 
-type SideTab = 'conditions' | 'trade' | 'account' | 'signals';
+type SideTab = 'conditions' | 'trade' | 'account' | 'signals' | 'chat';
 
 export default function HomePage() {
   const {
     initData, visibleCandles, currentSignals, chartMarkers,
     isLoadingStock, allCandles, currentIndex,
     nextCandle, prevCandle, isPlaying, startPlay, stopPlay, metrics,
+    loadStock,
   } = useReplayStore();
 
   useEffect(() => { initData(); }, [initData]);
+
+  // Handle ?load=SYMBOL from scanner page
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sym = params.get('load');
+    if (sym) {
+      loadStock(sym, '1d', '2y');
+      window.history.replaceState({}, '', '/');
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleKey = useCallback((e: KeyboardEvent) => {
     if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
@@ -65,12 +76,13 @@ export default function HomePage() {
     { key: 'trade',      label: '交易' },
     { key: 'account',    label: '帳戶' },
     { key: 'signals',    label: '訊號' },
+    { key: 'chat',       label: '問老師' },
   ];
 
   return (
     <div className="h-screen flex flex-col bg-[#0b1120] text-white overflow-hidden">
 
-      {/* ── Header (includes stock selector) ───────────────────────────── */}
+      {/* ── Header ── */}
       <header className="shrink-0 border-b border-slate-800 px-3 py-1.5 flex items-center gap-2">
         <span className="text-sm font-bold text-white whitespace-nowrap shrink-0">📈</span>
         <StockSelector />
@@ -82,13 +94,11 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* ── Main: Chart (left) + Sidebar (right) ───────────────────────── */}
+      {/* ── Main ── */}
       <div className="flex-1 flex gap-2 px-3 py-2 min-h-0 overflow-hidden">
 
-        {/* ── Left: Chart column ────────────────────────────────────────── */}
+        {/* Left: Chart */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0 gap-1.5">
-
-          {/* Chart wrapper — fixed height proportional to viewport */}
           <div
             className={`relative flex flex-col rounded-xl border border-slate-700 overflow-hidden bg-slate-900 transition-opacity ${isLoadingStock ? 'opacity-40 pointer-events-none' : ''}`}
             style={{ height: 'calc(100vh - 100px)' }}
@@ -124,7 +134,6 @@ export default function HomePage() {
               </div>
             )}
 
-            {/* K-line chart — 48% of chart area */}
             <div className="shrink-0 border-b border-slate-800" style={{ height: '48%' }}>
               <CandleChart
                 candles={visibleCandles}
@@ -135,8 +144,6 @@ export default function HomePage() {
                 fillContainer
               />
             </div>
-
-            {/* Indicator charts — remaining 52% */}
             <div className="flex-1 min-h-0 overflow-hidden">
               <IndicatorCharts candles={visibleCandles} hoverCandle={hoverCandle} />
             </div>
@@ -151,46 +158,46 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* ── Right: Sidebar ────────────────────────────────────────────── */}
+        {/* Right: Sidebar */}
         <div className="w-72 shrink-0 flex flex-col min-h-0 gap-2">
-
           {/* Tab switcher */}
           <div className="shrink-0 flex rounded-lg overflow-hidden border border-slate-700 text-xs">
             {SIDE_TABS.map(t => (
-              <button
-                key={t.key}
-                onClick={() => setSideTab(t.key)}
+              <button key={t.key} onClick={() => setSideTab(t.key)}
                 className={`flex-1 py-1.5 font-medium transition-colors ${
-                  sideTab === t.key
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                }`}
-              >
+                  sideTab === t.key ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                }`}>
                 {t.label}
               </button>
             ))}
           </div>
 
-          {/* Tab content — scrollable */}
-          <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-0.5">
-            {sideTab === 'conditions' && <SixConditionsPanel />}
-            {sideTab === 'trade'      && <TradePanel />}
-            {sideTab === 'account'    && <AccountInfo />}
-            {sideTab === 'signals'    && (
-              <div className="space-y-2">
-                <RuleAlerts />
-                <TradeHistory />
-              </div>
-            )}
-          </div>
+          {/* Tab content */}
+          {sideTab === 'chat' ? (
+            // Chat fills the full sidebar height
+            <div className="flex-1 min-h-0">
+              <AnalysisChat sidebar />
+            </div>
+          ) : (
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-0.5">
+              {sideTab === 'conditions' && <SixConditionsPanel />}
+              {sideTab === 'trade'      && <TradePanel />}
+              {sideTab === 'account'    && <AccountInfo />}
+              {sideTab === 'signals'    && (
+                <div className="space-y-2">
+                  <RuleAlerts />
+                  <TradeHistory />
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
       </div>
 
-      {/* ── Bottom: Backtest + Chat (collapsible) ──────────────────────── */}
-      <div className="shrink-0 px-3 pb-3 space-y-2 max-h-[40vh] overflow-y-auto">
+      {/* ── Bottom: Backtest (collapsible) ── */}
+      <div className="shrink-0 px-3 pb-3 max-h-[40vh] overflow-y-auto">
         <BacktestPanel />
-        <AnalysisChat />
       </div>
 
     </div>
