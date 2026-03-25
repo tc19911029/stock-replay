@@ -146,9 +146,9 @@ function buildState(
 }
 
 /** Start replay at START_BARS from the beginning, but at least 60 bars in */
-function calcStartIndex(candles: CandleWithIndicators[], interval: string): number {
-  const bars = START_BARS[interval] ?? 120;
-  return Math.min(bars - 1, candles.length - 1);
+function calcStartIndex(candles: CandleWithIndicators[]): number {
+  // Always start at the latest candle
+  return candles.length - 1;
 }
 
 export const useReplayStore = create<ReplayStore>((set, get) => ({
@@ -174,7 +174,7 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
     const rawCandles = loadMockData();
     const allCandles = computeIndicators(rawCandles);
     precomputeMarkers(allCandles);
-    const index = calcStartIndex(allCandles, '1d');
+    const index = calcStartIndex(allCandles);
     const account = createAccount(INITIAL_CAPITAL);
     set({
       allCandles,
@@ -211,7 +211,7 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
       if (allCandles.length === 0) throw new Error('資料筆數為 0');
 
       precomputeMarkers(allCandles);
-      const index = calcStartIndex(allCandles, interval);
+      const index = calcStartIndex(allCandles);
       const account = createAccount(INITIAL_CAPITAL);
       set({
         allCandles,
@@ -279,7 +279,7 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
 
   resetReplay: () => {
     const { allCandles, currentInterval } = get();
-    const index = calcStartIndex(allCandles, currentInterval);
+    const index = calcStartIndex(allCandles);
     const account = createAccount(INITIAL_CAPITAL);
     set({
       currentIndex: index,

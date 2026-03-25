@@ -9,8 +9,8 @@ import ScanResultCard from '@/components/scanner/ScanResultCard';
 import { MarketId, StockScanResult } from '@/lib/scanner/types';
 
 const MARKETS: Array<{ id: MarketId; label: string; desc: string }> = [
-  { id: 'TW', label: '台灣股市', desc: '掃描 Top 100 台股（每日13:00）' },
-  { id: 'CN', label: '中國A股', desc: '掃描 Top 20 A股（每日14:30）' },
+  { id: 'TW', label: '台灣股市', desc: '掃描全市場台股上市+上櫃（每日13:00）' },
+  { id: 'CN', label: '中國A股', desc: '掃描滬深主板，排除創業板與ST股（每日14:30）' },
 ];
 
 function useNotifyOnScanComplete(results: StockScanResult[], notifyEmail: string, minScore: number, market: MarketId) {

@@ -9,6 +9,7 @@ import { CandleWithIndicators } from '@/types';
 export async function fetchCandlesYahoo(
   ticker: string,
   period = '1y',
+  timeoutMs = 20000,
 ): Promise<CandleWithIndicators[]> {
   const url = [
     `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}`,
@@ -22,7 +23,7 @@ export async function fetchCandlesYahoo(
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
       'Accept': 'application/json',
     },
-    signal: AbortSignal.timeout(20000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 
   if (!res.ok) throw new Error(`Yahoo Finance ${res.status} for ${ticker}`);

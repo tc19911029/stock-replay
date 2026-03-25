@@ -19,10 +19,10 @@ const TW_RED   = '#ef4444';
 const TW_GREEN = '#22c55e';
 
 const MA_COLORS = {
-  ma5:  '#f59e0b',
-  ma10: '#a78bfa',
-  ma20: '#3b82f6',
-  ma60: '#f97316',
+  ma5:  '#facc15', // 黃（短線）
+  ma10: '#a78bfa', // 紫
+  ma20: '#38bdf8', // 天藍（中線）
+  ma60: '#f43f5e', // 玫紅（長線，明顯區別於 MA5 黃色）
 };
 
 function toTime(date: string): Time { return date as Time; }

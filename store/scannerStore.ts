@@ -52,17 +52,22 @@ export const useScannerStore = create<ScannerStore>((set, get) => ({
   setActiveMarket: (market) => set({ activeMarket: market }),
 
   runScan: async (market) => {
-    const names = market === 'TW' ? TW_STOCK_NAMES : CN_STOCK_NAMES;
-    const total = names.length;
-    set({ isScanning: true, scanProgress: 0, scanningStock: '', scanningIndex: 0, scanningTotal: total, error: null });
+    // Estimated totals for progress simulation
+    const total = market === 'TW' ? 1600 : 2000;
+    const estDurationMs = market === 'TW' ? 180000 : 240000; // ~3~4 min
 
-    let stockIdx = 0;
-    // Cycle through stock names to simulate per-stock progress
+    set({ isScanning: true, scanProgress: 0, scanningStock: '取得股票清單中...', scanningIndex: 0, scanningTotal: total, error: null });
+
+    let elapsed = 0;
+    const TICK = 1500;
+    const names = market === 'TW' ? TW_STOCK_NAMES : CN_STOCK_NAMES;
     const progressInterval = setInterval(() => {
-      stockIdx = Math.min(stockIdx + 1, total - 1);
-      const pct = Math.round((stockIdx / total) * 90);
-      set({ scanProgress: pct, scanningStock: names[stockIdx], scanningIndex: stockIdx + 1 });
-    }, market === 'TW' ? 1800 : 1500);  // approx timing per stock
+      elapsed += TICK;
+      const pct = Math.min(90, Math.round((elapsed / estDurationMs) * 90));
+      const nameIdx = Math.min(Math.floor((elapsed / estDurationMs) * names.length), names.length - 1);
+      const approxIdx = Math.min(Math.round((elapsed / estDurationMs) * total), total - 1);
+      set({ scanProgress: pct, scanningStock: names[nameIdx], scanningIndex: approxIdx + 1 });
+    }, TICK);
 
     try {
       const res = await fetch('/api/scanner/run', {
