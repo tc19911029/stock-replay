@@ -137,6 +137,7 @@ export default function BacktestPanel() {
   const [positionPct,  setPositionPct]  = useState(1.0);
   const [result,       setResult]       = useState<BacktestResult | null>(null);
   const [show,         setShow]         = useState(false);
+  const [mode,         setMode]         = useState<'composite' | 'signal'>('composite');
 
   function runBacktest() {
     if (allCandles.length === 0) return;
@@ -163,7 +164,8 @@ export default function BacktestPanel() {
     let peak = initialCapital;
     let maxDrawdown = 0;
 
-    for (const c of filtered) {
+    for (let fi = 0; fi < filtered.length; fi++) {
+      const c = filtered[fi];
       const globalIdx = idxMap.get(c.date);
       if (globalIdx == null) continue;
 
@@ -173,46 +175,92 @@ export default function BacktestPanel() {
       const dd = (peak - equity) / peak * 100;
       if (dd > maxDrawdown) maxDrawdown = dd;
 
-      const isBullish = c.ma5 != null && c.ma20 != null && c.ma5 > c.ma20;
-      const isBearish = c.ma5 != null && c.ma20 != null && c.ma5 < c.ma20;
+      if (mode === 'composite') {
+        // ── 朱老師複合進場條件 ──────────────────────────────────────────
+        // Buy: 長紅K(body>2%) + MA多頭排列(MA5>MA10>MA20) + 量增(>1.3x均量)
+        const bodyPct = c.open > 0 ? Math.abs(c.close - c.open) / c.open : 0;
+        const isLongRed = c.close > c.open && bodyPct >= 0.02;
+        const bullishMA = c.ma5 != null && c.ma10 != null && c.ma20 != null
+          && c.ma5 > c.ma10 && c.ma10 > c.ma20;
+        const volIncrease = c.avgVol5 != null && c.avgVol5 > 0 && c.volume >= c.avgVol5 * 1.3;
+        const canBuy = isLongRed && bullishMA && volIncrease;
 
-      const signals = ruleEngine.evaluate(allCandles, globalIdx)
-        .filter(s => s.type !== 'WATCH')
-        .filter(s => {
-          if (s.type === 'BUY' || s.type === 'ADD')    return isBullish;
-          if (s.type === 'SELL' || s.type === 'REDUCE') return isBearish;
-          return true;
-        });
+        // Sell: 黑K + 收盤跌破MA5（由上方穿越至下方）
+        const prevC = fi > 0 ? filtered[fi - 1] : null;
+        const isBlackK = c.close < c.open;
+        const breaksMA5 = prevC != null && prevC.ma5 != null && c.ma5 != null
+          && prevC.close >= prevC.ma5 && c.close < c.ma5;
+        const canSell = isBlackK && breaksMA5;
 
-      if (signals.length === 0) continue;
+        if (canBuy && shares === 0 && cash > 0) {
+          const budget = cash * positionPct;
+          shares = Math.floor(budget / c.close);
+          buyPrice = c.close;
+          buyDate  = c.date;
+          buyLabel = '複合條件買入（長紅K+MA多排+量增）';
+          buyDescription = `長紅K實體${(bodyPct * 100).toFixed(1)}%，MA5(${c.ma5?.toFixed(2)})>MA10(${c.ma10?.toFixed(2)})>MA20(${c.ma20?.toFixed(2)})，量 ${c.volume} vs 均量 ${c.avgVol5}`;
+          buyReason = '【朱老師SOP】三條件同時滿足：①長紅K棒突破 ②MA多頭排列 ③量能放大';
+          cash -= shares * c.close;
+        } else if (canSell && shares > 0) {
+          const revenue  = shares * c.close;
+          const invested = shares * buyPrice;
+          const pnl      = revenue - invested;
+          trades.push({
+            buyDate, buyPrice, buyLabel, buyDescription, buyReason,
+            sellDate: c.date, sellPrice: c.close,
+            sellLabel: '停損出場（黑K破MA5）',
+            sellDescription: `黑K收盤 ${c.close} 跌破MA5 ${c.ma5}`,
+            sellReason: '【朱老師停損SOP】黑K棒收盤跌破5日均線，立即停損出場。',
+            shares, invested, pnl,
+            pnlPct: (pnl / invested) * 100,
+            open: false,
+          });
+          cash  += revenue;
+          shares = 0;
+        }
+      } else {
+        // ── 原信號驅動模式 ───────────────────────────────────────────────
+        const isBullish = c.ma5 != null && c.ma20 != null && c.ma5 > c.ma20;
+        const isBearish = c.ma5 != null && c.ma20 != null && c.ma5 < c.ma20;
 
-      const best = signals.reduce((a, b) =>
-        (MARKER_PRIORITY[b.type] ?? 0) > (MARKER_PRIORITY[a.type] ?? 0) ? b : a
-      );
+        const signals = ruleEngine.evaluate(allCandles, globalIdx)
+          .filter(s => s.type !== 'WATCH')
+          .filter(s => {
+            if (s.type === 'BUY' || s.type === 'ADD')    return isBullish;
+            if (s.type === 'SELL' || s.type === 'REDUCE') return isBearish;
+            return true;
+          });
 
-      if ((best.type === 'BUY' || best.type === 'ADD') && shares === 0 && cash > 0) {
-        const budget   = cash * positionPct;
-        shares         = Math.floor(budget / c.close);
-        buyPrice       = c.close;
-        buyDate        = c.date;
-        buyLabel       = best.label;
-        buyDescription = best.description;
-        buyReason      = best.reason;
-        cash          -= shares * c.close;
-      } else if ((best.type === 'SELL' || best.type === 'REDUCE') && shares > 0) {
-        const revenue  = shares * c.close;
-        const invested = shares * buyPrice;
-        const pnl      = revenue - invested;
-        trades.push({
-          buyDate, buyPrice, buyLabel, buyDescription, buyReason,
-          sellDate: c.date, sellPrice: c.close,
-          sellLabel: best.label, sellDescription: best.description, sellReason: best.reason,
-          shares, invested, pnl,
-          pnlPct: (pnl / invested) * 100,
-          open: false,
-        });
-        cash  += revenue;
-        shares = 0;
+        if (signals.length === 0) continue;
+
+        const best = signals.reduce((a, b) =>
+          (MARKER_PRIORITY[b.type] ?? 0) > (MARKER_PRIORITY[a.type] ?? 0) ? b : a
+        );
+
+        if ((best.type === 'BUY' || best.type === 'ADD') && shares === 0 && cash > 0) {
+          const budget   = cash * positionPct;
+          shares         = Math.floor(budget / c.close);
+          buyPrice       = c.close;
+          buyDate        = c.date;
+          buyLabel       = best.label;
+          buyDescription = best.description;
+          buyReason      = best.reason;
+          cash          -= shares * c.close;
+        } else if ((best.type === 'SELL' || best.type === 'REDUCE') && shares > 0) {
+          const revenue  = shares * c.close;
+          const invested = shares * buyPrice;
+          const pnl      = revenue - invested;
+          trades.push({
+            buyDate, buyPrice, buyLabel, buyDescription, buyReason,
+            sellDate: c.date, sellPrice: c.close,
+            sellLabel: best.label, sellDescription: best.description, sellReason: best.reason,
+            shares, invested, pnl,
+            pnlPct: (pnl / invested) * 100,
+            open: false,
+          });
+          cash  += revenue;
+          shares = 0;
+        }
       }
     }
 
@@ -267,6 +315,24 @@ export default function BacktestPanel() {
         <span>📊 自動走圖分析（回測）</span>
         <span className="text-slate-400 text-xs">{show ? '▲ 收起' : '▼ 展開'}</span>
       </button>
+
+      {show && (
+        <div className="px-4 pb-1 border-b border-slate-700 flex gap-2">
+          <span className="text-xs text-slate-400 self-center">回測模式：</span>
+          <button
+            onClick={() => setMode('composite')}
+            className={`px-3 py-1 rounded text-xs font-medium transition ${mode === 'composite' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}
+          >
+            朱老師複合條件
+          </button>
+          <button
+            onClick={() => setMode('signal')}
+            className={`px-3 py-1 rounded text-xs font-medium transition ${mode === 'signal' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}
+          >
+            信號驅動
+          </button>
+        </div>
+      )}
 
       {show && (
         <div className="px-4 pb-4 space-y-4 border-t border-slate-700">

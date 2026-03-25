@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useReplayStore } from '@/store/replayStore';
 import { maxBuyShares } from '@/lib/engines/tradeEngine';
 
@@ -8,12 +8,28 @@ type Mode = 'percent' | 'shares' | 'amount';
 
 export default function TradePanel() {
   const { allCandles, currentIndex, metrics, buy, sell, buyPercent, sellPercent } = useReplayStore();
-  const [input, setInput] = useState('');
-  const [mode, setMode] = useState<Mode>('percent');
+  const [input,   setInput]   = useState('');
+  const [mode,    setMode]    = useState<Mode>('percent');
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const currentCandle = allCandles[currentIndex];
+  const prevCandle    = allCandles[currentIndex - 1];
   const currentPrice  = currentCandle?.close ?? 0;
   const maxBuy = maxBuyShares(metrics.cash, currentPrice);
+
+  // Stop-loss helpers (only shown when holding position)
+  const ma5StopLoss = currentCandle?.ma5 ?? null;
+  const costStopLoss = metrics.avgCost > 0 ? +(metrics.avgCost * 0.93).toFixed(2) : null;
+  const stopLossPrice = ma5StopLoss != null && costStopLoss != null
+    ? Math.max(ma5StopLoss, costStopLoss)
+    : (ma5StopLoss ?? costStopLoss);
+
+  // Warn: black K closing below MA5 (from above)
+  const isBlackK = currentCandle && currentCandle.close < currentCandle.open;
+  const brokeMA5 = isBlackK && prevCandle && prevCandle.ma5 != null && currentCandle!.ma5 != null
+    && prevCandle.close >= prevCandle.ma5 && currentCandle!.close < currentCandle!.ma5;
+  const showStopLossWarn = metrics.shares > 0 && brokeMA5;
 
   // Estimated shares / cost preview
   const inputNum = parseFloat(input) || 0;
@@ -84,7 +100,7 @@ export default function TradePanel() {
                 <button
                   key={p}
                   onClick={() => buyPercent(p)}
-                  disabled={metrics.cash <= 0 || currentPrice <= 0}
+                  disabled={mounted && (metrics.cash <= 0 || currentPrice <= 0)}
                   className="py-2 rounded-lg bg-red-700 hover:bg-red-600 active:bg-red-500 disabled:opacity-30 text-xs font-bold transition"
                 >
                   {p * 100}%
@@ -131,7 +147,7 @@ export default function TradePanel() {
             )}
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={handleBuy} disabled={metrics.cash <= 0 || currentPrice <= 0}
+            <button onClick={handleBuy} disabled={mounted && (metrics.cash <= 0 || currentPrice <= 0)}
               className="py-2.5 rounded-lg bg-red-700 hover:bg-red-600 disabled:opacity-30 text-sm font-bold transition">
               買入
             </button>
@@ -176,7 +192,7 @@ export default function TradePanel() {
             ))}
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={handleBuy} disabled={metrics.cash <= 0 || estimatedSharesFromAmount <= 0}
+            <button onClick={handleBuy} disabled={mounted && (metrics.cash <= 0 || estimatedSharesFromAmount <= 0)}
               className="py-2.5 rounded-lg bg-red-700 hover:bg-red-600 disabled:opacity-30 text-sm font-bold transition">
               買入
             </button>
@@ -186,6 +202,31 @@ export default function TradePanel() {
             </button>
           </div>
         </>
+      )}
+
+      {/* ── Stop-loss info (when holding) ── */}
+      {metrics.shares > 0 && stopLossPrice != null && (
+        <div className={`rounded-lg px-3 py-2 text-xs space-y-0.5 ${showStopLossWarn ? 'bg-red-900/60 border border-red-600' : 'bg-slate-700/60'}`}>
+          {showStopLossWarn && (
+            <p className="text-red-400 font-bold">⚠ 黑K跌破MA5，考慮停損！</p>
+          )}
+          <div className="flex justify-between text-slate-400">
+            <span>建議停損</span>
+            <span className="text-red-300 font-mono font-bold">${stopLossPrice.toFixed(2)}</span>
+          </div>
+          {ma5StopLoss != null && (
+            <div className="flex justify-between text-slate-500">
+              <span>MA5</span>
+              <span className="font-mono">${ma5StopLoss.toFixed(2)}</span>
+            </div>
+          )}
+          {costStopLoss != null && (
+            <div className="flex justify-between text-slate-500">
+              <span>成本 -7%</span>
+              <span className="font-mono">${costStopLoss.toFixed(2)}</span>
+            </div>
+          )}
+        </div>
       )}
 
       <p className="text-xs text-slate-600 text-center">以收盤價成交，含手續費與稅</p>

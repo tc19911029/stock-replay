@@ -9,8 +9,11 @@ import TradePanel from '@/components/TradePanel';
 import AccountInfo from '@/components/AccountInfo';
 import RuleAlerts from '@/components/RuleAlerts';
 import TradeHistory from '@/components/TradeHistory';
+import Link from 'next/link';
 import BacktestPanel from '@/components/BacktestPanel';
 import AnalysisChat from '@/components/AnalysisChat';
+import TrendStateBar from '@/components/TrendStateBar';
+import SixConditionsPanel from '@/components/SixConditionsPanel';
 
 const CandleChart = dynamic(() => import('@/components/CandleChart'), {
   ssr: false,
@@ -76,7 +79,12 @@ export default function HomePage() {
             </span>
           )}
         </div>
-        <p className="text-xs text-slate-500 hidden sm:block">← → Space 鍵盤操作</p>
+        <div className="flex items-center gap-3">
+          <Link href="/scanner" className="text-xs px-3 py-1.5 bg-blue-600/80 hover:bg-blue-500 rounded-lg text-white font-medium transition">
+            🔍 市場掃描
+          </Link>
+          <p className="text-xs text-slate-500 hidden sm:block">← → Space 鍵盤操作</p>
+        </div>
       </header>
 
       <div className="p-3 space-y-3">
@@ -136,13 +144,19 @@ export default function HomePage() {
           <AccountInfo />
         </div>
 
-        {/* ── Row 4: Rule Alerts + Trade History ───────────────────────── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* ── Row 4: Trend State Bar ───────────────────────────────────── */}
+        <div className="bg-slate-800/60 rounded-xl border border-slate-700 px-2 py-1">
+          <TrendStateBar />
+        </div>
+
+        {/* ── Row 5: Six Conditions + Rule Alerts + Trade History ──────── */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <SixConditionsPanel />
           <RuleAlerts />
           <TradeHistory />
         </div>
 
-        {/* ── Row 5: Backtest ───────────────────────────────────────────── */}
+        {/* ── Row 6: Backtest ───────────────────────────────────────────── */}
         <BacktestPanel />
 
         {/* ── Row 6: AI Chat ────────────────────────────────────────────── */}

@@ -629,7 +629,7 @@ const macdGoldenCross: TradingRule = {
     if (!crossed) return null;
     const aboveZero = c.macdDIF > 0;
     return {
-      type: aboveZero ? 'BUY' : 'WATCH',
+      type: 'WATCH',
       label: aboveZero ? 'MACD金叉（0軸上）' : 'MACD金叉（0軸下）',
       description: `DIF(${c.macdDIF}) 上穿 MACD(${c.macdSignal})，OSC由負轉正（綠轉紅柱）`,
       reason: [
@@ -660,7 +660,7 @@ const macdDeathCross: TradingRule = {
     if (!crossed) return null;
     const aboveZero = c.macdDIF > 0;
     return {
-      type: 'SELL',
+      type: 'WATCH',
       label: aboveZero ? 'MACD死叉（高位警示）' : 'MACD死叉（空頭加速）',
       description: `DIF(${c.macdDIF}) 下穿 MACD(${c.macdSignal})，OSC由正轉負（紅轉綠柱）`,
       reason: [
@@ -686,7 +686,7 @@ const macdBullishDivergence: TradingRule = {
     const c = candles[index];
     // 找前一個局部高點
     let prevHighIdx = -1;
-    for (let i = index - 3; i >= Math.max(0, index - 15); i--) {
+    for (let i = index - 3; i >= Math.max(1, index - 15); i--) {
       if (candles[i].close > candles[i - 1].close && candles[i].close > candles[i + 1]?.close) {
         prevHighIdx = i;
         break;
@@ -782,6 +782,38 @@ const kdOverboughtWarning: TradingRule = {
 };
 
 // ═══════════════════════════════════════════════════════════════
+//  ⑦ 停損/停利規則（朱老師SOP）
+// ═══════════════════════════════════════════════════════════════
+
+/** 停損出場：黑K收盤跌破MA5（朱老師SOP核心停損規則） */
+const stopLossBreakMA5: TradingRule = {
+  id: 'stop-loss-break-ma5',
+  name: '停損：黑K跌破MA5',
+  description: '收黑K且收盤由MA5上方跌破至MA5下方，觸發朱老師停損SOP',
+  evaluate(candles, index): RuleSignal | null {
+    if (index < 1) return null;
+    const c    = candles[index];
+    const prev = candles[index - 1];
+    if (c.ma5 == null || prev.ma5 == null) return null;
+    const isBlack     = c.close < c.open;
+    const breaksMA5   = prev.close >= prev.ma5 && c.close < c.ma5;
+    if (!isBlack || !breaksMA5) return null;
+    return {
+      type: 'SELL',
+      label: '停損出場（黑K破MA5）',
+      description: `黑K收盤 ${c.close} 由MA5(${prev.ma5}) 上方跌破至 ${c.ma5} 下方，觸發停損訊號`,
+      reason: [
+        '【朱老師停損SOP】林穎《學會走圖SOP》明確說明：「黑K棒收盤跌破5日均線，就要停損出場，不管是獲利了結還是停損，這是鐵律。」',
+        '【為什麼是MA5】5日均線代表最近1週的平均成本，跌破代表短期買方已全面失守，趨勢可能轉變。',
+        '【執行紀律】書中強調：「停損要在第一時間執行，不要猶豫。早一天停損，可以少賠一段。」如果這根黑K是第一次跌破MA5，務必執行。',
+        '【例外情況】若股票處於盤整區間（非明顯多頭），此訊號可調整為觀察而非立即停損。',
+      ].join('\n'),
+      ruleId: this.id,
+    };
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════
 //  ALL RULES
 // ═══════════════════════════════════════════════════════════════
 
@@ -815,4 +847,6 @@ export const DEFAULT_RULES: TradingRule[] = [
   // KD
   kdOversoldBounce,
   kdOverboughtWarning,
+  // 停損
+  stopLossBreakMA5,
 ];

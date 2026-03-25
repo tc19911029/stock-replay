@@ -19,6 +19,14 @@ import {
 } from '@/lib/engines/tradeEngine';
 import { computeStats } from '@/lib/engines/statsEngine';
 import { ruleEngine } from '@/lib/rules/ruleEngine';
+import {
+  detectTrend,
+  detectTrendPosition,
+  evaluateSixConditions,
+  TrendState,
+  TrendPosition,
+  SixConditionsResult,
+} from '@/lib/analysis/trendAnalysis';
 
 const INITIAL_CAPITAL = 1_000_000;
 
@@ -91,6 +99,11 @@ interface ReplayStore {
   currentSignals: RuleSignal[];
   chartMarkers: ChartSignalMarker[];  // all past signal markers up to currentIndex
 
+  // ── Analysis ──────────────────────────────────────────────
+  trendState: TrendState;
+  trendPosition: TrendPosition;
+  sixConditions: SixConditionsResult | null;
+
   // ── Actions ───────────────────────────────────────────────
   initData: () => void;
   loadStock: (symbol: string, interval?: string, period?: string) => Promise<void>;
@@ -124,7 +137,10 @@ function buildState(
   const visibleCandles = allCandles.slice(0, index + 1);
   const currentDate = allCandles[index]?.date ?? '';
   const chartMarkers = _cachedMarkers.filter(m => m.date <= currentDate);
-  return { visibleCandles, metrics, stats, currentSignals: signals, chartMarkers };
+  const trendState    = detectTrend(allCandles, index);
+  const trendPosition = detectTrendPosition(allCandles, index);
+  const sixConditions = evaluateSixConditions(allCandles, index);
+  return { visibleCandles, metrics, stats, currentSignals: signals, chartMarkers, trendState, trendPosition, sixConditions };
 }
 
 /** Start replay at START_BARS from the beginning, but at least 60 bars in */
@@ -147,6 +163,9 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
   stats: EMPTY_STATS,
   currentSignals: [],
   chartMarkers: [],
+  trendState: '盤整' as TrendState,
+  trendPosition: '盤整觀望' as TrendPosition,
+  sixConditions: null,
 
   // ── Init with mock data ───────────────────────────────────
   initData: () => {

@@ -23,11 +23,11 @@ function computeEMA(closes: number[], period: number): (number | undefined)[] {
 // ── MACD ──────────────────────────────────────────────────────────────────────
 /**
  * Compute MACD arrays.
- * 書中推薦參數: fast=10, slow=20, signal=10 (調整後的一週5交易日版本)
+ * 標準參數: fast=12, slow=26, signal=9 (市場主流設定)
  */
 function computeMACD(
   closes: number[],
-  fast = 10, slow = 20, signalPeriod = 10
+  fast = 12, slow = 26, signalPeriod = 9
 ): { dif: (number | undefined)[]; signal: (number | undefined)[]; osc: (number | undefined)[] } {
   const emaFast   = computeEMA(closes, fast);
   const emaSlow   = computeEMA(closes, slow);
