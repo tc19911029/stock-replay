@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# K線走圖練習器 · 股票技術分析平台
 
-## Getting Started
+基於朱家泓老師六大進場條件的台股／陸股技術分析工具，提供 K 線走圖練習、即時市場掃描、歷史回測驗證等功能。
 
-First, run the development server:
+## 功能
+
+- **走圖練習**：逐 K 棒回放任一股票歷史走勢，模擬真實交易
+- **六大條件分析**：自動評分趨勢、位置、K棒、均線、成交量、指標
+- **即時市場掃描**：掃描台灣前 500 大量股及陸股主板，篩選符合條件個股
+- **歷史回測**：指定任一過去日期，驗證六大條件選股策略的實際績效（含開盤/1/3/5/10/20 日報酬）
+- **自選股清單**：追蹤關注個股
+- **Email 通知**：掃描完成自動發送結果
+
+## 本地啟動
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+開啟 [http://localhost:3001](http://localhost:3001)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 技術架構
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Next.js 16** (App Router + Turbopack)
+- **Zustand** 狀態管理
+- **lightweight-charts** K 線圖表
+- **Yahoo Finance API** 股價資料來源
+- **Tailwind CSS** 樣式
 
-## Learn More
+## 選股策略（朱家泓六大條件 SOP）
 
-To learn more about Next.js, take a look at the following resources:
+| # | 條件 | 說明 |
+|---|------|------|
+| ① | 趨勢 | 多頭架構（頭頭高底底高 + MA5 > MA20，且 MA20 不下跌） |
+| ② | 位置 | 回測 MA10 後翻多，或 MA20 乖離率 0–12% |
+| ③ | K棒 | 長紅 K（實體 ≥ 2%），收盤在 K 棒上半段 |
+| ④ | 均線 | MA5 > MA10 > MA20，股價站上 MA5，MA5 向上 |
+| ⑤ | 量能 | 成交量 ≥ 5日均量 × 1.5 倍 |
+| ⑥ | 指標 | MACD 紅柱，或 KD 黃金交叉（K > D，20 ≤ K ≤ 85） |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+得分 ≥ 4 分、KD ≤ 88、MA20 乖離率 ≤ 20% 才進入候選清單。
