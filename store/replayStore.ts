@@ -71,11 +71,6 @@ function precomputeMarkers(allCandles: CandleWithIndicators[]): void {
  * For daily: 120 bars (~6 months visible at start), so user practices from mid-history.
  * For weekly: 60 bars (~15 months). For monthly: 36 bars (3 years).
  */
-const START_BARS: Record<string, number> = {
-  '1d':  120,
-  '1wk': 60,
-  '1mo': 36,
-};
 
 interface ReplayStore {
   // ── Data ──────────────────────────────────────────────────
@@ -145,9 +140,8 @@ function buildState(
   return { visibleCandles, metrics, stats, currentSignals: signals, chartMarkers, trendState, trendPosition, sixConditions };
 }
 
-/** Start replay at START_BARS from the beginning, but at least 60 bars in */
+/** Always start replay at the latest (rightmost) candle */
 function calcStartIndex(candles: CandleWithIndicators[]): number {
-  // Always start at the latest candle
   return candles.length - 1;
 }
 

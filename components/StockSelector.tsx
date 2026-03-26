@@ -81,8 +81,6 @@ export default function StockSelector() {
   };
 
   // Close dropdown on outside click
-  const handleWrapClick = () => {};
-  typeof handleWrapClick; // suppress unused warning
   const closeOnOutside = (e: React.MouseEvent) => {
     if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setShowDrop(false);
   };

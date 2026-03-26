@@ -419,10 +419,6 @@ export default function BacktestPage() {
           </div>
         )}
 
-        {/* Zero results state */}
-        {!isScanning && scanResults.length === 0 && scanError === null && performance.length === 0 && scanDate && (
-          <></>
-        )}
       </div>
     </div>
   );
