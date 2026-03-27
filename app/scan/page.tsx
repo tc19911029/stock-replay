@@ -1078,6 +1078,20 @@ export default function UnifiedScanPage() {
                                     </span>
                                   )}
                                   <span className="text-[10px] text-slate-500">買入 {r.price.toFixed(2)}</span>
+                                  <Link href={`/?load=${r.symbol}`}
+                                    className="text-[10px] text-sky-400 hover:text-sky-300 px-1.5 py-0.5 rounded border border-sky-700/50 hover:bg-sky-900/30 ml-1">
+                                    走圖
+                                  </Link>
+                                  <button
+                                    onClick={() => {
+                                      try {
+                                        const list: string[] = JSON.parse(localStorage.getItem('watchlist') || '[]');
+                                        if (!list.includes(r.symbol)) { list.push(r.symbol); localStorage.setItem('watchlist', JSON.stringify(list)); }
+                                      } catch {}
+                                    }}
+                                    className="text-[10px] text-amber-400 hover:text-amber-300 px-1.5 py-0.5 rounded border border-amber-700/50 hover:bg-amber-900/30">
+                                    +自選
+                                  </button>
                                 </div>
 
                                 {/* 選股原因 */}
