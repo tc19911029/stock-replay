@@ -7,6 +7,44 @@ import { detectTrend, TrendState } from '@/lib/analysis/trendAnalysis';
 type StockEntry = { symbol: string; name: string };
 
 /**
+ * 從東方財富 API 動態取得全部 A 股清單（含成交量排序）
+ * API: push2.eastmoney.com → 全市場 A 股即時行情
+ * f12=代碼, f14=名稱, f3=漲跌幅, f6=成交額
+ * fs: m:0+t:6(滬A主板), m:0+t:80(滬A科創板), m:1+t:2(深A主板), m:1+t:23(深A創業板)
+ */
+async function fetchEastMoneyStockList(): Promise<StockEntry[]> {
+  const url = 'https://push2.eastmoney.com/api/qt/clist/get?' +
+    'pn=1&pz=6000&po=1&np=1&fltt=2&invt=2&fid=f6' +
+    '&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23' +
+    '&fields=f12,f14,f3';
+
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://quote.eastmoney.com/' },
+    signal: AbortSignal.timeout(15000),
+  });
+
+  if (!res.ok) throw new Error(`EastMoney API ${res.status}`);
+  const json = await res.json();
+  const items: Array<{ f12: string; f14: string }> = json?.data?.diff ?? [];
+
+  return items
+    .filter(item => {
+      const code = item.f12;
+      // 排除 ST、退市、B股
+      if (item.f14.includes('ST') || item.f14.includes('退市')) return false;
+      // 排除 B 股（900xxx, 200xxx）
+      if (code.startsWith('900') || code.startsWith('200')) return false;
+      return true;
+    })
+    .map(item => {
+      const code = item.f12;
+      // 轉換為 Yahoo Finance 格式：6xxxxx → .SS（上海），0/3xxxxx → .SZ（深圳）
+      const suffix = code.startsWith('6') || code.startsWith('9') ? '.SS' : '.SZ';
+      return { symbol: `${code}${suffix}`, name: item.f14 };
+    });
+}
+
+/**
  * A股主板精選 —— 滬深主板上市公司，涵蓋上證50、滬深300主要成分股
  * 資料來源：Yahoo Finance 實測可抓到歷史資料
  * 排除：創業板(300xxx)、科創板(688xxx)、ST/退市
@@ -935,8 +973,18 @@ export class ChinaScanner extends MarketScanner {
   }
 
   async getStockList(): Promise<StockEntry[]> {
-    // 回傳全部 A 股名單（不設上限）
-    console.log(`[ChinaScanner] 回傳 ${CN_STOCKS.length} 檔 A 股`);
+    // 嘗試從東方財富 API 動態取得全部 A 股清單
+    try {
+      const stocks = await fetchEastMoneyStockList();
+      if (stocks.length > 100) {
+        console.log(`[ChinaScanner] 東方財富 API 取得 ${stocks.length} 檔 A 股`);
+        return stocks;
+      }
+    } catch (e) {
+      console.warn('[ChinaScanner] 東方財富 API 失敗，使用靜態名單:', e);
+    }
+    // Fallback: 靜態名單
+    console.log(`[ChinaScanner] 使用靜態名單 ${CN_STOCKS.length} 檔 A 股`);
     return CN_STOCKS;
   }
 
