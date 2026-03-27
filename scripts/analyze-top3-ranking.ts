@@ -332,7 +332,7 @@ async function main() {
             sixConditionsBreakdown: { trend: true, position: true, kbar: true, ma: true, volume: true, indicator: true },
             trendState: '多頭', trendPosition: p.trendPos,
             surgeScore: p.surgeScore, triggeredRules: [],
-            histWinRate: p.winRate, scanTime: '',
+            histWinRate: p.winRate,
           };
           return { ...p, _newScore: computeCompositeScore(sr, combo.w) };
         })
