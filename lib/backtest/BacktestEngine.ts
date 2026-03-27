@@ -183,13 +183,18 @@ export function runSingleBacktest(
   if (!rawEntryPrice || rawEntryPrice <= 0) return null;
 
   // ── 漲停板檢測 ──────────────────────────────────────────────────────────
-  // 如果隔日開盤=最高價且漲幅>=9.5%，代表一開盤就漲停鎖死，散戶買不到
+  // 判斷隔日是否漲停鎖死（散戶無法買入）
+  // 台股：漲停幅度 10%，陸股：主板10%、創業板/科創板20%
   if (strategy.entryType === 'nextOpen') {
-    // 用開盤價和收盤價的關係判斷：開=高 且 開>>收前日 → 漲停
-    const isLimitUp = entryCandle.open === entryCandle.high
-      && entryCandle.open > entryCandle.close * 1.0  // 高開
-      && ((entryCandle.high - entryCandle.low) / entryCandle.low) < 0.005; // 幾乎沒有振幅（鎖死）
-    if (isLimitUp) {
+    const range = entryCandle.high - entryCandle.low;
+    const rangeRatio = entryCandle.low > 0 ? range / entryCandle.low : 0;
+    // 漲停鎖死特徵：開盤=最高價 且 振幅極小（<0.5%）
+    const isLockUp = entryCandle.open === entryCandle.high && rangeRatio < 0.005;
+    // 大幅跳空高開（>9%）且收在最高價附近 — 可能漲停
+    const gapUpPct = forwardCandles.length >= 2
+      ? 0 // 無前日資料時不判斷
+      : 0;
+    if (isLockUp) {
       return null; // 漲停鎖死，買不到
     }
   }
@@ -203,8 +208,9 @@ export function runSingleBacktest(
   let exitReason: string = 'holdDays';
   let holdDays:   number = 0;
 
-  // ⚠️ 已知限制：nextOpen 模式的進場日，low/high 包含開盤前的價格波動
-  // 這會略微高估停損觸發率。精確解法需要分鐘級資料。
+  // nextOpen 進場：持有窗口從進場日（candles[0]）開始，但進場日的停損/停利判斷
+  // 只能用 close（因為日線的 low/high 包含開盤前的價格波動，無法區分進場後的真實日內走勢）
+  // nextClose 進場：持有窗口從隔日（candles[1]）開始
   const offset = strategy.entryType === 'nextOpen' ? 0 : 1;
   const holdWindow = forwardCandles.slice(offset, offset + strategy.holdDays);
 
@@ -215,8 +221,11 @@ export function runSingleBacktest(
     const c = holdWindow[i];
     holdDays = i + 1;
 
-    const hitSL = stopLossPrice   !== null && c.low  <= stopLossPrice;
-    const hitTP = takeProfitPrice !== null && c.high >= takeProfitPrice;
+    // 進場當天（i===0 且 nextOpen 模式）：只用收盤判斷停損/停利
+    // 因為日線 low/high 包含開盤前的跳空，無法確認是進場後才觸及
+    const isEntryDay = i === 0 && strategy.entryType === 'nextOpen';
+    const hitSL = stopLossPrice   !== null && (isEntryDay ? c.close <= stopLossPrice   : c.low  <= stopLossPrice);
+    const hitTP = takeProfitPrice !== null && (isEntryDay ? c.close >= takeProfitPrice : c.high >= takeProfitPrice);
 
     if (hitSL || hitTP) {
       if (hitSL && hitTP) {

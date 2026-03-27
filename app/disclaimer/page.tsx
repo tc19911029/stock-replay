@@ -28,6 +28,21 @@ export default function DisclaimerPage() {
         </section>
 
         <section>
+          <h2 className="text-lg font-bold text-white mb-2">如何正確解讀回測數據</h2>
+          <div className="bg-slate-900/80 border border-slate-700 rounded-lg p-4 space-y-2">
+            <p className="text-amber-300 font-medium">請注意以下量化指標的參考門檻：</p>
+            <ul className="list-disc list-inside space-y-1.5 text-slate-300">
+              <li><strong>樣本數量</strong>：單次回測至少需要 <strong className="text-white">30 筆以上</strong>的交易才具有統計參考價值，少於此數的勝率和期望值偏差可能很大</li>
+              <li><strong>Sharpe Ratio</strong>：&ge; 1.0 為良好，0.5-1.0 為普通，&lt; 0.5 表示風險報酬比偏低</li>
+              <li><strong>Walk-Forward 穩健度</strong>：若低於 <strong className="text-white">70%</strong>，表示策略可能<strong>過度擬合</strong>歷史數據，實際交易表現可能大幅不如回測</li>
+              <li><strong>覆蓋率</strong>：低於 90% 表示部分股票資料缺失，回測結果存在<strong>倖存者偏差</strong>，實際報酬可能比顯示的低 10-20%</li>
+              <li><strong>實際 vs 回測差距</strong>：一般而言，實際交易績效會比回測結果差 <strong className="text-white">20-30%</strong>，主要來自滑點、流動性、心理因素等</li>
+            </ul>
+            <p className="text-xs text-slate-500 mt-2">建議：先以小資金紙上模擬交易至少 1-3 個月，確認策略在實盤環境中可行後，再逐步投入資金。</p>
+          </div>
+        </section>
+
+        <section>
           <h2 className="text-lg font-bold text-white mb-2">當沖提示功能</h2>
           <p>當沖提示功能目前處於 <strong className="text-amber-400">Beta 測試階段</strong>，訊號品質尚在優化中。</p>
           <p className="mt-2">任何買賣提示均不構成交易建議。使用者應自行判斷並承擔全部交易風險。</p>

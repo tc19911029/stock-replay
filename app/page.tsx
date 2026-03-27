@@ -113,10 +113,10 @@ export default function HomePage() {
             <span className="text-[10px] font-bold text-sky-500 border border-sky-700/60 bg-sky-900/30 px-2 py-1 rounded cursor-default select-none whitespace-nowrap">
               走圖
             </span>
-            <Link href="/scan"       className="text-[11px] px-2 py-1 rounded text-slate-300 hover:bg-slate-700 hover:text-white font-medium transition whitespace-nowrap">掃描選股</Link>
-            <Link href="/live-daytrade" className="text-[11px] px-2 py-1 rounded bg-violet-900/50 text-violet-300 hover:bg-violet-700 hover:text-white font-medium transition whitespace-nowrap border border-violet-700/50">當沖 <span className="text-[8px] bg-amber-600 text-white px-1 rounded-full">β</span></Link>
-            <Link href="/report"     className="text-[11px] px-2 py-1 rounded text-slate-300 hover:bg-slate-700 hover:text-white font-medium transition whitespace-nowrap hidden md:block">報表</Link>
-            <Link href="/strategies" className="text-[11px] px-2 py-1 rounded text-slate-300 hover:bg-slate-700 hover:text-white font-medium transition whitespace-nowrap hidden md:block">策略</Link>
+            <Link href="/scan"       title="批量掃描台股/陸股，找出符合六大條件的個股並回測績效" className="text-[11px] px-2 py-1 rounded text-slate-300 hover:bg-slate-700 hover:text-white font-medium transition whitespace-nowrap">掃描選股</Link>
+            <Link href="/live-daytrade" title="多時間框架即時訊號，適合當沖交易者" className="text-[11px] px-2 py-1 rounded bg-violet-900/50 text-violet-300 hover:bg-violet-700 hover:text-white font-medium transition whitespace-nowrap border border-violet-700/50">當沖 <span className="text-[8px] bg-amber-600 text-white px-1 rounded-full">β</span></Link>
+            <Link href="/report"     title="查看歷次掃描的績效統計報表，匯出CSV" className="text-[11px] px-2 py-1 rounded text-slate-300 hover:bg-slate-700 hover:text-white font-medium transition whitespace-nowrap hidden md:block">報表</Link>
+            <Link href="/strategies" title="調整六大條件門檻，管理多個策略版本" className="text-[11px] px-2 py-1 rounded text-slate-300 hover:bg-slate-700 hover:text-white font-medium transition whitespace-nowrap hidden md:block">策略</Link>
             <Link href="/disclaimer" className="text-[11px] px-2 py-1 rounded text-slate-500 hover:bg-slate-700 hover:text-white font-medium transition whitespace-nowrap hidden md:block">免責</Link>
           </div>
 

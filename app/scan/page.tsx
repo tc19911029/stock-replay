@@ -127,6 +127,23 @@ function StrictStatsPanel({ stats, tradesCount, trades }: { stats: BacktestStats
           <span className={`font-bold text-sm ${retColor(stats.avgNetReturn)}`}>均值 {fmtRet(stats.avgNetReturn)}</span>
         </div>
       </div>
+      {/* 統計可靠性警告 */}
+      {tradesCount < 30 && (
+        <div className="px-5 py-2.5 bg-amber-950/40 border-b border-amber-800/40 flex items-center gap-2">
+          <span className="text-amber-400 text-sm">!</span>
+          <span className="text-[11px] text-amber-300/90">
+            樣本數僅 {tradesCount} 筆（建議 &ge; 30 筆），統計結果參考價值有限，勝率和期望值可能有較大偏差
+          </span>
+        </div>
+      )}
+      {stats.sharpeRatio != null && stats.sharpeRatio < 0.5 && tradesCount >= 10 && (
+        <div className="px-5 py-2 bg-red-950/30 border-b border-red-800/30 flex items-center gap-2">
+          <span className="text-red-400 text-sm">!</span>
+          <span className="text-[11px] text-red-300/80">
+            Sharpe Ratio {stats.sharpeRatio.toFixed(2)} 偏低（&lt;0.5），表示風險調整後報酬不佳，策略在此條件下風險較高
+          </span>
+        </div>
+      )}
       {/* KPI grid — 基本指標 */}
       <div className="grid grid-cols-3 sm:grid-cols-5 divide-x divide-y divide-slate-800/60">
         <Kpi label="淨報酬均值" value={fmtRet(stats.avgNetReturn)} color={retColor(stats.avgNetReturn)} />
@@ -615,6 +632,14 @@ function WalkForwardPanel({
               </div>
             )}
             {/* Robustness gauge */}
+            {result.robustnessScore < 70 && (
+              <div className="px-5 py-2.5 bg-amber-950/40 border-t border-amber-800/40 flex items-center gap-2">
+                <span className="text-amber-400 text-sm">!</span>
+                <span className="text-[11px] text-amber-300/90">
+                  穩健度 {result.robustnessScore}% 低於 70%，策略可能過度擬合歷史數據，實際交易表現可能大幅不如回測
+                </span>
+              </div>
+            )}
             <div className="px-5 py-3 border-t border-slate-800 space-y-1.5">
               <div className="flex items-center justify-between text-xs text-slate-500">
                 <span>穩健性分數（測試窗口勝率 &gt; 50% 的比例）</span>
