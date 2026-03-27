@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useBacktestStore, BacktestHorizon, CapitalConstraints, WalkForwardResult } from '@/store/backtestStore';
 import { StockForwardPerformance } from '@/lib/scanner/types';
@@ -734,7 +734,9 @@ export default function UnifiedScanPage() {
   const [scanSort, setScanSort]     = useState<'score' | 'surge' | 'ai' | 'change' | 'volume'>('score');
   const [gradeFilter, setGradeFilter] = useState<string>('all');
 
-  const maxDate = new Date().toISOString().split('T')[0]; // 允許選今天
+  // 用 state 避免 SSR hydration mismatch
+  const [maxDate, setMaxDate] = useState('2099-12-31');
+  useEffect(() => { setMaxDate(new Date().toISOString().split('T')[0]); }, []);
 
   const horizonLabels: { key: BacktestHorizon; label: string }[] = [
     { key: 'open', label: '隔日開' }, { key: 'd1', label: '1日' },
