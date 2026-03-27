@@ -975,7 +975,7 @@ export default function UnifiedScanPage() {
               <ResearchAssumptions market={market} strategy={strategy} />
 
               {/* 🎯 當日 Top 3 推薦績效追蹤 */}
-              {scanResults.length > 0 && performance.length > 0 && (() => {
+              {scanResults.length > 0 && (() => {
                 // ── 校準版排名邏輯（基於15天歷史回測優化）──
                 // 綜合評分 = 六大條件(35%) + 飆股潛力(25%) + 歷史勝率(20%) + 趨勢位置(10%) + AI排名(10%)
                 // 六條件主導：Top1均1日+2.61%，吻合率47%（優於舊版+2.07%/40%）
@@ -1089,8 +1089,8 @@ export default function UnifiedScanPage() {
                                   ))}
                                 </div>
 
-                                {/* 績效表格 */}
-                                <div className="mt-2 grid grid-cols-8 gap-1 text-[10px]">
+                                {/* 績效表格（回測模式才顯示） */}
+                                {performance.length > 0 && <div className="mt-2 grid grid-cols-8 gap-1 text-[10px]">
                                   {[
                                     { label: '隔日開', val: p?.openReturn },
                                     { label: '1日', val: p?.d1Return },
@@ -1112,7 +1112,7 @@ export default function UnifiedScanPage() {
                                     <div className="text-slate-500">最低</div>
                                     <div className="font-mono font-bold text-green-400">{p ? `${p.maxLoss.toFixed(1)}%` : '—'}</div>
                                   </div>
-                                </div>
+                                </div>}
                               </div>
                             </div>
                           </div>
