@@ -12,6 +12,7 @@ import {
 import {
   WalkForwardResult, WalkForwardSession, runWalkForward as _runWalkForward,
 } from '@/lib/backtest/WalkForwardTest';
+import { useSettingsStore } from './settingsStore';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -202,14 +203,26 @@ export const useBacktestStore = create<BacktestState>()(
         const chunk1 = stocks.slice(0, half);
         const chunk2 = stocks.slice(half);
 
+        // 使用與掃描器相同的 /api/scanner/chunk 端點 + 策略參數
+        // 確保回測和掃描結果一致
+        const activeStrategy = useSettingsStore.getState().getActiveStrategy();
+        const strategyPayload = activeStrategy.isBuiltIn
+          ? { strategyId: activeStrategy.id }
+          : { thresholds: activeStrategy.thresholds };
+
         const scanChunk = async (chunk: typeof stocks) => {
-          const res = await fetch('/api/backtest/scan', {
+          const res = await fetch('/api/scanner/chunk', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ market, date: scanDate, stocks: chunk }),
+            body:    JSON.stringify({
+              market,
+              stocks: chunk,
+              date: scanDate,
+              ...strategyPayload,
+            }),
           });
           if (!res.ok) throw new Error(`掃描失敗 (${res.status})`);
-          const json = await res.json() as { results?: StockScanResult[]; error?: string };
+          const json = await res.json() as { results?: StockScanResult[]; marketTrend?: string; error?: string };
           if (json.error) throw new Error(json.error);
           return json.results ?? [];
         };
