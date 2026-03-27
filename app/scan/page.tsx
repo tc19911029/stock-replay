@@ -327,12 +327,36 @@ function TradeRow({ t }: { t: BacktestTrade }) {
         <div className="font-semibold text-white text-sm leading-tight">{t.name}</div>
         <div className="text-slate-500 font-mono text-[11px]">{sym}</div>
       </td>
-      {/* 評分 + 趨勢 */}
-      <td className="py-2.5 px-3 whitespace-nowrap">
-        <div className="flex items-center gap-1.5">
-          <span className={`text-xs font-bold ${scoreColor(t.signalScore)}`}>{t.signalScore}/6</span>
-          {trendBadge(t.trendState)}
-        </div>
+      {/* 概念 */}
+      <td className="py-2.5 px-2 text-[10px] text-slate-500 max-w-[60px] truncate" title={t.industry}>{t.industry ?? '—'}</td>
+      {/* 評分 */}
+      <td className="py-2.5 px-2 text-center">
+        <span className={`text-xs font-bold ${scoreColor(t.signalScore)}`}>{t.signalScore}/6</span>
+      </td>
+      {/* 等級 */}
+      <td className="py-2.5 px-2 text-center">
+        {t.surgeGrade && (
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+            t.surgeGrade === 'S' ? 'bg-red-600 text-white' :
+            t.surgeGrade === 'A' ? 'bg-orange-500 text-white' :
+            t.surgeGrade === 'B' ? 'bg-yellow-500 text-black' :
+            'bg-slate-600 text-slate-300'
+          }`}>{t.surgeGrade}</span>
+        )}
+      </td>
+      {/* 潛力 */}
+      <td className="py-2.5 px-2 text-center font-mono text-xs text-slate-300">{t.surgeScore ?? '—'}</td>
+      {/* 勝率 */}
+      <td className="py-2.5 px-2 text-center">
+        {t.histWinRate != null && (
+          <span className={`text-[10px] px-1 rounded ${t.histWinRate >= 60 ? 'bg-green-900/60 text-green-300' : t.histWinRate >= 50 ? 'bg-yellow-900/60 text-yellow-300' : 'bg-red-900/60 text-red-300'}`}>
+            {t.histWinRate}%
+          </span>
+        )}
+      </td>
+      {/* 趨勢 */}
+      <td className="py-2.5 px-2 text-center whitespace-nowrap">
+        {trendBadge(t.trendState)}
       </td>
       {/* 進場 */}
       <td className="py-2.5 px-3 whitespace-nowrap">
@@ -1178,7 +1202,7 @@ export default function UnifiedScanPage() {
                         <tr className="text-slate-400 border-b border-slate-700">
                           <th className="text-left py-1.5 px-2">代號</th>
                           <th className="text-left py-1.5 px-2">名稱</th>
-                          <th className="text-left py-1.5 px-1 text-[10px]">板塊</th>
+                          <th className="text-left py-1.5 px-1 text-[10px]">概念</th>
                           {([
                             { key: 'score' as const, label: '評分', align: 'text-center', tooltip: '六大條件評分 (0-6)\n1.趨勢：頭頭高底底高+MA排列\n2.位置：MA20乖離0-12%或回踩MA10\n3.K棒：紅棒≥2%收上半部\n4.均線：MA5>MA10>MA20多頭排列\n5.量能：成交量≥5日均量×1.5倍\n6.指標：MACD紅柱或KD黃金交叉' },
                             { key: 'grade' as const, label: '等級', align: 'text-center', tooltip: '飆股潛力等級\nS級(80+)：極強飆股特徵\nA級(65-79)：強勢股\nB級(50-64)：中等潛力\nC級(35-49)：偏弱\nD級(<35)：不具飆股特徵' },
@@ -1342,7 +1366,12 @@ export default function UnifiedScanPage() {
                       <thead>
                         <tr className="text-[10px] text-slate-500 uppercase tracking-wide border-b border-slate-700/80 bg-slate-800/60">
                           <th className="py-2.5 px-4 text-left font-medium">股票</th>
-                          <th className="py-2.5 px-3 text-left font-medium">評分 / 趨勢</th>
+                          <th className="py-2.5 px-2 text-left font-medium">概念</th>
+                          <th className="py-2.5 px-2 text-center font-medium">評分</th>
+                          <th className="py-2.5 px-2 text-center font-medium">等級</th>
+                          <th className="py-2.5 px-2 text-center font-medium">潛力</th>
+                          <th className="py-2.5 px-2 text-center font-medium">勝率</th>
+                          <th className="py-2.5 px-2 text-center font-medium">趨勢</th>
                           <th className="py-2.5 px-3 text-left font-medium">進場</th>
                           <th className="py-2.5 px-3 text-left font-medium">出場</th>
                           <th className="py-2.5 px-2 text-center font-medium">持有</th>
@@ -1383,8 +1412,12 @@ export default function UnifiedScanPage() {
                       <thead>
                         <tr className="border-b border-slate-700 text-xs text-slate-400">
                           <th className="py-2.5 px-3 text-left">股票</th>
-                          <th className="py-2.5 px-3 text-center">評分</th>
-                          <th className="py-2.5 px-3 text-center">趨勢</th>
+                          <th className="py-2.5 px-2 text-left">概念</th>
+                          <th className="py-2.5 px-2 text-center">評分</th>
+                          <th className="py-2.5 px-2 text-center">等級</th>
+                          <th className="py-2.5 px-2 text-center">潛力</th>
+                          <th className="py-2.5 px-2 text-center">勝率</th>
+                          <th className="py-2.5 px-2 text-center">趨勢</th>
                           <th className="py-2.5 px-3 text-right">收盤價</th>
                           <th className="py-2 px-1.5 text-right">隔日開</th>
                           <th className="py-2 px-1.5 text-right">1日</th>
@@ -1408,10 +1441,29 @@ export default function UnifiedScanPage() {
                                 <div className="font-medium text-white">{r.name}</div>
                                 <div className="text-xs text-slate-400 font-mono">{sym}</div>
                               </td>
-                              <td className="py-2.5 px-3 text-center">
-                                <span className={scoreColor(r.sixConditionsScore)}>{r.sixConditionsScore}/6</span>
+                              <td className="py-2.5 px-2 text-[10px] text-slate-500 max-w-[60px] truncate" title={r.industry}>{r.industry ?? '—'}</td>
+                              <td className="py-2.5 px-2 text-center">
+                                <span className={`font-bold ${scoreColor(r.sixConditionsScore)}`}>{r.sixConditionsScore}/6</span>
                               </td>
-                              <td className="py-2.5 px-3 text-center">{trendBadge(r.trendState)}</td>
+                              <td className="py-2.5 px-2 text-center">
+                                {r.surgeGrade && (
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                    r.surgeGrade === 'S' ? 'bg-red-600 text-white' :
+                                    r.surgeGrade === 'A' ? 'bg-orange-500 text-white' :
+                                    r.surgeGrade === 'B' ? 'bg-yellow-500 text-black' :
+                                    'bg-slate-600 text-slate-300'
+                                  }`}>{r.surgeGrade}</span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-2 text-center font-mono text-xs text-slate-300">{r.surgeScore ?? '—'}</td>
+                              <td className="py-2.5 px-2 text-center">
+                                {r.histWinRate != null && (
+                                  <span className={`text-[10px] px-1 rounded ${r.histWinRate >= 60 ? 'bg-green-900/60 text-green-300' : r.histWinRate >= 50 ? 'bg-yellow-900/60 text-yellow-300' : 'bg-red-900/60 text-red-300'}`}>
+                                    {r.histWinRate}%
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-2 text-center">{trendBadge(r.trendState)}</td>
                               <td className="py-2.5 px-3 text-right font-mono text-slate-200">
                                 {r.price.toFixed(r.price >= 10 ? 2 : 3)}
                               </td>
@@ -1427,7 +1479,7 @@ export default function UnifiedScanPage() {
                                   </td>
                                 </>
                               ) : (
-                                <td colSpan={9} className="py-2 text-center text-xs text-slate-500">計算中…</td>
+                                <td colSpan={9} className="py-2 text-center text-xs text-slate-500">績效計算中…</td>
                               )}
                               <td className="py-2.5 px-3 text-center">
                                 <Link href={`/?load=${sym}`} className="text-xs text-sky-400 hover:text-sky-300 underline underline-offset-2">走圖</Link>

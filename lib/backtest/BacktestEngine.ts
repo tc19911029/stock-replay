@@ -25,6 +25,7 @@ export interface TradeSignal {
   symbol:        string;
   name:          string;
   market:        MarketId;
+  industry?:     string;    // 產業板塊
   signalDate:    string;    // YYYY-MM-DD
   signalScore:   number;    // 0-6
   signalReasons: string[];  // 命中條件說明
@@ -53,6 +54,7 @@ export function scanResultToSignal(scanResult: StockScanResult): TradeSignal {
     symbol:        scanResult.symbol,
     name:          scanResult.name,
     market:        scanResult.market,
+    industry:      scanResult.industry,
     signalDate:    scanResult.scanTime.split('T')[0],
     signalScore:   sixConditionsScore,
     signalReasons: reasons,
@@ -88,6 +90,7 @@ export interface BacktestTrade {
   // ── 股票資訊 ──
   symbol:  string;
   name:    string;
+  industry?: string;       // 產業板塊
   market:  MarketId;
 
   // ── 訊號資訊 ──
@@ -275,6 +278,7 @@ export function runSingleBacktest(
     symbol:  signal.symbol,
     name:    signal.name,
     market:  signal.market,
+    industry: signal.industry,
 
     signalDate:    signal.signalDate,
     signalScore:   signal.signalScore,
