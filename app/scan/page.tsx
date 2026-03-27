@@ -1151,6 +1151,7 @@ export default function UnifiedScanPage() {
                           <th className="text-right py-1.5 px-2">漲跌%</th>
                           <th className="text-left py-1.5 px-2">趨勢</th>
                           <th className="text-left py-1.5 px-2">位置</th>
+                          <th className="text-center py-1.5 px-2">操作</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1187,6 +1188,26 @@ export default function UnifiedScanPage() {
                             </td>
                             <td className="py-1.5 px-2 text-[10px] text-slate-400">{r.trendState}</td>
                             <td className="py-1.5 px-2 text-[10px] text-slate-400">{r.trendPosition}</td>
+                            <td className="py-1.5 px-2 text-center whitespace-nowrap">
+                              <Link href={`/?load=${r.symbol}`}
+                                className="text-[10px] text-sky-400 hover:text-sky-300 px-1.5 py-0.5 rounded border border-sky-700/50 hover:bg-sky-900/30 mr-1">
+                                走圖
+                              </Link>
+                              <button
+                                onClick={() => {
+                                  try {
+                                    const key = 'watchlist';
+                                    const list: string[] = JSON.parse(localStorage.getItem(key) || '[]');
+                                    if (!list.includes(r.symbol)) {
+                                      list.push(r.symbol);
+                                      localStorage.setItem(key, JSON.stringify(list));
+                                    }
+                                  } catch {}
+                                }}
+                                className="text-[10px] text-amber-400 hover:text-amber-300 px-1.5 py-0.5 rounded border border-amber-700/50 hover:bg-amber-900/30">
+                                +自選
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
