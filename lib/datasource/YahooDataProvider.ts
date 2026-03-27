@@ -153,8 +153,10 @@ export class YahooDataProvider implements DataProvider {
     if (!res.ok) throw new Error(`Yahoo Finance ${res.status} for ${symbol}`);
 
     const result = parseYahooCandlesRaw(await res.json());
-    // 歷史區間資料可以長時間快取
-    globalCache.set(cacheKey, result, HISTORICAL_TTL);
+    // 若區間包含今天或最近 2 天，用短快取（5分鐘）避免少算最新交易日
+    const twoDaysAgo = new Date(Date.now() - 2 * 86400_000).toISOString().split('T')[0];
+    const isRecent = endDate >= twoDaysAgo;
+    globalCache.set(cacheKey, result, isRecent ? RECENT_TTL : HISTORICAL_TTL);
     return result;
   }
 }
