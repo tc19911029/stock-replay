@@ -14,6 +14,7 @@ import BacktestPanel from '@/components/BacktestPanel';
 import AnalysisChat from '@/components/AnalysisChat';
 import TrendStateBar from '@/components/TrendStateBar';
 import SixConditionsPanel from '@/components/SixConditionsPanel';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const CandleChart = dynamic(() => import('@/components/CandleChart'), {
   ssr: false,
@@ -33,7 +34,7 @@ export default function HomePage() {
     initData, visibleCandles, currentSignals, chartMarkers,
     isLoadingStock, allCandles, currentIndex,
     nextCandle, prevCandle, isPlaying, startPlay, stopPlay, metrics,
-    loadStock,
+    loadStock, currentStock,
   } = useReplayStore();
 
   useEffect(() => { initData(); }, [initData]);
@@ -114,8 +115,10 @@ export default function HomePage() {
             </span>
             <Link href="/scanner"    className="text-[11px] px-2 py-1 rounded text-slate-300 hover:bg-slate-700 hover:text-white font-medium transition whitespace-nowrap">掃描</Link>
             <Link href="/backtest"   className="text-[11px] px-2 py-1 rounded text-slate-300 hover:bg-slate-700 hover:text-white font-medium transition whitespace-nowrap">回測</Link>
+            <Link href="/live-daytrade" className="text-[11px] px-2 py-1 rounded bg-violet-900/50 text-violet-300 hover:bg-violet-700 hover:text-white font-medium transition whitespace-nowrap border border-violet-700/50">當沖 <span className="text-[8px] bg-amber-600 text-white px-1 rounded-full">β</span></Link>
             <Link href="/report"     className="text-[11px] px-2 py-1 rounded text-slate-300 hover:bg-slate-700 hover:text-white font-medium transition whitespace-nowrap hidden md:block">報表</Link>
             <Link href="/strategies" className="text-[11px] px-2 py-1 rounded text-slate-300 hover:bg-slate-700 hover:text-white font-medium transition whitespace-nowrap hidden md:block">策略</Link>
+            <Link href="/disclaimer" className="text-[11px] px-2 py-1 rounded text-slate-500 hover:bg-slate-700 hover:text-white font-medium transition whitespace-nowrap hidden md:block">免責</Link>
           </div>
 
           {/* Divider */}
@@ -133,7 +136,7 @@ export default function HomePage() {
       </header>
 
       {/* ── Main ── */}
-      <div className="flex-1 flex gap-2 px-3 py-2 min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row gap-2 px-3 py-2 min-h-0 overflow-hidden">
 
         {/* Left: Chart */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0 gap-1.5">
@@ -153,7 +156,10 @@ export default function HomePage() {
             {/* OHLCV bar */}
             {displayCandle && (
               <div className="shrink-0 flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-1.5 border-b border-slate-800 text-xs font-mono">
-                <span className={hoverCandle ? 'text-blue-400' : 'text-slate-400'}>{displayCandle.date}</span>
+                {currentStock && (
+                <span className="text-white font-bold font-sans mr-1">{currentStock.name}</span>
+              )}
+              <span className={hoverCandle ? 'text-blue-400' : 'text-slate-400'}>{displayCandle.date}</span>
                 <span className={`text-sm font-bold ${isUp ? 'text-red-400' : 'text-green-400'}`}>
                   {displayCandle.close.toFixed(2)}
                 </span>
@@ -193,18 +199,22 @@ export default function HomePage() {
             )}
 
             <div className="shrink-0 border-b border-slate-800" style={{ height: '48%' }}>
-              <CandleChart
-                candles={visibleCandles}
-                signals={currentSignals}
-                chartMarkers={showMarkers ? chartMarkers : []}
-                avgCost={metrics.shares > 0 ? metrics.avgCost : undefined}
-                stopLossPrice={stopLossPrice}
-                onCrosshairMove={setHoverCandle}
-                fillContainer
-              />
+              <ErrorBoundary>
+                <CandleChart
+                  candles={visibleCandles}
+                  signals={currentSignals}
+                  chartMarkers={showMarkers ? chartMarkers : []}
+                  avgCost={metrics.shares > 0 ? metrics.avgCost : undefined}
+                  stopLossPrice={stopLossPrice}
+                  onCrosshairMove={setHoverCandle}
+                  fillContainer
+                />
+              </ErrorBoundary>
             </div>
             <div className="flex-1 min-h-0 overflow-hidden">
-              <IndicatorCharts candles={visibleCandles} hoverCandle={hoverCandle} />
+              <ErrorBoundary>
+                <IndicatorCharts candles={visibleCandles} hoverCandle={hoverCandle} />
+              </ErrorBoundary>
             </div>
           </div>
 
@@ -218,7 +228,7 @@ export default function HomePage() {
         </div>
 
         {/* Right: Sidebar */}
-        <div className="w-72 shrink-0 flex flex-col min-h-0 gap-2">
+        <div className="w-full md:w-72 shrink-0 flex flex-col min-h-0 gap-2 max-h-[40vh] md:max-h-none">
           {/* Tab switcher */}
           <div className="shrink-0 flex rounded-lg overflow-hidden border border-slate-700 text-xs">
             {SIDE_TABS.map(t => (

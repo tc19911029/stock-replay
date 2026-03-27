@@ -135,9 +135,85 @@ function avgVol(volumes: number[], end: number, period: number): number | undefi
   return Math.round(sum / period);
 }
 
+// ── RSI ───────────────────────────────────────────────────────────────────────
+function computeRSI(closes: number[], period = 14): (number | undefined)[] {
+  const result: (number | undefined)[] = new Array(closes.length).fill(undefined);
+  if (closes.length < period + 1) return result;
+
+  let avgGain = 0, avgLoss = 0;
+  for (let i = 1; i <= period; i++) {
+    const diff = closes[i] - closes[i - 1];
+    if (diff > 0) avgGain += diff; else avgLoss -= diff;
+  }
+  avgGain /= period;
+  avgLoss /= period;
+  result[period] = avgLoss === 0 ? 100 : +(100 - 100 / (1 + avgGain / avgLoss)).toFixed(2);
+
+  for (let i = period + 1; i < closes.length; i++) {
+    const diff = closes[i] - closes[i - 1];
+    avgGain = (avgGain * (period - 1) + (diff > 0 ? diff : 0)) / period;
+    avgLoss = (avgLoss * (period - 1) + (diff < 0 ? -diff : 0)) / period;
+    result[i] = avgLoss === 0 ? 100 : +(100 - 100 / (1 + avgGain / avgLoss)).toFixed(2);
+  }
+  return result;
+}
+
+// ── ATR ───────────────────────────────────────────────────────────────────────
+function computeATR(highs: number[], lows: number[], closes: number[], period = 14): (number | undefined)[] {
+  const result: (number | undefined)[] = new Array(closes.length).fill(undefined);
+  if (closes.length < period + 1) return result;
+
+  // True Range array
+  const tr: number[] = [highs[0] - lows[0]];
+  for (let i = 1; i < closes.length; i++) {
+    tr.push(Math.max(
+      highs[i] - lows[i],
+      Math.abs(highs[i] - closes[i - 1]),
+      Math.abs(lows[i] - closes[i - 1])
+    ));
+  }
+
+  // Initial ATR = SMA of first `period` TRs
+  let atr = 0;
+  for (let i = 0; i < period; i++) atr += tr[i];
+  atr /= period;
+  result[period - 1] = +atr.toFixed(4);
+
+  for (let i = period; i < closes.length; i++) {
+    atr = (atr * (period - 1) + tr[i]) / period;
+    result[i] = +atr.toFixed(4);
+  }
+  return result;
+}
+
+// ── Bollinger Bands ──────────────────────────────────────────────────────────
+function computeBB(closes: number[], period = 20, mult = 2) {
+  const upper: (number | undefined)[] = new Array(closes.length).fill(undefined);
+  const lower: (number | undefined)[] = new Array(closes.length).fill(undefined);
+  const bw:    (number | undefined)[] = new Array(closes.length).fill(undefined);
+  const pctB:  (number | undefined)[] = new Array(closes.length).fill(undefined);
+
+  for (let i = period - 1; i < closes.length; i++) {
+    let sum = 0, sum2 = 0;
+    for (let j = i - period + 1; j <= i; j++) {
+      sum += closes[j];
+      sum2 += closes[j] * closes[j];
+    }
+    const mean = sum / period;
+    const std = Math.sqrt(sum2 / period - mean * mean);
+    const u = mean + mult * std;
+    const l = mean - mult * std;
+    upper[i] = +u.toFixed(2);
+    lower[i] = +l.toFixed(2);
+    bw[i] = mean > 0 ? +((u - l) / mean).toFixed(4) : 0;
+    pctB[i] = u !== l ? +((closes[i] - l) / (u - l)).toFixed(4) : 0.5;
+  }
+  return { upper, lower, bandwidth: bw, percentB: pctB };
+}
+
 /**
- * Enrich raw candles with MA5/10/20/60, avgVol5, MACD, and KD.
- * Computed once upfront on the full dataset.
+ * Enrich raw candles with MA5/10/20/60, avgVol5, MACD, KD,
+ * RSI, ATR, Bollinger Bands, ROC, MACD slope, avgVol20.
  */
 export function computeIndicators(candles: Candle[]): CandleWithIndicators[] {
   const closes  = candles.map((c) => c.close);
@@ -147,20 +223,48 @@ export function computeIndicators(candles: Candle[]): CandleWithIndicators[] {
 
   const macd = computeMACD(closes);
   const kd   = computeKD(highs, lows, closes);
+  const rsi  = computeRSI(closes, 14);
+  const atr  = computeATR(highs, lows, closes, 14);
+  const bb   = computeBB(closes, 20, 2);
 
-  return candles.map((candle, i) => ({
-    ...candle,
-    ma5:     sma(closes, i, 5),
-    ma10:    sma(closes, i, 10),
-    ma20:    sma(closes, i, 20),
-    ma60:    sma(closes, i, 60),
-    avgVol5: avgVol(volumes, i, 5),
-    macdDIF:    macd.dif[i],
-    macdSignal: macd.signal[i],
-    macdOSC:    macd.osc[i],
-    kdK: kd.k[i],
-    kdD: kd.d[i],
-  }));
+  return candles.map((candle, i) => {
+    // MACD slope: (OSC[i] - OSC[i-3]) / 3
+    let macdSlope: number | undefined;
+    if (i >= 3 && macd.osc[i] != null && macd.osc[i - 3] != null) {
+      macdSlope = +((macd.osc[i]! - macd.osc[i - 3]!) / 3).toFixed(4);
+    }
+
+    // ROC
+    const roc10 = i >= 10 && closes[i - 10] > 0
+      ? +((closes[i] - closes[i - 10]) / closes[i - 10] * 100).toFixed(2) : undefined;
+    const roc20 = i >= 20 && closes[i - 20] > 0
+      ? +((closes[i] - closes[i - 20]) / closes[i - 20] * 100).toFixed(2) : undefined;
+
+    return {
+      ...candle,
+      ma5:     sma(closes, i, 5),
+      ma10:    sma(closes, i, 10),
+      ma20:    sma(closes, i, 20),
+      ma60:    sma(closes, i, 60),
+      avgVol5: avgVol(volumes, i, 5),
+      macdDIF:    macd.dif[i],
+      macdSignal: macd.signal[i],
+      macdOSC:    macd.osc[i],
+      kdK: kd.k[i],
+      kdD: kd.d[i],
+      // 飆股偵測指標
+      rsi14:       rsi[i],
+      atr14:       atr[i],
+      bbUpper:     bb.upper[i],
+      bbLower:     bb.lower[i],
+      bbBandwidth: bb.bandwidth[i],
+      bbPercentB:  bb.percentB[i],
+      roc10,
+      roc20,
+      macdSlope,
+      avgVol20:    avgVol(volumes, i, 20),
+    };
+  });
 }
 
 /**

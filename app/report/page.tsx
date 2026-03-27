@@ -369,6 +369,81 @@ export default function ReportPage() {
               </div>
             )}
 
+            {/* ── Equity Curve & Drawdown ── */}
+            {filteredTrades.length >= 3 && (() => {
+              // 計算累積權益曲線
+              const sorted = [...filteredTrades].sort((a, b) => a.exitDate.localeCompare(b.exitDate));
+              let cum = 0;
+              const equityData = sorted.map(t => { cum += t.netReturn; return { date: t.exitDate, equity: cum }; });
+
+              // 計算回撤
+              let peak = 0;
+              const ddData = equityData.map(d => {
+                peak = Math.max(peak, d.equity);
+                return { date: d.date, dd: d.equity - peak };
+              });
+
+              const maxEq = Math.max(...equityData.map(d => d.equity), 0.01);
+              const minEq = Math.min(...equityData.map(d => d.equity), -0.01);
+              const maxDD = Math.min(...ddData.map(d => d.dd), -0.01);
+              const eqRange = maxEq - minEq;
+              const ddRange = Math.abs(maxDD);
+
+              const eqY = (v: number) => Math.max(0, Math.min(100, ((maxEq - v) / eqRange) * 100));
+              const ddY = (v: number) => Math.max(0, Math.min(100, (Math.abs(v) / ddRange) * 100));
+
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* Equity Curve */}
+                  <div className="bg-slate-900 rounded-xl border border-slate-700 p-4">
+                    <h3 className="text-sm font-semibold text-slate-300 mb-2">累積報酬曲線</h3>
+                    <div className="relative h-32 flex items-end gap-[1px]">
+                      {/* Zero line */}
+                      <div className="absolute left-0 right-0 border-t border-dashed border-slate-600" style={{ top: `${eqY(0)}%` }} />
+                      {equityData.map((d, i) => {
+                        const h = Math.abs(d.equity) / eqRange * 100;
+                        const isPos = d.equity >= 0;
+                        return (
+                          <div key={i} className="flex-1 flex flex-col justify-end items-center min-w-[2px]" title={`${d.date}: ${fmt(d.equity)}%`}>
+                            {isPos ? (
+                              <div className="w-full bg-red-500/80 rounded-t-sm" style={{ height: `${h}%` }} />
+                            ) : (
+                              <div className="w-full bg-green-500/80 rounded-b-sm" style={{ height: `${h}%` }} />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex justify-between text-[9px] text-slate-500 mt-1">
+                      <span>{equityData[0]?.date}</span>
+                      <span className={`font-bold ${cum >= 0 ? 'text-red-400' : 'text-green-400'}`}>{fmt(cum)}%</span>
+                      <span>{equityData[equityData.length - 1]?.date}</span>
+                    </div>
+                  </div>
+
+                  {/* Drawdown */}
+                  <div className="bg-slate-900 rounded-xl border border-slate-700 p-4">
+                    <h3 className="text-sm font-semibold text-slate-300 mb-2">回撤分佈</h3>
+                    <div className="relative h-32 flex items-start gap-[1px]">
+                      {ddData.map((d, i) => {
+                        const h = ddY(d.dd);
+                        return (
+                          <div key={i} className="flex-1 min-w-[2px]" title={`${d.date}: ${fmt(d.dd)}%`}>
+                            <div className="w-full bg-orange-500/70 rounded-b-sm" style={{ height: `${h}%` }} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex justify-between text-[9px] text-slate-500 mt-1">
+                      <span>{ddData[0]?.date}</span>
+                      <span className="font-bold text-orange-400">最大回撤 {fmt(maxDD)}%</span>
+                      <span>{ddData[ddData.length - 1]?.date}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* ── Group Stats ── */}
             {groupStats.length > 0 && (
               <div className="bg-slate-900 rounded-xl border border-slate-700 p-4 space-y-3">

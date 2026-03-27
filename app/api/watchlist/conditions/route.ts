@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { computeIndicators } from '@/lib/indicators';
 import { evaluateSixConditions, detectTrend, detectTrendPosition } from '@/lib/analysis/trendAnalysis';
+import { computeSurgeScore } from '@/lib/analysis/surgeScore';
 import { ruleEngine } from '@/lib/rules/ruleEngine';
+import { resolveThresholds } from '@/lib/strategy/resolveThresholds';
+import { getTWChineseName, getCNChineseName } from '@/lib/datasource/TWSENames';
 
 export const runtime = 'nodejs';
 
@@ -36,7 +39,10 @@ async function fetchCandles(symbol: string) {
 
 export async function GET(req: NextRequest) {
   const symbol = req.nextUrl.searchParams.get('symbol') ?? '';
+  const strategyId = req.nextUrl.searchParams.get('strategyId') ?? undefined;
   if (!symbol) return NextResponse.json({ error: '缺少 symbol' }, { status: 400 });
+
+  const thresholds = resolveThresholds({ strategyId });
 
   try {
     const data = await fetchCandles(symbol);
@@ -50,20 +56,30 @@ export async function GET(req: NextRequest) {
     const prev = allCandles[lastIdx - 1];
     const changePercent = prev?.close > 0 ? +((last.close - prev.close) / prev.close * 100).toFixed(2) : 0;
 
-    const sixConditions = evaluateSixConditions(allCandles, lastIdx);
+    const sixConditions = evaluateSixConditions(allCandles, lastIdx, thresholds);
     const trend = detectTrend(allCandles, lastIdx);
     const position = detectTrendPosition(allCandles, lastIdx);
     const signals = ruleEngine.evaluate(allCandles, lastIdx).filter(s => s.type !== 'WATCH');
 
+    const surge = computeSurgeScore(allCandles, lastIdx);
+
+    // 嘗試取得中文名稱
+    const code = symbol.replace(/\D/g, '');
+    const cnName = getCNChineseName(code) ?? await getTWChineseName(code);
+    const displayName = cnName ?? data.name;
+
     return NextResponse.json({
       symbol: data.ticker,
-      name: data.name,
+      name: displayName,
       price: last.close,
       changePercent,
       trend,
       position,
       sixConditions,
       hasBuySignal: signals.some(s => s.type === 'BUY' || s.type === 'ADD'),
+      surgeScore: surge.totalScore,
+      surgeGrade: surge.grade,
+      surgeFlags: surge.flags,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

@@ -1,7 +1,8 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { StockScanResult, ScanSession, MarketId } from '@/lib/scanner/types';
 import { TrendState } from '@/lib/analysis/trendAnalysis';
+import { useSettingsStore } from './settingsStore';
 
 const TW_STOCK_NAMES = [
   '台積電','聯發科','日月光投控','聯電','聯詠','瑞昱','矽力','華邦電','力積電','旺宏',
@@ -14,7 +15,54 @@ const CN_STOCK_NAMES = [
   '比亞迪','格力電器','平安銀行','中信證券','興業銀行','海康威視',
 ];
 
-const MAX_HISTORY = 30;
+const MAX_HISTORY = 10;
+
+// ── Safe localStorage wrapper (prevents QuotaExceededError) ──
+const safeStorage = {
+  getItem: (name: string) => {
+    try { return localStorage.getItem(name); }
+    catch { return null; }
+  },
+  setItem: (name: string, value: string) => {
+    try {
+      localStorage.setItem(name, value);
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'QuotaExceededError') {
+        console.warn('[Storage] Quota exceeded, clearing old data...');
+        try {
+          // Clear old scanner data to free space
+          localStorage.removeItem('scanner-v3');
+          localStorage.removeItem('scanner-v2');
+          localStorage.removeItem('scanner-v1');
+          localStorage.setItem(name, value);
+        } catch { console.error('[Storage] Still full after cleanup'); }
+      }
+    }
+  },
+  removeItem: (name: string) => {
+    try { localStorage.removeItem(name); } catch {}
+  },
+};
+
+/** Strip heavy fields from scan results for storage (keep only top N) */
+function compactResults(results: StockScanResult[], topN = 20): StockScanResult[] {
+  return results
+    .sort((a, b) => (b.surgeScore ?? 0) - (a.surgeScore ?? 0))
+    .slice(0, topN)
+    .map(r => ({
+      ...r,
+      surgeComponents: undefined as unknown as typeof r.surgeComponents,  // strip heavy nested data
+      triggeredRules: r.triggeredRules?.slice(0, 3),  // keep only top 3 rules
+    }));
+}
+
+/** Strip heavy fields from history sessions */
+function compactHistory(sessions: ScanSession[]): ScanSession[] {
+  return sessions.slice(0, MAX_HISTORY).map(s => ({
+    ...s,
+    results: compactResults(s.results, 10),  // only top 10 per session
+  }));
+}
 
 // ── Per-market scan state ──────────────────────────────────────────────────────
 interface MarketScanState {
@@ -39,16 +87,23 @@ const DEFAULT_CN: MarketScanState = {
   scanningTotal: 500, results: [], lastScanTime: null, marketTrend: null, error: null,
 };
 
+interface AiRankingState {
+  isRanking: boolean;
+  error: string | null;
+}
+
 interface ScannerStore {
   activeMarket: MarketId;
   tw: MarketScanState;
   cn: MarketScanState;
   twHistory: ScanSession[];
   cnHistory: ScanSession[];
+  aiRanking: AiRankingState;
 
   setActiveMarket: (market: MarketId) => void;
   setScanDate: (market: MarketId, date: string) => void;
   runScan: (market: MarketId) => Promise<void>;
+  runAiRank: (market: MarketId) => Promise<void>;
   getHistory: (market: MarketId) => ScanSession[];
   getMarket: (market: MarketId) => MarketScanState;
 }
@@ -61,6 +116,7 @@ export const useScannerStore = create<ScannerStore>()(
       cn: DEFAULT_CN,
       twHistory: [],
       cnHistory: [],
+      aiRanking: { isRanking: false, error: null },
 
       setActiveMarket: (market) => set({ activeMarket: market }),
       setScanDate: (market, date) => {
@@ -74,6 +130,12 @@ export const useScannerStore = create<ScannerStore>()(
         const mKey  = market === 'TW' ? 'tw' : 'cn';
         const names = market === 'TW' ? TW_STOCK_NAMES : CN_STOCK_NAMES;
         const scanDate = market === 'TW' ? get().tw.scanDate : get().cn.scanDate;
+
+        // Get active strategy for the scan
+        const activeStrategy = useSettingsStore.getState().getActiveStrategy();
+        const strategyPayload = activeStrategy.isBuiltIn
+          ? { strategyId: activeStrategy.id }
+          : { thresholds: activeStrategy.thresholds };
 
         set(s => ({
           [mKey]: { ...s[mKey], isScanning: true, progress: 0, scanningStock: '取得股票清單中...', scanningIndex: 0, scanningTotal: 0, error: null },
@@ -96,23 +158,18 @@ export const useScannerStore = create<ScannerStore>()(
           const chunk1 = stocks.slice(0, half);
           const chunk2 = stocks.slice(half);
 
-          // Progress simulation over ~90s (typical scan duration)
-          const estMs = 90_000;
-          let elapsed = 0;
-          const TICK  = 1500;
-          const timer = setInterval(() => {
-            elapsed += TICK;
-            const pct = Math.min(88, Math.round((elapsed / estMs) * 88));
-            const ni  = Math.min(Math.floor((elapsed / estMs) * names.length), names.length - 1);
-            const ai  = Math.min(Math.round((elapsed / estMs) * total), total - 1);
-            set(s => ({ [mKey]: { ...s[mKey], progress: pct, scanningStock: names[ni], scanningIndex: ai + 1 } }));
-          }, TICK);
+          // Progress: event-driven, not timer-based
+          let completedChunks = 0;
+          const updateProgress = (pct: number, stockName: string, idx: number) => {
+            set(s => ({ [mKey]: { ...s[mKey], progress: pct, scanningStock: stockName, scanningIndex: idx } }));
+          };
+          updateProgress(5, names[0], 1);
 
-          const scanChunk = async (chunk: Array<{ symbol: string; name: string }>) => {
+          const scanChunk = async (chunk: Array<{ symbol: string; name: string }>, chunkIdx: number) => {
             const res = await fetch('/api/scanner/chunk', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ market, stocks: chunk, ...(scanDate ? { date: scanDate } : {}) }),
+              body: JSON.stringify({ market, stocks: chunk, ...strategyPayload, ...(scanDate ? { date: scanDate } : {}) }),
             });
             if (!res.ok) {
               const j = await res.json().catch(() => ({}));
@@ -123,11 +180,11 @@ export const useScannerStore = create<ScannerStore>()(
           };
 
           // ── Step 3: Run both chunks in parallel ────────────────────────────
+          updateProgress(10, `掃描第1批 (${chunk1.length}檔)`, 0);
           const [r1, r2] = await Promise.allSettled([
-            scanChunk(chunk1),
-            scanChunk(chunk2),
+            scanChunk(chunk1, 0).then(r => { completedChunks++; updateProgress(completedChunks === 1 ? 50 : 88, `第${completedChunks}批完成`, half * completedChunks); return r; }),
+            scanChunk(chunk2, 1).then(r => { completedChunks++; updateProgress(completedChunks === 1 ? 50 : 88, `第${completedChunks}批完成`, total); return r; }),
           ]);
-          clearInterval(timer);
 
           // Use market trend from whichever chunk succeeded (should be the same)
           const marketTrend: TrendState =
@@ -149,6 +206,25 @@ export const useScannerStore = create<ScannerStore>()(
           if (r2.status === 'rejected') console.warn('[scanner] chunk2 failed:', r2.reason);
 
           const now = new Date().toISOString();
+
+          // 計算 Top 3 推薦（與 TodayPicks 組件相同邏輯）
+          const topPicks = results
+            .filter(r => r.surgeScore != null && r.surgeScore >= 40)
+            .map(r => {
+              const aiBonus = r.aiRank != null && r.aiRank <= 5 ? (6 - r.aiRank) * 5 : 0;
+              const winBonus = (r.histWinRate ?? 50) >= 60 ? 15 : (r.histWinRate ?? 50) >= 50 ? 5 : -10;
+              return { ...r, _score: (r.surgeScore ?? 0) + aiBonus + winBonus };
+            })
+            .sort((a, b) => b._score - a._score)
+            .slice(0, 3)
+            .map(r => ({
+              symbol: r.symbol, name: r.name,
+              surgeScore: r.surgeScore ?? 0, surgeGrade: r.surgeGrade ?? 'D',
+              sixConditionsScore: r.sixConditionsScore,
+              histWinRate: r.histWinRate, price: r.price, changePercent: r.changePercent,
+              aiRank: r.aiRank, aiReason: r.aiReason,
+            }));
+
           const session: ScanSession = {
             id:          `${market}-${now}`,
             market,
@@ -156,6 +232,7 @@ export const useScannerStore = create<ScannerStore>()(
             scanTime:    now,
             resultCount: results.length,
             results,
+            topPicks,
           };
 
           const histKey = market === 'TW' ? 'twHistory' : 'cnHistory';
@@ -166,20 +243,88 @@ export const useScannerStore = create<ScannerStore>()(
             [mKey]:    { ...s[mKey], isScanning: false, progress: 100, scanningStock: '', results, lastScanTime: now, marketTrend, error: null },
             [histKey]: newHist,
           }));
+
+          // Auto-trigger AI ranking for top results
+          get().runAiRank(market);
         } catch (err) {
           set(s => ({
             [mKey]: { ...s[mKey], isScanning: false, error: err instanceof Error ? err.message : '未知錯誤' },
           }));
         }
       },
+
+      runAiRank: async (market) => {
+        const mKey = market === 'TW' ? 'tw' : 'cn';
+        const results = get()[mKey].results;
+        if (results.length === 0) return;
+
+        // Take top 15 by surgeScore
+        const top = [...results]
+          .sort((a, b) => (b.surgeScore ?? 0) - (a.surgeScore ?? 0))
+          .slice(0, 15)
+          .filter(r => r.surgeScore != null && r.surgeComponents != null);
+
+        if (top.length === 0) return;
+
+        set({ aiRanking: { isRanking: true, error: null } });
+
+        try {
+          const payload = top.map(r => ({
+            symbol: r.symbol,
+            name: r.name,
+            price: r.price,
+            changePercent: r.changePercent,
+            surgeScore: r.surgeScore ?? 0,
+            surgeGrade: r.surgeGrade ?? 'D',
+            surgeFlags: r.surgeFlags ?? [],
+            sixConditionsScore: r.sixConditionsScore,
+            trendState: r.trendState,
+            trendPosition: r.trendPosition,
+            components: r.surgeComponents ?? {},
+          }));
+
+          const res = await fetch('/api/scanner/ai-rank', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stocks: payload, market }),
+          });
+
+          if (!res.ok) throw new Error('AI ranking failed');
+          const data = await res.json() as {
+            rankings?: Array<{ symbol: string; rank: number; confidence: string; reason: string }>;
+            marketComment?: string;
+          };
+
+          // Merge AI rankings into scan results
+          if (data.rankings && data.rankings.length > 0) {
+            const rankMap = new Map(data.rankings.map(r => [r.symbol, r]));
+            const updated = results.map(r => {
+              const ai = rankMap.get(r.symbol);
+              if (!ai) return r;
+              return {
+                ...r,
+                aiRank: ai.rank,
+                aiConfidence: ai.confidence as 'high' | 'medium' | 'low',
+                aiReason: ai.reason,
+              };
+            });
+            set(s => ({ [mKey]: { ...s[mKey], results: updated } }));
+          }
+
+          set({ aiRanking: { isRanking: false, error: null } });
+        } catch (err) {
+          set({ aiRanking: { isRanking: false, error: err instanceof Error ? err.message : 'AI排名失敗' } });
+        }
+      },
     }),
     {
-      name: 'scanner-v3',
+      name: 'scanner-v4',
+      storage: createJSONStorage(() => safeStorage),
       partialize: (s) => ({
-        twHistory:    s.twHistory,
-        cnHistory:    s.cnHistory,
-        twResults:    s.tw.results,
-        cnResults:    s.cn.results,
+        twHistory:    compactHistory(s.twHistory),
+        cnHistory:    compactHistory(s.cnHistory),
+        twResults:    compactResults(s.tw.results, 20),
+        cnResults:    compactResults(s.cn.results, 20),
         twLastScan:   s.tw.lastScanTime,
         cnLastScan:   s.cn.lastScanTime,
       }),

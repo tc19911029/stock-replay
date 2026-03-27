@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useWatchlistStore } from '@/store/watchlistStore';
+import { useSettingsStore } from '@/store/settingsStore';
 
 interface ConditionData {
   symbol: string;
@@ -21,6 +22,9 @@ interface ConditionData {
     volume: { pass: boolean; detail: string };
     indicator: { pass: boolean; detail: string };
   };
+  surgeScore?: number;
+  surgeGrade?: string;
+  surgeFlags?: string[];
   loading?: boolean;
   error?: string;
 }
@@ -37,7 +41,7 @@ export default function WatchlistPage() {
   const fetchConditions = useCallback(async (symbol: string) => {
     setData(prev => ({ ...prev, [symbol]: { ...prev[symbol], loading: true, error: undefined } as ConditionData }));
     try {
-      const res = await fetch(`/api/watchlist/conditions?symbol=${encodeURIComponent(symbol)}`);
+      const res = await fetch(`/api/watchlist/conditions?symbol=${encodeURIComponent(symbol)}&strategyId=${encodeURIComponent(useSettingsStore.getState().activeStrategyId)}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
       setData(prev => ({ ...prev, [symbol]: { ...json, loading: false } }));
@@ -59,7 +63,7 @@ export default function WatchlistPage() {
     if (!sym) return;
     setAddLoading(true);
     try {
-      const res = await fetch(`/api/watchlist/conditions?symbol=${encodeURIComponent(sym)}`);
+      const res = await fetch(`/api/watchlist/conditions?symbol=${encodeURIComponent(sym)}&strategyId=${encodeURIComponent(useSettingsStore.getState().activeStrategyId)}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
       add(json.symbol, json.name);
@@ -73,6 +77,10 @@ export default function WatchlistPage() {
   }
 
   const sorted = [...items].sort((a, b) => {
+    // Sort by surgeScore first, then sixConditions
+    const surgeA = data[a.symbol]?.surgeScore ?? -1;
+    const surgeB = data[b.symbol]?.surgeScore ?? -1;
+    if (surgeA !== surgeB) return surgeB - surgeA;
     const sa = data[a.symbol]?.sixConditions?.totalScore ?? -1;
     const sb = data[b.symbol]?.sixConditions?.totalScore ?? -1;
     return sb - sa;
@@ -152,7 +160,7 @@ export default function WatchlistPage() {
                       <div className="flex gap-1 mt-1.5 flex-wrap">
                         {COND_KEYS.map(key => (
                           <span key={key} className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                            d.sixConditions[key]?.pass ? 'bg-green-800/60 text-green-300' : 'bg-slate-700 text-slate-500 line-through'
+                            d.sixConditions[key]?.pass ? 'bg-red-900/60 text-red-300' : 'bg-slate-700 text-slate-500 line-through'
                           }`}>{COND_NAMES[key]}</span>
                         ))}
                       </div>
@@ -169,6 +177,16 @@ export default function WatchlistPage() {
                         {isUp ? '+' : ''}{d.changePercent.toFixed(2)}%
                       </div>
                     </div>
+                  )}
+
+                  {/* Surge grade badge */}
+                  {d?.surgeGrade && (
+                    <span className={`text-xs font-black w-7 h-7 flex items-center justify-center rounded-lg shrink-0 ${
+                      d.surgeGrade === 'S' ? 'bg-red-600 text-white' :
+                      d.surgeGrade === 'A' ? 'bg-orange-500 text-white' :
+                      d.surgeGrade === 'B' ? 'bg-yellow-500 text-black' :
+                      'bg-slate-600 text-slate-300'
+                    }`}>{d.surgeGrade}</span>
                   )}
 
                   {/* Score badge */}

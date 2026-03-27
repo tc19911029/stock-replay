@@ -1,5 +1,5 @@
 import { CandleWithIndicators } from '@/types';
-import type { StrategyParams } from '@/store/settingsStore';
+import type { StrategyThresholds } from '@/lib/strategy/StrategyConfig';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -41,7 +41,7 @@ interface Pivot {
  * Find recent swing highs/lows using a 3-bar comparison.
  * Returns up to `maxPivots` pivots (newest first).
  */
-function findPivots(
+export function findPivots(
   candles: CandleWithIndicators[],
   endIndex: number,
   maxPivots = 10,
@@ -103,8 +103,10 @@ export function detectTrend(
 
     if (higherHighs && higherLows && bullishMA) return '多頭';
     if (lowerHighs  && lowerLows  && bearishMA) return '空頭';
-    // Pivot structure present but contradicts MA → 盤整
-    if (highs.length >= 2 && lows.length >= 2) return '盤整';
+    // 矛盾型轉折（頭高底低，或頭低底高）才是真正的盤整
+    const contradictoryPivots = (higherHighs && lowerLows) || (lowerHighs && higherLows);
+    if (contradictoryPivots) return '盤整';
+    // 其餘（MA 與轉折方向一致但不夠強）→ 交給下面 MA 判斷
   }
 
   // Fallback: trust MA alignment alone
@@ -166,7 +168,7 @@ export function detectTrendPosition(
 export function evaluateSixConditions(
   candles: CandleWithIndicators[],
   index: number,
-  params?: Partial<StrategyParams>,
+  params?: Partial<StrategyThresholds>,
 ): SixConditionsResult {
   const kdMax     = params?.kdMaxEntry      ?? 85;
   const devMax    = params?.deviationMax    ?? 0.12;

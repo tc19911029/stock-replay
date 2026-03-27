@@ -3,10 +3,13 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePortfolioStore, PortfolioHolding } from '@/store/portfolioStore';
+import { useSettingsStore } from '@/store/settingsStore';
 
 interface PriceData {
   price: number;
   changePercent: number;
+  surgeScore?: number;
+  surgeGrade?: string;
   loading?: boolean;
   error?: string;
 }
@@ -24,7 +27,7 @@ export default function PortfolioPage() {
   async function fetchPrice(symbol: string) {
     setPrices(prev => ({ ...prev, [symbol]: { ...prev[symbol], loading: true } as PriceData }));
     try {
-      const res = await fetch(`/api/watchlist/conditions?symbol=${encodeURIComponent(symbol)}`);
+      const res = await fetch(`/api/watchlist/conditions?symbol=${encodeURIComponent(symbol)}&strategyId=${encodeURIComponent(useSettingsStore.getState().activeStrategyId)}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
       setPrices(prev => ({ ...prev, [symbol]: { price: json.price, changePercent: json.changePercent, loading: false } }));
@@ -231,16 +234,53 @@ export default function PortfolioPage() {
                   </div>
                 </div>
 
-                {/* Stop loss row */}
-                {currentPrice > 0 && (
-                  <div className="px-4 pb-2 flex items-center gap-4 text-[10px] text-slate-500">
-                    <span>建議停損 <span className="text-red-400 font-mono font-bold">${stopLoss.toFixed(2)}</span></span>
-                    <span>成本 -7% <span className="font-mono">${costStopLoss.toFixed(2)}</span></span>
-                    <span className="ml-auto">
-                      成本 <span className="font-mono">${(h.costPrice * h.shares).toLocaleString('zh-TW', { maximumFractionDigits: 0 })}</span>
-                    </span>
-                  </div>
-                )}
+                {/* Sell signal alerts */}
+                {currentPrice > 0 && (() => {
+                  const alerts: Array<{ level: 'danger' | 'warning' | 'profit'; text: string }> = [];
+
+                  // 止損警報
+                  if (pnlPct <= -7) alerts.push({ level: 'danger', text: `⚠️ 虧損 ${pnlPct.toFixed(1)}% — 已達止損線，建議立即賣出！` });
+                  else if (pnlPct <= -5) alerts.push({ level: 'warning', text: `⚠ 虧損 ${pnlPct.toFixed(1)}% — 接近止損，準備賣出` });
+
+                  // 止盈提醒
+                  if (pnlPct >= 15) alerts.push({ level: 'profit', text: `🎯 獲利 ${pnlPct.toFixed(1)}% — 建議至少減碼一半鎖住利潤！` });
+                  else if (pnlPct >= 10) alerts.push({ level: 'profit', text: `✅ 獲利 ${pnlPct.toFixed(1)}% — 可考慮分批停利` });
+
+                  // 持有天數
+                  const buyDateObj = new Date(h.buyDate);
+                  const holdDays = Math.floor((Date.now() - buyDateObj.getTime()) / 86400000);
+                  if (holdDays >= 20 && pnlPct < 5) {
+                    alerts.push({ level: 'warning', text: `持有已 ${holdDays} 天且獲利不足 5%，考慮換股` });
+                  }
+
+                  // surgeGrade from API data
+                  const sg = p?.surgeGrade;
+                  if (sg && (sg === 'D' || sg === 'C')) {
+                    alerts.push({ level: 'warning', text: `飆股潛力已降至 ${sg} 級，動能減弱` });
+                  }
+
+                  return (
+                    <div className="px-4 pb-2 space-y-1">
+                      {alerts.map((a, ai) => (
+                        <div key={ai} className={`text-[10px] px-2 py-1 rounded ${
+                          a.level === 'danger' ? 'bg-red-900/60 text-red-300 font-bold' :
+                          a.level === 'profit' ? 'bg-green-900/40 text-green-300' :
+                          'bg-yellow-900/40 text-yellow-300'
+                        }`}>
+                          {a.text}
+                        </div>
+                      ))}
+                      <div className="flex items-center gap-4 text-[10px] text-slate-500 pt-1">
+                        <span>建議停損 <span className="text-red-400 font-mono font-bold">${stopLoss.toFixed(2)}</span></span>
+                        <span>成本 -7% <span className="font-mono">${costStopLoss.toFixed(2)}</span></span>
+                        <span>持有 {holdDays} 天</span>
+                        <span className="ml-auto">
+                          成本 <span className="font-mono">${(h.costPrice * h.shares).toLocaleString('zh-TW', { maximumFractionDigits: 0 })}</span>
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             );
           })}

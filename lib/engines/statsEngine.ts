@@ -38,53 +38,55 @@ export function computeStats(
 }
 
 /**
- * Build a simplified equity curve based on trade events.
- * In a full implementation, this would track assets at every candle.
+ * 連續權益曲線：每根 K 棒都記錄一個資產淨值點
+ *
+ * 舊版本只在交易發生時才記錄資產，導致圖形呈階梯狀、
+ * 無法反映持倉期間的浮動盈虧。
+ * 此版本在 candles[0..currentIndex] 的每根 K 棒都計算
+ * cash + shares * close，產生連續的 equity curve。
  */
 function buildEquityCurve(
   state: AccountState,
   candles: CandleWithIndicators[],
   currentIndex: number
 ): { date: string; totalAssets: number }[] {
-  if (state.trades.length === 0) return [];
+  if (candles.length === 0) return [];
 
   const curve: { date: string; totalAssets: number }[] = [];
 
-  // Start point
-  curve.push({ date: candles[0]?.date ?? '', totalAssets: state.initialCapital });
+  // 按日期排序交易列表，方便逐 K 棒累計
+  const sortedTrades = [...state.trades].sort((a, b) =>
+    a.date.localeCompare(b.date),
+  );
 
-  // Add a point at each trade date
-  // (Simplified: just shows trade events, not continuous curve)
-  let runningCash = state.initialCapital;
-  let runningShares = 0;
-  let runningAvgCost = 0;
+  let cash   = state.initialCapital;
+  let shares = 0;
+  let tradeIdx = 0;
 
-  for (const trade of state.trades) {
-    const candleAtTrade = candles.find((c) => c.date === trade.date);
-    const price = candleAtTrade?.close ?? trade.price;
+  for (let i = 0; i <= Math.min(currentIndex, candles.length - 1); i++) {
+    const candle = candles[i];
 
-    if (trade.action === 'BUY') {
-      runningCash -= trade.amount + trade.fee;
-      const totalCost = runningShares * runningAvgCost + trade.amount;
-      runningShares += trade.shares;
-      runningAvgCost = runningShares > 0 ? totalCost / runningShares : 0;
-    } else {
-      runningCash += trade.amount - trade.fee;
-      runningShares -= trade.shares;
-      if (runningShares === 0) runningAvgCost = 0;
+    // 先套用所有在此 K 棒日期成交的交易（開盤前已成交的概念）
+    while (
+      tradeIdx < sortedTrades.length &&
+      sortedTrades[tradeIdx].date <= candle.date
+    ) {
+      const t = sortedTrades[tradeIdx];
+      if (t.action === 'BUY') {
+        cash   -= t.amount + t.fee;
+        shares += t.shares;
+      } else {
+        cash   += t.amount - t.fee;
+        shares -= t.shares;
+        if (shares < 0) shares = 0; // 防止浮點誤差
+      }
+      tradeIdx++;
     }
 
-    const totalAssets = runningCash + runningShares * price;
-    curve.push({ date: trade.date, totalAssets: +totalAssets.toFixed(2) });
+    // 以收盤價計算當日資產淨值
+    const totalAssets = cash + shares * candle.close;
+    curve.push({ date: candle.date, totalAssets: +totalAssets.toFixed(2) });
   }
-
-  // Current position
-  const currentPrice = candles[currentIndex]?.close ?? 0;
-  const currentAssets = state.cash + state.shares * currentPrice;
-  curve.push({
-    date: candles[currentIndex]?.date ?? '',
-    totalAssets: +currentAssets.toFixed(2),
-  });
 
   return curve;
 }

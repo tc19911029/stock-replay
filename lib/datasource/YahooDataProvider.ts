@@ -14,10 +14,13 @@ const HISTORICAL_TTL = 24 * 60 * 60 * 1000;
 // 近期資料 TTL：5 分鐘（當天資料可能更新）
 const RECENT_TTL = 5 * 60 * 1000;
 
-function parseYahooCandles(json: unknown): Candle[] {
+/** 原始 OHLC，不套用除權息調整（用於跨日期區間比較，避免調整基準不同） */
+function parseYahooCandlesRaw(json: unknown): Candle[] {
   const result = (json as { chart?: { result?: unknown[] } })?.chart?.result?.[0] as {
     timestamp?: number[];
-    indicators?: { quote?: { open: number[]; high: number[]; low: number[]; close: number[]; volume: number[] }[] };
+    indicators?: {
+      quote?: { open: number[]; high: number[]; low: number[]; close: number[]; volume: number[] }[];
+    };
   } | undefined;
   if (!result) return [];
 
@@ -33,8 +36,48 @@ function parseYahooCandles(json: unknown): Candle[] {
       if (o == null || h == null || l == null || c == null || isNaN(o)) return null;
       return {
         date:   new Date(ts * 1000).toISOString().split('T')[0],
-        open:   +o.toFixed(2), high: +h.toFixed(2),
-        low:    +l.toFixed(2), close: +c.toFixed(2),
+        open:   +o.toFixed(2),
+        high:   +h.toFixed(2),
+        low:    +l.toFixed(2),
+        close:  +c.toFixed(2),
+        volume: v ?? 0,
+      };
+    })
+    .filter((c): c is Candle => c != null);
+}
+
+function parseYahooCandles(json: unknown): Candle[] {
+  const result = (json as { chart?: { result?: unknown[] } })?.chart?.result?.[0] as {
+    timestamp?: number[];
+    indicators?: {
+      quote?:    { open: number[]; high: number[]; low: number[]; close: number[]; volume: number[] }[];
+      adjclose?: { adjclose: number[] }[];
+    };
+  } | undefined;
+  if (!result) return [];
+
+  const timestamps: number[] = result.timestamp ?? [];
+  const q   = result.indicators?.quote?.[0];
+  const adj = result.indicators?.adjclose?.[0]?.adjclose as number[] | undefined;
+  if (!q) return [];
+
+  return timestamps
+    .map((ts, i) => {
+      const o = q.open[i]; const h = q.high[i];
+      const l = q.low[i];  const c = q.close[i];
+      const v = q.volume[i];
+      if (o == null || h == null || l == null || c == null || isNaN(o)) return null;
+
+      // 除權息調整：用 adjclose / close 比例同步調整所有 OHLC
+      // 確保均線、報酬率在除權息日前後連續，不產生假跳空
+      const adjFactor = (adj && adj[i] != null && c > 0) ? adj[i] / c : 1;
+
+      return {
+        date:   new Date(ts * 1000).toISOString().split('T')[0],
+        open:   +(o * adjFactor).toFixed(2),
+        high:   +(h * adjFactor).toFixed(2),
+        low:    +(l * adjFactor).toFixed(2),
+        close:  +(c * adjFactor).toFixed(2),
         volume: v ?? 0,
       };
     })
@@ -71,9 +114,9 @@ export class YahooDataProvider implements DataProvider {
     if (asOfDate) {
       const endUnix   = Math.floor(new Date(asOfDate).getTime() / 1000) + 2 * 86400;
       const startUnix = endUnix - 400 * 86400;
-      url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&period1=${startUnix}&period2=${endUnix}&includePrePost=false`;
+      url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&period1=${startUnix}&period2=${endUnix}&includePrePost=false&events=div,split`;
     } else {
-      url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${period}&includePrePost=false`;
+      url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${period}&includePrePost=false&events=div,split`;
     }
 
     const res = await fetch(url, { headers: YF_HEADERS, signal: AbortSignal.timeout(timeoutMs) });
@@ -102,12 +145,14 @@ export class YahooDataProvider implements DataProvider {
     const startUnix = Math.floor(new Date(startDate).getTime() / 1000);
     const endUnix   = Math.floor(new Date(endDate).getTime()   / 1000) + 86400;
 
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&period1=${startUnix}&period2=${endUnix}&includePrePost=false`;
+    // events=split only（不傳 div），避免 adjclose 因為股息而調整基準
+    // getCandlesRange 用於前向績效計算，需要原始 OHLC 避免跨窗口調整基準不一致
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&period1=${startUnix}&period2=${endUnix}&includePrePost=false&events=split`;
 
     const res = await fetch(url, { headers: YF_HEADERS, signal: AbortSignal.timeout(timeoutMs) });
     if (!res.ok) throw new Error(`Yahoo Finance ${res.status} for ${symbol}`);
 
-    const result = parseYahooCandles(await res.json());
+    const result = parseYahooCandlesRaw(await res.json());
     // 歷史區間資料可以長時間快取
     globalCache.set(cacheKey, result, HISTORICAL_TTL);
     return result;

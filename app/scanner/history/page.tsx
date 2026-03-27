@@ -102,6 +102,52 @@ function ScanHistoryContent() {
               </button>
             </div>
 
+            {/* Top Picks section */}
+            {selected.topPicks && selected.topPicks.length > 0 && (
+              <div className="bg-gradient-to-r from-violet-900/20 to-blue-900/20 border border-violet-700/50 rounded-xl p-4 mb-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-lg">🎯</span>
+                  <span className="text-sm font-bold text-white">當日 Top 3 推薦</span>
+                  <span className="text-[10px] text-slate-500">{selected.date}</span>
+                </div>
+                <div className="space-y-2">
+                  {selected.topPicks.map((pick, pi) => (
+                    <div key={pick.symbol} className="flex items-center gap-3 bg-slate-800/60 rounded-lg px-3 py-2">
+                      <span className={`text-xs font-black w-6 h-6 flex items-center justify-center rounded-full ${
+                        pi === 0 ? 'bg-red-600 text-white' : pi === 1 ? 'bg-orange-500 text-white' : 'bg-yellow-500 text-black'
+                      }`}>{pi + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-white">{pick.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</span>
+                          <span className="text-xs text-slate-400">{pick.name}</span>
+                          <span className={`text-[10px] font-bold px-1 rounded ${
+                            pick.surgeGrade === 'S' ? 'bg-red-600 text-white' :
+                            pick.surgeGrade === 'A' ? 'bg-orange-500 text-white' :
+                            'bg-yellow-500 text-black'
+                          }`}>{pick.surgeGrade}</span>
+                        </div>
+                        <div className="text-[10px] text-slate-500 mt-0.5">
+                          潛力{pick.surgeScore} · {pick.sixConditionsScore}/6
+                          {pick.histWinRate != null && ` · 勝率${pick.histWinRate}%`}
+                          {pick.aiReason && ` · ${pick.aiReason}`}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-sm font-mono text-white">${pick.price.toFixed(2)}</div>
+                        <div className={`text-xs font-mono ${pick.changePercent >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                          {pick.changePercent >= 0 ? '+' : ''}{pick.changePercent.toFixed(2)}%
+                        </div>
+                      </div>
+                      <Link href={`/?load=${pick.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}`}
+                        className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs font-bold text-white shrink-0">
+                        走圖
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {selected.results.length === 0 && (
               <p className="text-xs text-slate-500 text-center py-6">此次掃描無符合條件的股票</p>
             )}

@@ -75,8 +75,8 @@ const BASE_THRESHOLDS: StrategyThresholds = {
   minScore:       4,
   marketTrendFilter: true,
   bullMinScore:   4,
-  sidewaysMinScore: 5,
-  bearMinScore:   6,
+  sidewaysMinScore: 4,  // 盤整市也用4分門檻（飆股常在盤整市冒出）
+  bearMinScore:   5,    // 空頭從6降到5（避免完全無結果）
 };
 
 const ALL_CONDITIONS_ON: StrategyConditionToggles = {

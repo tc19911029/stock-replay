@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getTWChineseName, getCNChineseName } from '@/lib/datasource/TWSENames';
+import { unixToTW } from '@/lib/timezone';
 
 /**
  * API Route: /api/stock?symbol=2330&interval=1d&period=2y
@@ -116,7 +118,7 @@ export async function GET(req: NextRequest) {
         const v = q.volume[i];
         if (o == null || h == null || l == null || c == null || isNaN(o)) return null;
         return {
-          date:   new Date(ts * 1000).toISOString().split('T')[0],
+          date:   unixToTW(ts).split('T')[0],
           open:   +o.toFixed(2),
           high:   +h.toFixed(2),
           low:    +l.toFixed(2),
@@ -130,9 +132,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: '資料為空，請嘗試其他期間' }, { status: 404 });
     }
 
-    const meta  = result.meta;
-    const name  = meta.longName ?? meta.shortName ?? ticker;
-    const currency = meta.currency ?? '';
+    const meta     = result.meta;
+    const yahooName = meta.longName ?? meta.shortName ?? ticker;
+    const currency  = meta.currency ?? '';
+
+    // 台灣股票優先使用 TWSE/TPEx 中文名稱（動態查詢，快取24h）
+    // A股優先使用靜態中文名稱對照表
+    let name = yahooName;
+    if (isTwDigits) {
+      const twName = await getTWChineseName(symbol).catch(() => null);
+      if (twName) name = twName;
+    } else if (isCnDigits) {
+      const cnName = getCNChineseName(symbol);
+      if (cnName) name = cnName;
+    }
 
     return NextResponse.json({
       ticker,

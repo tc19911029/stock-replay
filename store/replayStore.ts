@@ -27,6 +27,8 @@ import {
   TrendPosition,
   SixConditionsResult,
 } from '@/lib/analysis/trendAnalysis';
+import { computeSurgeScore, SurgeScoreResult } from '@/lib/analysis/surgeScore';
+import { useSettingsStore } from './settingsStore';
 
 const INITIAL_CAPITAL = 1_000_000;
 
@@ -98,6 +100,7 @@ interface ReplayStore {
   trendState: TrendState;
   trendPosition: TrendPosition;
   sixConditions: SixConditionsResult | null;
+  surgeScore: SurgeScoreResult | null;
 
   // ── Actions ───────────────────────────────────────────────
   initData: () => void;
@@ -136,8 +139,10 @@ function buildState(
   const chartMarkers = _cachedMarkers.filter(m => m.date <= currentDate);
   const trendState    = detectTrend(allCandles, index);
   const trendPosition = detectTrendPosition(allCandles, index);
-  const sixConditions = evaluateSixConditions(allCandles, index);
-  return { visibleCandles, metrics, stats, currentSignals: signals, chartMarkers, trendState, trendPosition, sixConditions };
+  const activeThresholds = useSettingsStore.getState().getActiveStrategy().thresholds;
+  const sixConditions = evaluateSixConditions(allCandles, index, activeThresholds);
+  const surgeScore = computeSurgeScore(allCandles, index);
+  return { visibleCandles, metrics, stats, currentSignals: signals, chartMarkers, trendState, trendPosition, sixConditions, surgeScore };
 }
 
 /** Always start replay at the latest (rightmost) candle */
@@ -162,6 +167,7 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
   trendState: '盤整' as TrendState,
   trendPosition: '盤整觀望' as TrendPosition,
   sixConditions: null,
+  surgeScore: null,
 
   // ── Init with mock data ───────────────────────────────────
   initData: () => {

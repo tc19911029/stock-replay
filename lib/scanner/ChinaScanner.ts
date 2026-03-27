@@ -11,7 +11,7 @@ type StockEntry = { symbol: string; name: string };
  * 資料來源：Yahoo Finance 實測可抓到歷史資料
  * 排除：創業板(300xxx)、科創板(688xxx)、ST/退市
  */
-const CN_STOCKS: StockEntry[] = [
+export const CN_STOCKS: StockEntry[] = [
   // ── 上交所主板（滬市） ────────────────────────────────────────────
   { symbol: '600519.SS', name: '貴州茅台' },
   { symbol: '601318.SS', name: '中國平安' },

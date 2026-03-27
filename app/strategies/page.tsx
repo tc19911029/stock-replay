@@ -47,6 +47,8 @@ function formatThresholdValue(key: keyof StrategyThresholds, value: number | boo
   return String(value);
 }
 
+const INPUT_CLASS = 'w-full bg-slate-800 border border-slate-600 rounded px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500';
+
 // ── Strategy Card ─────────────────────────────────────────────────────────────
 
 interface StrategyCardProps {
@@ -55,10 +57,11 @@ interface StrategyCardProps {
   isSelected: boolean;
   onSelect: () => void;
   onActivate: () => void;
+  onDuplicate: () => void;
   onDelete?: () => void;
 }
 
-function StrategyCard({ strategy, isActive, isSelected, onSelect, onActivate, onDelete }: StrategyCardProps) {
+function StrategyCard({ strategy, isActive, isSelected, onSelect, onActivate, onDuplicate, onDelete }: StrategyCardProps) {
   return (
     <div
       onClick={onSelect}
@@ -99,6 +102,12 @@ function StrategyCard({ strategy, isActive, isSelected, onSelect, onActivate, on
           >
             {isActive ? '已啟用' : '啟用'}
           </button>
+          <button
+            onClick={e => { e.stopPropagation(); onDuplicate(); }}
+            className="text-xs px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 transition"
+          >
+            複製
+          </button>
           {!strategy.isBuiltIn && onDelete && (
             <button
               onClick={e => { e.stopPropagation(); onDelete(); }}
@@ -113,159 +122,216 @@ function StrategyCard({ strategy, isActive, isSelected, onSelect, onActivate, on
   );
 }
 
-// ── Strategy Detail Panel ─────────────────────────────────────────────────────
+// ── Strategy Detail Panel (read-only for built-in, editable for custom) ──────
 
-function StrategyDetail({ strategy }: { strategy: StrategyConfig }) {
+function StrategyDetail({
+  strategy,
+  onUpdate,
+}: {
+  strategy: StrategyConfig;
+  onUpdate?: (updates: Partial<Omit<StrategyConfig, 'id' | 'isBuiltIn'>>) => void;
+}) {
+  const editable = !strategy.isBuiltIn && !!onUpdate;
+
   return (
     <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-5 space-y-5">
+      {/* Editable name/description for custom strategies */}
+      {editable && (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2 sm:col-span-1">
+            <label className="text-xs text-slate-400 mb-1 block">策略名稱</label>
+            <input
+              value={strategy.name}
+              onChange={e => onUpdate({ name: e.target.value })}
+              className={INPUT_CLASS}
+            />
+          </div>
+          <div className="col-span-2 sm:col-span-1">
+            <label className="text-xs text-slate-400 mb-1 block">說明</label>
+            <input
+              value={strategy.description}
+              onChange={e => onUpdate({ description: e.target.value })}
+              className={INPUT_CLASS}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Condition Toggles */}
       <div>
         <h3 className="text-sm font-semibold text-white mb-3">條件開關</h3>
         <div className="grid grid-cols-2 gap-2">
           {(Object.keys(strategy.conditions) as Array<keyof StrategyConditionToggles>).map(key => (
-            <div key={key} className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full shrink-0 ${strategy.conditions[key] ? 'bg-green-400' : 'bg-slate-600'}`} />
+            <label key={key} className="flex items-center gap-2 cursor-pointer">
+              {editable ? (
+                <input
+                  type="checkbox"
+                  checked={strategy.conditions[key]}
+                  onChange={e => onUpdate({
+                    conditions: { ...strategy.conditions, [key]: e.target.checked },
+                  })}
+                  className="w-3.5 h-3.5 rounded accent-green-500"
+                />
+              ) : (
+                <span className={`w-2 h-2 rounded-full shrink-0 ${strategy.conditions[key] ? 'bg-green-400' : 'bg-slate-600'}`} />
+              )}
               <span className="text-xs text-slate-300">{CONDITION_LABELS[key]}</span>
-            </div>
+            </label>
           ))}
         </div>
       </div>
 
+      {/* Threshold params */}
       <div>
         <h3 className="text-sm font-semibold text-white mb-3">閾值參數</h3>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
-          {(Object.keys(strategy.thresholds) as Array<keyof StrategyThresholds>).map(key => (
-            <div key={key} className="flex justify-between items-center text-xs">
-              <span className="text-slate-400">{THRESHOLD_LABELS[key]}</span>
-              <span className="text-white font-mono ml-2">
-                {formatThresholdValue(key, strategy.thresholds[key] as number | boolean)}
-              </span>
-            </div>
-          ))}
+        <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+          {(Object.keys(strategy.thresholds) as Array<keyof StrategyThresholds>).map(key => {
+            const val = strategy.thresholds[key];
+            if (typeof val === 'boolean') {
+              return (
+                <label key={key} className="flex justify-between items-center text-xs cursor-pointer">
+                  <span className="text-slate-400">{THRESHOLD_LABELS[key]}</span>
+                  {editable ? (
+                    <input
+                      type="checkbox"
+                      checked={val}
+                      onChange={e => onUpdate({
+                        thresholds: { ...strategy.thresholds, [key]: e.target.checked },
+                      })}
+                      className="w-3.5 h-3.5 rounded accent-blue-500"
+                    />
+                  ) : (
+                    <span className="text-white font-mono ml-2">{val ? '啟用' : '停用'}</span>
+                  )}
+                </label>
+              );
+            }
+            return (
+              <div key={key} className="flex justify-between items-center text-xs">
+                <span className="text-slate-400">{THRESHOLD_LABELS[key]}</span>
+                {editable ? (
+                  <input
+                    type="number"
+                    value={val}
+                    step={['kbarMinBodyPct', 'upperShadowMax', 'deviationMax'].includes(key) ? 0.01 : key === 'volumeRatioMin' ? 0.1 : 1}
+                    onChange={e => onUpdate({
+                      thresholds: { ...strategy.thresholds, [key]: Number(e.target.value) },
+                    })}
+                    className="w-20 bg-slate-800 border border-slate-600 rounded px-2 py-0.5 text-xs text-white font-mono text-right focus:outline-none focus:border-blue-500"
+                  />
+                ) : (
+                  <span className="text-white font-mono ml-2">
+                    {formatThresholdValue(key, val)}
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
   );
 }
 
-// ── Add Custom Strategy Form ──────────────────────────────────────────────────
+// ── Add Custom Strategy Form ────────────────────────────────────────────────
 
-function AddStrategyForm({ onAdd, onCancel }: { onAdd: (s: StrategyConfig) => void; onCancel: () => void }) {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [minScore, setMinScore] = useState(4);
-  const [kdMaxEntry, setKdMaxEntry] = useState(88);
-  const [volumeRatioMin, setVolumeRatioMin] = useState(1.5);
-  const [upperShadowMax, setUpperShadowMax] = useState(0.20);
-  const [deviationMax, setDeviationMax] = useState(0.20);
+function AddStrategyForm({ onAdd, onCancel, initial }: {
+  onAdd: (s: StrategyConfig) => void;
+  onCancel: () => void;
+  initial?: StrategyConfig;
+}) {
+  const base = initial ?? BUILT_IN_STRATEGIES[0];
+  const [name, setName] = useState(initial ? `${initial.name} (複製)` : '');
+  const [description, setDescription] = useState(initial?.description ?? '');
+  const [conditions, setConditions] = useState<StrategyConditionToggles>({ ...base.conditions });
+  const [thresholds, setThresholds] = useState<StrategyThresholds>({ ...base.thresholds });
 
   function handleSubmit() {
     if (!name.trim()) return;
-    const id = `custom-${Date.now()}`;
     const config: StrategyConfig = {
-      id,
+      id: `custom-${Date.now()}`,
       name: name.trim(),
       description: description.trim(),
       version: '1.0.0',
       author: '使用者自訂',
       createdAt: new Date().toISOString(),
       isBuiltIn: false,
-      conditions: {
-        trend: true, position: true, kbar: true, ma: true, volume: true, indicator: true,
-      },
-      thresholds: {
-        maShortPeriod: 5,
-        maMidPeriod: 10,
-        maLongPeriod: 20,
-        kbarMinBodyPct: 0.02,
-        upperShadowMax,
-        volumeRatioMin,
-        kdMaxEntry,
-        deviationMax,
-        minScore,
-        marketTrendFilter: true,
-        bullMinScore: minScore,
-        sidewaysMinScore: Math.min(minScore + 1, 6),
-        bearMinScore: 6,
-      },
+      conditions,
+      thresholds,
     };
     onAdd(config);
   }
 
   return (
     <div className="rounded-xl border border-blue-600/50 bg-blue-900/10 p-5 space-y-4">
-      <h3 className="text-sm font-semibold text-white">新增自訂策略</h3>
+      <h3 className="text-sm font-semibold text-white">
+        {initial ? '複製策略' : '新增自訂策略'}
+      </h3>
       <div className="grid grid-cols-2 gap-4">
-        <div className="col-span-2">
+        <div className="col-span-2 sm:col-span-1">
           <label className="text-xs text-slate-400 mb-1 block">策略名稱</label>
-          <input
-            value={name}
-            onChange={e => setName(e.target.value)}
-            placeholder="例：我的策略 v1"
-            className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-          />
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="例：我的策略 v1" className={INPUT_CLASS} />
         </div>
-        <div className="col-span-2">
+        <div className="col-span-2 sm:col-span-1">
           <label className="text-xs text-slate-400 mb-1 block">說明</label>
-          <input
-            value={description}
-            onChange={e => setDescription(e.target.value)}
-            placeholder="策略說明..."
-            className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-          />
-        </div>
-        <div>
-          <label className="text-xs text-slate-400 mb-1 block">最低進場分數（1–6）</label>
-          <input
-            type="number" min={1} max={6} value={minScore}
-            onChange={e => setMinScore(Number(e.target.value))}
-            className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500"
-          />
-        </div>
-        <div>
-          <label className="text-xs text-slate-400 mb-1 block">KD 進場上限</label>
-          <input
-            type="number" min={50} max={100} value={kdMaxEntry}
-            onChange={e => setKdMaxEntry(Number(e.target.value))}
-            className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500"
-          />
-        </div>
-        <div>
-          <label className="text-xs text-slate-400 mb-1 block">量比門檻</label>
-          <input
-            type="number" min={1} max={5} step={0.1} value={volumeRatioMin}
-            onChange={e => setVolumeRatioMin(Number(e.target.value))}
-            className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500"
-          />
-        </div>
-        <div>
-          <label className="text-xs text-slate-400 mb-1 block">上影線最大比例（0–1）</label>
-          <input
-            type="number" min={0} max={1} step={0.01} value={upperShadowMax}
-            onChange={e => setUpperShadowMax(Number(e.target.value))}
-            className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500"
-          />
-        </div>
-        <div>
-          <label className="text-xs text-slate-400 mb-1 block">MA20 乖離上限（0–1）</label>
-          <input
-            type="number" min={0} max={1} step={0.01} value={deviationMax}
-            onChange={e => setDeviationMax(Number(e.target.value))}
-            className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500"
-          />
+          <input value={description} onChange={e => setDescription(e.target.value)} placeholder="策略說明..." className={INPUT_CLASS} />
         </div>
       </div>
+
+      {/* Condition toggles */}
+      <div>
+        <h4 className="text-xs font-semibold text-slate-400 mb-2">條件開關</h4>
+        <div className="grid grid-cols-2 gap-2">
+          {(Object.keys(conditions) as Array<keyof StrategyConditionToggles>).map(key => (
+            <label key={key} className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={conditions[key]}
+                onChange={e => setConditions(c => ({ ...c, [key]: e.target.checked }))}
+                className="w-3.5 h-3.5 rounded accent-green-500"
+              />
+              <span className="text-xs text-slate-300">{CONDITION_LABELS[key]}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Key thresholds */}
+      <div>
+        <h4 className="text-xs font-semibold text-slate-400 mb-2">主要參數</h4>
+        <div className="grid grid-cols-2 gap-4">
+          {([
+            { key: 'minScore' as const, label: '最低進場分數', min: 1, max: 6, step: 1 },
+            { key: 'kdMaxEntry' as const, label: 'KD 進場上限', min: 50, max: 100, step: 1 },
+            { key: 'volumeRatioMin' as const, label: '量比門檻', min: 1, max: 5, step: 0.1 },
+            { key: 'upperShadowMax' as const, label: '上影線最大比例', min: 0, max: 1, step: 0.01 },
+            { key: 'deviationMax' as const, label: 'MA20 乖離上限', min: 0, max: 1, step: 0.01 },
+            { key: 'bullMinScore' as const, label: '多頭最低分數', min: 1, max: 6, step: 1 },
+            { key: 'sidewaysMinScore' as const, label: '盤整最低分數', min: 1, max: 6, step: 1 },
+            { key: 'bearMinScore' as const, label: '空頭最低分數', min: 1, max: 6, step: 1 },
+          ] as const).map(({ key, label, min, max, step }) => (
+            <div key={key}>
+              <label className="text-xs text-slate-400 mb-1 block">{label}</label>
+              <input
+                type="number" min={min} max={max} step={step}
+                value={thresholds[key] as number}
+                onChange={e => setThresholds(t => ({ ...t, [key]: Number(e.target.value) }))}
+                className={INPUT_CLASS}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="flex gap-2">
         <button
           onClick={handleSubmit}
           disabled={!name.trim()}
           className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 text-white text-sm rounded font-medium transition"
         >
-          新增策略
+          {initial ? '建立複製' : '新增策略'}
         </button>
-        <button
-          onClick={onCancel}
-          className="px-4 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm rounded transition"
-        >
+        <button onClick={onCancel} className="px-4 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm rounded transition">
           取消
         </button>
       </div>
@@ -281,12 +347,14 @@ export default function StrategiesPage() {
     customStrategies,
     setActiveStrategy,
     addCustomStrategy,
+    updateCustomStrategy,
     deleteCustomStrategy,
   } = useSettingsStore();
 
   const allStrategies = [...BUILT_IN_STRATEGIES, ...customStrategies];
   const [selectedId, setSelectedId] = useState<string>(activeStrategyId);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [duplicateSource, setDuplicateSource] = useState<StrategyConfig | null>(null);
 
   const selectedStrategy = allStrategies.find(s => s.id === selectedId) ?? allStrategies[0];
 
@@ -294,6 +362,12 @@ export default function StrategiesPage() {
     addCustomStrategy(s);
     setSelectedId(s.id);
     setShowAddForm(false);
+    setDuplicateSource(null);
+  }
+
+  function handleDuplicate(source: StrategyConfig) {
+    setDuplicateSource(source);
+    setShowAddForm(true);
   }
 
   return (
@@ -305,6 +379,9 @@ export default function StrategiesPage() {
         </Link>
         <span className="text-slate-700">|</span>
         <h1 className="text-sm font-semibold text-white">策略管理</h1>
+        <span className="text-xs text-slate-500 ml-auto">
+          目前使用：<span className="text-violet-400">{allStrategies.find(s => s.id === activeStrategyId)?.name}</span>
+        </span>
       </header>
 
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
@@ -321,14 +398,18 @@ export default function StrategiesPage() {
                 isSelected={s.id === selectedId}
                 onSelect={() => setSelectedId(s.id)}
                 onActivate={() => setActiveStrategy(s.id)}
-                onDelete={!s.isBuiltIn ? () => deleteCustomStrategy(s.id) : undefined}
+                onDuplicate={() => handleDuplicate(s)}
+                onDelete={!s.isBuiltIn ? () => {
+                  deleteCustomStrategy(s.id);
+                  if (selectedId === s.id) setSelectedId(activeStrategyId);
+                } : undefined}
               />
             ))}
 
             {/* Add custom strategy button */}
             {!showAddForm && (
               <button
-                onClick={() => setShowAddForm(true)}
+                onClick={() => { setDuplicateSource(null); setShowAddForm(true); }}
                 className="rounded-xl border border-dashed border-slate-600 bg-transparent hover:border-slate-400 hover:bg-slate-800/30 p-4 text-slate-500 hover:text-slate-300 transition text-sm font-medium flex items-center justify-center gap-2"
               >
                 <span className="text-lg leading-none">+</span>
@@ -338,21 +419,31 @@ export default function StrategiesPage() {
           </div>
         </div>
 
-        {/* Add Form */}
+        {/* Add / Duplicate Form */}
         {showAddForm && (
           <AddStrategyForm
             onAdd={handleAdd}
-            onCancel={() => setShowAddForm(false)}
+            onCancel={() => { setShowAddForm(false); setDuplicateSource(null); }}
+            initial={duplicateSource ?? undefined}
           />
         )}
 
-        {/* Strategy Detail */}
+        {/* Strategy Detail (editable for custom strategies) */}
         {selectedStrategy && (
           <div>
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
               策略詳情：{selectedStrategy.name}
+              {!selectedStrategy.isBuiltIn && (
+                <span className="text-blue-400 ml-2 font-normal">（可直接編輯）</span>
+              )}
             </h2>
-            <StrategyDetail strategy={selectedStrategy} />
+            <StrategyDetail
+              strategy={selectedStrategy}
+              onUpdate={!selectedStrategy.isBuiltIn
+                ? (updates) => updateCustomStrategy(selectedStrategy.id, updates)
+                : undefined
+              }
+            />
           </div>
         )}
 

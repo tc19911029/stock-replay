@@ -16,6 +16,11 @@ export interface SixConditionsBreakdown {
   indicator: boolean;
 }
 
+export interface SurgeComponentSummary {
+  score: number;
+  detail: string;
+}
+
 export interface StockScanResult {
   symbol: string;
   name: string;
@@ -29,6 +34,28 @@ export interface StockScanResult {
   trendState: '多頭' | '空頭' | '盤整';
   trendPosition: string;
   scanTime: string;             // ISO timestamp
+  // ── 飆股潛力分 ────────────────────────────────────────────────────────────
+  surgeScore?: number;           // 0–100
+  surgeGrade?: 'S' | 'A' | 'B' | 'C' | 'D';
+  surgeFlags?: string[];
+  surgeComponents?: {
+    momentum:    SurgeComponentSummary;
+    volatility:  SurgeComponentSummary;
+    volume:      SurgeComponentSummary;
+    breakout:    SurgeComponentSummary;
+    trendQuality: SurgeComponentSummary;
+    pricePosition: SurgeComponentSummary;
+    kbarStrength: SurgeComponentSummary;
+    indicatorConfluence: SurgeComponentSummary;
+    longTermQuality: SurgeComponentSummary;
+  };
+  // ── 歷史信號績效 ──────────────────────────────────────────────────────────
+  histWinRate?: number;        // 歷史20日勝率 (%)
+  histSignalCount?: number;    // 歷史信號次數
+  // ── AI 排名 ───────────────────────────────────────────────────────────────
+  aiRank?: number;
+  aiConfidence?: 'high' | 'medium' | 'low';
+  aiReason?: string;
 }
 
 export interface MarketConfig {
@@ -38,6 +65,19 @@ export interface MarketConfig {
   timezone: string;
 }
 
+export interface TopPickRecord {
+  symbol: string;
+  name: string;
+  surgeScore: number;
+  surgeGrade: string;
+  sixConditionsScore: number;
+  histWinRate?: number;
+  price: number;
+  changePercent: number;
+  aiRank?: number;
+  aiReason?: string;
+}
+
 export interface ScanSession {
   id: string;            // e.g. 'TW-2026-03-25'
   market: MarketId;
@@ -45,6 +85,7 @@ export interface ScanSession {
   scanTime: string;      // ISO timestamp when scan ran
   resultCount: number;
   results: StockScanResult[];
+  topPicks?: TopPickRecord[];  // 當日 Top 3 推薦
 }
 
 // ── Backtest types ─────────────────────────────────────────────────────────────
@@ -62,7 +103,8 @@ export interface StockForwardPerformance {
   name: string;
   scanDate: string;
   scanPrice: number;
-  openReturn: number | null;  // next trading day open vs scan close (proxy for "隔天開盤")
+  // ── 以訊號日收盤（scanPrice）為基準 ──────────────────────────────────────
+  openReturn: number | null;  // next trading day open vs scan close
   d1Return:   number | null;  // % return after 1 trading day close
   d2Return:   number | null;
   d3Return:   number | null;
@@ -73,6 +115,12 @@ export interface StockForwardPerformance {
   maxGain:    number;         // max intra-window % gain (vs scanPrice)
   maxLoss:    number;         // max intra-window % loss (negative, vs scanPrice)
   forwardCandles: ForwardCandle[];
+  // ── 以隔日開盤（nextOpenPrice）為基準（與 BacktestEngine 進場一致）──────
+  nextOpenPrice:     number | null;
+  d1ReturnFromOpen:  number | null;
+  d5ReturnFromOpen:  number | null;
+  d10ReturnFromOpen: number | null;
+  d20ReturnFromOpen: number | null;
 }
 
 export interface BacktestSession {

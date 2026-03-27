@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useScannerStore } from '@/store/scannerStore';
 import { useWatchlistStore } from '@/store/watchlistStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import ScanResultCard from '@/components/scanner/ScanResultCard';
+import TodayPicks from '@/components/scanner/TodayPicks';
 import { MarketId, StockScanResult } from '@/lib/scanner/types';
 
 // ── Email notification hook ───────────────────────────────────────────────────
@@ -106,12 +107,32 @@ function ScanInfoPanel({ minScore }: { minScore: number }) {
         <span className="text-slate-500 text-[10px]">{open ? '▲ 收起' : '▼ 展開'}</span>
       </button>
       {open && (
-        <div className="px-4 py-3 bg-slate-900/60 space-y-1.5 text-xs text-slate-400">
-          <p>• 只篩選符合朱老師六大條件 ≥{minScore} 分的股票</p>
-          <p>• 空頭趨勢股票自動排除</p>
-          <p>• 乖離率 &gt; 20% 自動排除（末升段）</p>
-          <p>• KD &gt; 88 自動排除（超買）</p>
-          <p>• 大盤多頭時門檻 4 分；盤整 5 分；空頭 6 分</p>
+        <div className="px-4 py-3 bg-slate-900/60 space-y-2 text-xs text-slate-400">
+          <div>
+            <p className="text-slate-300 font-semibold mb-1">篩選條件</p>
+            <p>• 朱老師六大條件 ≥{minScore} 分（趨勢、位置、K棒、均線、量能、指標）</p>
+            <p>• 空頭趨勢股 / 乖離&gt;20% / KD&gt;88 自動排除</p>
+          </div>
+          <div>
+            <p className="text-slate-300 font-semibold mb-1">飆股潛力分 (0-100)</p>
+            <p>• 9 項子分數加權：動能加速(18%) + 波動擴張(12%) + 量能攀升(15%) + 突破型態(15%) + 趨勢品質(15%) + 長期品質(10%) + 價格位置(5%) + K棒力道(5%) + 指標共振(5%)</p>
+            <p>• 等級：<span className="text-red-400">S(≥80)</span> <span className="text-orange-400">A(≥65)</span> <span className="text-yellow-400">B(≥50)</span> C(≥35) D(&lt;35)</p>
+          </div>
+          <div>
+            <p className="text-slate-300 font-semibold mb-1">排序方式</p>
+            <p>• <span className="text-blue-400">飆股潛力</span>：按潛力分排序（推薦）</p>
+            <p>• <span className="text-blue-400">AI精選</span>：掃描後 AI 分析前15名，按 AI 判斷排序</p>
+            <p>• 六大條件 / 漲跌幅 / 成交量：按對應欄位排序</p>
+          </div>
+          <div>
+            <p className="text-slate-300 font-semibold mb-1">歷史勝率</p>
+            <p>• 每支股票顯示過去 120 天內信號的 20 日勝率</p>
+            <p>• <span className="text-green-400">綠色(≥65%)</span> = 信號可靠；<span className="text-red-400">紅色(&lt;50%)</span> = 歷史表現差，謹慎</p>
+          </div>
+          <div>
+            <p className="text-slate-300 font-semibold mb-1">歷史日期掃描</p>
+            <p>• 選擇過去的日期可模擬該日收盤後的掃描結果，用於驗證策略</p>
+          </div>
         </div>
       )}
     </div>
@@ -119,7 +140,7 @@ function ScanInfoPanel({ minScore }: { minScore: number }) {
 }
 
 // ── Sort type ─────────────────────────────────────────────────────────────────
-type SortKey = 'score' | 'change' | 'volume';
+type SortKey = 'surge' | 'ai' | 'score' | 'change' | 'volume';
 
 // ── Result stats banner ───────────────────────────────────────────────────────
 function ResultStatsBanner({
@@ -133,9 +154,10 @@ function ResultStatsBanner({
   const avgScore = results.length > 0
     ? (results.reduce((s, r) => s + r.sixConditionsScore, 0) / results.length).toFixed(1)
     : '0.0';
+  // 亞洲慣例：多頭=紅，空頭=綠
   const trendColor =
-    marketTrend === '多頭' ? 'text-green-400' :
-    marketTrend === '空頭' ? 'text-red-400' :
+    marketTrend === '多頭' ? 'text-red-400' :
+    marketTrend === '空頭' ? 'text-green-500' :
     'text-yellow-400';
 
   return (
@@ -158,9 +180,11 @@ function ResultStatsBanner({
 // ── Sort controls ─────────────────────────────────────────────────────────────
 function SortControls({ sort, setSort }: { sort: SortKey; setSort: (s: SortKey) => void }) {
   const options: Array<{ key: SortKey; label: string }> = [
-    { key: 'score',  label: '評分由高到低' },
-    { key: 'change', label: '漲跌幅由高到低' },
-    { key: 'volume', label: '成交量由高到低' },
+    { key: 'surge',  label: '飆股潛力' },
+    { key: 'ai',     label: 'AI精選' },
+    { key: 'score',  label: '六大條件' },
+    { key: 'change', label: '漲跌幅' },
+    { key: 'volume', label: '成交量' },
   ];
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -185,6 +209,8 @@ function SortControls({ sort, setSort }: { sort: SortKey; setSort: (s: SortKey) 
 // ── Sort helper ───────────────────────────────────────────────────────────────
 function sortResults(results: StockScanResult[], sort: SortKey): StockScanResult[] {
   const copy = [...results];
+  if (sort === 'surge')  return copy.sort((a, b) => (b.surgeScore ?? 0) - (a.surgeScore ?? 0));
+  if (sort === 'ai')     return copy.sort((a, b) => (a.aiRank ?? 999) - (b.aiRank ?? 999));
   if (sort === 'score')  return copy.sort((a, b) => b.sixConditionsScore - a.sixConditionsScore);
   if (sort === 'change') return copy.sort((a, b) => b.changePercent - a.changePercent);
   if (sort === 'volume') return copy.sort((a, b) => b.volume - a.volume);
@@ -193,11 +219,16 @@ function sortResults(results: StockScanResult[], sort: SortKey): StockScanResult
 
 // ── Market scan panel ─────────────────────────────────────────────────────────
 function MarketPanel({ market, isActive }: { market: MarketId; isActive: boolean }) {
-  const { getMarket, runScan, getHistory, setScanDate } = useScannerStore();
+  const { getMarket, runScan, getHistory, setScanDate, aiRanking } = useScannerStore();
   const { add: addToWatchlist, has: inWatchlist } = useWatchlistStore();
-  const { notifyEmail, notifyMinScore } = useSettingsStore();
+  const { notifyEmail, notifyMinScore, getActiveStrategy } = useSettingsStore();
+  const activeStrategy = getActiveStrategy();
   const state = getMarket(market);
   const history = getHistory(market);
+
+  // Suppress Zustand persist hydration mismatch
+  const [panelMounted, setPanelMounted] = useState(false);
+  useEffect(() => setPanelMounted(true), []);
 
   const notified = useNotifyOnScanComplete(state.results, notifyEmail, notifyMinScore, market);
 
@@ -205,7 +236,8 @@ function MarketPanel({ market, isActive }: { market: MarketId; isActive: boolean
   const hasScanned = useRef(false);
   if (state.lastScanTime) hasScanned.current = true;
 
-  const [sort, setSort] = useState<SortKey>('score');
+  const [sort, setSort] = useState<SortKey>('surge');
+  const [minGrade, setMinGrade] = useState<string>('all');
 
   const LABEL = market === 'TW' ? '台灣股市' : '中國A股';
   const DESC   = market === 'TW'
@@ -214,7 +246,29 @@ function MarketPanel({ market, isActive }: { market: MarketId; isActive: boolean
 
   if (!isActive) return null;
 
-  const sorted = sortResults(state.results, sort);
+  const gradeOrder = ['S', 'A', 'B', 'C', 'D'];
+  const filtered = minGrade === 'all'
+    ? state.results
+    : state.results.filter(r => r.surgeGrade && gradeOrder.indexOf(r.surgeGrade) <= gradeOrder.indexOf(minGrade));
+  const sorted = useMemo(() => sortResults(filtered, sort), [filtered, sort]);
+  const sCount = state.results.filter(r => r.surgeGrade === 'S').length;
+  const aCount = state.results.filter(r => r.surgeGrade === 'A').length;
+
+  // Pagination
+  const PAGE_SIZE = 50;
+  const [page, setPage] = useState(0);
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const pagedResults = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  // Reset page when filter changes
+  useEffect(() => { setPage(0); }, [minGrade, sort]);
+
+  // Pre-compute surge ranks (avoid O(n²) in render loop)
+  const surgeRankMap = useMemo(() => {
+    const map = new Map<string, number>();
+    [...state.results].sort((a, b) => (b.surgeScore ?? 0) - (a.surgeScore ?? 0))
+      .forEach((r, i) => map.set(r.symbol, i));
+    return map;
+  }, [state.results]);
 
   return (
     <div className="space-y-4">
@@ -224,21 +278,26 @@ function MarketPanel({ market, isActive }: { market: MarketId; isActive: boolean
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-bold">{LABEL} 掃描</h2>
-              {state.marketTrend && (
+              {panelMounted && (
+                <Link href="/strategies" className="text-[10px] px-1.5 py-0.5 rounded bg-violet-900/60 text-violet-300 hover:bg-violet-800/60 transition">
+                  策略：{activeStrategy.name}
+                </Link>
+              )}
+              {panelMounted && state.marketTrend && (
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                  state.marketTrend === '多頭' ? 'bg-green-900/60 text-green-300' :
-                  state.marketTrend === '空頭' ? 'bg-red-900/60 text-red-300' :
+                  state.marketTrend === '多頭' ? 'bg-red-900/60 text-red-300' :
+                  state.marketTrend === '空頭' ? 'bg-green-900/60 text-green-300' :
                   'bg-yellow-900/60 text-yellow-300'
                 }`}>
                   大盤{state.marketTrend}
-                  {state.marketTrend === '多頭' ? ' ▲ 門檻4分' :
-                   state.marketTrend === '空頭' ? ' ▼ 門檻6分' :
-                   ' → 門檻5分'}
+                  {state.marketTrend === '多頭' ? ` ▲ 門檻${activeStrategy.thresholds.bullMinScore}分` :
+                   state.marketTrend === '空頭' ? ` ▼ 門檻${activeStrategy.thresholds.bearMinScore}分` :
+                   ` → 門檻${activeStrategy.thresholds.sidewaysMinScore}分`}
                 </span>
               )}
             </div>
             <p className="text-xs text-slate-500 mt-0.5">{DESC}</p>
-            {state.lastScanTime && (
+            {panelMounted && state.lastScanTime && (
               <p className="text-xs text-slate-400 mt-0.5">
                 上次掃描：{new Date(state.lastScanTime).toLocaleString('zh-TW')}
                 {state.results.length > 0 && (
@@ -308,30 +367,58 @@ function MarketPanel({ market, isActive }: { market: MarketId; isActive: boolean
         {state.error && <p className="text-xs text-red-400 mt-2">⚠ {state.error}</p>}
       </div>
 
-      {/* Results */}
-      {state.results.length > 0 && (
+      {/* Results (guard with panelMounted to prevent hydration mismatch from Zustand persist) */}
+      {panelMounted && state.results.length > 0 && (
         <div className="space-y-2">
           {/* Stats banner */}
           <ResultStatsBanner results={state.results} marketTrend={state.marketTrend} />
 
-          {/* Sort controls + header */}
+          {/* Today's Picks — Top 3 recommendations */}
+          <TodayPicks results={state.results} isLoading={state.isScanning} />
+
+          {/* Sort controls + header + grade filter */}
           <div className="flex items-center justify-between px-1 flex-wrap gap-2">
             <h3 className="text-sm font-bold text-slate-200">
-              掃描結果 <span className="text-blue-400">{state.results.length}</span> 檔符合條件
+              掃描結果 <span className="text-blue-400">{filtered.length}</span>/{state.results.length} 檔
+              {sCount > 0 && <span className="text-red-400 ml-2">S級:{sCount}</span>}
+              {aCount > 0 && <span className="text-orange-400 ml-1">A級:{aCount}</span>}
+              {aiRanking.isRanking && <span className="text-blue-400 ml-2 animate-pulse text-[10px]">AI分析中...</span>}
             </h3>
-            <SortControls sort={sort} setSort={setSort} />
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] text-slate-500">篩選：</span>
+                {['all', 'S', 'A', 'B'].map(g => (
+                  <button key={g} onClick={() => setMinGrade(g)} className={`px-2 py-0.5 rounded-full text-[10px] font-bold border transition ${
+                    minGrade === g ? 'bg-violet-600 border-violet-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-300'
+                  }`}>
+                    {g === 'all' ? '全部' : `${g}級+`}
+                  </button>
+                ))}
+              </div>
+              <SortControls sort={sort} setSort={setSort} />
+            </div>
           </div>
 
           <AiReport results={state.results} />
 
-          {sorted.map((r, idx) => {
-            // Top 3 badge is based on original score ranking, recalculate index in original sorted-by-score list
-            const scoreRank = state.results
-              .slice()
-              .sort((a, b) => b.sixConditionsScore - a.sixConditionsScore)
-              .findIndex(x => x.symbol === r.symbol);
-            const isTop3  = scoreRank < 3;
-            const crown   = ['🥇', '🥈', '🥉'][scoreRank] ?? '';
+          {/* Pagination controls (top) */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 py-1">
+              <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+                className="text-xs px-2 py-1 rounded bg-slate-800 text-slate-400 hover:bg-slate-700 disabled:opacity-30">← 上一頁</button>
+              <span className="text-xs text-slate-500">{page + 1} / {totalPages}（共 {sorted.length} 檔）</span>
+              <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+                className="text-xs px-2 py-1 rounded bg-slate-800 text-slate-400 hover:bg-slate-700 disabled:opacity-30">下一頁 →</button>
+            </div>
+          )}
+
+          {pagedResults.map((r, idx) => {
+            // Use AI rank if available, otherwise pre-computed surge rank
+            const aiRank = r.aiRank;
+            const surgeRank = surgeRankMap.get(r.symbol) ?? 999;
+            const isTop3 = aiRank != null ? aiRank <= 3 : surgeRank < 3;
+            const topNum = aiRank != null ? aiRank : surgeRank + 1;
+            const crown   = ['🥇', '🥈', '🥉'][topNum - 1] ?? '';
             const watched = inWatchlist(r.symbol);
             const actions = (
               <>
@@ -354,8 +441,10 @@ function MarketPanel({ market, isActive }: { market: MarketId; isActive: boolean
               <div key={r.symbol} className={`relative mt-1 ${isTop3 ? 'ring-1 ring-yellow-500/60 rounded-xl' : ''}`}>
                 {isTop3 && (
                   <div className="absolute -top-2 left-3 z-20">
-                    <span className="text-xs bg-yellow-500 text-black font-bold px-1.5 py-0.5 rounded-full leading-none">
-                      {crown} Top {scoreRank + 1}
+                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full leading-none ${
+                      aiRank != null ? 'bg-blue-500 text-white' : 'bg-yellow-500 text-black'
+                    }`}>
+                      {crown} {aiRank != null ? `AI Top ${aiRank}` : `Top ${topNum}`}
                     </span>
                   </div>
                 )}
@@ -363,11 +452,22 @@ function MarketPanel({ market, isActive }: { market: MarketId; isActive: boolean
               </div>
             );
           })}
+
+          {/* Pagination controls (bottom) */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 py-2">
+              <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+                className="text-xs px-2 py-1 rounded bg-slate-800 text-slate-400 hover:bg-slate-700 disabled:opacity-30">← 上一頁</button>
+              <span className="text-xs text-slate-500">{page + 1} / {totalPages}</span>
+              <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+                className="text-xs px-2 py-1 rounded bg-slate-800 text-slate-400 hover:bg-slate-700 disabled:opacity-30">下一頁 →</button>
+            </div>
+          )}
         </div>
       )}
 
       {/* Empty states */}
-      {!state.isScanning && state.results.length === 0 && (
+      {panelMounted && !state.isScanning && state.results.length === 0 && (
         <div className="text-center py-10 text-slate-500">
           {hasScanned.current ? (
             <>
@@ -390,7 +490,7 @@ function MarketPanel({ market, isActive }: { market: MarketId; isActive: boolean
       )}
 
       {/* Recent history */}
-      {history.length > 0 && (
+      {panelMounted && history.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between px-1">
             <h3 className="text-sm font-bold text-slate-400">近期掃描記錄</h3>
@@ -420,6 +520,10 @@ export default function ScannerPage() {
   const { activeMarket, setActiveMarket, getMarket } = useScannerStore();
   const tw = getMarket('TW');
   const cn = getMarket('CN');
+
+  // Suppress hydration mismatch from Zustand persist (localStorage differs from SSR)
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const MARKETS: Array<{ id: MarketId; label: string }> = [
     { id: 'TW', label: '台灣股市' },
@@ -454,14 +558,14 @@ export default function ScannerPage() {
                 }`}>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-bold">{m.label}</span>
-                  {s.isScanning && (
+                  {mounted && s.isScanning && (
                     <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.5 rounded-full animate-pulse">掃描中</span>
                   )}
-                  {!s.isScanning && s.results.length > 0 && (
+                  {mounted && !s.isScanning && s.results.length > 0 && (
                     <span className="text-[10px] bg-green-700/60 text-green-300 px-1.5 py-0.5 rounded-full">{s.results.length} 檔</span>
                   )}
                 </div>
-                {s.lastScanTime && !s.isScanning && (
+                {mounted && s.lastScanTime && !s.isScanning && (
                   <div className="text-[10px] text-slate-500 mt-0.5">
                     {new Date(s.lastScanTime).toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </div>

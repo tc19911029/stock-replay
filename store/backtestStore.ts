@@ -1,13 +1,17 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import {
   MarketId, StockScanResult, StockForwardPerformance, BacktestSession,
 } from '@/lib/scanner/types';
 import { calcBacktestSummary } from '@/lib/backtest/ForwardAnalyzer';
 import {
   BacktestTrade, BacktestStats, BacktestStrategyParams,
-  DEFAULT_STRATEGY, runBatchBacktest, calcBacktestStats,
+  DEFAULT_STRATEGY, runBatchBacktest, runBatchBacktestWithCapital, calcBacktestStats,
+  CapitalConstraints, DEFAULT_CAPITAL,
 } from '@/lib/backtest/BacktestEngine';
+import {
+  WalkForwardResult, WalkForwardSession, runWalkForward as _runWalkForward,
+} from '@/lib/backtest/WalkForwardTest';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -19,11 +23,22 @@ export interface BacktestSummary {
   median: number; maxGain: number; maxLoss: number;
 }
 
+// Re-export so page components can import from the store
+export type { CapitalConstraints, WalkForwardResult };
+
+export interface WalkForwardConfig {
+  trainSize: number;  // 訓練窗口 session 數
+  testSize:  number;  // 測試窗口 session 數
+  stepSize:  number;  // 每步滾動 session 數
+}
+
 interface BacktestState {
   // controls
-  market:   MarketId;
-  scanDate: string;
-  strategy: BacktestStrategyParams;
+  market:              MarketId;
+  scanDate:            string;
+  strategy:            BacktestStrategyParams;
+  useCapitalMode:      boolean;
+  capitalConstraints:  CapitalConstraints;
 
   // scan phase
   isScanning:   boolean;
@@ -37,19 +52,31 @@ interface BacktestState {
   performance:   StockForwardPerformance[];
 
   // engine phase (v2 — strict backtest)
-  trades: BacktestTrade[];
-  stats:  BacktestStats | null;
+  trades:           BacktestTrade[];
+  stats:            BacktestStats | null;
+  skippedByCapital: number;      // 資本限制排除數
+  finalCapital:     number | null;
+  capitalReturn:    number | null;
 
   // history
   sessions: BacktestSession[];
 
+  // walk-forward
+  walkForwardConfig:  WalkForwardConfig;
+  walkForwardResult:  WalkForwardResult | null;
+  isRunningWF:        boolean;
+
   // actions
-  setMarket:    (m: MarketId) => void;
-  setScanDate:  (d: string)   => void;
-  setStrategy:  (s: Partial<BacktestStrategyParams>) => void;
-  runBacktest:  () => Promise<void>;
-  loadSession:  (id: string)  => void;
-  clearCurrent: () => void;
+  setMarket:              (m: MarketId) => void;
+  setScanDate:            (d: string)   => void;
+  setStrategy:            (s: Partial<BacktestStrategyParams>) => void;
+  setCapitalConstraints:  (c: Partial<CapitalConstraints>) => void;
+  toggleCapitalMode:      () => void;
+  setWalkForwardConfig:   (c: Partial<WalkForwardConfig>) => void;
+  computeWalkForward:     () => void;
+  runBacktest:            () => Promise<void>;
+  loadSession:            (id: string)  => void;
+  clearCurrent:           () => void;
 
   // helpers (legacy horizon stats)
   getSummary: (horizon: BacktestHorizon) => BacktestSummary | null;
@@ -68,9 +95,14 @@ function todayMinus1(): string {
 export const useBacktestStore = create<BacktestState>()(
   persist(
     (set, get) => ({
-      market:   'TW',
-      scanDate: todayMinus1(),
-      strategy: DEFAULT_STRATEGY,
+      market:             'TW',
+      scanDate:           todayMinus1(),
+      strategy:           DEFAULT_STRATEGY,
+      useCapitalMode:     false,
+      capitalConstraints: DEFAULT_CAPITAL,
+      walkForwardConfig:  { trainSize: 3, testSize: 1, stepSize: 1 },
+      walkForwardResult:  null,
+      isRunningWF:        false,
 
       isScanning:   false,
       scanProgress: 0,
@@ -81,17 +113,60 @@ export const useBacktestStore = create<BacktestState>()(
       forwardError:  null,
       performance:   [],
 
-      trades: [],
-      stats:  null,
+      trades:           [],
+      stats:            null,
+      skippedByCapital: 0,
+      finalCapital:     null,
+      capitalReturn:    null,
 
       sessions: [],
 
-      setMarket:   (market)   => set({ market }),
-      setScanDate: (scanDate) => set({ scanDate }),
-      setStrategy: (partial)  => set(s => ({ strategy: { ...s.strategy, ...partial } })),
+      setMarket:             (market)   => set({ market }),
+      setScanDate:           (scanDate) => set({ scanDate }),
+      setStrategy:           (partial)  => set(s => ({ strategy: { ...s.strategy, ...partial } })),
+      setCapitalConstraints: (partial)  => set(s => ({ capitalConstraints: { ...s.capitalConstraints, ...partial } })),
+      toggleCapitalMode:     ()         => set(s => ({ useCapitalMode: !s.useCapitalMode })),
+      setWalkForwardConfig:  (partial)  => set(s => ({ walkForwardConfig: { ...s.walkForwardConfig, ...partial } })),
+
+      computeWalkForward: () => {
+        const { sessions, market, strategy, walkForwardConfig } = get();
+
+        // 把歷史 session 轉為 WalkForwardSession 格式
+        const wfSessions: WalkForwardSession[] = sessions
+          .filter(s =>
+            s.market === market &&
+            s.scanResults.length > 0 &&
+            s.performance.length > 0,
+          )
+          .sort((a, b) => a.scanDate.localeCompare(b.scanDate))
+          .map(s => ({
+            date: s.scanDate,
+            scanResults: s.scanResults,
+            forwardCandlesMap: Object.fromEntries(
+              s.performance.map(p => [p.symbol, p.forwardCandles]),
+            ),
+          }));
+
+        const minRequired = walkForwardConfig.trainSize + walkForwardConfig.testSize;
+        if (wfSessions.length < minRequired) return;
+
+        set({ isRunningWF: true });
+        // 使用 setTimeout 讓 UI 先更新再執行計算（可能略耗時）
+        setTimeout(() => {
+          const result = _runWalkForward({
+            sessions:  wfSessions,
+            trainSize: walkForwardConfig.trainSize,
+            testSize:  walkForwardConfig.testSize,
+            stepSize:  walkForwardConfig.stepSize,
+            strategy,
+          });
+          set({ walkForwardResult: result, isRunningWF: false });
+        }, 0);
+      },
 
       clearCurrent: () => set({
         scanResults: [], performance: [], trades: [], stats: null,
+        skippedByCapital: 0, finalCapital: null, capitalReturn: null,
         scanError: null, forwardError: null,
         isScanning: false, isFetchingForward: false,
       }),
@@ -103,7 +178,7 @@ export const useBacktestStore = create<BacktestState>()(
       },
 
       runBacktest: async () => {
-        const { market, scanDate, strategy } = get();
+        const { market, scanDate, strategy, useCapitalMode, capitalConstraints } = get();
 
         // ── Phase 1: Get stock list ──────────────────────────────────────────
         set({ isScanning: true, scanProgress: 5, scanError: null,
@@ -186,8 +261,26 @@ export const useBacktestStore = create<BacktestState>()(
             candlesMap[p.symbol] = p.forwardCandles;
           }
 
-          const trades = runBatchBacktest(combined, candlesMap, strategy);
-          const stats  = calcBacktestStats(trades);
+          let trades: BacktestTrade[];
+          let skippedCount: number;
+          let skippedByCapital = 0;
+          let finalCapital: number | null = null;
+          let capitalReturn: number | null = null;
+
+          if (useCapitalMode) {
+            const result     = runBatchBacktestWithCapital(combined, candlesMap, strategy, capitalConstraints);
+            trades           = result.trades;
+            skippedCount     = result.skippedCount;
+            skippedByCapital = result.skippedByCapital;
+            finalCapital     = result.finalCapital;
+            capitalReturn    = result.capitalReturn;
+          } else {
+            const result = runBatchBacktest(combined, candlesMap, strategy);
+            trades       = result.trades;
+            skippedCount = result.skippedCount;
+          }
+
+          const stats = calcBacktestStats(trades, skippedCount);
 
           // ── Save session ──────────────────────────────────────────────────
           const session: BacktestSession = {
@@ -206,6 +299,9 @@ export const useBacktestStore = create<BacktestState>()(
             performance,
             trades,
             stats,
+            skippedByCapital,
+            finalCapital,
+            capitalReturn,
             isFetchingForward: false,
             sessions: [session, ...s.sessions].slice(0, 20),
           }));
@@ -228,10 +324,35 @@ export const useBacktestStore = create<BacktestState>()(
       },
     }),
     {
-      name: 'backtest-v2',
+      name: 'backtest-v3',
+      storage: createJSONStorage(() => ({
+        getItem: (name: string) => { try { return localStorage.getItem(name); } catch { return null; } },
+        setItem: (name: string, value: string) => {
+          try { localStorage.setItem(name, value); }
+          catch (e) {
+            if (e instanceof DOMException && e.name === 'QuotaExceededError') {
+              console.warn('[Backtest] Quota exceeded, clearing old sessions...');
+              try { localStorage.removeItem('backtest-v2'); localStorage.removeItem('backtest-v1'); localStorage.setItem(name, value); } catch {}
+            }
+          }
+        },
+        removeItem: (name: string) => { try { localStorage.removeItem(name); } catch {} },
+      })),
       partialize: (s) => ({
         market: s.market, scanDate: s.scanDate,
-        strategy: s.strategy, sessions: s.sessions,
+        strategy: s.strategy,
+        // Compact sessions: keep only last 5, strip heavy forwardCandles
+        sessions: s.sessions.slice(0, 5).map(sess => ({
+          ...sess,
+          scanResults: sess.scanResults.slice(0, 20),  // top 20 only
+          performance: sess.performance.map(p => ({
+            ...p,
+            forwardCandles: p.forwardCandles.slice(0, 5),  // only 5 candles
+          })).slice(0, 20),
+        })),
+        useCapitalMode: s.useCapitalMode,
+        capitalConstraints: s.capitalConstraints,
+        walkForwardConfig: s.walkForwardConfig,
       }),
     }
   )

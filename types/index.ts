@@ -30,6 +30,28 @@ export interface CandleWithIndicators extends Candle {
   // KD Stochastic (params: period=9, k=3, d=3)
   kdK?: number;       // K value (0–100)
   kdD?: number;       // D value (0–100)
+
+  // ── 飆股偵測用指標 ──────────────────────────────────────────────────────────
+  /** RSI(14) — 0–100, >70=超買, <30=超賣 */
+  rsi14?: number;
+  /** ATR(14) — 平均真實波幅 */
+  atr14?: number;
+  /** Bollinger Band 上軌 (MA20 + 2σ) */
+  bbUpper?: number;
+  /** Bollinger Band 下軌 (MA20 - 2σ) */
+  bbLower?: number;
+  /** BB 帶寬 = (upper - lower) / MA20 */
+  bbBandwidth?: number;
+  /** BB %B = (close - lower) / (upper - lower), >1=超出上軌 */
+  bbPercentB?: number;
+  /** Rate of Change 10 日 (%) */
+  roc10?: number;
+  /** Rate of Change 20 日 (%) */
+  roc20?: number;
+  /** MACD 柱狀體 3 日斜率 */
+  macdSlope?: number;
+  /** 20 日平均成交量 */
+  avgVol20?: number;
 }
 
 /** Stock info returned from API */
