@@ -36,14 +36,15 @@ export abstract class MarketScanner {
     industry?: string,
   ): Promise<StockScanResult | null> {
     try {
-      // 如果名字是純數字（東方財富 f14 為空的 fallback），動態補中文名
+      // 陸股：用動態 API 取最新公司名（東方財富 f14 可能是舊名）
       let name = rawName;
-      if (/^\d{4,6}$/.test(rawName)) {
+      if (/\.(SZ|SS)$/i.test(symbol)) {
         try {
+          const code = symbol.replace(/\.(SZ|SS)$/i, '');
           const { getCNChineseName } = await import('@/lib/datasource/TWSENames');
-          const cnName = await getCNChineseName(rawName);
+          const cnName = await getCNChineseName(code);
           if (cnName) name = cnName;
-        } catch { /* 查不到就用原名 */ }
+        } catch { /* 查不到就用東方財富的名字 */ }
       }
 
       const candles = await this.fetchCandles(symbol, asOfDate);

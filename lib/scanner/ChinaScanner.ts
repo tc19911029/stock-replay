@@ -53,7 +53,7 @@ async function fetchEastMoneyStockList(): Promise<StockEntry[]> {
         const suffix = code.startsWith('6') || code.startsWith('9') ? '.SS' : '.SZ';
         // f100 = 所屬行業（產業板塊），e.g. "電子元件", "銀行", "軟件開發"
         const industry = (typeof item.f100 === 'string' && item.f100 !== '-') ? item.f100 : undefined;
-        const name = (item.f14 && item.f14 !== '-') ? item.f14 : code; // fallback 用代碼，後面再補
+        const name = (item.f14 && item.f14 !== '-') ? item.f14 : code;
         return { symbol: `${code}${suffix}`, name, industry };
       });
 
@@ -878,7 +878,7 @@ export const CN_STOCKS: StockEntry[] = [
   { symbol: '000963.SZ', name: '華東醫藥' },
   { symbol: '000966.SZ', name: '長源電力' },
   { symbol: '000967.SZ', name: '盈峰環境' },
-  { symbol: '000968.SZ', name: '煤氣化' },
+  { symbol: '000968.SZ', name: '蓝焰控股' },
   { symbol: '000969.SZ', name: '安泰集團' },
   { symbol: '000970.SZ', name: '中科三環' },
   { symbol: '000971.SZ', name: '高升控股' },
