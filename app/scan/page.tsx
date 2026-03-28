@@ -434,8 +434,8 @@ function ResearchAssumptions({ market, strategy }: {
 }) {
   const [open, setOpen] = useState(false);
   const poolDesc = market === 'TW'
-    ? '台股約 600 支（上市/上櫃主板藍籌，靜態名單）'
-    : '陸股約 600 支（滬深主板，含 603xxx 科技股，靜態名單）';
+    ? '台股全市場（上市+上櫃，約 1700+ 支，TWSE/TPEx API 動態取得）'
+    : '陸股全市場（滬深主板+創業板+科創板，約 5000+ 支，東方財富 API 動態取得）';
   return (
     <div className="border border-amber-800/50 bg-amber-950/20 rounded-xl overflow-hidden">
       <button
@@ -462,13 +462,13 @@ function ResearchAssumptions({ market, strategy }: {
             <div className="text-slate-400 font-semibold mb-1.5 uppercase tracking-wide text-[10px]">掃描池定義（關鍵偏誤）</div>
             <ul className="space-y-1 text-slate-400">
               <li>• 掃描池：<span className="text-amber-300">{poolDesc}</span></li>
-              <li>• <span className="text-amber-300">非</span>動態每日成交量前 N 名</li>
-              <li>• 影響：納入了當期成交量不足的股票，可能高估勝率</li>
-              <li>• 原因：Yahoo Finance 不提供歷史特定日成交量排名 API</li>
+              <li>• <span className="text-amber-300">非</span>動態每日成交量排名篩選</li>
+              <li>• 影響：包含部分低流動性股票，回測滑價可能被低估</li>
+              <li>• 數據源：Yahoo Finance（歷史K線）+ TWSE/東方財富（股票清單）</li>
             </ul>
           </div>
           <div className="sm:col-span-2 pt-1 border-t border-slate-800 text-slate-500">
-            回測結果代表「這批靜態股票池中，符合六大條件者的後續表現」，而非嚴格意義上「每日流動性最高 N 檔」的策略績效。歷史回測績效僅供研究參考，不保證未來結果。
+            回測結果代表「全市場股票中，符合六大條件者的後續表現」。歷史回測績效僅供研究參考，過去績效不代表未來結果。實際交易需考慮流動性、滑價、市場情緒等因素。
           </div>
         </div>
       )}
@@ -1233,11 +1233,13 @@ export default function UnifiedScanPage() {
                                 </div>
 
                                 {/* 績效表格（回測模式才顯示） */}
-                                {performance.length > 0 && <div className="mt-2 grid grid-cols-8 gap-1 text-[10px]">
+                                {performance.length > 0 && <div className="mt-2 grid grid-cols-10 gap-1 text-[10px]">
                                   {[
                                     { label: '隔日開', val: p?.openReturn },
                                     { label: '1日', val: p?.d1Return },
+                                    { label: '2日', val: p?.d2Return },
                                     { label: '3日', val: p?.d3Return },
+                                    { label: '4日', val: p?.d4Return },
                                     { label: '5日', val: p?.d5Return },
                                     { label: '10日', val: p?.d10Return },
                                     { label: '20日', val: p?.d20Return },
