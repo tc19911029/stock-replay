@@ -1325,7 +1325,7 @@ export default function UnifiedScanPage() {
                     </div>
                   )}
                   <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
+                    <table className="min-w-[900px] w-full text-xs">
                       <thead>
                         <tr className="text-slate-400 border-b border-slate-700">
                           <th className="text-left py-1.5 px-2">代號</th>
@@ -1561,7 +1561,7 @@ export default function UnifiedScanPage() {
                     </button>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
+                    <table className="min-w-[1100px] w-full text-xs">
                       <thead>
                         <tr className="text-slate-400 border-b border-slate-700">
                           <th className="text-left py-1.5 px-2">代號</th>
@@ -1635,7 +1635,7 @@ export default function UnifiedScanPage() {
                         </button>
                       ))}
                     </div>
-                    <table className="w-full text-xs">
+                    <table className="min-w-[1200px] w-full text-xs">
                       <thead>
                         <tr className="border-b border-slate-700 text-slate-400">
                           <th className="text-left py-1.5 px-2">代號</th>
