@@ -841,7 +841,8 @@ export default function UnifiedScanPage() {
   // 掃描結果中出現的概念列表（用於篩選器）
   const availableConcepts = [...new Set(scanResults.map(r => r.industry).filter(Boolean))] as string[];
 
-  // 綜合分計算：六條件35% + 潛力25% + 勝率20% + 位置10% + 量能10%
+  // 綜合分計算 v2：更重視勝率和突破型態
+  // 六條件30% + 潛力20% + 勝率25% + 位置10% + 量能10% + 突破bonus 5%
   function calcComposite(r: typeof scanResults[0]): number {
     const sixCon = (r.sixConditionsScore / 6) * 100;
     const surge  = (r.surgeScore ?? 0);
@@ -850,7 +851,16 @@ export default function UnifiedScanPage() {
                    : r.trendPosition?.includes('主升') ? 70
                    : r.trendPosition?.includes('末升') ? 20 : 50;
     const volBonus = (r.surgeComponents?.volume?.score ?? 50);
-    return Math.round((sixCon * 0.35 + surge * 0.25 + winR * 0.20 + posBonus * 0.10 + volBonus * 0.10) * 10) / 10;
+    // 突破型態加分：VCP/布林壓縮/盤整突破/新高 = 高勝率信號
+    const flags = r.surgeFlags ?? [];
+    const breakoutBonus = (
+      (flags.includes('BB_SQUEEZE_BREAKOUT') ? 30 : 0) +
+      (flags.includes('CONSOLIDATION_BREAKOUT') ? 30 : 0) +
+      (flags.includes('NEW_60D_HIGH') ? 20 : 0) +
+      (flags.includes('VOLUME_CLIMAX') ? 20 : 0)
+    );
+    const breakoutScore = Math.min(100, breakoutBonus);
+    return Math.round((sixCon * 0.30 + surge * 0.20 + winR * 0.25 + posBonus * 0.10 + volBonus * 0.10 + breakoutScore * 0.05) * 10) / 10;
   }
 
   // 掃描結果篩選 + 排序
