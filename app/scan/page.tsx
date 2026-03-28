@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import Link from 'next/link';
 import { useBacktestStore, BacktestHorizon, CapitalConstraints, WalkForwardResult } from '@/store/backtestStore';
 import { useWatchlistStore } from '@/store/watchlistStore';
@@ -24,7 +24,8 @@ function exportToCsv(trades: BacktestTrade[], scanDate: string) {
   a.href = url;
   a.download = `backtest_${scanDate}.csv`;
   a.click();
-  URL.revokeObjectURL(url);
+  // 延遲釋放，避免慢速網路下載失敗
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -807,7 +808,7 @@ export default function UnifiedScanPage() {
     { key: 'd10', label: '10日' },   { key: 'd20', label: '20日' },
   ];
 
-  const perfMap = new Map(performance.map(p => [p.symbol, p]));
+  const perfMap = useMemo(() => new Map(performance.map(p => [p.symbol, p])), [performance]);
 
   const sortedTrades = [...trades].sort((a, b) => {
     const dir = sortDir === 'desc' ? 1 : -1;
@@ -1262,7 +1263,7 @@ export default function UnifiedScanPage() {
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a'); a.href = url;
                         a.download = `scan_${scanDate}_${market}.csv`; a.click();
-                        URL.revokeObjectURL(url);
+                        setTimeout(() => URL.revokeObjectURL(url), 5000);
                       }}
                       className="ml-auto text-[11px] text-sky-400 hover:text-sky-300 px-2.5 py-1 rounded border border-sky-700/50 hover:bg-sky-900/30 transition-colors"
                     >

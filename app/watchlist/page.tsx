@@ -59,9 +59,11 @@ export default function WatchlistPage() {
     setIsRefreshing(false);
   }, [items, fetchConditions]);
 
+  // 使用 items 的 symbol 列表作為依賴，確保新增/移除都觸發刷新
+  const itemKeys = items.map(i => i.symbol).join(',');
   useEffect(() => {
     refreshAll();
-  }, [items.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [itemKeys]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleAdd() {
     const sym = addInput.trim();

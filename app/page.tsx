@@ -40,14 +40,17 @@ export default function HomePage() {
   useEffect(() => { initData(); }, [initData]);
 
   // Handle ?load=SYMBOL from scanner page, or auto-load 2330 on first visit
+  const [loadError, setLoadError] = useState<string | null>(null);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const sym = params.get('load');
-    if (sym) {
-      loadStock(sym, '1d', '2y');
-      window.history.replaceState({}, '', '/');
-    } else if (allCandles.length === 0) {
-      loadStock('2330', '1d', '2y');
+    const target = sym || (allCandles.length === 0 ? '2330' : null);
+    if (target) {
+      setLoadError(null);
+      loadStock(target, '1d', '2y').catch((e: Error) => {
+        setLoadError(`載入 ${target} 失敗：${e.message || '請稍後再試'}`);
+      });
+      if (sym) window.history.replaceState({}, '', '/');
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -192,6 +195,15 @@ export default function HomePage() {
                   <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
                   <p className="text-sm text-slate-300">載入資料中...</p>
                 </div>
+              </div>
+            )}
+
+            {/* Error display */}
+            {loadError && (
+              <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-red-900/30 border-b border-red-700/50 text-xs">
+                <span className="text-red-400">⚠ {loadError}</span>
+                <button onClick={() => { setLoadError(null); loadStock('2330', '1d', '2y'); }}
+                  className="text-sky-400 hover:text-sky-300 underline">重試載入台積電</button>
               </div>
             )}
 
