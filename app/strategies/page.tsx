@@ -379,6 +379,12 @@ export default function StrategiesPage() {
         </Link>
         <span className="text-slate-700">|</span>
         <h1 className="text-sm font-semibold text-white">策略管理</h1>
+        <span className="relative group cursor-help">
+          <span className="text-[10px] w-4 h-4 flex items-center justify-center rounded-full bg-slate-700 text-slate-400">?</span>
+          <div className="absolute z-50 left-0 top-full mt-1 hidden group-hover:block w-60 p-2.5 rounded-lg bg-slate-800 border border-slate-600 text-[11px] text-slate-300 shadow-lg">
+            調整六大條件的門檻參數，或建立自訂策略版本。不同市場環境可切換不同策略。
+          </div>
+        </span>
         <span className="text-xs text-slate-500 ml-auto">
           目前使用：<span className="text-violet-400">{allStrategies.find(s => s.id === activeStrategyId)?.name}</span>
         </span>

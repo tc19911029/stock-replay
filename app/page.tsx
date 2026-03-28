@@ -163,7 +163,7 @@ export default function HomePage() {
 
             {/* OHLCV bar */}
             {displayCandle && (
-              <div className="shrink-0 flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-1.5 border-b border-slate-800 text-xs font-mono">
+              <div className="shrink-0 flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-0.5 px-2 sm:px-3 py-1 sm:py-1.5 border-b border-slate-800 text-[10px] sm:text-xs font-mono">
                 {currentStock && (
                 <span className="text-white font-bold font-sans mr-1">{currentStock.name}</span>
               )}
