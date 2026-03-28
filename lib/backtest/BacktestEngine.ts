@@ -481,10 +481,19 @@ export function runBatchBacktestWithCapital(
   finalCapital:      number;   // 模擬結束後資金
   capitalReturn:     number;   // 整體資金報酬率 %
 } {
-  // 依六大條件分數由高到低排序
+  // 依綜合分排序（六條件35% + 潛力25% + 勝率20% + 位置10% + 量能10%）
+  function calcComposite(r: StockScanResult): number {
+    const sixCon = (r.sixConditionsScore / 6) * 100;
+    const surge  = r.surgeScore ?? 0;
+    const winR   = r.histWinRate ?? 50;
+    const posBonus = r.trendPosition?.includes('起漲') ? 100
+                   : r.trendPosition?.includes('主升') ? 70
+                   : r.trendPosition?.includes('末升') ? 20 : 50;
+    const volBonus = r.surgeComponents?.volume?.score ?? 50;
+    return sixCon * 0.35 + surge * 0.25 + winR * 0.20 + posBonus * 0.10 + volBonus * 0.10;
+  }
   const sorted = [...scanResults].sort(
-    (a, b) => b.sixConditionsScore - a.sixConditionsScore ||
-              b.changePercent - a.changePercent,
+    (a, b) => calcComposite(b) - calcComposite(a),
   );
 
   const eligible  = sorted.slice(0, constraints.maxPositions);
