@@ -360,20 +360,23 @@ function CapitalPanel({ trades, constraints, finalCapital, capitalReturn, skippe
 function TradeRow({ t }: { t: BacktestTrade }) {
   const sym = t.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
   return (
-    <tr className="border-t border-slate-700/40 hover:bg-slate-800/60 transition-colors">
-      {/* 股票 */}
-      <td className="py-2.5 px-4">
-        <div className="font-semibold text-white text-sm leading-tight">{t.name}</div>
-        <div className="text-slate-500 font-mono text-[11px]">{sym}</div>
+    <tr className="border-b border-slate-800/50 hover:bg-slate-800/40">
+      <td className="py-1.5 px-2 font-mono font-bold text-white">{sym}</td>
+      <td className="py-1.5 px-2">
+        <div className="text-slate-300">{t.name}</div>
+        <div className="flex gap-0.5 mt-0.5">
+          {t.signalReasons.slice(0, 6).map(r => (
+            <span key={r} className="text-[8px] px-1 py-0.5 bg-sky-800/80 text-sky-300 rounded-sm">{r.replace(/條件|多頭|放大|長紅|多排|配合/g, '').slice(0, 2)}</span>
+          ))}
+        </div>
       </td>
-      {/* 概念 */}
-      <td className="py-2.5 px-2 text-[10px] text-slate-500 max-w-[60px] truncate" title={t.industry}>{t.industry ?? '—'}</td>
-      {/* 評分 */}
-      <td className="py-2.5 px-2 text-center">
-        <span className={`text-xs font-bold ${scoreColor(t.signalScore)}`}>{t.signalScore}/6</span>
+      <td className="py-1.5 px-1 text-[10px] text-slate-500 max-w-[60px] truncate" title={t.industry}>{t.industry ?? '—'}</td>
+      <td className="py-1.5 px-1 text-center">
+        <span className={`font-bold ${t.signalScore >= 5 ? 'text-red-400' : t.signalScore >= 4 ? 'text-orange-400' : 'text-yellow-400'}`}>
+          {t.signalScore}/6
+        </span>
       </td>
-      {/* 等級 */}
-      <td className="py-2.5 px-2 text-center">
+      <td className="py-1.5 px-1 text-center">
         {t.surgeGrade && (
           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
             t.surgeGrade === 'S' ? 'bg-red-600 text-white' :
@@ -383,60 +386,24 @@ function TradeRow({ t }: { t: BacktestTrade }) {
           }`}>{t.surgeGrade}</span>
         )}
       </td>
-      {/* 潛力 */}
-      <td className="py-2.5 px-2 text-center font-mono text-xs text-slate-300">{t.surgeScore ?? '—'}</td>
-      {/* 勝率 */}
-      <td className="py-2.5 px-2 text-center">
+      <td className="py-1.5 px-1 text-center font-mono text-slate-300">{t.surgeScore ?? '—'}</td>
+      <td className="py-1.5 px-1 text-center">
         {t.histWinRate != null && (
           <span className={`text-[10px] px-1 rounded ${t.histWinRate >= 60 ? 'bg-green-900/60 text-green-300' : t.histWinRate >= 50 ? 'bg-yellow-900/60 text-yellow-300' : 'bg-red-900/60 text-red-300'}`}>
             {t.histWinRate}%
           </span>
         )}
       </td>
-      {/* 趨勢 */}
-      <td className="py-2.5 px-2 text-center whitespace-nowrap">
-        {trendBadge(t.trendState)}
-      </td>
-      {/* 進場 */}
-      <td className="py-2.5 px-3 whitespace-nowrap">
-        <div className="text-[11px] text-slate-400 font-mono">{t.entryDate}</div>
-        <div className="text-sm font-mono font-medium text-slate-100">{t.entryPrice.toFixed(2)}</div>
-      </td>
-      {/* 出場 */}
-      <td className="py-2.5 px-3 whitespace-nowrap">
-        <div className="flex items-center gap-1.5">
-          <div>
-            <div className="text-[11px] text-slate-400 font-mono">{t.exitDate}</div>
-            <div className="text-sm font-mono font-medium text-slate-100">{t.exitPrice.toFixed(2)}</div>
-          </div>
-          {exitBadge(t.exitReason)}
-        </div>
-      </td>
-      {/* 持有 */}
-      <td className="py-2.5 px-2 text-center text-xs text-slate-400 whitespace-nowrap">{t.holdDays}日</td>
-      {/* 毛 / 淨 */}
-      <td className="py-2.5 px-3 whitespace-nowrap text-right">
-        <div className={`text-xs font-mono ${retColor(t.grossReturn)}`}>{fmtRet(t.grossReturn)}</div>
-        <div className={`text-sm font-mono font-bold ${retColor(t.netReturn)}`}>{fmtRet(t.netReturn)}</div>
-      </td>
-      {/* 命中條件 + 成本 */}
-      <td className="py-2.5 px-3">
-        <div className="flex flex-wrap gap-1 max-w-[180px]">
-          {t.signalReasons.map(r => (
-            <span key={r} className="px-1.5 py-0.5 bg-slate-700/80 text-slate-300 rounded-full text-[10px] whitespace-nowrap">{r}</span>
-          ))}
-        </div>
-        <div className="text-[10px] text-slate-600 font-mono mt-0.5">
-          {t.totalCost > 0 ? `手續費 -${t.totalCost.toLocaleString()}` : ''}
-        </div>
-      </td>
-      {/* 走圖 */}
-      <td className="py-2.5 px-3 text-center">
-        <Link
-          href={`/?load=${sym}`}
-          className="inline-block px-2.5 py-1 text-[11px] text-sky-400 border border-sky-800/60 rounded-lg hover:bg-sky-900/30 hover:text-sky-300 transition-colors"
-        >
-          走圖
+      <td className="py-1.5 px-1 text-right font-mono text-white">{t.entryPrice.toFixed(2)}</td>
+      <td className="py-1.5 px-1 text-[10px] text-slate-400">{trendBadge(t.trendState)}</td>
+      <td className="py-1.5 px-1 text-[10px] text-slate-400">{t.trendPosition}</td>
+      <td className="py-1.5 px-1 text-right font-mono text-slate-400">{t.exitPrice.toFixed(2)}</td>
+      <td className="py-1.5 px-1 text-center text-slate-500">{t.holdDays}日</td>
+      <td className={`py-1.5 px-1 text-right font-mono font-bold ${retColor(t.netReturn)}`}>{fmtRet(t.netReturn)}</td>
+      <td className="py-1.5 px-1 text-center">{exitBadge(t.exitReason)}</td>
+      <td className="py-1.5 px-2 text-center whitespace-nowrap">
+        <Link href={`/?load=${sym}`}
+          className="text-[10px] text-sky-400 hover:text-sky-300 px-1.5 py-0.5 rounded border border-sky-700/50 hover:bg-sky-900/30 mr-1">走圖
         </Link>
       </td>
     </tr>
@@ -1572,22 +1539,24 @@ export default function UnifiedScanPage() {
                         <span>↓</span> 匯出 CSV
                       </button>
                     </div>
-                    <table className="w-full">
+                    <table className="w-full text-xs">
                       <thead>
-                        <tr className="text-[10px] text-slate-500 uppercase tracking-wide border-b border-slate-700/80 bg-slate-800/60">
-                          <th className="py-2.5 px-4 text-left font-medium">股票</th>
-                          <th className="py-2.5 px-2 text-left font-medium">概念</th>
-                          <th className="py-2.5 px-2 text-center font-medium">評分</th>
-                          <th className="py-2.5 px-2 text-center font-medium">等級</th>
-                          <th className="py-2.5 px-2 text-center font-medium">潛力</th>
-                          <th className="py-2.5 px-2 text-center font-medium">勝率</th>
-                          <th className="py-2.5 px-2 text-center font-medium">趨勢</th>
-                          <th className="py-2.5 px-3 text-left font-medium">進場</th>
-                          <th className="py-2.5 px-3 text-left font-medium">出場</th>
-                          <th className="py-2.5 px-2 text-center font-medium">持有</th>
-                          <th className="py-2.5 px-3 text-right font-medium">毛報酬 / 淨報酬</th>
-                          <th className="py-2.5 px-3 text-left font-medium">命中條件</th>
-                          <th className="py-2.5 px-3 text-center font-medium">操作</th>
+                        <tr className="text-slate-400 border-b border-slate-700">
+                          <th className="text-left py-1.5 px-2">代號</th>
+                          <th className="text-left py-1.5 px-2">名稱</th>
+                          <th className="text-left py-1.5 px-1 text-[10px]">概念</th>
+                          <th className="text-center py-1.5 px-1">評分</th>
+                          <th className="text-center py-1.5 px-1">等級</th>
+                          <th className="text-center py-1.5 px-1">潛力</th>
+                          <th className="text-center py-1.5 px-1">勝率</th>
+                          <th className="text-right py-1.5 px-1">進場價</th>
+                          <th className="text-center py-1.5 px-1">趨勢</th>
+                          <th className="text-left py-1.5 px-1">位置</th>
+                          <th className="text-right py-1.5 px-1">出場價</th>
+                          <th className="text-center py-1.5 px-1">持有</th>
+                          <th className="text-right py-1.5 px-1">淨報酬</th>
+                          <th className="text-center py-1.5 px-1">出場</th>
+                          <th className="text-center py-1.5 px-2">操作</th>
                         </tr>
                       </thead>
                       <tbody>
