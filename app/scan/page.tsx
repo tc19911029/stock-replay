@@ -1167,9 +1167,6 @@ export default function UnifiedScanPage() {
                       <span className="text-lg">🎯</span>
                       <span className="text-sm font-bold text-white">當日 Top 3 推薦績效追蹤</span>
                       <span className="text-[10px] text-slate-500">{scanDate}</span>
-                      <span className="text-[10px] text-slate-600 ml-auto">
-                        綜合評分 = 六條件35% + 潛力25% + 勝率20% + 位置10% + 量能10%
-                      </span>
                     </div>
 
                     <div className="space-y-3">
