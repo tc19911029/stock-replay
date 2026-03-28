@@ -93,11 +93,17 @@ export default function WatchlistPage() {
 
   return (
     <div className="min-h-screen bg-[#0b1120] text-white">
-      <header className="border-b border-slate-800 bg-slate-950 px-4 py-2.5 flex items-center justify-between gap-2">
+      <header className="border-b border-slate-800 bg-slate-950 px-3 sm:px-4 py-2 sm:py-2.5 flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
           <Link href="/" className="text-sky-400 hover:text-sky-300 text-sm font-medium transition shrink-0">← 走圖</Link>
           <span className="w-px h-4 bg-slate-700 shrink-0" />
           <span className="text-base font-bold whitespace-nowrap">⭐ 自選股清單</span>
+          <span className="relative group cursor-help">
+            <span className="text-[10px] w-4 h-4 flex items-center justify-center rounded-full bg-slate-700 text-slate-400">?</span>
+            <div className="absolute z-50 left-0 top-full mt-1 hidden group-hover:block w-56 p-2.5 rounded-lg bg-slate-800 border border-slate-600 text-[11px] text-slate-300 shadow-lg">
+              追蹤感興趣的個股，即時查看六大條件評分和飆股潛力。輸入股票代號加入自選。
+            </div>
+          </span>
           <span className="text-xs text-slate-500 shrink-0">{items.length} 支</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -111,7 +117,7 @@ export default function WatchlistPage() {
         </div>
       </header>
 
-      <div className="p-4 max-w-4xl mx-auto space-y-4">
+      <div className="p-3 sm:p-4 max-w-4xl mx-auto space-y-3 sm:space-y-4">
 
         {/* Add stock input */}
         <div className="flex gap-2">

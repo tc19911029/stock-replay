@@ -202,6 +202,13 @@ function StrictStatsPanel({ stats, tradesCount, trades }: { stats: BacktestStats
           建議搭配 Walk-Forward 驗證策略是否真的優於買入持有。
         </div>
       )}
+      {/* 成本與滑點說明 */}
+      <div className="px-5 py-2 border-t border-slate-800/50 text-[10px] text-slate-600 flex flex-wrap gap-x-4 gap-y-0.5">
+        <span>成本模型：台股手續費 0.1425%×0.6 + 證交稅 0.3%</span>
+        <span>陸股佣金 0.025% + 印花稅 0.1%</span>
+        <span>滑點 0.1%（買高賣低）</span>
+        <span>實際成本因券商而異，可能高出 10-30%</span>
+      </div>
       {/* Equity curve */}
       <EquityCurveMini trades={trades} />
     </div>
@@ -870,19 +877,26 @@ export default function UnifiedScanPage() {
     <div className="min-h-screen bg-slate-950 text-slate-200">
       {/* Header */}
       <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-4">
-          <Link href="/" className="text-slate-400 hover:text-slate-200 text-sm">← 主頁</Link>
-          <div className="h-5 w-px bg-slate-700" />
-          <h1 className="font-bold text-white">掃描選股 & 回測</h1>
-          <div className="ml-auto flex items-center gap-2">
-            <Link href="/live-daytrade" className="text-xs text-violet-400 hover:text-violet-300 px-3 py-1.5 rounded-lg border border-violet-700/60 transition-colors">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 h-12 sm:h-14 flex items-center gap-2 sm:gap-4">
+          <Link href="/" className="text-slate-400 hover:text-slate-200 text-xs sm:text-sm">← 主頁</Link>
+          <div className="h-4 w-px bg-slate-700" />
+          <h1 className="font-bold text-white text-sm sm:text-base truncate">掃描選股 & 回測</h1>
+          <span className="relative group cursor-help">
+            <span className="text-[10px] w-4 h-4 flex items-center justify-center rounded-full bg-slate-700 text-slate-400">?</span>
+            <div className="absolute z-50 left-0 top-full mt-1 hidden group-hover:block w-64 p-3 rounded-lg bg-slate-800 border border-slate-600 text-[11px] text-slate-300 shadow-lg leading-relaxed">
+              <p className="font-medium text-white mb-1">掃描選股 & 回測</p>
+              <p>選擇市場和日期，一鍵掃描符合六大條件的個股。可選「掃描選股」快速篩選，或「掃描+回測」驗證策略在歷史數據上的表現。</p>
+            </div>
+          </span>
+          <div className="ml-auto flex items-center gap-2 shrink-0">
+            <Link href="/live-daytrade" className="text-[10px] sm:text-xs text-violet-400 hover:text-violet-300 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-violet-700/60 transition-colors">
               當沖助手
             </Link>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
 
         {/* Controls */}
         <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
@@ -1044,8 +1058,9 @@ export default function UnifiedScanPage() {
               {scanResults.length > 0 && !isScanning && !isFetchingForward && (
                 <button onClick={runAiRank}
                   disabled={aiRanking.isRanking}
-                  className="text-xs px-3 py-2 bg-purple-700 hover:bg-purple-600 disabled:bg-slate-700 text-white rounded-lg font-medium transition-colors">
+                  className="text-xs px-3 py-2 bg-purple-700 hover:bg-purple-600 disabled:bg-slate-700 text-white rounded-lg font-medium transition-colors relative">
                   {aiRanking.isRanking ? 'AI分析中…' : '🤖 AI排名'}
+                  <span className="absolute -top-1.5 -right-1.5 text-[8px] bg-amber-500 text-black px-1 rounded-full font-bold">Pro</span>
                 </button>
               )}
 
@@ -1479,7 +1494,10 @@ export default function UnifiedScanPage() {
                     </table>
                   </div>
                   {scanResults.length > 50 && (
-                    <div className="text-xs text-slate-500 text-center">顯示前 50 檔（共 {scanResults.length} 檔）</div>
+                    <div className="text-xs text-slate-500 text-center space-y-0.5">
+                      <div>顯示前 50 檔（共 {filteredScanResults.length}{conceptFilter !== 'all' ? `/${scanResults.length}` : ''} 檔）</div>
+                      <div className="text-[10px] text-slate-600">數據來源：Yahoo Finance · TWSE/TPEx/東方財富 · 掃描日期 {scanDate}</div>
+                    </div>
                   )}
                 </div>
               )}

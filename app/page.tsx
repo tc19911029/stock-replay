@@ -150,7 +150,7 @@ export default function HomePage() {
         <div className="flex-1 flex flex-col min-w-0 min-h-0 gap-1.5">
           <div
             className={`relative flex flex-col rounded-xl border border-slate-700 overflow-hidden bg-slate-900 transition-opacity ${isLoadingStock ? 'opacity-40 pointer-events-none' : ''}`}
-            style={{ height: 'calc(100vh - 100px)' }}
+            style={{ height: 'min(calc(100vh - 100px), 800px)' }}
           >
             {isLoadingStock && (
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-900/80">
