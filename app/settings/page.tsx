@@ -208,6 +208,22 @@ export default function SettingsPage() {
           </Link>
         </div>
 
+        {/* 重新顯示導覽 + 風險聲明 */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              try { localStorage.removeItem('feature-guide-seen'); } catch {}
+              window.location.href = '/';
+            }}
+            className="flex-1 py-2 text-center bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-400 hover:text-sky-300 hover:border-sky-700 transition"
+          >
+            重新顯示功能導覽
+          </button>
+          <Link href="/disclaimer" className="flex-1 py-2 text-center bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-400 hover:text-amber-300 hover:border-amber-700 transition">
+            風險聲明與條款
+          </Link>
+        </div>
+
       </div>
     </div>
   );

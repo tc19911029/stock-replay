@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useBacktestStore, BacktestHorizon, CapitalConstraints, WalkForwardResult } from '@/store/backtestStore';
 import { useWatchlistStore } from '@/store/watchlistStore';
@@ -790,6 +790,7 @@ export default function UnifiedScanPage() {
   const [sortBy, setSortBy]         = useState<'netReturn' | 'signalScore' | 'surgeScore' | 'histWinRate' | 'holdDays'>('netReturn');
   const [scanSort, setScanSort]     = useState<'score' | 'grade' | 'potential' | 'winRate' | 'price' | 'change'>('score');
   const [scanSortDir, setScanSortDir] = useState<'asc' | 'desc'>('desc');
+  const [expandedStock, setExpandedStock] = useState<string | null>(null);
   const [gradeFilter, setGradeFilter] = useState<string>('all');
 
   // 用 state 避免 SSR hydration mismatch
@@ -1025,8 +1026,9 @@ export default function UnifiedScanPage() {
           {/* Progress */}
           {(isScanning || isFetchingForward) && (
             <div className="px-5 pb-4 space-y-2 border-t border-slate-800 pt-3 mt-0">
-              <div className="text-xs text-slate-400">
-                {isScanning ? `掃描歷史數據（${scanDate}）…` : '計算後續績效與回測引擎…'}
+              <div className="text-xs text-slate-400 flex items-center justify-between">
+                <span>{isScanning ? `掃描歷史數據（${scanDate}）…` : '計算後續績效與回測引擎…'}</span>
+                {isScanning && <span className="text-sky-400 font-mono">{Math.round(scanProgress)}%</span>}
               </div>
               <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
                 <div className="h-full bg-sky-500 rounded-full transition-all duration-500"
@@ -1285,8 +1287,9 @@ export default function UnifiedScanPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {sortedScanResults.slice(0, 50).map((r, idx) => (
-                          <tr key={r.symbol} className="border-b border-slate-800/50 hover:bg-slate-800/40">
+                        {sortedScanResults.slice(0, 50).map((r, idx) => (<React.Fragment key={r.symbol}>
+                          <tr className={`border-b border-slate-800/50 hover:bg-slate-800/40 cursor-pointer ${expandedStock === r.symbol ? 'bg-slate-800/60' : ''}`}
+                            onClick={() => setExpandedStock(expandedStock === r.symbol ? null : r.symbol)}>
                             <td className="py-1.5 px-2 font-mono font-bold text-white">{r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</td>
                             <td className="py-1.5 px-2">
                               <div className="text-slate-300">{r.name}</div>
@@ -1351,7 +1354,74 @@ export default function UnifiedScanPage() {
                               </button>
                             </td>
                           </tr>
-                        ))}
+                          {expandedStock === r.symbol && (
+                            <tr className="bg-slate-900/80">
+                              <td colSpan={13} className="px-4 py-3">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-[11px]">
+                                  {/* 飆股組件分數 */}
+                                  {r.surgeComponents && (
+                                    <div className="space-y-1.5">
+                                      <div className="text-slate-400 font-medium">飆股潛力分解</div>
+                                      {([
+                                        { key: 'momentum', label: '動能', w: '18%' },
+                                        { key: 'volatility', label: '波動', w: '12%' },
+                                        { key: 'volume', label: '量能', w: '15%' },
+                                        { key: 'breakout', label: '突破', w: '15%' },
+                                        { key: 'trendQuality', label: '趨勢', w: '15%' },
+                                        { key: 'pricePosition', label: '位置', w: '5%' },
+                                        { key: 'kbarStrength', label: 'K棒', w: '5%' },
+                                        { key: 'indicatorConfluence', label: '指標', w: '5%' },
+                                        { key: 'longTermQuality', label: '長期', w: '10%' },
+                                      ] as const).map(({ key, label, w }) => {
+                                        const comp = r.surgeComponents![key];
+                                        return (
+                                          <div key={key} className="flex items-center gap-2">
+                                            <span className="w-8 text-slate-500">{label}</span>
+                                            <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                              <div className={`h-full rounded-full ${comp.score >= 70 ? 'bg-red-500' : comp.score >= 40 ? 'bg-amber-500' : 'bg-slate-600'}`}
+                                                style={{ width: `${comp.score}%` }} />
+                                            </div>
+                                            <span className="w-6 text-right text-slate-400">{comp.score}</span>
+                                            <span className="text-[9px] text-slate-600">({w})</span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                  {/* 飆股特徵標籤 */}
+                                  <div className="space-y-1.5">
+                                    <div className="text-slate-400 font-medium">技術特徵</div>
+                                    <div className="flex flex-wrap gap-1">
+                                      {(r.surgeFlags ?? []).map(f => (
+                                        <span key={f} className="px-1.5 py-0.5 bg-sky-900/40 text-sky-300 rounded text-[10px]">{f}</span>
+                                      ))}
+                                      {(r.surgeFlags ?? []).length === 0 && <span className="text-slate-600">無明顯飆股特徵</span>}
+                                    </div>
+                                    <div className="text-slate-400 font-medium mt-2">趨勢摘要</div>
+                                    <div className="text-slate-300 text-[10px] space-y-0.5">
+                                      <div>趨勢：{r.trendState} · {r.trendPosition}</div>
+                                      <div>價格：{r.price.toFixed(2)} · 漲跌：{r.changePercent >= 0 ? '+' : ''}{r.changePercent.toFixed(2)}%</div>
+                                      <div>成交量：{(r.volume / 1000).toFixed(0)}K</div>
+                                    </div>
+                                  </div>
+                                  {/* 觸發規則 */}
+                                  <div className="space-y-1.5">
+                                    <div className="text-slate-400 font-medium">觸發的交易規則</div>
+                                    <div className="space-y-0.5 max-h-32 overflow-y-auto">
+                                      {r.triggeredRules.slice(0, 8).map((rule, i) => (
+                                        <div key={i} className="flex items-start gap-1.5 text-[10px]">
+                                          <span className={`mt-0.5 w-1.5 h-1.5 rounded-full shrink-0 ${rule.signalType === 'BUY' ? 'bg-red-400' : 'bg-green-400'}`} />
+                                          <span className="text-slate-400">{rule.reason}</span>
+                                        </div>
+                                      ))}
+                                      {r.triggeredRules.length === 0 && <span className="text-slate-600 text-[10px]">無觸發規則</span>}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>))}
                       </tbody>
                     </table>
                   </div>
