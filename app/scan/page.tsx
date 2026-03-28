@@ -1220,6 +1220,27 @@ export default function UnifiedScanPage() {
                         'bg-yellow-900/50 text-yellow-300'
                       }`}>{String(marketTrend)}</span>
                     )}
+                    <button
+                      onClick={() => {
+                        const headers = ['代號','名稱','概念','評分','等級','潛力','勝率','信號次數','價格','漲跌%','趨勢','位置'];
+                        const rows = sortedScanResults.map(r => [
+                          r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, ''), r.name, r.industry ?? '',
+                          r.sixConditionsScore, r.surgeGrade ?? '', r.surgeScore ?? '',
+                          r.histWinRate != null ? `${r.histWinRate}%` : '', r.histSignalCount ?? '',
+                          r.price.toFixed(2), `${r.changePercent >= 0 ? '+' : ''}${r.changePercent.toFixed(2)}%`,
+                          r.trendState, r.trendPosition,
+                        ]);
+                        const csv = '\uFEFF' + [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+                        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a'); a.href = url;
+                        a.download = `scan_${scanDate}_${market}.csv`; a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="ml-auto text-[11px] text-sky-400 hover:text-sky-300 px-2.5 py-1 rounded border border-sky-700/50 hover:bg-sky-900/30 transition-colors"
+                    >
+                      匯出 CSV
+                    </button>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
@@ -1260,7 +1281,21 @@ export default function UnifiedScanPage() {
                         {sortedScanResults.slice(0, 50).map((r, idx) => (
                           <tr key={r.symbol} className="border-b border-slate-800/50 hover:bg-slate-800/40">
                             <td className="py-1.5 px-2 font-mono font-bold text-white">{r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</td>
-                            <td className="py-1.5 px-2 text-slate-300">{r.name}</td>
+                            <td className="py-1.5 px-2">
+                              <div className="text-slate-300">{r.name}</div>
+                              <div className="flex gap-0.5 mt-0.5">
+                                {[
+                                  { pass: r.sixConditionsBreakdown.trend, label: '趨' },
+                                  { pass: r.sixConditionsBreakdown.position, label: '位' },
+                                  { pass: r.sixConditionsBreakdown.kbar, label: 'K' },
+                                  { pass: r.sixConditionsBreakdown.ma, label: '均' },
+                                  { pass: r.sixConditionsBreakdown.volume, label: '量' },
+                                  { pass: r.sixConditionsBreakdown.indicator, label: '指' },
+                                ].map(({ pass, label }) => (
+                                  <span key={label} className={`text-[8px] w-3.5 h-3.5 flex items-center justify-center rounded-sm ${pass ? 'bg-sky-800/80 text-sky-300' : 'bg-slate-800/50 text-slate-600'}`}>{label}</span>
+                                ))}
+                              </div>
+                            </td>
                             <td className="py-1.5 px-1 text-[10px] text-slate-500 max-w-[60px] truncate" title={r.industry}>{r.industry ?? '—'}</td>
                             <td className="py-1.5 px-1 text-center">
                               <span className={`font-bold ${r.sixConditionsScore >= 5 ? 'text-red-400' : r.sixConditionsScore >= 4 ? 'text-orange-400' : 'text-yellow-400'}`}>
@@ -1280,8 +1315,9 @@ export default function UnifiedScanPage() {
                             <td className="py-1.5 px-1 text-center font-mono text-slate-300">{r.surgeScore ?? '—'}</td>
                             <td className="py-1.5 px-1 text-center">
                               {r.histWinRate != null && (
-                                <span className={`text-[10px] px-1 rounded ${r.histWinRate >= 60 ? 'bg-green-900/60 text-green-300' : r.histWinRate >= 50 ? 'bg-yellow-900/60 text-yellow-300' : 'bg-red-900/60 text-red-300'}`}>
-                                  {r.histWinRate}%
+                                <span className={`text-[10px] px-1 rounded ${r.histWinRate >= 60 ? 'bg-green-900/60 text-green-300' : r.histWinRate >= 50 ? 'bg-yellow-900/60 text-yellow-300' : 'bg-red-900/60 text-red-300'}`}
+                                  title={`基於過去 ${r.histSignalCount ?? '?'} 次同類信號的歷史勝率`}>
+                                  {r.histWinRate}%<span className="text-[8px] opacity-60">({r.histSignalCount ?? '?'})</span>
                                 </span>
                               )}
                             </td>
@@ -1483,8 +1519,9 @@ export default function UnifiedScanPage() {
                               <td className="py-2.5 px-2 text-center font-mono text-xs text-slate-300">{r.surgeScore ?? '—'}</td>
                               <td className="py-2.5 px-2 text-center">
                                 {r.histWinRate != null && (
-                                  <span className={`text-[10px] px-1 rounded ${r.histWinRate >= 60 ? 'bg-green-900/60 text-green-300' : r.histWinRate >= 50 ? 'bg-yellow-900/60 text-yellow-300' : 'bg-red-900/60 text-red-300'}`}>
-                                    {r.histWinRate}%
+                                  <span className={`text-[10px] px-1 rounded ${r.histWinRate >= 60 ? 'bg-green-900/60 text-green-300' : r.histWinRate >= 50 ? 'bg-yellow-900/60 text-yellow-300' : 'bg-red-900/60 text-red-300'}`}
+                                    title={`基於 ${r.histSignalCount ?? '?'} 次歷史信號`}>
+                                    {r.histWinRate}%<span className="text-[8px] opacity-60">({r.histSignalCount ?? '?'})</span>
                                   </span>
                                 )}
                               </td>
