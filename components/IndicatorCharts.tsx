@@ -277,13 +277,24 @@ function KDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; ho
 }
 
 // ── Combined ──────────────────────────────────────────────────────────────────
-export default function IndicatorCharts({ candles, hoverCandle }: { candles: CandleWithIndicators[]; hoverCandle?: CandleWithIndicators | null }) {
+export default function IndicatorCharts({ candles, hoverCandle, indicators }: {
+  candles: CandleWithIndicators[];
+  hoverCandle?: CandleWithIndicators | null;
+  indicators?: { macd: boolean; kd: boolean; volume: boolean };
+}) {
   if (candles.length === 0) return null;
+  const show = indicators ?? { macd: true, kd: true, volume: true };
+  const panels = [
+    show.volume && <div key="vol" className="flex-1 min-h-0 bg-slate-900"><VolumeChart candles={candles} hoverCandle={hoverCandle} /></div>,
+    show.kd && <div key="kd" className="flex-1 min-h-0 bg-slate-900"><KDChart candles={candles} hoverCandle={hoverCandle} /></div>,
+    show.macd && <div key="macd" className="flex-[1.4] min-h-0 bg-slate-900"><MACDChart candles={candles} hoverCandle={hoverCandle} /></div>,
+  ].filter(Boolean);
+
+  if (panels.length === 0) return <div className="h-full bg-slate-900 flex items-center justify-center text-xs text-slate-600">請開啟至少一個指標面板</div>;
+
   return (
     <div className="h-full flex flex-col divide-y divide-slate-700 overflow-hidden">
-      <div className="flex-1 min-h-0 bg-slate-900"><VolumeChart candles={candles} hoverCandle={hoverCandle} /></div>
-      <div className="flex-1 min-h-0 bg-slate-900"><KDChart candles={candles} hoverCandle={hoverCandle} /></div>
-      <div className="flex-[1.4] min-h-0 bg-slate-900"><MACDChart candles={candles} hoverCandle={hoverCandle} /></div>
+      {panels}
     </div>
   );
 }

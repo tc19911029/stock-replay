@@ -69,6 +69,10 @@ export default function HomePage() {
   const [showMarkers, setShowMarkers] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // 均線開關
+  const [maToggles, setMaToggles] = useState({ ma5: true, ma10: true, ma20: true, ma60: true });
+  // 副圖指標開關
+  const [indicators, setIndicators] = useState({ macd: true, kd: true, volume: true });
 
   const displayCandle = hoverCandle ?? allCandles[currentIndex];
   const prev = hoverCandle
@@ -206,15 +210,48 @@ export default function HomePage() {
                 <span className="text-slate-500">高<span className="text-red-400 ml-0.5">{displayCandle.high.toFixed(2)}</span></span>
                 <span className="text-slate-500">低<span className="text-green-400 ml-0.5">{displayCandle.low.toFixed(2)}</span></span>
                 <span className="text-slate-500">量<span className="text-slate-300 ml-0.5">{(displayCandle.volume / 1000).toFixed(0)}K</span></span>
-                <button
-                  onClick={() => setShowMarkers(v => !v)}
-                  className={`ml-auto shrink-0 px-2 py-0.5 rounded text-[10px] font-medium transition ${
-                    showMarkers ? 'bg-blue-600/60 text-blue-200' : 'bg-slate-700 text-slate-500'
-                  }`}
-                  title="顯示/隱藏買賣訊號標記"
-                >
-                  {showMarkers ? '訊號 ●' : '訊號 ○'}
-                </button>
+                {/* 工具列：均線開關 + 指標選擇 + 訊號 */}
+                <div className="ml-auto flex items-center gap-1 shrink-0 flex-wrap">
+                  {/* 均線開關 */}
+                  {([
+                    { key: 'ma5' as const, label: 'MA5', color: 'bg-yellow-600' },
+                    { key: 'ma10' as const, label: 'MA10', color: 'bg-pink-600' },
+                    { key: 'ma20' as const, label: 'MA20', color: 'bg-blue-600' },
+                    { key: 'ma60' as const, label: 'MA60', color: 'bg-purple-600' },
+                  ]).map(({ key, label, color }) => (
+                    <button key={key}
+                      onClick={() => setMaToggles(p => ({ ...p, [key]: !p[key] }))}
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-medium transition ${
+                        maToggles[key] ? `${color}/70 text-white` : 'bg-slate-800 text-slate-600'
+                      }`}
+                      title={`顯示/隱藏 ${label}`}
+                    >{label}</button>
+                  ))}
+                  <span className="w-px h-3 bg-slate-700 mx-0.5" />
+                  {/* 副圖指標 */}
+                  {([
+                    { key: 'macd' as const, label: 'MACD' },
+                    { key: 'kd' as const, label: 'KD' },
+                    { key: 'volume' as const, label: '量' },
+                  ]).map(({ key, label }) => (
+                    <button key={key}
+                      onClick={() => setIndicators(p => ({ ...p, [key]: !p[key] }))}
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-medium transition ${
+                        indicators[key] ? 'bg-sky-700/60 text-sky-200' : 'bg-slate-800 text-slate-600'
+                      }`}
+                    >{label}</button>
+                  ))}
+                  <span className="w-px h-3 bg-slate-700 mx-0.5" />
+                  <button
+                    onClick={() => setShowMarkers(v => !v)}
+                    className={`px-1.5 py-0.5 rounded text-[9px] font-medium transition ${
+                      showMarkers ? 'bg-blue-600/60 text-blue-200' : 'bg-slate-800 text-slate-600'
+                    }`}
+                    title="顯示/隱藏買賣訊號標記"
+                  >
+                    訊號
+                  </button>
+                </div>
                 {metrics.shares > 0 && displayCandle && (() => {
                   const unrealizedPct = metrics.avgCost > 0
                     ? ((displayCandle.close - metrics.avgCost) / metrics.avgCost) * 100
@@ -244,12 +281,13 @@ export default function HomePage() {
                   stopLossPrice={stopLossPrice}
                   onCrosshairMove={setHoverCandle}
                   fillContainer
+                  maToggles={maToggles}
                 />
               </ErrorBoundary>
             </div>
             <div className="flex-1 min-h-0 overflow-hidden">
               <ErrorBoundary>
-                <IndicatorCharts candles={visibleCandles} hoverCandle={hoverCandle} />
+                <IndicatorCharts candles={visibleCandles} hoverCandle={hoverCandle} indicators={indicators} />
               </ErrorBoundary>
             </div>
           </div>

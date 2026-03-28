@@ -86,10 +86,12 @@ interface CandleChartProps {
   onCrosshairMove?: (candle: CandleWithIndicators | null) => void;
   height?: number;
   fillContainer?: boolean;
+  maToggles?: { ma5: boolean; ma10: boolean; ma20: boolean; ma60: boolean };
 }
 
 export default function CandleChart({
   candles, signals, chartMarkers = [], avgCost, stopLossPrice, onCrosshairMove, height = 400, fillContainer = false,
+  maToggles = { ma5: true, ma10: true, ma20: true, ma60: true },
 }: CandleChartProps) {
   const containerRef   = useRef<HTMLDivElement>(null);
   const chartRef       = useRef<IChartApi | null>(null);
@@ -207,6 +209,17 @@ export default function CandleChart({
       });
     }
   }, [candles]);
+
+  // ── MA visibility toggle ─────────────────────────────────────────────────
+  useEffect(() => {
+    const maKeys = ['ma5', 'ma10', 'ma20', 'ma60'] as const;
+    for (const key of maKeys) {
+      const series = maRefs.current[key];
+      if (series) {
+        series.applyOptions({ visible: maToggles[key] });
+      }
+    }
+  }, [maToggles]);
 
   // ── Avg cost price line ───────────────────────────────────────────────────
   useEffect(() => {
