@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import Link from 'next/link';
 import { useBacktestStore, BacktestHorizon, CapitalConstraints, WalkForwardResult } from '@/store/backtestStore';
 import { useWatchlistStore } from '@/store/watchlistStore';
@@ -1355,7 +1355,7 @@ export default function UnifiedScanPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {sortedScanResults.slice(0, 50).map((r, idx) => (<React.Fragment key={r.symbol}>
+                        {sortedScanResults.slice(0, 50).map((r, idx) => (<Fragment key={r.symbol}>
                           <tr className={`border-b border-slate-800/50 hover:bg-slate-800/40 cursor-pointer ${expandedStock === r.symbol ? 'bg-slate-800/60' : ''}`}
                             onClick={() => setExpandedStock(expandedStock === r.symbol ? null : r.symbol)}>
                             <td className="py-1.5 px-2 font-mono font-bold text-white">{r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</td>
@@ -1489,7 +1489,8 @@ export default function UnifiedScanPage() {
                               </td>
                             </tr>
                           )}
-                        </React.Fragment>))}
+                        </Fragment>
+                        ))}
                       </tbody>
                     </table>
                   </div>
@@ -1617,27 +1618,30 @@ export default function UnifiedScanPage() {
                         </button>
                       ))}
                     </div>
-                    <table className="w-full text-sm">
+                    <table className="w-full text-xs">
                       <thead>
-                        <tr className="border-b border-slate-700 text-xs text-slate-400">
-                          <th className="py-2.5 px-3 text-left">股票</th>
-                          <th className="py-2.5 px-2 text-left">概念</th>
-                          <th className="py-2.5 px-2 text-center">評分</th>
-                          <th className="py-2.5 px-2 text-center">等級</th>
-                          <th className="py-2.5 px-2 text-center">潛力</th>
-                          <th className="py-2.5 px-2 text-center">勝率</th>
-                          <th className="py-2.5 px-2 text-center">趨勢</th>
-                          <th className="py-2.5 px-3 text-right">收盤價</th>
-                          <th className="py-2 px-1.5 text-right">隔日開</th>
-                          <th className="py-2 px-1.5 text-right">1日</th>
-                          <th className="py-2 px-1.5 text-right">2日</th>
-                          <th className="py-2 px-1.5 text-right">3日</th>
-                          <th className="py-2 px-1.5 text-right">4日</th>
-                          <th className="py-2 px-1.5 text-right">5日</th>
-                          <th className="py-2 px-1.5 text-right">10日</th>
-                          <th className="py-2 px-1.5 text-right">20日</th>
-                          <th className="py-2 px-1.5 text-right">最高/最低</th>
-                          <th className="py-2.5 px-3 text-center">操作</th>
+                        <tr className="border-b border-slate-700 text-slate-400">
+                          <th className="text-left py-1.5 px-2">代號</th>
+                          <th className="text-left py-1.5 px-2">名稱</th>
+                          <th className="text-left py-1.5 px-1 text-[10px]">概念</th>
+                          <th className="text-center py-1.5 px-1">評分</th>
+                          <th className="text-center py-1.5 px-1">等級</th>
+                          <th className="text-center py-1.5 px-1">潛力</th>
+                          <th className="text-center py-1.5 px-1">勝率</th>
+                          <th className="text-right py-1.5 px-2">價格</th>
+                          <th className="text-right py-1.5 px-2">漲跌%</th>
+                          <th className="text-left py-1.5 px-1">趨勢</th>
+                          <th className="text-left py-1.5 px-1">位置</th>
+                          <th className="text-right py-1.5 px-1">隔日開</th>
+                          <th className="text-right py-1.5 px-1">1日</th>
+                          <th className="text-right py-1.5 px-1">2日</th>
+                          <th className="text-right py-1.5 px-1">3日</th>
+                          <th className="text-right py-1.5 px-1">4日</th>
+                          <th className="text-right py-1.5 px-1">5日</th>
+                          <th className="text-right py-1.5 px-1">10日</th>
+                          <th className="text-right py-1.5 px-1">20日</th>
+                          <th className="text-right py-1.5 px-1">最高/最低</th>
+                          <th className="text-center py-1.5 px-2">操作</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1645,16 +1649,30 @@ export default function UnifiedScanPage() {
                           const p = perfMap.get(r.symbol);
                           const sym = r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
                           return (
-                            <tr key={r.symbol} className="border-t border-slate-700/50 hover:bg-slate-700/20 text-sm">
-                              <td className="py-2.5 px-3">
-                                <div className="font-medium text-white">{r.name}</div>
-                                <div className="text-xs text-slate-400 font-mono">{sym}</div>
+                            <tr key={r.symbol} className="border-b border-slate-800/50 hover:bg-slate-800/40">
+                              <td className="py-1.5 px-2 font-mono font-bold text-white">{sym}</td>
+                              <td className="py-1.5 px-2">
+                                <div className="text-slate-300">{r.name}</div>
+                                <div className="flex gap-0.5 mt-0.5">
+                                  {[
+                                    { pass: r.sixConditionsBreakdown.trend, label: '趨' },
+                                    { pass: r.sixConditionsBreakdown.position, label: '位' },
+                                    { pass: r.sixConditionsBreakdown.kbar, label: 'K' },
+                                    { pass: r.sixConditionsBreakdown.ma, label: '均' },
+                                    { pass: r.sixConditionsBreakdown.volume, label: '量' },
+                                    { pass: r.sixConditionsBreakdown.indicator, label: '指' },
+                                  ].map(({ pass, label }) => (
+                                    <span key={label} className={`text-[8px] w-3.5 h-3.5 flex items-center justify-center rounded-sm ${pass ? 'bg-sky-800/80 text-sky-300' : 'bg-slate-800/50 text-slate-600'}`}>{label}</span>
+                                  ))}
+                                </div>
                               </td>
-                              <td className="py-2.5 px-2 text-[10px] text-slate-500 max-w-[60px] truncate" title={r.industry}>{r.industry ?? '—'}</td>
-                              <td className="py-2.5 px-2 text-center">
-                                <span className={`font-bold ${scoreColor(r.sixConditionsScore)}`}>{r.sixConditionsScore}/6</span>
+                              <td className="py-1.5 px-1 text-[10px] text-slate-500 max-w-[60px] truncate" title={r.industry}>{r.industry ?? '—'}</td>
+                              <td className="py-1.5 px-1 text-center">
+                                <span className={`font-bold ${r.sixConditionsScore >= 5 ? 'text-red-400' : r.sixConditionsScore >= 4 ? 'text-orange-400' : 'text-yellow-400'}`}>
+                                  {r.sixConditionsScore}/6
+                                </span>
                               </td>
-                              <td className="py-2.5 px-2 text-center">
+                              <td className="py-1.5 px-1 text-center">
                                 {r.surgeGrade && (
                                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                                     r.surgeGrade === 'S' ? 'bg-red-600 text-white' :
@@ -1664,35 +1682,41 @@ export default function UnifiedScanPage() {
                                   }`}>{r.surgeGrade}</span>
                                 )}
                               </td>
-                              <td className="py-2.5 px-2 text-center font-mono text-xs text-slate-300">{r.surgeScore ?? '—'}</td>
-                              <td className="py-2.5 px-2 text-center">
+                              <td className="py-1.5 px-1 text-center font-mono text-slate-300">{r.surgeScore ?? '—'}</td>
+                              <td className="py-1.5 px-1 text-center">
                                 {r.histWinRate != null && (
-                                  <span className={`text-[10px] px-1 rounded ${r.histWinRate >= 60 ? 'bg-green-900/60 text-green-300' : r.histWinRate >= 50 ? 'bg-yellow-900/60 text-yellow-300' : 'bg-red-900/60 text-red-300'}`}
-                                    title={`基於 ${r.histSignalCount ?? '?'} 次歷史信號`}>
+                                  <span className={`text-[10px] px-1 rounded ${r.histWinRate >= 60 ? 'bg-green-900/60 text-green-300' : r.histWinRate >= 50 ? 'bg-yellow-900/60 text-yellow-300' : 'bg-red-900/60 text-red-300'}`}>
                                     {r.histWinRate}%<span className="text-[8px] opacity-60">({r.histSignalCount ?? '?'})</span>
                                   </span>
                                 )}
                               </td>
-                              <td className="py-2.5 px-2 text-center">{trendBadge(r.trendState)}</td>
-                              <td className="py-2.5 px-3 text-right font-mono text-slate-200">
-                                {r.price.toFixed(r.price >= 10 ? 2 : 3)}
+                              <td className="py-1.5 px-2 text-right font-mono text-white">{r.price.toFixed(2)}</td>
+                              <td className={`py-1.5 px-2 text-right font-mono font-bold ${r.changePercent >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                {r.changePercent >= 0 ? '+' : ''}{r.changePercent.toFixed(2)}%
                               </td>
+                              <td className="py-1.5 px-1 text-[10px] text-slate-400">{r.trendState}</td>
+                              <td className="py-1.5 px-1 text-[10px] text-slate-400">{r.trendPosition}</td>
                               {p ? (
                                 <>
                                   {[p.openReturn, p.d1Return, p.d2Return, p.d3Return, p.d4Return, p.d5Return, p.d10Return, p.d20Return].map((v, i) => (
-                                    <td key={i} className={`py-2 px-1.5 text-right text-xs font-mono ${retColor(v)}`}>{fmtRet(v)}</td>
+                                    <td key={i} className={`py-1.5 px-1 text-right font-mono ${retColor(v)}`}>{fmtRet(v)}</td>
                                   ))}
-                                  <td className="py-2 px-1.5 text-right text-xs whitespace-nowrap">
+                                  <td className="py-1.5 px-1 text-right whitespace-nowrap">
                                     <span className="text-red-400">+{p.maxGain.toFixed(1)}%</span>
-                                    <span className="text-slate-500 mx-0.5">/</span>
+                                    <span className="text-slate-600">/</span>
                                     <span className="text-green-500">{p.maxLoss.toFixed(1)}%</span>
                                   </td>
                                 </>
                               ) : (
-                                <td colSpan={9} className="py-2 text-center text-xs text-slate-500">績效計算中…</td>
+                                <td colSpan={9} className="py-1.5 text-center text-slate-600">—</td>
                               )}
-                              <td className="py-2.5 px-3 text-center">
-                                <Link href={`/?load=${sym}`} className="text-xs text-sky-400 hover:text-sky-300 underline underline-offset-2">走圖</Link>
+                              <td className="py-1.5 px-2 text-center whitespace-nowrap">
+                                <Link href={`/?load=${sym}`}
+                                  className="text-[10px] text-sky-400 hover:text-sky-300 px-1.5 py-0.5 rounded border border-sky-700/50 hover:bg-sky-900/30 mr-1">走圖</Link>
+                                <button onClick={() => { useWatchlistStore.getState().add(r.symbol, r.name); }}
+                                  className="text-[10px] text-amber-400 hover:text-amber-300 px-1.5 py-0.5 rounded border border-amber-700/50 hover:bg-amber-900/30">
+                                  {useWatchlistStore.getState().has(r.symbol) ? '✓ 已加' : '+自選'}
+                                </button>
                               </td>
                             </tr>
                           );
