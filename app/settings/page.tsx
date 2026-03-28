@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSettingsStore } from '@/store/settingsStore';
 
 export default function SettingsPage() {
-  const { notifyEmail, notifyMinScore, setNotifyEmail, setNotifyMinScore, strategy, setStrategy, resetStrategy } = useSettingsStore();
+  const { notifyEmail, notifyMinScore, setNotifyEmail, setNotifyMinScore, strategy, setStrategy, resetStrategy, colorTheme, setColorTheme } = useSettingsStore();
   const [emailInput, setEmailInput] = useState(notifyEmail);
   const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [testMsg, setTestMsg] = useState('');
@@ -192,6 +192,33 @@ export default function SettingsPage() {
               </span>
               <span className="text-slate-300 font-medium">每週一至五 下午 2:30</span>
             </div>
+          </div>
+        </div>
+
+        {/* 漲跌色彩主題 */}
+        <div className="bg-slate-900 border border-slate-700 rounded-xl p-5 space-y-3">
+          <h2 className="text-sm font-semibold text-slate-200">漲跌色彩</h2>
+          <div className="flex gap-3">
+            {([
+              { value: 'asia' as const, label: '紅漲綠跌', desc: '台灣/大陸慣例', up: 'bg-red-500', down: 'bg-green-500' },
+              { value: 'western' as const, label: '綠漲紅跌', desc: '歐美慣例', up: 'bg-green-500', down: 'bg-red-500' },
+            ]).map(t => (
+              <button key={t.value} onClick={() => setColorTheme(t.value)}
+                className={`flex-1 p-3 rounded-lg border text-left transition ${
+                  colorTheme === t.value
+                    ? 'border-sky-500 bg-sky-950/40'
+                    : 'border-slate-700 bg-slate-800/40 hover:border-slate-500'
+                }`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`w-3 h-3 rounded-full ${t.up}`} />
+                  <span className="text-xs text-slate-400">漲</span>
+                  <span className={`w-3 h-3 rounded-full ${t.down}`} />
+                  <span className="text-xs text-slate-400">跌</span>
+                </div>
+                <div className="text-sm font-medium text-white">{t.label}</div>
+                <div className="text-[10px] text-slate-500">{t.desc}</div>
+              </button>
+            ))}
           </div>
         </div>
 

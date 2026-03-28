@@ -29,11 +29,19 @@ function exportToCsv(trades: BacktestTrade[], scanDate: string) {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-// 亞洲股市慣例：紅漲綠跌
+// 漲跌色彩：根據用戶設定（亞洲紅漲綠跌 / 歐美綠漲紅跌）
 function retColor(v: number | null | undefined) {
   if (v == null) return 'text-slate-500';
-  if (v > 0) return 'text-red-400';
-  if (v < 0) return 'text-green-500';
+  const theme = typeof window !== 'undefined'
+    ? (JSON.parse(localStorage.getItem('settings-v4') || '{}')?.state?.colorTheme ?? 'asia')
+    : 'asia';
+  if (theme === 'western') {
+    if (v > 0) return 'text-green-400';
+    if (v < 0) return 'text-red-500';
+  } else {
+    if (v > 0) return 'text-red-400';
+    if (v < 0) return 'text-green-500';
+  }
   return 'text-slate-400';
 }
 

@@ -70,6 +70,27 @@ export default function DisclaimerPage() {
           <p>本軟體參考朱家泓老師的技術分析方法論作為教學基礎，但軟體本身及其程式碼為獨立開發。</p>
         </section>
 
+        <section>
+          <h2 className="text-lg font-bold text-white mb-3">常見問題 FAQ</h2>
+          <div className="space-y-3">
+            {[
+              { q: '掃描出來的股票一定會漲嗎？', a: '不會。掃描只是找出符合技術條件的股票，不保證獲利。歷史回測勝率 50-60% 代表仍有 40-50% 的交易是虧損的。' },
+              { q: '回測勝率 60% 很高了，可以直接照著買嗎？', a: '不建議。回測是在理想條件下的歷史模擬，實際交易受滑點、情緒、流動性影響，績效通常比回測差 20-30%。建議先紙上模擬交易 1-3 個月。' },
+              { q: '六大條件的評分有什麼意義？', a: '評分代表該股票在趨勢、位置、K棒、均線、量能、指標六個面向的技術分析得分。分數越高表示技術面越強，但不代表一定會漲。' },
+              { q: '飆股潛力分數 S 級的股票就是飆股嗎？', a: '不一定。S 級表示該股票具有多種飆股技術特徵（動能強、突破、量能配合等），但飆股的判斷還需要基本面、籌碼面配合，技術面只是其中一環。' },
+              { q: '數據來源是什麼？準確嗎？', a: '數據來自 Yahoo Finance，是免費公開數據。可能有少許延遲或缺漏，但對日線級別的技術分析影響不大。若需要更精確的即時數據，建議搭配券商軟體使用。' },
+              { q: '這個工具適合新手嗎？', a: '適合。K線走圖練習功能可以幫助新手理解股票走勢的規律，掃描功能可以節省選股時間。但建議新手先用紙上模擬交易功能，不要急著用真金白銀操作。' },
+            ].map((faq, i) => (
+              <details key={i} className="bg-slate-900/60 border border-slate-800 rounded-lg">
+                <summary className="px-4 py-2.5 cursor-pointer text-sm text-slate-200 font-medium hover:text-white transition">
+                  {faq.q}
+                </summary>
+                <div className="px-4 pb-3 text-sm text-slate-400">{faq.a}</div>
+              </details>
+            ))}
+          </div>
+        </section>
+
         <div className="border-t border-slate-800 pt-4 mt-8 text-xs text-slate-500">
           <p>最後更新：2026 年 3 月</p>
           <p>使用本軟體即表示您已閱讀並同意上述條款。</p>

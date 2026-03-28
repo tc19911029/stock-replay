@@ -21,15 +21,20 @@ export const DEFAULT_STRATEGY: StrategyParams = {
   minScore: 4,
 };
 
+/** 漲跌色彩主題：asia = 紅漲綠跌（台灣/大陸），western = 綠漲紅跌（歐美） */
+export type ColorTheme = 'asia' | 'western';
+
 interface SettingsStore {
   notifyEmail: string;
   notifyMinScore: number;
+  colorTheme: ColorTheme;
   strategy: StrategyParams;
   // 策略版本管理
   activeStrategyId: string;
   customStrategies: StrategyConfig[];
   setNotifyEmail: (email: string) => void;
   setNotifyMinScore: (score: number) => void;
+  setColorTheme: (theme: ColorTheme) => void;
   /** @deprecated Use getActiveStrategy().thresholds instead */
   setStrategy: (params: Partial<StrategyParams>) => void;
   /** @deprecated Use getActiveStrategy().thresholds instead */
@@ -47,11 +52,13 @@ export const useSettingsStore = create<SettingsStore>()(
     (set, get) => ({
       notifyEmail: '',
       notifyMinScore: 5,
+      colorTheme: 'asia' as ColorTheme,
       strategy: DEFAULT_STRATEGY,
       activeStrategyId: 'zhu-v1',
       customStrategies: [],
       setNotifyEmail: (email) => set({ notifyEmail: email }),
       setNotifyMinScore: (score) => set({ notifyMinScore: score }),
+      setColorTheme: (theme) => set({ colorTheme: theme }),
       setStrategy: (params) => set(s => ({ strategy: { ...s.strategy, ...params } })),
       resetStrategy: () => set({ strategy: DEFAULT_STRATEGY }),
       setActiveStrategy: (id) => set({ activeStrategyId: id }),
