@@ -9,7 +9,7 @@ import type { IntradayTimeframe, IntradaySignal } from '@/lib/daytrade/types';
 // Stock List (same as main page StockSelector)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const QUICK_STOCKS = [
+const DEFAULT_QUICK_STOCKS = [
   { symbol: '2330', name: '台積電' }, { symbol: '2317', name: '鴻海' },
   { symbol: '2454', name: '聯發科' }, { symbol: '2308', name: '台達電' },
   { symbol: '6770', name: '力積電' }, { symbol: '3008', name: '大立光' },
@@ -25,7 +25,24 @@ const QUICK_STOCKS = [
   { symbol: '2002', name: '中鋼' },   { symbol: '1301', name: '台塑' },
 ];
 
-const STOCK_NAME_MAP = new Map(QUICK_STOCKS.map(s => [s.symbol, s.name]));
+// 從 localStorage 讀取用戶自訂的快選股票
+function loadCustomStocks(): typeof DEFAULT_QUICK_STOCKS {
+  if (typeof window === 'undefined') return DEFAULT_QUICK_STOCKS;
+  try {
+    const saved = localStorage.getItem('daytrade_quick_stocks');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return DEFAULT_QUICK_STOCKS;
+}
+
+function saveCustomStocks(stocks: typeof DEFAULT_QUICK_STOCKS) {
+  try { localStorage.setItem('daytrade_quick_stocks', JSON.stringify(stocks)); } catch {}
+}
+
+const STOCK_NAME_MAP = new Map(DEFAULT_QUICK_STOCKS.map(s => [s.symbol, s.name]));
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Side Tabs
@@ -543,6 +560,11 @@ export default function LiveDaytradePage() {
   const [input, setInput] = useState(symbol);
   const [showDrop, setShowDrop] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
+  const [quickStocks, setQuickStocks] = useState(DEFAULT_QUICK_STOCKS);
+  const [addStockInput, setAddStockInput] = useState('');
+
+  // 初始化時從 localStorage 載入自訂快選
+  useEffect(() => { setQuickStocks(loadCustomStocks()); }, []);
 
   // Auto load + auto refresh on mount
   useEffect(() => {
@@ -571,8 +593,8 @@ export default function LiveDaytradePage() {
   };
 
   const filteredStocks = input.length > 0
-    ? QUICK_STOCKS.filter(s => s.symbol.includes(input.toUpperCase()) || s.name.includes(input))
-    : QUICK_STOCKS;
+    ? quickStocks.filter(s => s.symbol.includes(input.toUpperCase()) || s.name.includes(input))
+    : quickStocks;
 
   const stockName = storeStockName || STOCK_NAME_MAP.get(symbol) || '';
   // Display candle = hover or latest
@@ -629,16 +651,48 @@ export default function LiveDaytradePage() {
               <span className="text-[10px] text-slate-400 pr-2 truncate max-w-[60px]">{stockName}</span>
             )}
           </div>
-          {showDrop && filteredStocks.length > 0 && (
-            <div className="absolute top-full left-0 mt-1 w-48 bg-slate-700 border border-slate-600 rounded shadow-xl z-50 max-h-52 overflow-y-auto">
+          {showDrop && (
+            <div className="absolute top-full left-0 mt-1 w-52 bg-slate-700 border border-slate-600 rounded shadow-xl z-50 max-h-60 overflow-y-auto">
               {filteredStocks.map(s => (
-                <button key={s.symbol}
-                  onClick={() => handleLoad(s.symbol)}
-                  className="w-full text-left px-2 py-1.5 hover:bg-slate-600 text-xs flex gap-2 items-center">
-                  <span className="font-mono text-yellow-400 w-10 shrink-0">{s.symbol}</span>
-                  <span className="text-slate-300 truncate">{s.name}</span>
-                </button>
+                <div key={s.symbol} className="flex items-center hover:bg-slate-600 group">
+                  <button
+                    onClick={() => handleLoad(s.symbol)}
+                    className="flex-1 text-left px-2 py-1.5 text-xs flex gap-2 items-center">
+                    <span className="font-mono text-yellow-400 w-10 shrink-0">{s.symbol}</span>
+                    <span className="text-slate-300 truncate">{s.name}</span>
+                  </button>
+                  {!DEFAULT_QUICK_STOCKS.some(d => d.symbol === s.symbol) && (
+                    <button onClick={() => {
+                      const next = quickStocks.filter(q => q.symbol !== s.symbol);
+                      setQuickStocks(next); saveCustomStocks(next);
+                    }} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 px-1.5 text-[10px]" title="移除">✕</button>
+                  )}
+                </div>
               ))}
+              {/* 新增自訂股票 */}
+              <div className="border-t border-slate-600 p-1.5 flex gap-1">
+                <input type="text" placeholder="新增代號" value={addStockInput}
+                  onChange={e => setAddStockInput(e.target.value.toUpperCase())}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && addStockInput.trim()) {
+                      const sym = addStockInput.trim();
+                      if (!quickStocks.some(s => s.symbol === sym)) {
+                        const next = [...quickStocks, { symbol: sym, name: sym }];
+                        setQuickStocks(next); saveCustomStocks(next);
+                      }
+                      setAddStockInput('');
+                    }
+                  }}
+                  className="flex-1 bg-slate-800 border border-slate-600 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-sky-500 w-16" />
+                <button onClick={() => {
+                  const sym = addStockInput.trim();
+                  if (sym && !quickStocks.some(s => s.symbol === sym)) {
+                    const next = [...quickStocks, { symbol: sym, name: sym }];
+                    setQuickStocks(next); saveCustomStocks(next);
+                  }
+                  setAddStockInput('');
+                }} className="text-[10px] bg-sky-700 hover:bg-sky-600 text-white px-2 py-0.5 rounded">+</button>
+              </div>
             </div>
           )}
         </div>

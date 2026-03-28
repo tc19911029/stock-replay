@@ -37,6 +37,7 @@ export default function WatchlistPage() {
   const [data, setData] = useState<Record<string, ConditionData>>({});
   const [addInput, setAddInput] = useState('');
   const [addLoading, setAddLoading] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -69,6 +70,7 @@ export default function WatchlistPage() {
     const sym = addInput.trim();
     if (!sym) return;
     setAddLoading(true);
+    setAddError(null);
     try {
       const res = await fetch(`/api/watchlist/conditions?symbol=${encodeURIComponent(sym)}&strategyId=${encodeURIComponent(useSettingsStore.getState().activeStrategyId)}`);
       const json = await res.json();
@@ -77,7 +79,8 @@ export default function WatchlistPage() {
       setData(prev => ({ ...prev, [json.symbol]: { ...json, loading: false } }));
       setAddInput('');
     } catch (err) {
-      alert(err instanceof Error ? err.message : '找不到股票');
+      setAddError(err instanceof Error ? err.message : '找不到股票，請確認代號是否正確');
+      setTimeout(() => setAddError(null), 5000);
     } finally {
       setAddLoading(false);
     }
@@ -135,6 +138,12 @@ export default function WatchlistPage() {
             {addLoading ? '載入中...' : '+ 加入'}
           </button>
         </div>
+        {addError && (
+          <div className="text-xs text-red-400 bg-red-900/20 border border-red-800/40 rounded-lg px-3 py-2 flex items-center gap-2">
+            <span>⚠</span> {addError}
+            <button onClick={() => setAddError(null)} className="ml-auto text-slate-500 hover:text-white">✕</button>
+          </div>
+        )}
 
         {items.length === 0 && (
           <div className="text-center py-20 text-slate-500 border border-dashed border-slate-700 rounded-xl">

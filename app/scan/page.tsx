@@ -1005,12 +1005,14 @@ export default function UnifiedScanPage() {
               {/* 模式切換 */}
               <div className="flex items-center bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
                 <button onClick={() => setScanOnly(true)}
+                  title="僅篩選符合條件的股票清單，速度快"
                   className={`text-xs px-3 py-2 font-medium transition-colors ${
                     scanOnly ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white'
                   }`}>
                   掃描選股
                 </button>
                 <button onClick={() => setScanOnly(false)}
+                  title="篩選後模擬買入出場，計算每筆交易的報酬率（含手續費）"
                   className={`text-xs px-3 py-2 font-medium transition-colors ${
                     !scanOnly ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-white'
                   }`}>
