@@ -187,6 +187,13 @@ function StrictStatsPanel({ stats, tradesCount, trades }: { stats: BacktestStats
           )}
         </div>
       </div>
+      {/* 大盤對比提示 */}
+      {stats.avgNetReturn != null && (
+        <div className="px-5 py-2 bg-slate-800/30 border-t border-slate-800/50 text-[11px] text-slate-500">
+          提醒：回測績效需與同期大盤表現對比才有意義。若大盤同期漲 5%，策略均值 {fmtRet(stats.avgNetReturn)} 的實際超額報酬為 {stats.avgNetReturn >= 0 ? '需扣除大盤漲幅' : '且大盤可能也在跌'}。
+          建議搭配 Walk-Forward 驗證策略是否真的優於買入持有。
+        </div>
+      )}
       {/* Equity curve */}
       <EquityCurveMini trades={trades} />
     </div>
@@ -1583,12 +1590,30 @@ export default function UnifiedScanPage() {
 
         {/* Empty state */}
         {!isScanning && !isFetchingForward && scanResults.length === 0 && !scanError && (
-          <div className="text-center py-20 text-slate-500 space-y-2">
-            <div className="text-5xl">🔬</div>
-            <div className="text-lg font-medium text-slate-400">選擇市場、日期、策略，開始回測</div>
-            <div className="text-sm">嚴謹模式：進場用隔日開盤價，成本模型台股/陸股分開計算</div>
-            <div className="text-sm">每筆交易保留完整進出場紀錄與命中原因</div>
-          </div>
+          scanProgress ? (
+            /* 掃描完成但無結果 */
+            <div className="text-center py-16 text-slate-500 space-y-3">
+              <div className="text-5xl">📭</div>
+              <div className="text-lg font-medium text-slate-400">本日無符合條件的個股</div>
+              <div className="text-sm space-y-1">
+                <p>可能的原因：</p>
+                <ul className="text-xs text-slate-500 space-y-0.5">
+                  <li>大盤處於空頭或盤整，門檻自動提高</li>
+                  <li>該日期市場整體量能不足</li>
+                  <li>策略條件較嚴格（可在「策略」頁面調整門檻）</li>
+                </ul>
+                <p className="text-xs text-sky-400 mt-3">建議：嘗試其他日期，或降低最低評分門檻</p>
+              </div>
+            </div>
+          ) : (
+            /* 初始歡迎狀態 */
+            <div className="text-center py-20 text-slate-500 space-y-2">
+              <div className="text-5xl">🔬</div>
+              <div className="text-lg font-medium text-slate-400">選擇市場、日期、策略，開始回測</div>
+              <div className="text-sm">嚴謹模式：進場用隔日開盤價，成本模型台股/陸股分開計算</div>
+              <div className="text-sm">每筆交易保留完整進出場紀錄與命中原因</div>
+            </div>
+          )
         )}
 
       </div>

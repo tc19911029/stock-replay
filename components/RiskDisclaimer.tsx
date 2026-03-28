@@ -60,6 +60,64 @@ export function RiskDisclaimerModal() {
   );
 }
 
+/** 首次使用功能導覽（風險聲明接受後顯示） */
+const GUIDE_KEY = 'feature-guide-seen';
+
+export function FeatureGuideModal() {
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    try {
+      // 只在已接受風險聲明且尚未看過導覽時顯示
+      if (localStorage.getItem(DISCLAIMER_KEY) && !localStorage.getItem(GUIDE_KEY)) {
+        const timer = setTimeout(() => setShow(true), 800);
+        return () => clearTimeout(timer);
+      }
+    } catch {}
+  }, []);
+
+  const dismiss = () => {
+    try { localStorage.setItem(GUIDE_KEY, '1'); } catch {}
+    setShow(false);
+  };
+
+  if (!show) return null;
+
+  const features = [
+    { icon: '📈', title: 'K線走圖練習', desc: '逐根播放歷史走勢，模擬操盤節奏，練習進出場判斷', path: '/' },
+    { icon: '🔍', title: '掃描選股', desc: '一鍵掃描台股/陸股，找出符合六大條件的個股', path: '/scan' },
+    { icon: '🔬', title: '策略回測', desc: '驗證策略在歷史數據上的表現，含完整成本模型', path: '/scan' },
+    { icon: '⭐', title: '自選監控', desc: '追蹤感興趣的個股，即時查看六大條件評分', path: '/watchlist' },
+    { icon: '💼', title: '持股管理', desc: '記錄持股，即時追蹤損益與停損提醒', path: '/portfolio' },
+    { icon: '⚡', title: '當沖提示', desc: '多時間框架即時訊號，適合短線交易者（Beta）', path: '/live-daytrade' },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 max-w-2xl mx-4 shadow-2xl">
+        <h2 className="text-lg font-bold text-sky-400 flex items-center gap-2 mb-1">
+          歡迎使用 K線走圖練習器
+        </h2>
+        <p className="text-xs text-slate-400 mb-4">以下是主要功能，點擊任一卡片可直接前往</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {features.map(f => (
+            <a key={f.title} href={f.path} onClick={dismiss}
+              className="flex flex-col gap-1.5 p-3 rounded-lg bg-slate-800/60 border border-slate-700/50 hover:border-sky-600/50 hover:bg-slate-800 transition-colors cursor-pointer">
+              <div className="text-xl">{f.icon}</div>
+              <div className="text-sm font-semibold text-white">{f.title}</div>
+              <div className="text-[11px] text-slate-400 leading-relaxed">{f.desc}</div>
+            </a>
+          ))}
+        </div>
+        <button onClick={dismiss}
+          className="mt-4 w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium py-2 rounded-lg transition text-sm">
+          我知道了，開始使用
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** 精簡版底部風險提示 */
 export function RiskFooter() {
   return (

@@ -67,6 +67,7 @@ export default function HomePage() {
   const [hoverCandle, setHoverCandle] = useState<typeof allCandles[0] | null>(null);
   const [sideTab, setSideTab] = useState<SideTab>('conditions');
   const [showMarkers, setShowMarkers] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const displayCandle = hoverCandle ?? allCandles[currentIndex];
   const prev = hoverCandle
@@ -227,7 +228,15 @@ export default function HomePage() {
         </div>
 
         {/* Right: Sidebar */}
-        <div className="w-full md:w-72 shrink-0 flex flex-col min-h-0 gap-2 max-h-[40vh] md:max-h-none">
+        <div className="w-full md:w-72 shrink-0 flex flex-col min-h-0 gap-2 md:max-h-none">
+          {/* Mobile toggle */}
+          <button
+            onClick={() => setSidebarOpen(o => !o)}
+            className="md:hidden flex items-center justify-between w-full px-3 py-2 bg-slate-800 rounded-lg text-xs text-slate-300 border border-slate-700">
+            <span>分析面板</span>
+            <span className={`transition-transform ${sidebarOpen ? 'rotate-180' : ''}`}>&#9660;</span>
+          </button>
+        <div className={`flex flex-col min-h-0 gap-2 ${sidebarOpen ? 'max-h-[60vh] md:max-h-none' : 'max-h-0 overflow-hidden md:max-h-none'} transition-all duration-300`}>
           {/* Tab switcher */}
           <div className="shrink-0 flex rounded-lg overflow-hidden border border-slate-700 text-xs">
             {SIDE_TABS.map(t => (
@@ -266,7 +275,7 @@ export default function HomePage() {
             </div>
           )}
         </div>
-
+        </div>
       </div>
 
       {/* ── Bottom: Backtest (collapsible) ── */}
