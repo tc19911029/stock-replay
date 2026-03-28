@@ -1023,6 +1023,10 @@ export default function UnifiedScanPage() {
                     <option value={0.1}>10%</option>
                     <option value={0.15}>15%</option>
                     <option value={0.2}>20%</option>
+                    <option value={0.25}>25%</option>
+                    <option value={0.3}>30%</option>
+                    <option value={0.5}>50%</option>
+                    <option value={1.0}>100%（全倉）</option>
                   </select>
                 </div>
               </>
