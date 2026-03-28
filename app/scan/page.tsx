@@ -791,7 +791,7 @@ export default function UnifiedScanPage() {
   const [activeHorizon, setHorizon] = useState<BacktestHorizon>('d5');
   const [sortBy, setSortBy]         = useState<'netReturn' | 'signalScore' | 'surgeScore' | 'histWinRate' | 'holdDays'>('netReturn');
   const [sortDir, setSortDir]       = useState<'asc' | 'desc'>('desc');
-  const [scanSort, setScanSort]     = useState<'score' | 'grade' | 'potential' | 'winRate' | 'price' | 'change'>('score');
+  const [scanSort, setScanSort]     = useState<'composite' | 'score' | 'grade' | 'potential' | 'winRate' | 'price' | 'change'>('composite');
   const [scanSortDir, setScanSortDir] = useState<'asc' | 'desc'>('desc');
   const [expandedStock, setExpandedStock] = useState<string | null>(null);
   const [gradeFilter, setGradeFilter] = useState<string>('all');
@@ -823,6 +823,18 @@ export default function UnifiedScanPage() {
   // 掃描結果中出現的概念列表（用於篩選器）
   const availableConcepts = [...new Set(scanResults.map(r => r.industry).filter(Boolean))] as string[];
 
+  // 綜合分計算：六條件35% + 潛力25% + 勝率20% + 位置10% + 量能10%
+  function calcComposite(r: typeof scanResults[0]): number {
+    const sixCon = (r.sixConditionsScore / 6) * 100;
+    const surge  = (r.surgeScore ?? 0);
+    const winR   = r.histWinRate ?? 50;
+    const posBonus = r.trendPosition?.includes('起漲') ? 100
+                   : r.trendPosition?.includes('主升') ? 70
+                   : r.trendPosition?.includes('末升') ? 20 : 50;
+    const volBonus = (r.surgeComponents?.volume?.score ?? 50);
+    return Math.round((sixCon * 0.35 + surge * 0.25 + winR * 0.20 + posBonus * 0.10 + volBonus * 0.10) * 10) / 10;
+  }
+
   // 掃描結果篩選 + 排序
   const filteredScanResults = conceptFilter === 'all'
     ? scanResults
@@ -830,6 +842,7 @@ export default function UnifiedScanPage() {
   const sortedScanResults = [...filteredScanResults].sort((a, b) => {
     const dir = scanSortDir === 'desc' ? 1 : -1;
     switch (scanSort) {
+      case 'composite':  return dir * (calcComposite(b) - calcComposite(a));
       case 'score':     return dir * ((b.sixConditionsScore ?? 0) - (a.sixConditionsScore ?? 0));
       case 'grade': {
         const gradeOrder: Record<string, number> = { S: 5, A: 4, B: 3, C: 2, D: 1 };
@@ -1298,6 +1311,7 @@ export default function UnifiedScanPage() {
                           <th className="text-left py-1.5 px-2">名稱</th>
                           <th className="text-left py-1.5 px-1 text-[10px]">概念</th>
                           {([
+                            { key: 'composite' as const, label: '綜合', align: 'text-center', tooltip: '綜合評分 (0-100)\n六條件35% + 潛力25% + 勝率20%\n+ 位置10% + 量能10%\n越高代表多維度共振越強' },
                             { key: 'score' as const, label: '評分', align: 'text-center', tooltip: '六大條件評分 (0-6)\n1.趨勢：頭頭高底底高+MA排列\n2.位置：MA20乖離0-12%或回踩MA10\n3.K棒：紅棒≥2%收上半部\n4.均線：MA5>MA10>MA20多頭排列\n5.量能：成交量≥5日均量×1.5倍\n6.指標：MACD紅柱或KD黃金交叉' },
                             { key: 'grade' as const, label: '等級', align: 'text-center', tooltip: '飆股潛力等級\nS級(80+)：極強飆股特徵\nA級(65-79)：強勢股\nB級(50-64)：中等潛力\nC級(35-49)：偏弱\nD級(<35)：不具飆股特徵' },
                             { key: 'potential' as const, label: '潛力', align: 'text-center', tooltip: '飆股潛力分數 (0-100)\n動能(18%)+波動率(12%)+量能(15%)\n+突破(15%)+趨勢品質(15%)\n+價格位置(5%)+K棒強度(5%)\n+指標共振(5%)+長期品質(10%)' },
@@ -1346,6 +1360,12 @@ export default function UnifiedScanPage() {
                               </div>
                             </td>
                             <td className="py-1.5 px-1 text-[10px] text-slate-500 max-w-[60px] truncate" title={r.industry}>{r.industry ?? '—'}</td>
+                            <td className="py-1.5 px-1 text-center">
+                              {(() => {
+                                const cs = calcComposite(r);
+                                return <span className={`font-bold text-[11px] ${cs >= 70 ? 'text-sky-400' : cs >= 55 ? 'text-slate-200' : 'text-slate-500'}`}>{cs.toFixed(1)}</span>;
+                              })()}
+                            </td>
                             <td className="py-1.5 px-1 text-center">
                               <span className={`font-bold ${r.sixConditionsScore >= 5 ? 'text-red-400' : r.sixConditionsScore >= 4 ? 'text-orange-400' : 'text-yellow-400'}`}>
                                 {r.sixConditionsScore}/6
@@ -1603,6 +1623,7 @@ export default function UnifiedScanPage() {
                           <th className="text-left py-1.5 px-2">名稱</th>
                           <th className="text-left py-1.5 px-1 text-[10px]">概念</th>
                           {([
+                            { key: 'composite' as const, label: '綜合' },
                             { key: 'score' as const, label: '評分' },
                             { key: 'grade' as const, label: '等級' },
                             { key: 'potential' as const, label: '潛力' },
@@ -1657,6 +1678,9 @@ export default function UnifiedScanPage() {
                                 </div>
                               </td>
                               <td className="py-1.5 px-1 text-[10px] text-slate-500 max-w-[60px] truncate" title={r.industry}>{r.industry ?? '—'}</td>
+                              <td className="py-1.5 px-1 text-center">
+                                {(() => { const cs = calcComposite(r); return <span className={`font-bold text-[11px] ${cs >= 70 ? 'text-sky-400' : cs >= 55 ? 'text-slate-200' : 'text-slate-500'}`}>{cs.toFixed(1)}</span>; })()}
+                              </td>
                               <td className="py-1.5 px-1 text-center">
                                 <span className={`font-bold ${r.sixConditionsScore >= 5 ? 'text-red-400' : r.sixConditionsScore >= 4 ? 'text-orange-400' : 'text-yellow-400'}`}>
                                   {r.sixConditionsScore}/6
