@@ -895,7 +895,7 @@ export default function UnifiedScanPage() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
+      <div className="mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
 
         {/* Controls */}
         <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
@@ -1325,12 +1325,12 @@ export default function UnifiedScanPage() {
                     </div>
                   )}
                   <div className="overflow-x-auto">
-                    <table className="min-w-[900px] w-full text-xs">
+                    <table className="w-full text-xs">
                       <thead>
                         <tr className="text-slate-400 border-b border-slate-700">
                           <th className="text-left py-1.5 px-2">代號</th>
                           <th className="text-left py-1.5 px-2">名稱</th>
-                          <th className="text-left py-1.5 px-1 text-[10px]">概念</th>
+                          <th className="text-left py-1.5 px-2">概念</th>
                           {([
                             { key: 'composite' as const, label: '綜合', align: 'text-center', tooltip: '綜合評分 (0-100)\n六條件35% + 潛力25% + 勝率20%\n+ 位置10% + 量能10%\n越高代表多維度共振越強' },
                             { key: 'score' as const, label: '評分', align: 'text-center', tooltip: '六大條件評分 (0-6)\n1.趨勢：頭頭高底底高+MA排列\n2.位置：MA20乖離0-12%或回踩MA10\n3.K棒：紅棒≥2%收上半部\n4.均線：MA5>MA10>MA20多頭排列\n5.量能：成交量≥5日均量×1.5倍\n6.指標：MACD紅柱或KD黃金交叉' },
@@ -1561,12 +1561,12 @@ export default function UnifiedScanPage() {
                     </button>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="min-w-[1100px] w-full text-xs">
+                    <table className="w-full text-xs">
                       <thead>
                         <tr className="text-slate-400 border-b border-slate-700">
                           <th className="text-left py-1.5 px-2">代號</th>
                           <th className="text-left py-1.5 px-2">名稱</th>
-                          <th className="text-left py-1.5 px-1 text-[10px]">概念</th>
+                          <th className="text-left py-1.5 px-2">概念</th>
                           {([
                             { key: 'composite' as const, label: '綜合', tooltip: '綜合評分 (0-100)\n六條件35% + 潛力25% + 勝率20%\n+ 位置10% + 量能10%\n越高代表多維度共振越強' },
                             { key: 'signalScore' as const, label: '評分', tooltip: '六大條件評分 (0-6)\n1.趨勢 2.位置 3.K棒\n4.均線 5.量能 6.指標\n≥4分才列入選股' },
@@ -1635,12 +1635,12 @@ export default function UnifiedScanPage() {
                         </button>
                       ))}
                     </div>
-                    <table className="min-w-[1200px] w-full text-xs">
+                    <table className="w-full text-xs">
                       <thead>
                         <tr className="border-b border-slate-700 text-slate-400">
                           <th className="text-left py-1.5 px-2">代號</th>
                           <th className="text-left py-1.5 px-2">名稱</th>
-                          <th className="text-left py-1.5 px-1 text-[10px]">概念</th>
+                          <th className="text-left py-1.5 px-2">概念</th>
                           {([
                             { key: 'composite' as const, label: '綜合', tooltip: '綜合評分 (0-100)\n六條件35% + 潛力25% + 勝率20%\n+ 位置10% + 量能10%' },
                             { key: 'score' as const, label: '評分', tooltip: '六大條件評分 (0-6)\n1.趨勢 2.位置 3.K棒\n4.均線 5.量能 6.指標' },
