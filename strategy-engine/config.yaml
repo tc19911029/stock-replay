@@ -1,0 +1,44 @@
+# ═══════════════════════════════════════════════════════════════
+# 策略研發引擎 — 全局設定
+# ═══════════════════════════════════════════════════════════════
+
+# 市場設定
+markets:
+  - a_shares    # A 股
+  - tw_stocks   # 台股
+
+# 時間週期
+timeframes:
+  - daily       # 日K
+  - weekly      # 週K
+
+# 每個市場先抓幾支股票（MVP 階段）
+stock_count_per_market: 50
+
+# 停止條件
+stop_conditions:
+  max_rounds: 100
+  max_hours: 8
+  no_improvement_patience: 10  # 連續幾輪沒改善就停
+
+# 回測設定
+backtest:
+  train_ratio: 0.6
+  validation_ratio: 0.2
+  test_ratio: 0.2
+  initial_capital: 1000000
+  # 台股成本
+  tw_commission_rate: 0.001425    # 手續費 0.1425%
+  tw_commission_discount: 0.6    # 六折
+  tw_tax_rate: 0.003             # 證交稅 0.3%
+  # A 股成本
+  a_commission_rate: 0.0003      # 佣金 0.03%
+  a_stamp_tax: 0.001             # 印花稅 0.1%（賣出）
+  # 通用
+  slippage: 0.001                # 滑價 0.1%
+  default_hold_days: 5           # 預設持有天數
+
+# 數據設定
+data:
+  lookback_days: 500             # 抓多少天歷史數據
+  cache_expire_hours: 24         # 快取過期時間
