@@ -965,7 +965,7 @@ export const CN_STOCKS: StockEntry[] = [
   { symbol: '002079.SZ', name: '蘇州固锝' },
   { symbol: '002080.SZ', name: '中材科技' },
   { symbol: '002081.SZ', name: '金螳螂' },
-  { symbol: '002082.SZ', name: '有友食品' },
+  { symbol: '002082.SZ', name: '萬邦德' },
   { symbol: '002083.SZ', name: '孔雀城' },
   { symbol: '002084.SZ', name: '海鸥住工' },
   { symbol: '002085.SZ', name: '萬豐奧威' },

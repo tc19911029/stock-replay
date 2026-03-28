@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
       const twName = await getTWChineseName(symbol).catch(() => null);
       if (twName) name = twName;
     } else if (isCnDigits) {
-      const cnName = getCNChineseName(symbol);
+      const cnName = await getCNChineseName(symbol);
       if (cnName) name = cnName;
     }
 

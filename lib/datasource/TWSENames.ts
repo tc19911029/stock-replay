@@ -15,11 +15,36 @@ const CN_NAME_MAP: Record<string, string> = Object.fromEntries(
 
 /**
  * 查詢 A 股中文名稱（滬市/深市 6 位代號）。
+ * 優先查靜態對照表，查無則從東方財富 API 動態取得並快取。
  * @param code  純數字代號，例如 "603986"
  * @returns     中文公司名，若查無則回傳 null
  */
-export function getCNChineseName(code: string): string | null {
-  return CN_NAME_MAP[code] ?? null;
+export async function getCNChineseName(code: string): Promise<string | null> {
+  // 1. 靜態清單
+  if (CN_NAME_MAP[code]) return CN_NAME_MAP[code];
+
+  // 2. 快取
+  const cacheKey = `cn:name:${code}`;
+  const cached = globalCache.get<string>(cacheKey);
+  if (cached) return cached;
+
+  // 3. 東方財富 API 動態查詢
+  try {
+    const secid = code.startsWith('6') ? `1.${code}` : `0.${code}`;
+    const url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=f58&_=${Date.now()}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (res.ok) {
+      const json = await res.json();
+      const name = json?.data?.f58;
+      if (name && typeof name === 'string') {
+        CN_NAME_MAP[code] = name; // 更新靜態表
+        globalCache.set(cacheKey, name, 24 * 60 * 60 * 1000);
+        return name;
+      }
+    }
+  } catch { /* 查詢失敗，回傳 null */ }
+
+  return null;
 }
 
 const NAMES_CACHE_KEY = 'twse:names:all';
