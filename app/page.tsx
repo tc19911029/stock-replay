@@ -126,6 +126,7 @@ export default function HomePage() {
             </span>
             <Link href="/scan"       title="批量掃描台股/陸股，找出符合六大條件的個股並回測績效" className="text-[11px] px-2 py-1 rounded text-slate-300 hover:bg-slate-700 hover:text-white font-medium transition whitespace-nowrap">掃描選股</Link>
             <Link href="/live-daytrade" title="多時間框架即時訊號，適合當沖交易者" className="text-[11px] px-2 py-1 rounded bg-violet-900/50 text-violet-300 hover:bg-violet-700 hover:text-white font-medium transition whitespace-nowrap border border-violet-700/50">當沖 <span className="text-[8px] bg-amber-600 text-white px-1 rounded-full">β</span></Link>
+            <Link href="/optimize"   title="自動搜索最佳策略參數組合，網格搜索+回測比較" className="text-[11px] px-2 py-1 rounded bg-emerald-900/50 text-emerald-300 hover:bg-emerald-700 hover:text-white font-medium transition whitespace-nowrap border border-emerald-700/50 hidden md:block">優化器 <span className="text-[8px] bg-amber-600 text-white px-1 rounded-full">β</span></Link>
             <Link href="/report"     title="查看歷次掃描的績效統計報表，匯出CSV" className="text-[11px] px-2 py-1 rounded text-slate-300 hover:bg-slate-700 hover:text-white font-medium transition whitespace-nowrap hidden md:block">報表</Link>
             <Link href="/strategies" title="調整六大條件門檻，管理多個策略版本" className="text-[11px] px-2 py-1 rounded text-slate-300 hover:bg-slate-700 hover:text-white font-medium transition whitespace-nowrap hidden md:block">策略</Link>
             <Link href="/disclaimer" className="text-[11px] px-2 py-1 rounded text-slate-500 hover:bg-slate-700 hover:text-white font-medium transition whitespace-nowrap hidden md:block">免責</Link>
@@ -149,6 +150,7 @@ export default function HomePage() {
                 <div className="absolute right-0 top-full mt-1 w-40 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 py-1">
                   {[
                     { href: '/scan', label: '🔍 掃描選股' },
+                    { href: '/optimize', label: '🔬 策略優化器' },
                     { href: '/watchlist', label: '⭐ 自選股' },
                     { href: '/portfolio', label: '💼 持倉' },
                     { href: '/report', label: '📊 報表' },

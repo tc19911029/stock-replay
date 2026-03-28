@@ -63,7 +63,7 @@ export interface StrategyConfig {
 
 // ── 內建策略 ──────────────────────────────────────────────────────────────────
 
-const BASE_THRESHOLDS: StrategyThresholds = {
+export const BASE_THRESHOLDS: StrategyThresholds = {
   maShortPeriod:  5,
   maMidPeriod:    10,
   maLongPeriod:   20,
