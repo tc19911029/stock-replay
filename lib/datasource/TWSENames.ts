@@ -37,12 +37,33 @@ export async function getCNChineseName(code: string): Promise<string | null> {
       const json = await res.json();
       const name = json?.data?.f58;
       if (name && typeof name === 'string') {
-        CN_NAME_MAP[code] = name; // 更新靜態表
+        CN_NAME_MAP[code] = name;
         globalCache.set(cacheKey, name, 24 * 60 * 60 * 1000);
         return name;
       }
     }
-  } catch { /* 查詢失敗，回傳 null */ }
+  } catch { /* 東方財富失敗，嘗試騰訊 */ }
+
+  // 4. 騰訊財經 API（備援，GBK 編碼）
+  try {
+    const prefix = code.startsWith('6') ? 'sh' : 'sz';
+    const url = `https://qt.gtimg.cn/q=${prefix}${code}`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (res.ok) {
+      const buf = await res.arrayBuffer();
+      const text = new TextDecoder('gbk').decode(buf);
+      const match = text.match(/~([^~]+)~/);
+      if (match?.[1] && /[\u4e00-\u9fff]/.test(match[1])) {
+        const name = match[1];
+        CN_NAME_MAP[code] = name;
+        globalCache.set(cacheKey, name, 24 * 60 * 60 * 1000);
+        return name;
+      }
+    }
+  } catch { /* 騰訊也失敗 */ }
 
   return null;
 }
