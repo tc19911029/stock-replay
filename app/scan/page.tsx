@@ -986,7 +986,7 @@ export default function UnifiedScanPage() {
                     : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'
                 }`}
               >
-                {useCapitalMode ? '💰 資本限制' : '∞ 無限資本'}
+                {useCapitalMode ? '💰 資本限制' : '無限資本'}
               </button>
             </div>
 
@@ -1060,7 +1060,7 @@ export default function UnifiedScanPage() {
                   <span className="text-amber-400 font-bold">{scanResults.length}</span>
                   {' 檔'}
                   {marketTrend && (
-                    <span title={`大盤趨勢：${marketTrend}\n多頭＝大盤上漲趨勢，選股勝率較高\n盤整＝大盤方向不明，需謹慎\n空頭＝大盤下跌，選股風險較大`}
+                    <span title={`大盤趨勢：${marketTrend}｜多頭＝大盤上漲，選股勝率較高｜盤整＝方向不明，需謹慎｜空頭＝大盤下跌，風險較大`}
                       className={`ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold cursor-help ${
                       marketTrend === '多頭' ? 'bg-red-900/50 text-red-300' :
                       marketTrend === '空頭' ? 'bg-green-900/50 text-green-300' :
@@ -1276,7 +1276,7 @@ export default function UnifiedScanPage() {
                     <span className="font-bold text-white">掃描結果</span>
                     <span className="text-slate-400">{scanResults.length} 檔符合條件</span>
                     {marketTrend && (
-                      <span title={`大盤趨勢：${marketTrend}\n多頭＝大盤上漲趨勢，選股勝率較高\n盤整＝大盤方向不明，需謹慎\n空頭＝大盤下跌，選股風險較大`}
+                      <span title={`大盤趨勢：${marketTrend}｜多頭＝大盤上漲，選股勝率較高｜盤整＝方向不明，需謹慎｜空頭＝大盤下跌，風險較大`}
                         className={`px-1.5 py-0.5 rounded text-[10px] font-bold cursor-help ${
                         marketTrend === '多頭' ? 'bg-red-900/50 text-red-300' :
                         marketTrend === '空頭' ? 'bg-green-900/50 text-green-300' :
