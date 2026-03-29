@@ -220,10 +220,45 @@ Score = (Annualized Return% × 0.4) + (Win Rate% × 0.3) - (Max Drawdown% × 0.3
 
 ---
 
+## Round 11 — Market Breadth Macro Filter (2026-03-29)
+
+**Changes:**
+- Created `marketBreadth.ts`: measures overall market health from scan pass rate
+- 4 levels: STRONG (+5), MODERATE (0), WEAK (-5), VERY_WEAK (-10) composite adjust
+- Applied after all individual scans to add macro context
+- Uses pass rate % and uptrend participation % as health metrics
+
+**New Factors:**
+| Factor | Type | Description |
+|--------|------|-------------|
+| Scan Pass Rate | Macro | % of total stocks passing all filters |
+| Uptrend Participation | Macro | % of passed stocks in 多頭 trend |
+| Market Breadth Class | Macro | STRONG/MODERATE/WEAK/VERY_WEAK |
+
+**Result:** Committed. System now adjusts confidence based on broad market health.
+
+---
+
+## Summary: 11 Rounds of Optimization
+
+| Round | Focus | Key Addition |
+|-------|-------|-------------|
+| 1 | Multi-Factor Foundation | Smart money score, composite ranking |
+| 2 | Volume-Price Analysis | Divergence detection, A-share mean reversion |
+| 3 | Momentum Detection | Consecutive bullish, market-specific weights |
+| 4 | Evaluation System | Scoring formula, investment trust factor |
+| 5 | Sector Analysis | Sector heat momentum, data retry logic |
+| 6 | Contrarian Signals | Retail sentiment, northbound flow, trend accel |
+| 7 | Fundamentals | Earnings surprise, revenue acceleration |
+| 8 | Risk Management | Sector limits, dynamic position sizing |
+| 9 | Entry Quality | Support/resistance proximity |
+| 10 | Volatility Adapt | Regime detection, adaptive stops/holds/sizing |
+| 11 | Macro Context | Market breadth, broad participation filter |
+
 ## Pending Improvements
 
-- [ ] Intraday VWAP-based entry optimization
 - [ ] Machine learning signal combination (gradient boosting on all factors)
 - [ ] Cross-market correlation (when TW semi leads, CN semi follows)
 - [ ] Kelly criterion position sizing based on historical win rate
-- [ ] Market breadth indicator (advance/decline ratio) as macro filter
+- [ ] Time-of-month seasonality (月底投信作帳效應)
+- [ ] Intraday VWAP-based entry optimization

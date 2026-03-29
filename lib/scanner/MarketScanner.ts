@@ -9,6 +9,7 @@ import { computeSmartMoneyScore, computeCompositeScore, detectConsecutiveBullish
 import { computeRetailSentiment } from '@/lib/analysis/retailSentiment';
 import { analyzeSupportResistance } from '@/lib/analysis/supportResistance';
 import { detectVolatilityRegime } from '@/lib/analysis/volatilityRegime';
+import { computeMarketBreadth } from '@/lib/analysis/marketBreadth';
 
 const CONCURRENCY = 15; // parallel requests per chunk
 
@@ -318,6 +319,17 @@ export abstract class MarketScanner {
 
     // ── Sector momentum: hot sectors get bonus ──────────────────────────────
     this.applySectorMomentum(results);
+
+    // ── Market breadth: adjust all scores by overall market health ────────
+    const breadth = computeMarketBreadth(results, stocks.length);
+    if (breadth.compositeAdjust !== 0) {
+      for (const r of results) {
+        r.compositeScore = Math.max(0, Math.min(100,
+          (r.compositeScore ?? 0) + breadth.compositeAdjust
+        ));
+      }
+    }
+    console.log(`[${config.marketId}] Market breadth: ${breadth.breadth} (${breadth.uptrendPct.toFixed(0)}% uptrend, adjust: ${breadth.compositeAdjust > 0 ? '+' : ''}${breadth.compositeAdjust})`);
 
     return {
       results: results.sort((a, b) =>
