@@ -75,8 +75,42 @@ async function fetchInstitutional(date: string): Promise<Map<string, Institution
       }
     }
   } catch (e) {
-    console.warn('fetchInstitutional error:', e);
+    console.warn('fetchInstitutional TWSE error:', e);
   }
+
+  // ── 櫃買中心（TPEX）上櫃股三大法人 ──────────────────────────────────────────
+  try {
+    const [y, m, d] = date.split('-');
+    const rocYear = parseInt(y) - 1911;
+    const tpexUrl = `https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&o=json&se=EW&t=D&d=${rocYear}/${m}/${d}`;
+    const tpexRes = await fetch(tpexUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.tpex.org.tw/' },
+      signal: AbortSignal.timeout(15000),
+    });
+    const tpexJson = await tpexRes.json();
+    const tpexData = tpexJson?.tables?.[0]?.data;
+    if (Array.isArray(tpexData)) {
+      for (const row of tpexData) {
+        const symbol = row[0]?.trim();
+        if (!symbol || symbol.length > 6) continue;
+        // TPEX 格式：[代號, 名稱, 外資買, 外資賣, 外資超, 投信買, 投信賣, 投信超, 自營買(自行), 自營賣(自行), 自營超(自行), 自營買(避險), 自營賣(避險), 自營超(避險), 自營買合計, 自營賣合計, 自營超合計, ...]
+        const foreignBuy = parseNum(row[4]);   // 外資買賣超
+        const trustBuy = parseNum(row[7]);     // 投信買賣超
+        const dealerBuy = parseNum(row[16]);   // 自營商買賣超合計
+        map.set(symbol, {
+          symbol,
+          name: row[1]?.trim() || '',
+          foreignBuy,
+          trustBuy,
+          dealerBuy,
+          totalBuy: foreignBuy + trustBuy + dealerBuy,
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('fetchInstitutional TPEX error:', e);
+  }
+
   return map;
 }
 
