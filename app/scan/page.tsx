@@ -359,16 +359,38 @@ function CapitalPanel({ trades, constraints, finalCapital, capitalReturn, skippe
 
 // ── Trade Row ──────────────────────────────────────────────────────────────────
 
-// 回測交易的綜合分（與掃描結果用同一公式）
-function calcTradeComposite(t: BacktestTrade): number {
+// 回測交易的綜合分 — 從 scanResults 找到對應的完整數據來算
+function calcTradeComposite(t: BacktestTrade, scanResults?: Array<{ symbol: string; sixConditionsScore: number; surgeScore?: number; histWinRate?: number; trendPosition?: string; surgeComponents?: { volume?: { score: number } }; surgeFlags?: string[] }>): number {
+  // 嘗試從 scanResults 找到對應股票，用完整數據計算
+  const sym = t.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
+  const sr = scanResults?.find(r => r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '') === sym);
+  if (sr) {
+    // 有完整數據，用跟 calcComposite 一樣的公式
+    const sixCon = (sr.sixConditionsScore / 6) * 100;
+    const surge  = sr.surgeScore ?? 0;
+    const winR   = sr.histWinRate ?? 50;
+    const posBonus = sr.trendPosition?.includes('起漲') ? 100
+                   : sr.trendPosition?.includes('主升') ? 70
+                   : sr.trendPosition?.includes('末升') ? 20 : 50;
+    const volBonus = sr.surgeComponents?.volume?.score ?? 50;
+    const flags = sr.surgeFlags ?? [];
+    const breakoutBonus = (
+      (flags.includes('BB_SQUEEZE_BREAKOUT') ? 30 : 0) +
+      (flags.includes('CONSOLIDATION_BREAKOUT') ? 30 : 0) +
+      (flags.includes('NEW_60D_HIGH') ? 20 : 0) +
+      (flags.includes('VOLUME_CLIMAX') ? 20 : 0)
+    );
+    const breakoutScore = Math.min(100, breakoutBonus);
+    return Math.round((sixCon * 0.30 + surge * 0.20 + winR * 0.25 + posBonus * 0.10 + volBonus * 0.10 + breakoutScore * 0.05) * 10) / 10;
+  }
+  // fallback：沒有完整數據時用基本計算
   const sixCon = (t.signalScore / 6) * 100;
   const surge  = t.surgeScore ?? 0;
   const winR   = t.histWinRate ?? 50;
   const posBonus = t.trendPosition?.includes('起漲') ? 100
                  : t.trendPosition?.includes('主升') ? 70
                  : t.trendPosition?.includes('末升') ? 20 : 50;
-  const volBonus = 50; // 回測交易沒有 surgeComponents，用預設值
-  return Math.round((sixCon * 0.35 + surge * 0.25 + winR * 0.20 + posBonus * 0.10 + volBonus * 0.10) * 10) / 10;
+  return Math.round((sixCon * 0.30 + surge * 0.20 + winR * 0.25 + posBonus * 0.10 + 50 * 0.10 + 0 * 0.05) * 10) / 10;
 }
 
 function chipTooltip(r: { foreignBuy?: number; trustBuy?: number; dealerBuy?: number; marginNet?: number; shortNet?: number; dayTradeRatio?: number; largeTraderNet?: number; chipDetail?: string }): string {
@@ -391,7 +413,7 @@ function chipBadge(score: number | undefined, grade: string | undefined, signal:
   return <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${colorClass}`} title={tooltip}>{icon}{grade}</span>;
 }
 
-function TradeRow({ t, chip }: { t: BacktestTrade; chip?: { chipScore: number; chipGrade: string; chipSignal: string; foreignBuy: number; trustBuy: number; marginNet: number; chipDetail?: string; dayTradeRatio?: number; largeTraderNet?: number } }) {
+function TradeRow({ t, chip, composite }: { t: BacktestTrade; chip?: { chipScore: number; chipGrade: string; chipSignal: string; foreignBuy: number; trustBuy: number; marginNet: number; chipDetail?: string; dayTradeRatio?: number; largeTraderNet?: number }; composite?: number }) {
   const sym = t.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
   return (
     <tr className="border-b border-slate-800/50 hover:bg-slate-800/40">
@@ -406,7 +428,7 @@ function TradeRow({ t, chip }: { t: BacktestTrade; chip?: { chipScore: number; c
       </td>
       <td className="py-1.5 px-1 text-[10px] text-slate-500 max-w-[60px] truncate" title={t.industry}>{t.industry ?? '—'}</td>
       <td className="py-1.5 px-1 text-center">
-        {(() => { const cs = calcTradeComposite(t); return <span className={`font-bold text-[11px] ${cs >= 70 ? 'text-sky-400' : cs >= 55 ? 'text-slate-200' : 'text-slate-500'}`}>{cs.toFixed(1)}</span>; })()}
+        {(() => { const cs = composite ?? 0; return <span className={`font-bold text-[11px] ${cs >= 70 ? 'text-sky-400' : cs >= 55 ? 'text-slate-200' : 'text-slate-500'}`}>{cs.toFixed(1)}</span>; })()}
       </td>
       <td className="py-1.5 px-1 text-center">
         <span className={`font-bold ${t.signalScore >= 5 ? 'text-red-400' : t.signalScore >= 4 ? 'text-orange-400' : 'text-yellow-400'}`}>
@@ -852,7 +874,7 @@ export default function UnifiedScanPage() {
 
   const sortedTrades = [...trades].sort((a, b) => {
     const dir = sortDir === 'desc' ? 1 : -1;
-    if (sortBy === 'composite')    return dir * (calcTradeComposite(b) - calcTradeComposite(a));
+    if (sortBy === 'composite')    return dir * (calcTradeComposite(b, scanResults) - calcTradeComposite(a, scanResults));
     if (sortBy === 'netReturn')    return dir * (b.netReturn - a.netReturn);
     if (sortBy === 'signalScore')  return dir * (b.signalScore - a.signalScore);
     if (sortBy === 'surgeScore')   return dir * ((b.surgeScore ?? 0) - (a.surgeScore ?? 0));
@@ -1643,7 +1665,7 @@ export default function UnifiedScanPage() {
                           const sym = t.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
                           const sr = scanResults.find(r => r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '') === sym);
                           const chip = sr?.chipScore != null ? { chipScore: sr.chipScore!, chipGrade: sr.chipGrade!, chipSignal: sr.chipSignal!, foreignBuy: sr.foreignBuy ?? 0, trustBuy: sr.trustBuy ?? 0, marginNet: sr.marginNet ?? 0 } : undefined;
-                          return <TradeRow key={t.symbol + t.entryDate} t={t} chip={chip} />;
+                          return <TradeRow key={t.symbol + t.entryDate} t={t} chip={chip} composite={calcTradeComposite(t, scanResults)} />;
                         })}
                       </tbody>
                     </table>
