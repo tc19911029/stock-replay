@@ -168,6 +168,29 @@ def evaluate_conditions(df: pd.DataFrame, conditions: list[dict], params: dict) 
             high = cp.get("rsi_high", 70)
             result[f"cond_{cid}"] = (df["rsi14"] >= low) & (df["rsi14"] <= high)
 
+        elif ctype == "rsi_rising":
+            # RSI 上升趨勢：近 N 日 RSI 在上升
+            lookback = cp.get("lookback", 3)
+            result[f"cond_{cid}"] = df["rsi14"] > df["rsi14"].shift(lookback)
+
+        elif ctype == "macd_accelerating":
+            # MACD 柱加速：OSC 為正且增加中
+            result[f"cond_{cid}"] = (df["macd_osc"] > 0) & (df["macd_osc"] > df["macd_osc"].shift(1))
+
+        elif ctype == "ma_slope_positive":
+            # 均線斜率為正：MA 在上升
+            period = cp.get("period", 20)
+            ma_col = f"ma{period}"
+            if ma_col in df.columns:
+                result[f"cond_{cid}"] = df[ma_col] > df[ma_col].shift(5)
+            else:
+                result[f"cond_{cid}"] = False
+
+        elif ctype == "volume_dry_up":
+            # 量縮：成交量低於均量的 threshold 倍（盤整蓄勢）
+            threshold = cp.get("threshold", 0.7)
+            result[f"cond_{cid}"] = df["volume"] < df["vol_avg20"] * threshold
+
         else:
             # 未知條件類型，預設 False
             result[f"cond_{cid}"] = False
