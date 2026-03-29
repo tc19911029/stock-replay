@@ -114,8 +114,13 @@ export abstract class MarketScanner {
         if (rsi != null && rsi > 80 && roc10 != null && roc10 > 15) return null;
       }
 
-      // 10-11 改為加分項（不再硬過濾，避免掃不出來）
-      // 這些因素會透過 surgeScore 和六大條件間接反映
+      // 10. 紅K必要條件 — 朱老師核心：黑K不進場
+      if (last.close <= last.open) return null;
+
+      // 11. 突破前5日高點 — 朱老師核心：突破才是真信號
+      const recentHighs = candles.slice(Math.max(0, lastIdx - 5), lastIdx).map(c => c.high);
+      const prev5High = Math.max(...recentHighs);
+      if (prev5High > 0 && last.close < prev5High) return null;
 
       const changePercent = prev?.close > 0
         ? +((last.close - prev.close) / prev.close * 100).toFixed(2)

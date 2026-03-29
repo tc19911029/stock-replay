@@ -69,7 +69,7 @@ export const BASE_THRESHOLDS: StrategyThresholds = {
   maLongPeriod:   20,
   kbarMinBodyPct: 0.02,
   upperShadowMax: 0.20,
-  volumeRatioMin: 1.5,
+  volumeRatioMin: 1.8,  // 朱老師核心：帶量突破，1.5x太鬆
   kdMaxEntry:     88,
   deviationMax:   0.20,
   minScore:       4,    // 基本門檻 4 分
@@ -87,7 +87,7 @@ const ALL_CONDITIONS_ON: StrategyConditionToggles = {
 export const ZHU_V1: StrategyConfig = {
   id:          'zhu-v1',
   name:        '朱老師六大條件 v1',
-  description: '朱家泓老師《學會走圖SOP》標準版，六大條件全開，KD≤88，量比≥1.5x',
+  description: '朱家泓老師《學會走圖SOP》標準版，六大條件全開，KD≤88，量比≥1.8x，紅K突破前高',
   version:     '1.0.0',
   author:      '朱家泓',
   createdAt:   '2024-01-01T00:00:00.000Z',
