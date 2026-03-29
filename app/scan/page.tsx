@@ -371,7 +371,7 @@ function calcTradeComposite(t: BacktestTrade): number {
   return Math.round((sixCon * 0.35 + surge * 0.25 + winR * 0.20 + posBonus * 0.10 + volBonus * 0.10) * 10) / 10;
 }
 
-function TradeRow({ t }: { t: BacktestTrade }) {
+function TradeRow({ t, chip }: { t: BacktestTrade; chip?: { chipScore: number; chipGrade: string; chipSignal: string; foreignBuy: number; trustBuy: number; marginNet: number } }) {
   const sym = t.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
   return (
     <tr className="border-b border-slate-800/50 hover:bg-slate-800/40">
@@ -414,6 +414,17 @@ function TradeRow({ t }: { t: BacktestTrade }) {
       <td className="py-1.5 px-2 text-right font-mono text-white whitespace-nowrap">{t.entryPrice.toFixed(2)}</td>
       <td className="py-1.5 px-2 text-[10px] text-slate-400 whitespace-nowrap">{trendBadge(t.trendState)}</td>
       <td className="py-1.5 px-2 text-[10px] text-slate-400 whitespace-nowrap">{t.trendPosition}</td>
+      <td className="py-1.5 px-2 text-center whitespace-nowrap">
+        {chip ? (
+          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+            chip.chipScore >= 70 ? 'bg-green-900/60 text-green-300' :
+            chip.chipScore >= 50 ? 'bg-yellow-900/60 text-yellow-300' :
+            'bg-red-900/60 text-red-300'
+          }`} title={`外資: ${(chip.foreignBuy > 0 ? '+' : '') + (chip.foreignBuy / 1e6).toFixed(1)}M | 投信: ${(chip.trustBuy > 0 ? '+' : '') + (chip.trustBuy / 1e6).toFixed(1)}M | 融資: ${(chip.marginNet > 0 ? '+' : '') + chip.marginNet}張`}>
+            {chip.chipSignal === '主力進場' ? '🟢' : chip.chipSignal === '主力出貨' ? '🔴' : chip.chipSignal === '散戶追高' ? '⚠️' : ''}{chip.chipGrade}
+          </span>
+        ) : <span className="text-[10px] text-slate-600">—</span>}
+      </td>
       <td className="py-1.5 px-2 text-right font-mono text-slate-400 whitespace-nowrap">{t.exitPrice.toFixed(2)}</td>
       <td className="py-1.5 px-1 text-center text-slate-500">{t.holdDays}日</td>
       <td className={`py-1.5 px-1 text-right font-mono font-bold ${retColor(t.netReturn)}`}>{fmtRet(t.netReturn)}</td>
@@ -1616,6 +1627,7 @@ export default function UnifiedScanPage() {
                           <th className="text-right py-1.5 px-2 whitespace-nowrap">進場價</th>
                           <th className="text-center py-1.5 px-2 whitespace-nowrap">趨勢</th>
                           <th className="text-left py-1.5 px-2 whitespace-nowrap">位置</th>
+                          <th className="text-center py-1.5 px-2 whitespace-nowrap" title="籌碼面評分：三大法人買賣超 + 融資融券變化">籌碼</th>
                           <th className="text-right py-1.5 px-2 whitespace-nowrap">出場價</th>
                           <th className="text-center py-1.5 px-2 whitespace-nowrap cursor-pointer hover:text-white select-none"
                             onClick={() => {
@@ -1636,7 +1648,12 @@ export default function UnifiedScanPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {sortedTrades.map(t => <TradeRow key={t.symbol + t.entryDate} t={t} />)}
+                        {sortedTrades.map(t => {
+                          const sym = t.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
+                          const sr = scanResults.find(r => r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '') === sym);
+                          const chip = sr?.chipScore != null ? { chipScore: sr.chipScore!, chipGrade: sr.chipGrade!, chipSignal: sr.chipSignal!, foreignBuy: sr.foreignBuy ?? 0, trustBuy: sr.trustBuy ?? 0, marginNet: sr.marginNet ?? 0 } : undefined;
+                          return <TradeRow key={t.symbol + t.entryDate} t={t} chip={chip} />;
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -1691,6 +1708,7 @@ export default function UnifiedScanPage() {
                           ))}
                           <th className="text-left py-1.5 px-2 whitespace-nowrap">趨勢</th>
                           <th className="text-left py-1.5 px-2 whitespace-nowrap">位置</th>
+                          <th className="text-center py-1.5 px-2 whitespace-nowrap" title="籌碼面評分：三大法人買賣超 + 融資融券變化">籌碼</th>
                           <th className="text-right py-1.5 px-1.5 whitespace-nowrap">隔日開</th>
                           <th className="text-right py-1.5 px-1.5 whitespace-nowrap">1日</th>
                           <th className="text-right py-1.5 px-1.5 whitespace-nowrap">2日</th>
@@ -1758,6 +1776,17 @@ export default function UnifiedScanPage() {
                               </td>
                               <td className="py-1.5 px-2 text-[10px] text-slate-400 whitespace-nowrap">{r.trendState}</td>
                               <td className="py-1.5 px-2 text-[10px] text-slate-400 whitespace-nowrap">{r.trendPosition}</td>
+                              <td className="py-1.5 px-2 text-center whitespace-nowrap">
+                                {r.chipScore != null ? (
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                                    r.chipScore >= 70 ? 'bg-green-900/60 text-green-300' :
+                                    r.chipScore >= 50 ? 'bg-yellow-900/60 text-yellow-300' :
+                                    'bg-red-900/60 text-red-300'
+                                  }`} title={`外資: ${(r.foreignBuy ?? 0) > 0 ? '+' : ''}${((r.foreignBuy ?? 0) / 1e6).toFixed(1)}M | 融資: ${(r.marginNet ?? 0) > 0 ? '+' : ''}${r.marginNet ?? 0}張`}>
+                                    {r.chipSignal === '主力進場' ? '🟢' : r.chipSignal === '主力出貨' ? '🔴' : ''}{r.chipGrade}
+                                  </span>
+                                ) : <span className="text-[10px] text-slate-600">—</span>}
+                              </td>
                               {p ? (
                                 <>
                                   {[p.openReturn, p.d1Return, p.d2Return, p.d3Return, p.d4Return, p.d5Return, p.d10Return, p.d20Return].map((v, i) => (
