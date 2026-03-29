@@ -49,6 +49,7 @@ export interface StockScanResult {
     kbarStrength: SurgeComponentSummary;
     indicatorConfluence: SurgeComponentSummary;
     longTermQuality: SurgeComponentSummary;
+    volumePriceDivergence: SurgeComponentSummary;
   };
   // ── 歷史信號績效 ──────────────────────────────────────────────────────────
   histWinRate?: number;        // 歷史20日勝率 (%)

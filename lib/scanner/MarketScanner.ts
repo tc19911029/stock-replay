@@ -95,7 +95,17 @@ export abstract class MarketScanner {
       // 8. 末升段不進場 — 位置太高風險大
       if (position.includes('末升')) return null;
 
-      // 9-11 改為加分項（不再硬過濾，避免掃不出來）
+      // 9. A-share mean reversion filter: extremely overbought RSI + high
+      //    short-term gains signal incoming mean reversion (A-shares are
+      //    retail-dominated → overreaction → reversal)
+      if (config.marketId === 'CN' && surge.totalScore < 75) {
+        const rsi = last.rsi14;
+        const roc10 = last.roc10;
+        // RSI > 80 AND 10-day gain > 15% = very likely to mean-revert
+        if (rsi != null && rsi > 80 && roc10 != null && roc10 > 15) return null;
+      }
+
+      // 10-11 改為加分項（不再硬過濾，避免掃不出來）
       // 這些因素會透過 surgeScore 和六大條件間接反映
 
       const changePercent = prev?.close > 0
