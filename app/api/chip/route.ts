@@ -64,7 +64,11 @@ async function fetchInstitutional(date: string): Promise<Map<string, { foreignBu
     for (const row of json?.data ?? []) {
       const sym = row[0]?.trim();
       if (!sym || sym.length > 6) continue;
-      const fb = parseNum(row[4]), tb = parseNum(row[7]), db = parseNum(row[10]);
+      // TWSE 回傳的是「股數」，除以 1000 轉成「張」（跟三竹一致）
+      // [4]=外陸資買賣超, [10]=投信買賣超, [11]=自營商買賣超合計
+      const fb = Math.round(parseNum(row[4]) / 1000);
+      const tb = Math.round(parseNum(row[10]) / 1000);
+      const db = Math.round(parseNum(row[11]) / 1000);
       map.set(sym, { foreignBuy: fb, trustBuy: tb, dealerBuy: db, totalBuy: fb + tb + db, name: row[1]?.trim() || '' });
     }
   } catch (e) { console.warn('TWSE institutional:', e); }
@@ -80,7 +84,10 @@ async function fetchInstitutional(date: string): Promise<Map<string, { foreignBu
     for (const row of json?.tables?.[0]?.data ?? []) {
       const sym = row[0]?.trim();
       if (!sym || sym.length > 6) continue;
-      const fb = parseNum(row[4]), tb = parseNum(row[7]), db = parseNum(row[16]);
+      // TPEX 也是股數，除以 1000 轉張
+      const fb = Math.round(parseNum(row[4]) / 1000);
+      const tb = Math.round(parseNum(row[7]) / 1000);
+      const db = Math.round(parseNum(row[16]) / 1000);
       map.set(sym, { foreignBuy: fb, trustBuy: tb, dealerBuy: db, totalBuy: fb + tb + db, name: row[1]?.trim() || '' });
     }
   } catch (e) { console.warn('TPEX institutional:', e); }
@@ -152,7 +159,10 @@ async function fetchLargeTrader(date: string): Promise<Map<string, { buy: number
     for (const row of json?.data ?? []) {
       const sym = row[1]?.trim();
       if (!sym || sym.length > 6) continue;
-      const buy = parseNum(row[3]), sell = parseNum(row[4]), net = parseNum(row[5]);
+      // 股數 → 張
+      const buy = Math.round(parseNum(row[3]) / 1000);
+      const sell = Math.round(parseNum(row[4]) / 1000);
+      const net = Math.round(parseNum(row[5]) / 1000);
       map.set(sym, { buy, sell, net });
     }
   } catch (e) { console.warn('fetchLargeTrader:', e); }
@@ -169,21 +179,24 @@ function calculateChipScore(
   let score = 50;
   const details: string[] = [];
 
-  // ── 法人面（權重最高）──
+  // ── 法人面（單位：張）──
   if (inst) {
+    // 外資：買超 > 500張 有意義，> 5000張 很大
     if (inst.foreignBuy > 0) {
-      const pts = Math.min(20, inst.foreignBuy / 50_000_000);
+      const pts = Math.min(20, inst.foreignBuy / 5000);
       score += pts;
-      if (pts >= 5) details.push(`外資買超${(inst.foreignBuy / 1e6).toFixed(0)}M`);
+      if (inst.foreignBuy >= 1000) details.push(`外資買超${inst.foreignBuy.toLocaleString()}張`);
     } else if (inst.foreignBuy < 0) {
-      score += Math.max(-15, inst.foreignBuy / 50_000_000);
-      if (inst.foreignBuy < -50_000_000) details.push(`外資賣超${(Math.abs(inst.foreignBuy) / 1e6).toFixed(0)}M`);
+      score += Math.max(-15, inst.foreignBuy / 5000);
+      if (inst.foreignBuy <= -1000) details.push(`外資賣超${Math.abs(inst.foreignBuy).toLocaleString()}張`);
     }
+    // 投信：買超 > 100張 就有意義（投信量較小但精準）
     if (inst.trustBuy > 0) {
-      score += Math.min(15, inst.trustBuy / 20_000_000);
-      if (inst.trustBuy > 10_000_000) details.push(`投信買超${(inst.trustBuy / 1e6).toFixed(0)}M`);
+      score += Math.min(15, inst.trustBuy / 500);
+      if (inst.trustBuy >= 100) details.push(`投信買超${inst.trustBuy.toLocaleString()}張`);
     } else if (inst.trustBuy < 0) {
-      score += Math.max(-10, inst.trustBuy / 20_000_000);
+      score += Math.max(-10, inst.trustBuy / 500);
+      if (inst.trustBuy <= -100) details.push(`投信賣超${Math.abs(inst.trustBuy).toLocaleString()}張`);
     }
     if (inst.foreignBuy > 0 && inst.trustBuy > 0 && inst.dealerBuy > 0) { score += 10; details.push('三法人同步買超'); }
     if (inst.foreignBuy < 0 && inst.trustBuy < 0 && inst.dealerBuy < 0) { score -= 10; details.push('三法人同步賣超'); }
@@ -191,16 +204,16 @@ function calculateChipScore(
 
   // ── 融資融券面 ──
   if (margin) {
-    if (margin.marginNet < -200) { score += Math.min(5, Math.abs(margin.marginNet) / 500); details.push(`融資減${Math.abs(margin.marginNet)}張`); }
-    if (margin.marginNet > 500) { score -= Math.min(10, margin.marginNet / 500); details.push(`融資增${margin.marginNet}張`); }
+    if (margin.marginNet < -200) { score += Math.min(5, Math.abs(margin.marginNet) / 500); details.push(`融資減${Math.abs(margin.marginNet).toLocaleString()}張`); }
+    if (margin.marginNet > 500) { score -= Math.min(10, margin.marginNet / 500); details.push(`融資增${margin.marginNet.toLocaleString()}張`); }
     if (margin.shortNet > 0 && inst && inst.totalBuy > 0) { score += 3; details.push('軋空機會'); }
     if (margin.marginUtilRate > 60) { score -= 3; details.push(`融資使用率${margin.marginUtilRate}%偏高`); }
   }
 
-  // ── 大額交易人 ──
+  // ── 大額交易人（單位：張）──
   if (lt) {
-    if (lt.net > 0) { score += Math.min(8, lt.net / 100_000_000); details.push(`大戶買超${(lt.net / 1e6).toFixed(0)}M`); }
-    if (lt.net < -100_000_000) { score -= 5; details.push(`大戶賣超${(Math.abs(lt.net) / 1e6).toFixed(0)}M`); }
+    if (lt.net > 0) { score += Math.min(8, lt.net / 5000); if (lt.net >= 500) details.push(`大戶買超${lt.net.toLocaleString()}張`); }
+    if (lt.net < -500) { score -= 5; details.push(`大戶賣超${Math.abs(lt.net).toLocaleString()}張`); }
   }
 
   // ── 當沖面 ──

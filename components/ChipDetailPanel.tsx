@@ -39,7 +39,7 @@ function ValColor({ v, reverse = false }: { v: number; reverse?: boolean }) {
   const neg = reverse ? v > 0 : v < 0;
   return (
     <span className={`font-mono font-bold ${pos ? 'text-red-400' : neg ? 'text-green-400' : 'text-slate-400'}`}>
-      {v > 0 ? '+' : ''}{v === 0 ? '0' : typeof v === 'number' && Math.abs(v) >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v.toLocaleString()}
+      {v > 0 ? '+' : ''}{v === 0 ? '0' : v.toLocaleString()}張
     </span>
   );
 }
@@ -139,9 +139,9 @@ export default function ChipDetailPanel({ symbol, date }: { symbol: string; date
       <div>
         <div className="text-[10px] text-slate-500 mb-1.5 font-medium">三大法人</div>
         <div className="grid grid-cols-3 gap-1.5">
-          <ChipCard label="外資" value={data.foreignBuy} signal={getSignalText(data.foreignBuy, 50_000_000, 10_000_000)} />
-          <ChipCard label="投信" value={data.trustBuy} signal={getSignalText(data.trustBuy, 20_000_000, 5_000_000)} />
-          <ChipCard label="自營商" value={data.dealerBuy} signal={getSignalText(data.dealerBuy, 20_000_000, 5_000_000)} />
+          <ChipCard label="外資" value={data.foreignBuy} signal={getSignalText(data.foreignBuy, 5000, 500)} unit="張" />
+          <ChipCard label="投信" value={data.trustBuy} signal={getSignalText(data.trustBuy, 500, 50)} unit="張" />
+          <ChipCard label="自營商" value={data.dealerBuy} signal={getSignalText(data.dealerBuy, 1000, 100)} unit="張" />
         </div>
         <div className="mt-1 bg-slate-800/60 rounded px-2 py-1 flex justify-between items-center">
           <span className="text-[10px] text-slate-500">法人合計</span>

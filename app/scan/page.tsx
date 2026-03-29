@@ -373,13 +373,13 @@ function calcTradeComposite(t: BacktestTrade): number {
 
 function chipTooltip(r: { foreignBuy?: number; trustBuy?: number; dealerBuy?: number; marginNet?: number; shortNet?: number; dayTradeRatio?: number; largeTraderNet?: number; chipDetail?: string }): string {
   const parts: string[] = [];
-  if (r.foreignBuy != null) parts.push(`外資: ${r.foreignBuy > 0 ? '+' : ''}${(r.foreignBuy / 1e6).toFixed(1)}M`);
-  if (r.trustBuy != null) parts.push(`投信: ${r.trustBuy > 0 ? '+' : ''}${(r.trustBuy / 1e6).toFixed(1)}M`);
-  if (r.dealerBuy != null && r.dealerBuy !== 0) parts.push(`自營: ${r.dealerBuy > 0 ? '+' : ''}${(r.dealerBuy / 1e6).toFixed(1)}M`);
+  if (r.foreignBuy != null) parts.push(`外資: ${r.foreignBuy > 0 ? '+' : ''}${r.foreignBuy.toLocaleString()}張`);
+  if (r.trustBuy != null) parts.push(`投信: ${r.trustBuy > 0 ? '+' : ''}${r.trustBuy.toLocaleString()}張`);
+  if (r.dealerBuy != null && r.dealerBuy !== 0) parts.push(`自營: ${r.dealerBuy > 0 ? '+' : ''}${r.dealerBuy.toLocaleString()}張`);
   if (r.marginNet != null && r.marginNet !== 0) parts.push(`融資: ${r.marginNet > 0 ? '+' : ''}${r.marginNet}張`);
   if (r.shortNet != null && r.shortNet !== 0) parts.push(`融券: ${r.shortNet > 0 ? '+' : ''}${r.shortNet}張`);
   if (r.dayTradeRatio != null && r.dayTradeRatio > 0) parts.push(`當沖: ${r.dayTradeRatio}%`);
-  if (r.largeTraderNet != null && r.largeTraderNet !== 0) parts.push(`大戶: ${r.largeTraderNet > 0 ? '+' : ''}${(r.largeTraderNet / 1e6).toFixed(1)}M`);
+  if (r.largeTraderNet != null && r.largeTraderNet !== 0) parts.push(`大戶: ${r.largeTraderNet > 0 ? '+' : ''}${r.largeTraderNet.toLocaleString()}張`);
   if (r.chipDetail) parts.push(`\n${r.chipDetail}`);
   return parts.join(' | ') || '無籌碼資料';
 }
@@ -1451,18 +1451,7 @@ export default function UnifiedScanPage() {
                             <td className="py-1.5 px-2 text-[10px] text-slate-400 whitespace-nowrap">{r.trendState}</td>
                             <td className="py-1.5 px-2 text-[10px] text-slate-400 whitespace-nowrap">{r.trendPosition}</td>
                             <td className="py-1.5 px-2 text-center whitespace-nowrap">
-                              {r.chipScore != null ? (
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                                  r.chipScore >= 70 ? 'bg-green-900/60 text-green-300' :
-                                  r.chipScore >= 50 ? 'bg-yellow-900/60 text-yellow-300' :
-                                  'bg-red-900/60 text-red-300'
-                                }`} title={`外資: ${r.foreignBuy != null ? (r.foreignBuy > 0 ? '+' : '') + (r.foreignBuy / 1e6).toFixed(1) + 'M' : '?'} | 投信: ${r.trustBuy != null ? (r.trustBuy > 0 ? '+' : '') + (r.trustBuy / 1e6).toFixed(1) + 'M' : '?'} | 融資: ${r.marginNet != null ? (r.marginNet > 0 ? '+' : '') + r.marginNet + '張' : '?'}`}>
-                                  {r.chipSignal === '主力進場' ? '🟢' : r.chipSignal === '主力出貨' ? '🔴' : r.chipSignal === '散戶追高' ? '⚠️' : ''}
-                                  {r.chipGrade}
-                                </span>
-                              ) : (
-                                <span className="text-[10px] text-slate-600">—</span>
-                              )}
+                              {chipBadge(r.chipScore, r.chipGrade, r.chipSignal, chipTooltip(r))}
                             </td>
                             <td className="py-1.5 px-2 text-center whitespace-nowrap">
                               <Link href={`/?load=${r.symbol}`}
@@ -1789,15 +1778,7 @@ export default function UnifiedScanPage() {
                               <td className="py-1.5 px-2 text-[10px] text-slate-400 whitespace-nowrap">{r.trendState}</td>
                               <td className="py-1.5 px-2 text-[10px] text-slate-400 whitespace-nowrap">{r.trendPosition}</td>
                               <td className="py-1.5 px-2 text-center whitespace-nowrap">
-                                {r.chipScore != null ? (
-                                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                                    r.chipScore >= 70 ? 'bg-green-900/60 text-green-300' :
-                                    r.chipScore >= 50 ? 'bg-yellow-900/60 text-yellow-300' :
-                                    'bg-red-900/60 text-red-300'
-                                  }`} title={`外資: ${(r.foreignBuy ?? 0) > 0 ? '+' : ''}${((r.foreignBuy ?? 0) / 1e6).toFixed(1)}M | 融資: ${(r.marginNet ?? 0) > 0 ? '+' : ''}${r.marginNet ?? 0}張`}>
-                                    {r.chipSignal === '主力進場' ? '🟢' : r.chipSignal === '主力出貨' ? '🔴' : ''}{r.chipGrade}
-                                  </span>
-                                ) : <span className="text-[10px] text-slate-600">—</span>}
+                                {chipBadge(r.chipScore, r.chipGrade, r.chipSignal, chipTooltip(r))}
                               </td>
                               {p ? (
                                 <>
