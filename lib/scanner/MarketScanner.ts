@@ -14,6 +14,7 @@ import { computeSeasonality } from '@/lib/analysis/seasonality';
 import { analyzeCrossTimeframe } from '@/lib/analysis/crossTimeframe';
 import { computeRelativeStrength } from '@/lib/analysis/relativeStrength';
 import { analyzeGaps } from '@/lib/analysis/gapAnalysis';
+import { detectCandlePatterns } from '@/lib/analysis/candlePatterns';
 
 const CONCURRENCY = 15; // parallel requests per chunk
 
@@ -213,6 +214,14 @@ export abstract class MarketScanner {
       if (gapResult.compositeAdjust !== 0) {
         composite.compositeScore = Math.max(0, Math.min(100,
           composite.compositeScore + gapResult.compositeAdjust
+        ));
+      }
+
+      // ── Candlestick Patterns ────────────────────────────────────────────
+      const candlePattern = detectCandlePatterns(candles, lastIdx);
+      if (candlePattern.compositeAdjust !== 0) {
+        composite.compositeScore = Math.max(0, Math.min(100,
+          composite.compositeScore + candlePattern.compositeAdjust
         ));
       }
 
