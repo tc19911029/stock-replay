@@ -72,11 +72,11 @@ export const BASE_THRESHOLDS: StrategyThresholds = {
   volumeRatioMin: 1.5,
   kdMaxEntry:     88,
   deviationMax:   0.20,
-  minScore:       5,    // 4→5：更嚴格篩選，減少假信號
+  minScore:       4,    // 基本門檻 4 分
   marketTrendFilter: true,
-  bullMinScore:   4,    // 多頭可以稍寬鬆
-  sidewaysMinScore: 5,  // 盤整要更嚴格
-  bearMinScore:   6,    // 空頭極嚴格（幾乎不選）
+  bullMinScore:   4,    // 多頭正常篩選
+  sidewaysMinScore: 4,  // 盤整也用 4（靠其他條件過濾品質）
+  bearMinScore:   5,    // 空頭嚴格
 };
 
 const ALL_CONDITIONS_ON: StrategyConditionToggles = {
