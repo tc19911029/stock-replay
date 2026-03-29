@@ -11,6 +11,7 @@ import { analyzeSupportResistance } from '@/lib/analysis/supportResistance';
 import { detectVolatilityRegime } from '@/lib/analysis/volatilityRegime';
 import { computeMarketBreadth } from '@/lib/analysis/marketBreadth';
 import { computeSeasonality } from '@/lib/analysis/seasonality';
+import { analyzeCrossTimeframe } from '@/lib/analysis/crossTimeframe';
 
 const CONCURRENCY = 15; // parallel requests per chunk
 
@@ -186,6 +187,14 @@ export abstract class MarketScanner {
       if (seasonality.adjustment !== 0) {
         composite.compositeScore = Math.max(0, Math.min(100,
           composite.compositeScore + seasonality.adjustment
+        ));
+      }
+
+      // ── Cross-Timeframe Confirmation (weekly trend) ─────────────────────
+      const weekly = analyzeCrossTimeframe(candles, lastIdx);
+      if (weekly.compositeAdjust !== 0) {
+        composite.compositeScore = Math.max(0, Math.min(100,
+          composite.compositeScore + weekly.compositeAdjust
         ));
       }
 
