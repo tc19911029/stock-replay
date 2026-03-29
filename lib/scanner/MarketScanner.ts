@@ -8,6 +8,7 @@ import { computeSurgeScore } from '@/lib/analysis/surgeScore';
 import { computeSmartMoneyScore, computeCompositeScore, detectConsecutiveBullish } from '@/lib/analysis/smartMoneyScore';
 import { computeRetailSentiment } from '@/lib/analysis/retailSentiment';
 import { analyzeSupportResistance } from '@/lib/analysis/supportResistance';
+import { detectVolatilityRegime } from '@/lib/analysis/volatilityRegime';
 
 const CONCURRENCY = 15; // parallel requests per chunk
 
@@ -209,6 +210,7 @@ export abstract class MarketScanner {
         compositeScore: composite.compositeScore,
         retailSentiment: sentiment.sentimentScore,
         contrarianSignal: sentiment.contrarianSignal,
+        volatilityRegime: detectVolatilityRegime(candles, lastIdx).regime,
       };
     } catch {
       return null;

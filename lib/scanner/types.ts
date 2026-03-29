@@ -61,6 +61,7 @@ export interface StockScanResult {
   sectorHeat?: number;             // 0-20 bonus from hot sector momentum
   retailSentiment?: number;        // 0-100 (0=panic, 100=euphoria)
   contrarianSignal?: 'bullish' | 'bearish' | null;
+  volatilityRegime?: 'LOW' | 'NORMAL' | 'HIGH' | 'EXTREME';
   // ── AI 排名 ───────────────────────────────────────────────────────────────
   aiRank?: number;
   aiConfidence?: 'high' | 'medium' | 'low';

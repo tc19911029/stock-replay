@@ -38,6 +38,7 @@ export interface TradeSignal {
   compositeScore?:  number; // 綜合排名分數 0-100
   retailSentiment?: number; // 散戶情緒 0-100 (0=panic, 100=euphoria)
   contrarianSignal?: 'bullish' | 'bearish' | null;
+  volatilityRegime?: 'LOW' | 'NORMAL' | 'HIGH' | 'EXTREME';
 }
 
 /**
@@ -71,6 +72,7 @@ export function scanResultToSignal(scanResult: StockScanResult): TradeSignal {
     compositeScore:  scanResult.compositeScore,
     retailSentiment: scanResult.retailSentiment,
     contrarianSignal: scanResult.contrarianSignal,
+    volatilityRegime: scanResult.volatilityRegime,
   };
 }
 
@@ -122,6 +124,21 @@ export function resolveAdaptiveParams(
     if (stopLoss !== null) stopLoss = Math.max(stopLoss, -0.04);
   } else if (signal.contrarianSignal === 'bullish') {
     holdDays = Math.min(holdDays + 1, 10);
+  }
+
+  // Volatility regime adjustments:
+  // HIGH/EXTREME → wider stops, shorter holds
+  // LOW → tighter stops, can hold longer (cleaner trends)
+  const volRegime = signal.volatilityRegime;
+  if (volRegime === 'EXTREME') {
+    if (stopLoss !== null) stopLoss = stopLoss * 1.5; // wider
+    holdDays = Math.max(2, Math.round(holdDays * 0.6));
+  } else if (volRegime === 'HIGH') {
+    if (stopLoss !== null) stopLoss = stopLoss * 1.25;
+    holdDays = Math.max(2, Math.round(holdDays * 0.8));
+  } else if (volRegime === 'LOW') {
+    if (stopLoss !== null) stopLoss = Math.max(stopLoss, stopLoss * 0.75);
+    holdDays = Math.min(10, Math.round(holdDays * 1.2));
   }
 
   return {

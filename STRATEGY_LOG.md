@@ -192,10 +192,38 @@ Score = (Annualized Return% × 0.4) + (Win Rate% × 0.3) - (Max Drawdown% × 0.3
 
 ---
 
+## Round 10 — Volatility Regime Adaptive Parameters (2026-03-29)
+
+**Changes:**
+- Created `volatilityRegime.ts`: ATR percentile, Bollinger width, range ratio analysis
+- 4 regimes: LOW (tight stops, long holds), NORMAL, HIGH (wide stops, short holds), EXTREME (half size)
+- Integrated into BacktestEngine adaptive params: stop/hold/size all adjust by regime
+- Added to scanner output for downstream use
+
+**New Factors:**
+| Factor | Type | Description |
+|--------|------|-------------|
+| ATR Percentile | Volatility | Current ATR rank vs 120-day history |
+| BB Width | Volatility | Bollinger Band width compression/expansion |
+| Range Ratio | Volatility | Recent 5d range vs prior 20d range |
+| Vol Regime | System | Adaptive stops/holds/sizing by regime |
+
+**Regime Adjustments:**
+| Regime | Stop-Loss | Hold Days | Position Size |
+|--------|-----------|-----------|---------------|
+| LOW | ×0.75 (tighter) | ×1.2 (longer) | ×1.1 |
+| NORMAL | ×1.0 | ×1.0 | ×1.0 |
+| HIGH | ×1.25 (wider) | ×0.8 (shorter) | ×0.75 |
+| EXTREME | ×1.5 (widest) | ×0.6 (shortest) | ×0.5 |
+
+**Result:** Committed. Strategy now fully adapts to market volatility environment.
+
+---
+
 ## Pending Improvements
 
 - [ ] Intraday VWAP-based entry optimization
 - [ ] Machine learning signal combination (gradient boosting on all factors)
 - [ ] Cross-market correlation (when TW semi leads, CN semi follows)
 - [ ] Kelly criterion position sizing based on historical win rate
-- [ ] Volatility regime detection (low vol → breakout, high vol → mean revert)
+- [ ] Market breadth indicator (advance/decline ratio) as macro filter
