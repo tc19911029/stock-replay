@@ -125,6 +125,49 @@ def generate_hypothesis(diagnosis: dict, strategy_params: dict) -> dict[str, Any
             "priority": 1,
         })
 
+    # ── 方案 F：新增條件（OBV/週線/RSI/低波動突破）─────────────────────────
+    existing_cond_ids = set()
+    # Note: we don't have strategy.entry_conditions here, but we can check params
+    available_new_conditions = [
+        {
+            "id": "obv_trend",
+            "name": "OBV 趨勢",
+            "description": "OBV > OBV_MA20",
+            "type": "obv_trend",
+            "params": {},
+        },
+        {
+            "id": "weekly_confirm",
+            "name": "週線確認",
+            "description": "收盤 > MA50 且 MA50 上升",
+            "type": "weekly_trend_confirm",
+            "params": {},
+        },
+        {
+            "id": "rsi_zone",
+            "name": "RSI 健康區",
+            "description": "RSI 在 35-75 之間",
+            "type": "rsi_neutral_zone",
+            "params": {"rsi_low": 35, "rsi_high": 75},
+        },
+        {
+            "id": "low_vol_breakout",
+            "name": "低波動突破",
+            "description": "ATR 百分位 < 30 且價格 > MA20",
+            "type": "low_volatility_breakout",
+            "params": {"atr_pct_max": 30},
+        },
+    ]
+
+    for cond in available_new_conditions:
+        candidates.append({
+            "type": "add_condition",
+            "description": f"新增條件「{cond['name']}」（{cond['description']}）",
+            "new_condition": cond,
+            "changes": [f"新增 {cond['name']}"],
+            "priority": 2,
+        })
+
     # ── 方案 C：調整各種參數（永遠可選）────────────────────────────────────
     adjustable_params = [
         ("volume_multiplier", 0.25, 0.5, 5.0, "量能倍數"),
