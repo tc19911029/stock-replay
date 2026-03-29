@@ -170,10 +170,32 @@ Score = (Annualized Return% × 0.4) + (Win Rate% × 0.3) - (Max Drawdown% × 0.3
 
 ---
 
+## Round 9 — Support/Resistance Entry Quality (2026-03-29)
+
+**Changes:**
+- Created `supportResistance.ts`: analyzes swing high/low S/R levels, MA clusters,
+  and breakout patterns to score entry quality
+- Near support: +5-10 composite bonus (better risk/reward)
+- Near resistance: -10 penalty (unless breaking out with volume → +15)
+- Breakout above recent highs with volume: +10 bonus
+- MA support cluster (2+ MAs converging below): +8 bonus
+
+**New Factors:**
+| Factor | Type | Description |
+|--------|------|-------------|
+| Swing S/R Proximity | Technical | Distance to nearest swing high/low levels |
+| MA Support Cluster | Technical | Multiple MAs converging below price = strong floor |
+| Resistance Breakout | Technical | Closing above swing highs with volume = continuation |
+| MA Resistance | Technical | Multiple MAs above price = headwind penalty |
+
+**Result:** Committed. Entry quality now considers support/resistance context.
+
+---
+
 ## Pending Improvements
 
 - [ ] Intraday VWAP-based entry optimization
 - [ ] Machine learning signal combination (gradient boosting on all factors)
 - [ ] Cross-market correlation (when TW semi leads, CN semi follows)
-- [ ] Options flow / put-call ratio as sentiment indicator
 - [ ] Kelly criterion position sizing based on historical win rate
+- [ ] Volatility regime detection (low vol → breakout, high vol → mean revert)

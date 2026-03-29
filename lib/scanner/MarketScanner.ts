@@ -7,6 +7,7 @@ import { ZHU_V1 } from '@/lib/strategy/StrategyConfig';
 import { computeSurgeScore } from '@/lib/analysis/surgeScore';
 import { computeSmartMoneyScore, computeCompositeScore, detectConsecutiveBullish } from '@/lib/analysis/smartMoneyScore';
 import { computeRetailSentiment } from '@/lib/analysis/retailSentiment';
+import { analyzeSupportResistance } from '@/lib/analysis/supportResistance';
 
 const CONCURRENCY = 15; // parallel requests per chunk
 
@@ -162,10 +163,17 @@ export abstract class MarketScanner {
 
       // ── Retail Sentiment Contrarian Filter ──────────────────────────────
       const sentiment = computeRetailSentiment(candles, lastIdx);
-      // Apply contrarian adjustment to composite score
       if (sentiment.compositeAdjust !== 0) {
         composite.compositeScore = Math.max(0, Math.min(100,
           composite.compositeScore + sentiment.compositeAdjust
+        ));
+      }
+
+      // ── Support/Resistance Proximity ────────────────────────────────────
+      const sr = analyzeSupportResistance(candles, lastIdx);
+      if (sr.proximityScore !== 0) {
+        composite.compositeScore = Math.max(0, Math.min(100,
+          composite.compositeScore + sr.proximityScore
         ));
       }
 
