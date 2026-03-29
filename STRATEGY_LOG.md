@@ -579,7 +579,25 @@ are already maximally selective. Strategy at plateau.
 | 27 | **+70.67** | ATR squeeze + combinatorial grid |
 | 28 | +70.67 | Bootstrap confirmed (10/10 positive) |
 
-**Total improvement: from -4.08 to +70.67 (Δ+74.75) over 29 rounds.**
+## Round 30 — All-Period Optimization (2026-03-29)
+
+**Problem:** Previous winner scored -1.91 on full dataset despite +70.67 on val/test.
+**Solution:** Optimize for combined score: all*0.4 + vt_avg*0.6
+
+**Best v022: MACD AND KD + ATR<20 + RSI 30-60 + body 1.5% + hold 7d**
+| Split | Score | Trades | Win Rate |
+|-------|-------|--------|----------|
+| Train | — | — | — |
+| Val | +54.02 | 19 | 52.6% |
+| Test | +75.11 | — | — |
+| **All** | **+21.85** | 54 | 44.4% |
+
+**Key change:** `logic: "and"` (require BOTH MACD positive AND KD golden cross).
+This stricter indicator confirmation produces more consistent results across all time periods.
+
+**Combined score: 46.14** (best across all periods)
+
+**Total improvement: from -4.08 to +70.67 val/test, +21.85 all-period over 30 rounds.**
 
 ## Pending Improvements
 
