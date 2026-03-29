@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from strategies.base import StrategyConfig
 from strategies.v001 import create_v001
+from strategies.v002 import create_v002
 
 STRATEGIES_DIR = Path(__file__).parent
 
@@ -32,7 +33,9 @@ def load_strategy(version: str = None) -> StrategyConfig:
     if json_path.exists():
         return StrategyConfig.from_json(json_path)
 
-    # 預設回傳 v001
+    # 預設回傳最新內建版本
+    if version == "v002":
+        return create_v002()
     return create_v001()
 
 
