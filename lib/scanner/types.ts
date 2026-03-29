@@ -58,6 +58,7 @@ export interface StockScanResult {
   smartMoneyScore?: number;       // 0-100 (institutional flow proxy)
   smartMoneyGrade?: 'S' | 'A' | 'B' | 'C' | 'D';
   compositeScore?: number;        // 0-100 (weighted multi-factor ranking)
+  sectorHeat?: number;             // 0-20 bonus from hot sector momentum
   // ── AI 排名 ───────────────────────────────────────────────────────────────
   aiRank?: number;
   aiConfidence?: 'high' | 'medium' | 'low';

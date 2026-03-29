@@ -248,6 +248,7 @@ export abstract class MarketScanner {
         if (r.status === 'fulfilled' && r.value) results.push(r.value);
       }
     }
+    this.applySectorMomentum(results);
     return { results, marketTrend };
   }
 
@@ -274,12 +275,13 @@ export abstract class MarketScanner {
     for (let i = 0; i < stocks.length; i += CONCURRENCY) {
       if (Date.now() > DEADLINE) {
         console.warn(`[${config.marketId}] Scan timeout after ${results.length} hits from ${i}/${stocks.length} stocks`);
+        this.applySectorMomentum(results);
         const sorted = results.sort((a, b) =>
-          (b.surgeScore ?? 0) !== (a.surgeScore ?? 0)
+          (b.compositeScore ?? 0) !== (a.compositeScore ?? 0)
+            ? (b.compositeScore ?? 0) - (a.compositeScore ?? 0)
+            : (b.surgeScore ?? 0) !== (a.surgeScore ?? 0)
             ? (b.surgeScore ?? 0) - (a.surgeScore ?? 0)
-            : b.sixConditionsScore !== a.sixConditionsScore
-            ? b.sixConditionsScore - a.sixConditionsScore
-            : b.changePercent - a.changePercent
+            : b.sixConditionsScore - a.sixConditionsScore
         );
         return { results: sorted, partial: true, marketTrend };
       }
@@ -292,6 +294,9 @@ export abstract class MarketScanner {
       }
     }
 
+    // ── Sector momentum: hot sectors get bonus ──────────────────────────────
+    this.applySectorMomentum(results);
+
     return {
       results: results.sort((a, b) =>
         (b.compositeScore ?? 0) !== (a.compositeScore ?? 0)
@@ -303,5 +308,43 @@ export abstract class MarketScanner {
       partial: false,
       marketTrend,
     };
+  }
+
+  /**
+   * Sector momentum scoring: when multiple stocks from the same sector/industry
+   * pass the scanner filters, it indicates institutional rotation into that sector.
+   * Hot sectors get a compositeScore bonus (up to +20).
+   *
+   * Thresholds:
+   * - 2 stocks in same sector: +5 bonus
+   * - 3 stocks: +10 bonus
+   * - 4 stocks: +15 bonus
+   * - 5+ stocks: +20 bonus (max)
+   */
+  private applySectorMomentum(results: StockScanResult[]): void {
+    // Group by industry/sector
+    const sectorCounts = new Map<string, number>();
+    for (const r of results) {
+      const sector = r.industry;
+      if (!sector) continue;
+      sectorCounts.set(sector, (sectorCounts.get(sector) ?? 0) + 1);
+    }
+
+    // Apply bonus to stocks in hot sectors
+    for (const r of results) {
+      const sector = r.industry;
+      if (!sector) continue;
+      const count = sectorCounts.get(sector) ?? 0;
+      let bonus = 0;
+      if (count >= 5) bonus = 20;
+      else if (count >= 4) bonus = 15;
+      else if (count >= 3) bonus = 10;
+      else if (count >= 2) bonus = 5;
+
+      if (bonus > 0) {
+        r.sectorHeat = bonus;
+        r.compositeScore = Math.min(100, (r.compositeScore ?? 0) + bonus);
+      }
+    }
   }
 }

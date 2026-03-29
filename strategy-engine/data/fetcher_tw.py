@@ -81,10 +81,31 @@ def _is_cache_valid(path: Path, expire_hours: int = 24) -> bool:
     return (datetime.now() - mtime) < timedelta(hours=expire_hours)
 
 
+def _retry_fetch(fn, max_retries: int = 3, backoff_base: float = 2.0):
+    """
+    Retry wrapper with exponential backoff for network requests.
+    """
+    import time
+    for attempt in range(max_retries):
+        try:
+            result = fn()
+            if result is not None:
+                return result
+        except Exception as e:
+            if attempt < max_retries - 1:
+                wait = backoff_base ** attempt
+                print(f"    ⏳ Retry {attempt + 1}/{max_retries} in {wait:.0f}s... ({e})")
+                time.sleep(wait)
+            else:
+                print(f"    ❌ All {max_retries} retries failed: {e}")
+    return None
+
+
 def fetch_single_stock(symbol: str, days: int = 500, expire_hours: int = 24) -> pd.DataFrame | None:
     """
     抓取單支台股日 K 線數據。
     優先用 FinMind，失敗用 yfinance 備援。
+    含容錯重試機制（最多 3 次指數退避）。
 
     Returns:
         DataFrame with columns: date, open, high, low, close, volume
@@ -99,13 +120,13 @@ def fetch_single_stock(symbol: str, days: int = 500, expire_hours: int = 24) -> 
         except Exception:
             pass
 
-    # 嘗試 FinMind
-    df = _fetch_finmind(symbol, days, cache)
+    # 嘗試 FinMind (with retry)
+    df = _retry_fetch(lambda: _fetch_finmind(symbol, days, cache))
     if df is not None:
         return df
 
-    # 備援 yfinance
-    return _fetch_yfinance(symbol, days, cache)
+    # 備援 yfinance (with retry)
+    return _retry_fetch(lambda: _fetch_yfinance(symbol, days, cache))
 
 
 def _fetch_finmind(symbol: str, days: int, cache: Path) -> pd.DataFrame | None:
