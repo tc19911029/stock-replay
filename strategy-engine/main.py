@@ -20,7 +20,7 @@ from data.resampler import resample
 from strategies.registry import load_strategy, save_strategy, next_version
 from backtest.engine import run_backtest
 from analysis.fundamental import fetch_fundamentals
-from analysis.chip import fetch_chips
+from analysis.chip import fetch_chips, fetch_northbound_flow, score_northbound
 from optimizer.diagnoser import diagnose
 from optimizer.hypothesizer import generate_hypothesis
 from optimizer.mutator import mutate_strategy
@@ -139,6 +139,20 @@ def main():
             except Exception as e:
                 print(f"  ⚠ {market} 籌碼抓取失敗：{e}")
                 chip_data[market] = {}
+
+    # ── 北向資金（A 股市場情緒指標）────────────────────────────────────
+    northbound_data = None
+    northbound_score = {"score": 50.0, "consecutive_days": 0, "signals": []}
+    if "a_shares" in config.get("markets", []):
+        try:
+            northbound_data = fetch_northbound_flow()
+            northbound_score = score_northbound(northbound_data)
+            if northbound_score["signals"]:
+                for sig in northbound_score["signals"]:
+                    print(f"  📈 {sig}")
+            print(f"  北向資金評分：{northbound_score['score']:.0f}/100")
+        except Exception as e:
+            print(f"  ⚠ 北向資金分析失敗：{e}")
 
     # ── 主循環 ────────────────────────────────────────────────────────────
     while not _should_stop:

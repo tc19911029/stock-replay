@@ -59,6 +59,8 @@ export interface StockScanResult {
   smartMoneyGrade?: 'S' | 'A' | 'B' | 'C' | 'D';
   compositeScore?: number;        // 0-100 (weighted multi-factor ranking)
   sectorHeat?: number;             // 0-20 bonus from hot sector momentum
+  retailSentiment?: number;        // 0-100 (0=panic, 100=euphoria)
+  contrarianSignal?: 'bullish' | 'bearish' | null;
   // ── AI 排名 ───────────────────────────────────────────────────────────────
   aiRank?: number;
   aiConfidence?: 'high' | 'medium' | 'low';

@@ -36,6 +36,8 @@ export interface TradeSignal {
   histWinRate?:  number;    // 歷史勝率 %
   smartMoneyScore?: number; // 智慧資金分數 0-100
   compositeScore?:  number; // 綜合排名分數 0-100
+  retailSentiment?: number; // 散戶情緒 0-100 (0=panic, 100=euphoria)
+  contrarianSignal?: 'bullish' | 'bearish' | null;
 }
 
 /**
@@ -67,6 +69,8 @@ export function scanResultToSignal(scanResult: StockScanResult): TradeSignal {
     histWinRate:   scanResult.histWinRate,
     smartMoneyScore: scanResult.smartMoneyScore,
     compositeScore:  scanResult.compositeScore,
+    retailSentiment: scanResult.retailSentiment,
+    contrarianSignal: scanResult.contrarianSignal,
   };
 }
 
@@ -108,6 +112,16 @@ export function resolveAdaptiveParams(
   let stopLoss = baseStrategy.stopLoss;
   if (composite < 40 && stopLoss !== null) {
     stopLoss = Math.max(stopLoss, -0.04); // tighter -4% stop
+  }
+
+  // Contrarian signal adjustments:
+  // Bearish (retail euphoria) → reduce hold days, tighten stops
+  // Bullish (panic capitulation) → can hold longer
+  if (signal.contrarianSignal === 'bearish') {
+    holdDays = Math.max(2, holdDays - 2);
+    if (stopLoss !== null) stopLoss = Math.max(stopLoss, -0.04);
+  } else if (signal.contrarianSignal === 'bullish') {
+    holdDays = Math.min(holdDays + 1, 10);
   }
 
   return {

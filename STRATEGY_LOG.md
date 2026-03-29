@@ -71,10 +71,69 @@ Score = (Annualized Return% × 0.4) + (Win Rate% × 0.3) - (Max Drawdown% × 0.3
 
 ---
 
+## Round 4 — Evaluator + Investment Trust + Strategy Log (2026-03-29)
+
+**Changes:**
+- Created `evaluator.py` with scoring formula implementation
+- Added `score_chip_detailed()` for investment trust consecutive buying analysis
+- Added strategy log tracking
+
+**New Factors:**
+| Factor | Type | Description |
+|--------|------|-------------|
+| Investment Trust Consecutive Buy | Chip | 投信連買 3-5+ days → +8-15 bonus |
+| Foreign Investor Consecutive Buy | Chip | 外資連買 3-5+ days → +5-10 bonus |
+| Chip Concentration | Chip | 三大法人同步買超 → +5 bonus |
+| Strategy Score | System | AnnualReturn×0.4 + WinRate×0.3 - MDD×0.3 |
+
+**Result:** Committed. Self-evaluation loop established.
+
+---
+
+## Round 5 — Sector Momentum + Retry Logic (2026-03-29)
+
+**Changes:**
+- Sector heat detection: multiple stocks from same industry passing = hot sector bonus (+5 to +20)
+- Exponential backoff retry (3 attempts) for all data fetchers (AKShare, FinMind, yfinance)
+
+**New Factors:**
+| Factor | Type | Description |
+|--------|------|-------------|
+| Sector Heat | Sector Rotation | 2 stocks same sector: +5, 3: +10, 4: +15, 5+: +20 |
+| Data Retry | Infrastructure | Exponential backoff prevents data gaps |
+
+**Result:** Committed. Captures sector rotation themes.
+
+---
+
+## Round 6 — Retail Sentiment Contrarian + Northbound Flow + Trend Acceleration (2026-03-29)
+
+**Changes:**
+- Created `retailSentiment.ts`: proxy for margin trading (融資融券) sentiment
+  - Chase-buy detection (FOMO after extended rally)
+  - Panic selling detection (margin calls / forced liquidation)
+  - Volume exhaustion (distribution phase)
+- Created `trendAcceleration.ts`: MA slope acceleration, ROC acceleration, envelope width
+- Northbound capital flow (`fetch_northbound_flow`, `score_northbound`) for A-shares
+- Contrarian adjustments to composite score and adaptive exit params
+
+**New Factors:**
+| Factor | Type | Description |
+|--------|------|-------------|
+| Retail FOMO Chase | Contrarian | Gap-up + vol spike after extended rally → bearish |
+| Panic Capitulation | Contrarian | Vol spike + big red candle near support → bullish |
+| Volume Exhaustion | Contrarian | Price highs + declining volume = distribution |
+| Trend Acceleration | Technical | MA slope rate of change, envelope width change |
+| Northbound Flow | Chip (A-share) | 北向資金連續流入 = 外資看多 |
+
+**Result:** Committed. System now has contrarian + macro flow factors.
+
+---
+
 ## Pending Improvements
 
-- [ ] Investment trust consecutive buying (投信連買) factor for Taiwan
-- [ ] Northbound flow (北向資金) factor for A-shares
-- [ ] Margin trading (融資融券) contrarian signal
-- [ ] Sector rotation detection
-- [ ] Earnings surprise momentum
+- [ ] Earnings surprise momentum (營收年增率)
+- [ ] Intraday VWAP-based entry optimization
+- [ ] Portfolio-level risk parity / max drawdown constraint
+- [ ] Machine learning signal combination (gradient boosting on all factors)
+- [ ] Cross-market correlation (when TW semi leads, CN semi follows)
