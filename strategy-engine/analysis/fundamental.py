@@ -268,6 +268,59 @@ def score_fundamental(data: dict[str, Any] | None) -> float:
     return round(score, 1)
 
 
+def score_fundamental_detailed(data: dict[str, Any] | None) -> dict:
+    """
+    詳細基本面評分，含營收驚喜偵測。
+
+    台股特色：月營收公開，營收年增率連續加速 = 「營收驚喜」。
+    A 股特色：單季淨利年增率 + ROE 趨勢。
+
+    Returns:
+        dict: total_score, revenue_surprise, signals
+    """
+    base_score = score_fundamental(data)
+    result = {
+        "total_score": base_score,
+        "revenue_surprise": False,
+        "revenue_acceleration": False,
+        "high_roe_grower": False,
+        "signals": [],
+    }
+
+    if not data:
+        return result
+
+    rg = data.get("revenue_growth")
+    roe = data.get("roe")
+    eps = data.get("eps")
+
+    # ── 營收驚喜偵測 ──────────────────────────────────────────────────────
+    # Revenue growth > 20% AND positive = surprise
+    if rg is not None and rg > 20:
+        result["revenue_surprise"] = True
+        result["signals"].append(f"營收年增 {rg:.1f}%（驚喜）")
+        result["total_score"] = min(100, base_score + 10)
+
+    # Revenue acceleration: growth > 30% = strong momentum
+    if rg is not None and rg > 30:
+        result["revenue_acceleration"] = True
+        result["signals"].append(f"營收加速成長 {rg:.1f}%")
+        result["total_score"] = min(100, result["total_score"] + 5)
+
+    # ── 高 ROE 成長股 ────────────────────────────────────────────────────
+    if roe is not None and roe > 15 and eps is not None and eps > 2:
+        result["high_roe_grower"] = True
+        result["signals"].append(f"高ROE成長 (ROE={roe:.1f}%, EPS={eps:.1f})")
+        result["total_score"] = min(100, result["total_score"] + 5)
+
+    # ── 營收衰退警告 ──────────────────────────────────────────────────────
+    if rg is not None and rg < -15:
+        result["signals"].append(f"⚠ 營收衰退 {rg:.1f}%")
+        result["total_score"] = max(0, result["total_score"] - 10)
+
+    return result
+
+
 def _safe_float(val) -> float | None:
     """安全轉換為 float"""
     if val is None:

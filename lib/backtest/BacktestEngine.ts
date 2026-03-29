@@ -34,6 +34,11 @@ export interface TradeSignal {
   surgeScore?:   number;    // 飆股潛力分數 0-100
   surgeGrade?:   string;    // 飆股等級 S/A/B/C/D
   histWinRate?:  number;    // 歷史勝率 %
+  smartMoneyScore?: number; // 智慧資金分數 0-100
+  compositeScore?:  number; // 綜合排名分數 0-100
+  retailSentiment?: number; // 散戶情緒 0-100 (0=panic, 100=euphoria)
+  contrarianSignal?: 'bullish' | 'bearish' | null;
+  volatilityRegime?: 'LOW' | 'NORMAL' | 'HIGH' | 'EXTREME';
 }
 
 /**
@@ -63,6 +68,87 @@ export function scanResultToSignal(scanResult: StockScanResult): TradeSignal {
     surgeScore:    scanResult.surgeScore,
     surgeGrade:    scanResult.surgeGrade,
     histWinRate:   scanResult.histWinRate,
+    smartMoneyScore: scanResult.smartMoneyScore,
+    compositeScore:  scanResult.compositeScore,
+    retailSentiment: scanResult.retailSentiment,
+    contrarianSignal: scanResult.contrarianSignal,
+    volatilityRegime: scanResult.volatilityRegime,
+  };
+}
+
+/**
+ * Adaptive exit parameters based on signal quality.
+ * Higher quality signals get longer hold + wider trailing stop.
+ * Lower quality signals get tighter risk management.
+ *
+ * Research basis:
+ * - S/A grade surge stocks benefit from longer holding (capture full trend)
+ * - High composite scores correlate with institutional backing (sticky trends)
+ * - Weak signals should cut losses faster
+ */
+export function resolveAdaptiveParams(
+  signal: TradeSignal,
+  baseStrategy: BacktestStrategyParams,
+): BacktestStrategyParams {
+  const grade = signal.surgeGrade ?? 'C';
+  const composite = signal.compositeScore ?? 50;
+
+  // Adaptive hold days: S=8, A=7, B=5, C/D=4
+  let holdDays = baseStrategy.holdDays;
+  if (grade === 'S') holdDays = Math.max(holdDays, 8);
+  else if (grade === 'A') holdDays = Math.max(holdDays, 7);
+  else if (grade === 'D') holdDays = Math.min(holdDays, 4);
+
+  // Adaptive trailing stop: wider for strong signals, tighter for weak
+  let trailingStop = baseStrategy.trailingStop;
+  let trailingActivate = baseStrategy.trailingActivate;
+  if (composite >= 70 && trailingStop !== null) {
+    trailingStop = Math.max(trailingStop, 0.05);     // wider 5% trailing
+    trailingActivate = trailingActivate !== null ? Math.max(trailingActivate, 0.07) : 0.07;
+  } else if (composite < 40 && trailingStop !== null) {
+    trailingStop = Math.min(trailingStop, 0.02);     // tight 2% trailing
+    trailingActivate = trailingActivate !== null ? Math.min(trailingActivate, 0.03) : 0.03;
+  }
+
+  // Adaptive stop loss: tighter for weak signals
+  let stopLoss = baseStrategy.stopLoss;
+  if (composite < 40 && stopLoss !== null) {
+    stopLoss = Math.max(stopLoss, -0.04); // tighter -4% stop
+  }
+
+  // Contrarian signal adjustments:
+  // Bearish (retail euphoria) → reduce hold days, tighten stops
+  // Bullish (panic capitulation) → can hold longer
+  if (signal.contrarianSignal === 'bearish') {
+    holdDays = Math.max(2, holdDays - 2);
+    if (stopLoss !== null) stopLoss = Math.max(stopLoss, -0.04);
+  } else if (signal.contrarianSignal === 'bullish') {
+    holdDays = Math.min(holdDays + 1, 10);
+  }
+
+  // Volatility regime adjustments:
+  // HIGH/EXTREME → wider stops, shorter holds
+  // LOW → tighter stops, can hold longer (cleaner trends)
+  const volRegime = signal.volatilityRegime;
+  if (volRegime === 'EXTREME') {
+    if (stopLoss !== null) stopLoss = stopLoss * 1.5; // wider
+    holdDays = Math.max(2, Math.round(holdDays * 0.6));
+  } else if (volRegime === 'HIGH') {
+    if (stopLoss !== null) stopLoss = stopLoss * 1.25;
+    holdDays = Math.max(2, Math.round(holdDays * 0.8));
+  } else if (volRegime === 'LOW') {
+    // Low volatility = strongest setup (Python optimization finding).
+    // Tighter stops work because noise is low; hold longer for follow-through.
+    if (stopLoss !== null) stopLoss = Math.max(stopLoss, stopLoss * 0.75);
+    holdDays = Math.min(12, Math.round(holdDays * 1.3));
+  }
+
+  return {
+    ...baseStrategy,
+    holdDays,
+    trailingStop,
+    trailingActivate,
+    stopLoss,
   };
 }
 
@@ -360,7 +446,9 @@ export function runBatchBacktest(
 
   for (const result of scanResults) {
     const candles = forwardCandlesMap[result.symbol] ?? [];
-    const trade   = runSingleBacktest(scanResultToSignal(result), candles, strategy);
+    const signal = scanResultToSignal(result);
+    const adaptiveStrategy = resolveAdaptiveParams(signal, strategy);
+    const trade   = runSingleBacktest(signal, candles, adaptiveStrategy);
     if (trade) trades.push(trade);
     else skippedCount++;
   }
@@ -481,12 +569,14 @@ export interface CapitalConstraints {
   initialCapital:  number;  // 初始資金（元），例如 1_000_000
   maxPositions:    number;  // 最多同時持倉數，例如 3
   positionSizePct: number;  // 每筆倉位佔初始資金比例，例如 0.1 = 10%
+  maxPerSector?:   number;  // 同一產業最多持倉數（防集中風險）
 }
 
 export const DEFAULT_CAPITAL: CapitalConstraints = {
   initialCapital:  1_000_000,
   maxPositions:    5,
   positionSizePct: 0.1,
+  maxPerSector:    2,       // 同產業最多 2 檔
 };
 
 /**
@@ -512,8 +602,9 @@ export function runBatchBacktestWithCapital(
   finalCapital:      number;   // 模擬結束後資金
   capitalReturn:     number;   // 整體資金報酬率 %
 } {
-  // 依綜合分排序（六條件35% + 潛力25% + 勝率20% + 位置10% + 量能10%）
+  // 依綜合分排序：優先使用 compositeScore（含 smart money），否則 fallback 舊邏輯
   function calcComposite(r: StockScanResult): number {
+    if (r.compositeScore != null) return r.compositeScore;
     const sixCon = (r.sixConditionsScore / 6) * 100;
     const surge  = r.surgeScore ?? 0;
     const winR   = r.histWinRate ?? 50;
@@ -527,8 +618,24 @@ export function runBatchBacktestWithCapital(
     (a, b) => calcComposite(b) - calcComposite(a),
   );
 
-  const eligible  = sorted.slice(0, constraints.maxPositions);
-  const excluded  = sorted.length - eligible.length;
+  // Apply sector concentration limit: pick top stocks but limit per-sector exposure
+  const maxPerSector = constraints.maxPerSector ?? Infinity;
+  const sectorCount = new Map<string, number>();
+  const eligible: StockScanResult[] = [];
+  let skippedBySector = 0;
+
+  for (const r of sorted) {
+    if (eligible.length >= constraints.maxPositions) break;
+    const sector = r.industry ?? '__unknown__';
+    const count = sectorCount.get(sector) ?? 0;
+    if (count >= maxPerSector) {
+      skippedBySector++;
+      continue;
+    }
+    sectorCount.set(sector, count + 1);
+    eligible.push(r);
+  }
+  const excluded = sorted.length - eligible.length - skippedBySector;
 
   const trades: BacktestTrade[] = [];
   let skippedCount = 0;
@@ -536,15 +643,22 @@ export function runBatchBacktestWithCapital(
 
   for (const result of eligible) {
     const candles = forwardCandlesMap[result.symbol] ?? [];
-    const trade   = runSingleBacktest(scanResultToSignal(result), candles, strategy);
+    const signal = scanResultToSignal(result);
+    const adaptiveStrategy = resolveAdaptiveParams(signal, strategy);
+    const trade   = runSingleBacktest(signal, candles, adaptiveStrategy);
 
     if (!trade) {
       skippedCount++;
       continue;
     }
 
-    // 以 positionSizePct * initialCapital 作為名義本金計算損益
-    const positionNominal = constraints.initialCapital * constraints.positionSizePct;
+    // Dynamic position sizing: higher composite → larger allocation (±30%)
+    const composite = result.compositeScore ?? 50;
+    const sizeMult = composite >= 75 ? 1.3
+                   : composite >= 60 ? 1.1
+                   : composite < 40  ? 0.7
+                   : 1.0;
+    const positionNominal = constraints.initialCapital * constraints.positionSizePct * sizeMult;
     const dollarPnL = (trade.netReturn / 100) * positionNominal;
     capital += dollarPnL;
 

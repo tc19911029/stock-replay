@@ -82,6 +82,24 @@ def _is_cache_valid(path: Path, expire_hours: int = 24) -> bool:
     return (datetime.now() - mtime) < timedelta(hours=expire_hours)
 
 
+def _retry_fetch(fn, max_retries: int = 3, backoff_base: float = 2.0):
+    """Retry wrapper with exponential backoff."""
+    import time
+    for attempt in range(max_retries):
+        try:
+            result = fn()
+            if result is not None:
+                return result
+        except Exception as e:
+            if attempt < max_retries - 1:
+                wait = backoff_base ** attempt
+                print(f"    ⏳ Retry {attempt + 1}/{max_retries} in {wait:.0f}s... ({e})")
+                time.sleep(wait)
+            else:
+                print(f"    ❌ All {max_retries} retries failed: {e}")
+    return None
+
+
 def fetch_single_stock(symbol: str, days: int = 500, expire_hours: int = 24) -> pd.DataFrame | None:
     """
     抓取單支 A 股日 K 線數據。
@@ -100,8 +118,8 @@ def fetch_single_stock(symbol: str, days: int = 500, expire_hours: int = 24) -> 
         except Exception:
             pass
 
-    # 從 AKShare 抓取
-    try:
+    # 從 AKShare 抓取 (with retry)
+    def _try_akshare():
         import akshare as ak
         end_date = datetime.now().strftime("%Y%m%d")
         start_date = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
@@ -117,7 +135,6 @@ def fetch_single_stock(symbol: str, days: int = 500, expire_hours: int = 24) -> 
         if df is None or df.empty:
             return None
 
-        # 統一欄位名
         df = df.rename(columns={
             "日期": "date",
             "开盘": "open",
@@ -130,14 +147,15 @@ def fetch_single_stock(symbol: str, days: int = 500, expire_hours: int = 24) -> 
         df["date"] = pd.to_datetime(df["date"])
         df = df[["date", "open", "high", "low", "close", "volume"]].sort_values("date").reset_index(drop=True)
 
-        # 存入快取
         df.to_csv(cache, index=False)
         return df
 
-    except Exception as e:
-        print(f"  ⚠ A 股 {symbol} 抓取失敗：{e}")
-        # 嘗試 yfinance 備援
-        return _fetch_yfinance_fallback(symbol, days, cache)
+    df = _retry_fetch(_try_akshare)
+    if df is not None:
+        return df
+
+    # yfinance fallback (with retry)
+    return _retry_fetch(lambda: _fetch_yfinance_fallback(symbol, days, cache))
 
 
 def _fetch_yfinance_fallback(symbol: str, days: int, cache: Path) -> pd.DataFrame | None:

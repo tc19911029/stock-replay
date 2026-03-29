@@ -198,3 +198,197 @@ def score_chip(chip_df: pd.DataFrame | None, market: str = "tw_stocks") -> float
         score += 15
 
     return round(min(100, score), 1)
+
+
+def score_chip_detailed(chip_df: pd.DataFrame | None, market: str = "tw_stocks") -> dict:
+    """
+    詳細籌碼面評分，包含子因子分析。
+
+    Returns:
+        dict with: total_score, sub_scores, signals
+    """
+    base_score = score_chip(chip_df, market)
+
+    result = {
+        "total_score": base_score,
+        "trust_consecutive_buy": 0,    # 投信連買天數
+        "foreign_consecutive_buy": 0,  # 外資連買天數
+        "chip_concentration": 0,       # 籌碼集中度 0-100
+        "signals": [],
+    }
+
+    if chip_df is None or len(chip_df) < 5:
+        return result
+
+    if market == "tw_stocks":
+        # ── 投信連買天數（台股最強因子之一）──────────────────────────────────
+        if "trust_net" in chip_df.columns:
+            trust_vals = chip_df["trust_net"].values
+            consec = 0
+            for v in reversed(trust_vals):
+                if v > 0:
+                    consec += 1
+                else:
+                    break
+            result["trust_consecutive_buy"] = consec
+
+            if consec >= 5:
+                result["signals"].append(f"投信連買 {consec} 天（強力作帳訊號）")
+                result["total_score"] = min(100, base_score + 15)
+            elif consec >= 3:
+                result["signals"].append(f"投信連買 {consec} 天")
+                result["total_score"] = min(100, base_score + 8)
+
+        # ── 外資連買天數 ──────────────────────────────────────────────────────
+        if "foreign_net" in chip_df.columns:
+            foreign_vals = chip_df["foreign_net"].values
+            consec = 0
+            for v in reversed(foreign_vals):
+                if v > 0:
+                    consec += 1
+                else:
+                    break
+            result["foreign_consecutive_buy"] = consec
+
+            if consec >= 5:
+                result["signals"].append(f"外資連買 {consec} 天")
+                result["total_score"] = min(100, result["total_score"] + 10)
+            elif consec >= 3:
+                result["signals"].append(f"外資連買 {consec} 天")
+                result["total_score"] = min(100, result["total_score"] + 5)
+
+        # ── 籌碼集中度（三大法人同步買超）──────────────────────────────────
+        if all(c in chip_df.columns for c in ["foreign_net", "trust_net", "dealer_net"]):
+            last5 = chip_df.tail(5)
+            all_buy_days = 0
+            for _, row in last5.iterrows():
+                if row["foreign_net"] > 0 and row["trust_net"] > 0:
+                    all_buy_days += 1
+            concentration = int(all_buy_days / 5 * 100)
+            result["chip_concentration"] = concentration
+            if concentration >= 60:
+                result["signals"].append(f"三大法人同步買超 {all_buy_days}/5 天")
+                result["total_score"] = min(100, result["total_score"] + 5)
+
+    elif market == "a_shares":
+        # ── 主力連買天數 ──────────────────────────────────────────────────────
+        if "main_net" in chip_df.columns:
+            main_vals = chip_df["main_net"].values
+            consec = 0
+            for v in reversed(main_vals):
+                if v > 0:
+                    consec += 1
+                else:
+                    break
+
+            if consec >= 5:
+                result["signals"].append(f"主力連買 {consec} 天")
+                result["total_score"] = min(100, base_score + 15)
+            elif consec >= 3:
+                result["signals"].append(f"主力連買 {consec} 天")
+                result["total_score"] = min(100, base_score + 8)
+
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 北向資金 / Northbound Flow (A-shares via Stock Connect)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def fetch_northbound_flow(days: int = 20) -> pd.DataFrame | None:
+    """
+    抓取北向資金（滬股通+深股通）近期資金流向。
+    北向資金連續流入 = 外資看多 A 股，具強力指標意義。
+
+    Returns:
+        DataFrame: date, north_net (億元)
+    """
+    cache = CACHE_DIR / "northbound_flow.csv"
+    if cache.exists():
+        mtime = datetime.fromtimestamp(cache.stat().st_mtime)
+        if (datetime.now() - mtime) < timedelta(hours=12):
+            try:
+                return pd.read_csv(cache, parse_dates=["date"])
+            except Exception:
+                pass
+
+    try:
+        import akshare as ak
+        df = ak.stock_hsgt_north_net_flow_in_em()
+        if df is None or df.empty:
+            return None
+
+        result = pd.DataFrame()
+        result["date"] = pd.to_datetime(df["日期"])
+        result["north_net"] = pd.to_numeric(df.get("当日净流入", 0), errors="coerce").fillna(0)
+        result = result.sort_values("date").tail(days).reset_index(drop=True)
+
+        result.to_csv(cache, index=False)
+        return result
+
+    except Exception as e:
+        print(f"  ⚠ 北向資金數據抓取失敗：{e}")
+        return None
+
+
+def score_northbound(north_df: pd.DataFrame | None) -> dict:
+    """
+    北向資金評分（A 股專用）。
+
+    Returns:
+        dict: score (0-100), consecutive_days, signals
+    """
+    result_dict = {"score": 50.0, "consecutive_days": 0, "signals": []}
+
+    if north_df is None or len(north_df) < 5:
+        return result_dict
+
+    values = north_df["north_net"].values
+
+    consec = 0
+    for v in reversed(values):
+        if v > 0:
+            consec += 1
+        else:
+            break
+    result_dict["consecutive_days"] = consec
+
+    score = 50.0
+
+    # 近 5 日淨流入天數 (40%)
+    last5 = values[-5:]
+    inflow_days = sum(1 for v in last5 if v > 0)
+    if inflow_days >= 4:
+        score += 25
+    elif inflow_days >= 3:
+        score += 15
+    elif inflow_days >= 2:
+        score += 5
+
+    # 近 10 日累積流入 (30%)
+    last10 = values[-10:] if len(values) >= 10 else values
+    total = sum(last10)
+    if total > 50:
+        score += 20
+        result_dict["signals"].append(f"北向10日累積淨流入 {total:.0f}億")
+    elif total > 0:
+        score += 10
+
+    # 加速度 (30%)
+    if len(values) >= 10:
+        recent = sum(values[-5:])
+        prev = sum(values[-10:-5])
+        if recent > prev and recent > 0:
+            score += 20
+            result_dict["signals"].append("北向資金加速流入")
+        elif recent > 0:
+            score += 10
+
+    if consec >= 5:
+        result_dict["signals"].append(f"北向連續 {consec} 天淨流入（強力看多）")
+        score += 10
+    elif consec >= 3:
+        result_dict["signals"].append(f"北向連續 {consec} 天淨流入")
+
+    result_dict["score"] = min(100, score)
+    return result_dict

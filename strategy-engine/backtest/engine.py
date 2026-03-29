@@ -42,38 +42,66 @@ def run_backtest(
     all_trades = []
     per_stock = {}
 
-    # 基本面/籌碼面過濾門檻
+    # Multi-factor scoring mode (v3): weighted scoring instead of binary filter
     use_fundamental = strategy.parameters.get("use_fundamental_filter", False)
     min_fundamental_score = strategy.parameters.get("min_fundamental_score", 40)
     use_chip = strategy.parameters.get("use_chip_filter", False)
     min_chip_score = strategy.parameters.get("min_chip_score", 40)
+    use_weighted_scoring = strategy.parameters.get("use_weighted_scoring", False)
 
     for symbol, df in data.items():
         if len(df) < 60:
             continue
 
-        # 基本面過濾
-        if use_fundamental and fundamental_data:
-            from analysis.fundamental import score_fundamental
-            f_score = score_fundamental(fundamental_data.get(symbol))
-            if f_score < min_fundamental_score:
+        # Calculate multi-factor bonus scores
+        f_score = 50.0
+        c_score = 50.0
+
+        if fundamental_data:
+            from analysis.fundamental import score_fundamental, score_fundamental_detailed
+            f_detail = score_fundamental_detailed(fundamental_data.get(symbol))
+            f_score = f_detail.get("total_score", score_fundamental(fundamental_data.get(symbol)))
+
+        if chip_data:
+            from analysis.chip import score_chip, score_chip_detailed
+            chip_detail = score_chip_detailed(chip_data.get(symbol), market)
+            c_score = chip_detail.get("total_score", score_chip(chip_data.get(symbol), market))
+
+        if use_weighted_scoring:
+            # Weighted scoring mode: chip + fundamental influence signal quality,
+            # not binary filter. Low scores penalize signal strength instead of
+            # removing the stock entirely.
+            # Only skip if both scores are very low (< 25)
+            if f_score < 25 and c_score < 25:
+                per_stock[symbol] = {
+                    "skipped": "multi_factor_too_weak",
+                    "f_score": f_score,
+                    "c_score": c_score,
+                }
+                continue
+        else:
+            # Legacy binary filter mode
+            if use_fundamental and f_score < min_fundamental_score:
                 per_stock[symbol] = {"skipped": "fundamental", "score": f_score}
                 continue
-
-        # 籌碼面過濾
-        if use_chip and chip_data:
-            from analysis.chip import score_chip
-            c_score = score_chip(chip_data.get(symbol), market)
-            if c_score < min_chip_score:
+            if use_chip and c_score < min_chip_score:
                 per_stock[symbol] = {"skipped": "chip", "score": c_score}
                 continue
 
         try:
-            trades = _backtest_single(strategy, df, symbol, split, train_ratio, val_ratio, cost_config)
+            # Pass multi-factor scores to single backtest for adaptive hold days
+            multi_factor_bonus = _calc_multi_factor_bonus(f_score, c_score)
+            trades = _backtest_single(
+                strategy, df, symbol, split, train_ratio, val_ratio,
+                cost_config, multi_factor_bonus=multi_factor_bonus,
+            )
             all_trades.extend(trades)
             per_stock[symbol] = {
                 "trade_count": len(trades),
                 "wins": sum(1 for t in trades if t["net_return"] > 0),
+                "f_score": round(f_score, 1),
+                "c_score": round(c_score, 1),
+                "multi_factor_bonus": round(multi_factor_bonus, 2),
             }
         except Exception as e:
             per_stock[symbol] = {"error": str(e)}
@@ -89,6 +117,22 @@ def run_backtest(
     }
 
 
+def _calc_multi_factor_bonus(f_score: float, c_score: float) -> float:
+    """
+    Calculate multi-factor bonus from fundamental + chip scores.
+
+    Returns a bonus multiplier (0.0 to 1.0):
+    - 1.0 = strong fundamental + chip support → longer hold, wider stop
+    - 0.5 = neutral
+    - 0.0 = weak → shorter hold, tighter stop
+
+    This replaces the binary filter with a graduated quality signal.
+    """
+    # Weighted: chip 60% (more timely), fundamental 40% (more stable)
+    weighted = c_score * 0.6 + f_score * 0.4
+    return max(0.0, min(1.0, weighted / 100.0))
+
+
 def _backtest_single(
     strategy: StrategyConfig,
     df: pd.DataFrame,
@@ -97,13 +141,14 @@ def _backtest_single(
     train_ratio: float,
     val_ratio: float,
     cost_config: dict,
+    multi_factor_bonus: float = 0.5,
 ) -> list[dict]:
     """單支股票回測"""
 
     # 1. 計算技術指標
     df_ind = compute_all_indicators(df)
 
-    # 2. 時間切分
+    # 2. ��間切分
     n = len(df_ind)
     if split == "train":
         df_ind = df_ind.iloc[:int(n * train_ratio)]
@@ -127,10 +172,44 @@ def _backtest_single(
     signal_mask = cond_df["total_score"] >= min_score
     signal_indices = df_ind.index[signal_mask].tolist()
 
-    # 5. 模擬交易
-    hold_days = strategy.parameters.get("hold_days", 5)
-    stop_loss_pct = strategy.parameters.get("stop_loss_pct", -0.07)
+    # 5. 模擬交易 with adaptive parameters based on multi-factor bonus
+    base_hold_days = strategy.parameters.get("hold_days", 5)
+    base_stop_loss = strategy.parameters.get("stop_loss_pct", -0.07)
     slippage = cost_config.get("slippage", 0.001)
+
+    # Volatility regime adjustment
+    if "atr_pct" in df_ind.columns and len(df_ind) > 0:
+        last_atr_pct = df_ind["atr_pct"].iloc[-1]
+        if pd.notna(last_atr_pct):
+            if last_atr_pct >= 90:  # EXTREME
+                base_stop_loss = base_stop_loss * 1.5
+                base_hold_days = max(2, int(base_hold_days * 0.6))
+            elif last_atr_pct >= 70:  # HIGH
+                base_stop_loss = base_stop_loss * 1.25
+                base_hold_days = max(2, int(base_hold_days * 0.8))
+            elif last_atr_pct <= 20:  # LOW
+                base_stop_loss = base_stop_loss * 0.75
+                base_hold_days = min(10, int(base_hold_days * 1.2))
+
+    # Adaptive hold days: strong multi-factor → hold longer
+    # bonus 0.8+ → +3 days, 0.6-0.8 → +1, 0.4-0.6 → 0, <0.4 → -1
+    if multi_factor_bonus >= 0.8:
+        hold_days = base_hold_days + 3
+        stop_loss_pct = base_stop_loss * 0.85  # wider stop (less negative)
+    elif multi_factor_bonus >= 0.6:
+        hold_days = base_hold_days + 1
+        stop_loss_pct = base_stop_loss
+    elif multi_factor_bonus >= 0.4:
+        hold_days = base_hold_days
+        stop_loss_pct = base_stop_loss
+    else:
+        hold_days = max(2, base_hold_days - 1)
+        stop_loss_pct = base_stop_loss * 1.15  # tighter stop (more negative)
+
+    # Take-profit and trailing stop parameters
+    take_profit_pct = strategy.parameters.get("take_profit_pct", None)  # e.g., 0.08 for 8%
+    trailing_stop_pct = strategy.parameters.get("trailing_stop_pct", None)  # e.g., 0.05 for 5% from peak
+
     trades = []
 
     i = 0
@@ -148,11 +227,12 @@ def _backtest_single(
         entry_price = entry_row["open"] * (1 + slippage)
         entry_date = str(entry_row["date"])[:10] if pd.notna(entry_row["date"]) else ""
 
-        # 出場邏輯：持有 N 天或觸發停損
+        # 出場邏輯：持有 N 天或觸發停損/停利/移動停損
         exit_price = None
         exit_date = ""
         exit_reason = "hold_days"
         hold = 0
+        peak_price = entry_price  # Track highest price for trailing stop
 
         for j in range(1, hold_days + 1):
             check_pos = entry_pos + j
@@ -162,14 +242,38 @@ def _backtest_single(
             row = df_ind.iloc[check_pos]
             hold += 1
 
-            # 停損檢查（盤中最低價）
+            # Update peak price (using intraday high)
+            if row["high"] > peak_price:
+                peak_price = row["high"]
+
             if entry_price > 0:
+                # 停損檢查（盤中最低價）
                 intraday_low_ret = (row["low"] - entry_price) / entry_price
                 if intraday_low_ret <= stop_loss_pct:
                     exit_price = entry_price * (1 + stop_loss_pct)
                     exit_date = str(row["date"])[:10] if pd.notna(row["date"]) else ""
                     exit_reason = "stop_loss"
                     break
+
+                # 停利檢查（盤中最高價）
+                if take_profit_pct is not None:
+                    intraday_high_ret = (row["high"] - entry_price) / entry_price
+                    if intraday_high_ret >= take_profit_pct:
+                        exit_price = entry_price * (1 + take_profit_pct)
+                        exit_date = str(row["date"])[:10] if pd.notna(row["date"]) else ""
+                        exit_reason = "take_profit"
+                        break
+
+                # 移動停損檢查（從最高點回落超過 trailing_stop_pct）
+                if trailing_stop_pct is not None and peak_price > entry_price:
+                    drawdown_from_peak = (row["low"] - peak_price) / peak_price
+                    if drawdown_from_peak <= -trailing_stop_pct:
+                        exit_price = peak_price * (1 - trailing_stop_pct)
+                        # Don't exit below entry stop loss
+                        exit_price = max(exit_price, entry_price * (1 + stop_loss_pct))
+                        exit_date = str(row["date"])[:10] if pd.notna(row["date"]) else ""
+                        exit_reason = "trailing_stop"
+                        break
 
             # 持有到期
             if j == hold_days:
@@ -211,6 +315,8 @@ def _backtest_single(
             "cost_pct": round(cost * 100, 4),
             "score": int(cond_row["total_score"]),
             "conditions_met": conditions_met,
+            "multi_factor_bonus": round(multi_factor_bonus, 2),
+            "adaptive_hold_days": hold_days,
         })
 
         # 跳過持有期間的信號（避免重複進場）

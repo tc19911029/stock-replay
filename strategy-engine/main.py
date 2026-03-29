@@ -20,12 +20,13 @@ from data.resampler import resample
 from strategies.registry import load_strategy, save_strategy, next_version
 from backtest.engine import run_backtest
 from analysis.fundamental import fetch_fundamentals
-from analysis.chip import fetch_chips
+from analysis.chip import fetch_chips, fetch_northbound_flow, score_northbound
 from optimizer.diagnoser import diagnose
 from optimizer.hypothesizer import generate_hypothesis
 from optimizer.mutator import mutate_strategy
 from optimizer.comparator import compare
 from experiments.tracker import log_round, write_report, log_error
+from evaluator import calc_strategy_score, format_score_report, compare_scores
 
 # ── 全域狀態 ──────────────────────────────────────────────────────────────────
 _should_stop = False
@@ -139,6 +140,20 @@ def main():
                 print(f"  ⚠ {market} 籌碼抓取失敗：{e}")
                 chip_data[market] = {}
 
+    # ── 北向資金（A 股市場情緒指標）────────────────────────────────────
+    northbound_data = None
+    northbound_score = {"score": 50.0, "consecutive_days": 0, "signals": []}
+    if "a_shares" in config.get("markets", []):
+        try:
+            northbound_data = fetch_northbound_flow()
+            northbound_score = score_northbound(northbound_data)
+            if northbound_score["signals"]:
+                for sig in northbound_score["signals"]:
+                    print(f"  📈 {sig}")
+            print(f"  北向資金評分：{northbound_score['score']:.0f}/100")
+        except Exception as e:
+            print(f"  ⚠ 北向資金分析失敗：{e}")
+
     # ── 主循環 ────────────────────────────────────────────────────────────
     while not _should_stop:
         print(f"\n{'=' * 60}")
@@ -198,24 +213,65 @@ def main():
                     new_val = run_backtest(new_strategy, market_data, market, "validation", train_ratio, val_ratio, fundamental_data=fundamental_data.get(market, {}), chip_data=chip_data.get(market, {}))
                     new_results[key] = {"train": new_train, "validation": new_val}
 
-            # 7. 比較
+            # 7. 用 evaluator 計算得分
+            old_all_trades = []
+            new_all_trades = []
+            for key in results:
+                old_all_trades.extend(results[key].get("validation", {}).get("trades", []))
+            for key in new_results:
+                new_all_trades.extend(new_results[key].get("validation", {}).get("trades", []))
+
+            from backtest.metrics import calc_metrics as _calc_m
+            old_metrics = _calc_m(old_all_trades)
+            new_metrics = _calc_m(new_all_trades)
+            old_eval = calc_strategy_score(old_metrics)
+            new_eval = calc_strategy_score(new_metrics)
+
+            print(f"\n{format_score_report(old_eval, strategy.version, 'current')}")
+            print(f"\n{format_score_report(new_eval, new_strategy.version, 'new')}")
+
+            score_comparison = compare_scores(old_eval, new_eval)
+            print(f"\n  得分差異: {score_comparison['diff']:+.2f} "
+                  f"(報酬 {score_comparison['return_diff']:+.1f}%, "
+                  f"勝率 {score_comparison['winrate_diff']:+.1f}%, "
+                  f"MDD {score_comparison['drawdown_diff']:+.1f}%)")
+
+            # 8. 比較（使用 evaluator 結果）
             comparison = compare(results, new_results)
-            is_better = comparison.get("is_better", False)
+            is_better = score_comparison.get("is_better", False) or comparison.get("is_better", False)
             print(f"  {'✅ 新版本更好！' if is_better else '❌ 新版本沒有改善'} — {comparison.get('reason', '')}")
 
-            # 8. 決定是否升級
+            # 9. 決定是否升級
             if is_better:
                 save_strategy(new_strategy)
                 no_improvement_count = 0
-                print(f"  🎉 升級至 {new_strategy.version}")
+                best_score = new_eval["total_score"]
+                print(f"  🎉 升級至 {new_strategy.version}（得分 {best_score:.2f}）")
             else:
                 no_improvement_count += 1
                 print(f"  ⏸ 維持 {strategy.version}（連續 {no_improvement_count} 輪無改善）")
 
-            # 9. 記錄
+            # 10. 記錄
             log_round(round_number, strategy, new_strategy, diagnosis, hypothesis, comparison, results, new_results)
             report_path = write_report(round_number, diagnosis, comparison, strategy.version, new_strategy.version)
             print(f"  📝 報告已存至 {report_path}")
+
+            # 記錄評分到 log
+            try:
+                eval_log = Path(__file__).parent / "experiments" / "eval_scores.jsonl"
+                import json
+                with open(eval_log, "a", encoding="utf-8") as f:
+                    f.write(json.dumps({
+                        "round": round_number,
+                        "timestamp": datetime.now().isoformat(),
+                        "old_version": strategy.version,
+                        "new_version": new_strategy.version,
+                        "old_score": old_eval,
+                        "new_score": new_eval,
+                        "is_better": is_better,
+                    }, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
 
         except Exception as e:
             print(f"  ❌ 第 {round_number} 輪出錯：{e}")

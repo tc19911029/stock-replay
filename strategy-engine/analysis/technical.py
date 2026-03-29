@@ -69,6 +69,26 @@ def compute_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
     out["body_pct"] = body / out["close"].shift(1).replace(0, np.nan)  # 實體佔前日收盤的比例
     out["is_red"]   = (out["close"] > out["open"]).astype(int)
 
+    # ── ATR (14) — 波動率 ──────────────────────────────────────────────
+    tr = pd.concat([
+        out["high"] - out["low"],
+        (out["high"] - out["close"].shift(1)).abs(),
+        (out["low"] - out["close"].shift(1)).abs(),
+    ], axis=1).max(axis=1)
+    out["atr14"] = tr.rolling(14).mean()
+
+    # ── OBV (On-Balance Volume) — 籌碼流向代理 ──────────────────────────
+    direction = np.where(out["close"] > out["close"].shift(1), 1,
+                np.where(out["close"] < out["close"].shift(1), -1, 0))
+    out["obv"] = (out["volume"] * direction).cumsum()
+    out["obv_ma20"] = out["obv"].rolling(20).mean()
+
+    # ── 波動率百分位 (120 日) ─────────────────────────────────────────────
+    out["atr_pct"] = out["atr14"].rolling(120).rank(pct=True) * 100
+
+    # ── 週線 MA10 (≈ 日線 MA50) 簡化版 ──────────────────────────────────
+    out["ma50"] = out["close"].rolling(50).mean()
+
     return out
 
 
@@ -128,6 +148,48 @@ def evaluate_conditions(df: pd.DataFrame, conditions: list[dict], params: dict) 
                 result[f"cond_{cid}"] = macd_ok | kd_ok
             else:
                 result[f"cond_{cid}"] = macd_ok & kd_ok
+
+        elif ctype == "obv_trend":
+            # OBV 趨勢：OBV 在其 MA20 之上 = 資金持續流入
+            result[f"cond_{cid}"] = (df["obv"] > df["obv_ma20"])
+
+        elif ctype == "low_volatility_breakout":
+            # 低波動突破：ATR 百分位 < 30 且價格突破 MA20
+            threshold = cp.get("atr_pct_max", 30)
+            result[f"cond_{cid}"] = (df["atr_pct"] < threshold) & (df["close"] > df["ma20"])
+
+        elif ctype == "weekly_trend_confirm":
+            # 週線趨勢確認（簡化版）：價格 > MA50 且 MA50 上升
+            result[f"cond_{cid}"] = (df["close"] > df["ma50"]) & (df["ma50"] > df["ma50"].shift(5))
+
+        elif ctype == "rsi_neutral_zone":
+            # RSI 中性區間：不超買不超賣（40-70 = 健康趨勢中的進場）
+            low = cp.get("rsi_low", 40)
+            high = cp.get("rsi_high", 70)
+            result[f"cond_{cid}"] = (df["rsi14"] >= low) & (df["rsi14"] <= high)
+
+        elif ctype == "rsi_rising":
+            # RSI 上升趨勢：近 N 日 RSI 在上升
+            lookback = cp.get("lookback", 3)
+            result[f"cond_{cid}"] = df["rsi14"] > df["rsi14"].shift(lookback)
+
+        elif ctype == "macd_accelerating":
+            # MACD 柱加速：OSC 為正且增加中
+            result[f"cond_{cid}"] = (df["macd_osc"] > 0) & (df["macd_osc"] > df["macd_osc"].shift(1))
+
+        elif ctype == "ma_slope_positive":
+            # 均線斜率為正：MA 在上升
+            period = cp.get("period", 20)
+            ma_col = f"ma{period}"
+            if ma_col in df.columns:
+                result[f"cond_{cid}"] = df[ma_col] > df[ma_col].shift(5)
+            else:
+                result[f"cond_{cid}"] = False
+
+        elif ctype == "volume_dry_up":
+            # 量縮：成交量低於均量的 threshold 倍（盤整蓄勢）
+            threshold = cp.get("threshold", 0.7)
+            result[f"cond_{cid}"] = df["volume"] < df["vol_avg20"] * threshold
 
         else:
             # 未知條件類型，預設 False

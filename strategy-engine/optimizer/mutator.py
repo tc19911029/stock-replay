@@ -54,6 +54,24 @@ def mutate_strategy(strategy: StrategyConfig, hypothesis: dict) -> StrategyConfi
             new.parameters[param_name] = new_value
             _sync_condition_params(new, param_name, new_value)
 
+    elif h_type == "add_condition":
+        new_cond = hypothesis.get("new_condition")
+        if new_cond:
+            # Don't add duplicate conditions
+            existing_ids = {c["id"] for c in new.entry_conditions}
+            if new_cond["id"] not in existing_ids:
+                new.entry_conditions.append(new_cond)
+
+    elif h_type == "swap_condition":
+        # Replace one condition with another
+        old_id = hypothesis.get("old_condition_id", "")
+        new_cond = hypothesis.get("new_condition")
+        if old_id and new_cond:
+            new.entry_conditions = [
+                new_cond if c["id"] == old_id else c
+                for c in new.entry_conditions
+            ]
+
     return new
 
 

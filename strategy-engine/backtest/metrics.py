@@ -65,6 +65,21 @@ def calc_metrics(trades: list[dict]) -> dict[str, Any]:
     # 期望值
     expectancy = (win_rate / 100) * avg_win - (1 - win_rate / 100) * abs(avg_loss)
 
+    # Sortino ratio (downside deviation only — penalizes bad volatility, not good)
+    downside_returns = returns[returns < 0]
+    downside_std = float(np.std(downside_returns)) if len(downside_returns) > 1 else 0
+    sortino_ratio = (avg_net / downside_std) if downside_std > 0 else 0
+
+    # Calmar ratio (return / max drawdown — risk-adjusted return)
+    calmar_ratio = abs(avg_net / max_drawdown) if max_drawdown < 0 else 0
+
+    # Recovery factor (total return / |max drawdown|)
+    total_return = float(np.sum(returns))
+    recovery_factor = abs(total_return / max_drawdown) if max_drawdown < 0 else 0
+
+    # Win/loss streak analysis
+    max_consec_win = _max_consecutive_wins(returns)
+
     return {
         "trade_count": total,
         "win_count": win_count,
@@ -80,8 +95,12 @@ def calc_metrics(trades: list[dict]) -> dict[str, Any]:
         "payoff_ratio": round(payoff_ratio, 3),
         "profit_factor": round(profit_factor, 3),
         "sharpe_ratio": round(sharpe_ratio, 3),
+        "sortino_ratio": round(sortino_ratio, 3),
+        "calmar_ratio": round(calmar_ratio, 3),
+        "recovery_factor": round(recovery_factor, 3),
         "max_drawdown": round(max_drawdown, 2),
         "max_consecutive_losses": max_consec_loss,
+        "max_consecutive_wins": max_consec_win,
         "avg_hold_days": round(avg_hold, 1),
         "expectancy": round(expectancy, 3),
         "total_net_return": round(float(np.sum(returns)), 2),
@@ -101,6 +120,19 @@ def _max_consecutive_losses(returns: np.ndarray) -> int:
     return max_streak
 
 
+def _max_consecutive_wins(returns: np.ndarray) -> int:
+    """計算最大連續獲利次數"""
+    max_streak = 0
+    current_streak = 0
+    for r in returns:
+        if r > 0:
+            current_streak += 1
+            max_streak = max(max_streak, current_streak)
+        else:
+            current_streak = 0
+    return max_streak
+
+
 def _empty_metrics() -> dict:
     """空回測結果"""
     return {
@@ -108,7 +140,8 @@ def _empty_metrics() -> dict:
         "win_rate": 0, "avg_net_return": 0, "avg_gross_return": 0,
         "median_return": 0, "max_gain": 0, "max_loss": 0,
         "avg_win": 0, "avg_loss": 0, "payoff_ratio": 0,
-        "profit_factor": 0, "sharpe_ratio": 0, "max_drawdown": 0,
-        "max_consecutive_losses": 0, "avg_hold_days": 0,
-        "expectancy": 0, "total_net_return": 0,
+        "profit_factor": 0, "sharpe_ratio": 0, "sortino_ratio": 0,
+        "calmar_ratio": 0, "recovery_factor": 0, "max_drawdown": 0,
+        "max_consecutive_losses": 0, "max_consecutive_wins": 0,
+        "avg_hold_days": 0, "expectancy": 0, "total_net_return": 0,
     }

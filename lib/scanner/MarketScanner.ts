@@ -5,6 +5,16 @@ import { StockScanResult, MarketConfig, TriggeredRule } from './types';
 import type { StrategyThresholds } from '@/lib/strategy/StrategyConfig';
 import { ZHU_V1 } from '@/lib/strategy/StrategyConfig';
 import { computeSurgeScore } from '@/lib/analysis/surgeScore';
+import { computeSmartMoneyScore, computeCompositeScore, detectConsecutiveBullish } from '@/lib/analysis/smartMoneyScore';
+import { computeRetailSentiment } from '@/lib/analysis/retailSentiment';
+import { analyzeSupportResistance } from '@/lib/analysis/supportResistance';
+import { detectVolatilityRegime } from '@/lib/analysis/volatilityRegime';
+import { computeMarketBreadth } from '@/lib/analysis/marketBreadth';
+import { computeSeasonality } from '@/lib/analysis/seasonality';
+import { analyzeCrossTimeframe } from '@/lib/analysis/crossTimeframe';
+import { computeRelativeStrength } from '@/lib/analysis/relativeStrength';
+import { analyzeGaps } from '@/lib/analysis/gapAnalysis';
+import { detectCandlePatterns } from '@/lib/analysis/candlePatterns';
 
 const CONCURRENCY = 15; // parallel requests per chunk
 
@@ -94,7 +104,17 @@ export abstract class MarketScanner {
       // 8. 末升段不進場 — 位置太高風險大
       if (position.includes('末升')) return null;
 
-      // 9-11 改為加分項（不再硬過濾，避免掃不出來）
+      // 9. A-share mean reversion filter: extremely overbought RSI + high
+      //    short-term gains signal incoming mean reversion (A-shares are
+      //    retail-dominated → overreaction → reversal)
+      if (config.marketId === 'CN' && surge.totalScore < 75) {
+        const rsi = last.rsi14;
+        const roc10 = last.roc10;
+        // RSI > 80 AND 10-day gain > 15% = very likely to mean-revert
+        if (rsi != null && rsi > 80 && roc10 != null && roc10 > 15) return null;
+      }
+
+      // 10-11 改為加分項（不再硬過濾，避免掃不出來）
       // 這些因素會透過 surgeScore 和六大條件間接反映
 
       const changePercent = prev?.close > 0
@@ -136,6 +156,97 @@ export abstract class MarketScanner {
       // 12. 歷史勝率過低 — 這支股票歷史上同類信號表現差，跳過
       if (histWinRate !== undefined && histWinRate < 35) return null;
 
+      // ── Smart Money Score & Composite Ranking ────────────────────────────
+      const smartMoney = computeSmartMoneyScore(candles, lastIdx);
+      const { bonus: consecutiveBonus } = detectConsecutiveBullish(candles, lastIdx);
+      const composite = computeCompositeScore(
+        sixConds.totalScore,
+        surge.totalScore,
+        smartMoney.totalScore,
+        histWinRate,
+        config.marketId,
+        consecutiveBonus,
+      );
+
+      // ── Retail Sentiment Contrarian Filter ──────────────────────────────
+      const sentiment = computeRetailSentiment(candles, lastIdx);
+      if (sentiment.compositeAdjust !== 0) {
+        composite.compositeScore = Math.max(0, Math.min(100,
+          composite.compositeScore + sentiment.compositeAdjust
+        ));
+      }
+
+      // ── Support/Resistance Proximity ────────────────────────────────────
+      const sr = analyzeSupportResistance(candles, lastIdx);
+      if (sr.proximityScore !== 0) {
+        composite.compositeScore = Math.max(0, Math.min(100,
+          composite.compositeScore + sr.proximityScore
+        ));
+      }
+
+      // ── Calendar Seasonality ────────────────────────────────────────────
+      const scanDate = asOfDate ?? new Date().toISOString().split('T')[0];
+      const seasonality = computeSeasonality(scanDate, config.marketId);
+      if (seasonality.adjustment !== 0) {
+        composite.compositeScore = Math.max(0, Math.min(100,
+          composite.compositeScore + seasonality.adjustment
+        ));
+      }
+
+      // ── Cross-Timeframe Confirmation (weekly trend) ─────────────────────
+      const weekly = analyzeCrossTimeframe(candles, lastIdx);
+      if (weekly.compositeAdjust !== 0) {
+        composite.compositeScore = Math.max(0, Math.min(100,
+          composite.compositeScore + weekly.compositeAdjust
+        ));
+      }
+
+      // ── Relative Strength ───────────────────────────────────────────────
+      const rs = computeRelativeStrength(candles, lastIdx);
+      if (rs.compositeAdjust !== 0) {
+        composite.compositeScore = Math.max(0, Math.min(100,
+          composite.compositeScore + rs.compositeAdjust
+        ));
+      }
+
+      // ── Gap Analysis ───────────────────────────────────────────────────
+      const gapResult = analyzeGaps(candles, lastIdx);
+      if (gapResult.compositeAdjust !== 0) {
+        composite.compositeScore = Math.max(0, Math.min(100,
+          composite.compositeScore + gapResult.compositeAdjust
+        ));
+      }
+
+      // ── Candlestick Patterns ────────────────────────────────────────────
+      const candlePattern = detectCandlePatterns(candles, lastIdx);
+      if (candlePattern.compositeAdjust !== 0) {
+        composite.compositeScore = Math.max(0, Math.min(100,
+          composite.compositeScore + candlePattern.compositeAdjust
+        ));
+      }
+
+      // ── Low Volatility Breakout Bonus ──────────────────────────────────
+      // Key finding from Python optimization: low ATR percentile (<25) with
+      // price above MA20 is the single strongest entry signal. Stocks in
+      // volatility squeeze that break out tend to have strong follow-through.
+      const volRegime = detectVolatilityRegime(candles, lastIdx);
+      if (volRegime.percentile <= 25 && last.ma20 && last.close > last.ma20) {
+        // Low vol squeeze breakout: strong bonus
+        composite.compositeScore = Math.max(0, Math.min(100,
+          composite.compositeScore + 10
+        ));
+      } else if (volRegime.percentile <= 35 && last.ma20 && last.close > last.ma20) {
+        // Moderate low vol: smaller bonus
+        composite.compositeScore = Math.max(0, Math.min(100,
+          composite.compositeScore + 5
+        ));
+      } else if (volRegime.percentile >= 80) {
+        // High volatility: penalty (signals less reliable)
+        composite.compositeScore = Math.max(0, Math.min(100,
+          composite.compositeScore - 5
+        ));
+      }
+
       return {
         symbol,
         name,
@@ -163,6 +274,12 @@ export abstract class MarketScanner {
         surgeGrade: surge.grade,
         surgeFlags: surge.flags,
         surgeComponents: surge.components,
+        smartMoneyScore: smartMoney.totalScore,
+        smartMoneyGrade: smartMoney.grade,
+        compositeScore: composite.compositeScore,
+        retailSentiment: sentiment.sentimentScore,
+        contrarianSignal: sentiment.contrarianSignal,
+        volatilityRegime: detectVolatilityRegime(candles, lastIdx).regime,
       };
     } catch {
       return null;
@@ -222,6 +339,7 @@ export abstract class MarketScanner {
         if (r.status === 'fulfilled' && r.value) results.push(r.value);
       }
     }
+    this.applySectorMomentum(results);
     return { results, marketTrend };
   }
 
@@ -248,12 +366,13 @@ export abstract class MarketScanner {
     for (let i = 0; i < stocks.length; i += CONCURRENCY) {
       if (Date.now() > DEADLINE) {
         console.warn(`[${config.marketId}] Scan timeout after ${results.length} hits from ${i}/${stocks.length} stocks`);
+        this.applySectorMomentum(results);
         const sorted = results.sort((a, b) =>
-          (b.surgeScore ?? 0) !== (a.surgeScore ?? 0)
+          (b.compositeScore ?? 0) !== (a.compositeScore ?? 0)
+            ? (b.compositeScore ?? 0) - (a.compositeScore ?? 0)
+            : (b.surgeScore ?? 0) !== (a.surgeScore ?? 0)
             ? (b.surgeScore ?? 0) - (a.surgeScore ?? 0)
-            : b.sixConditionsScore !== a.sixConditionsScore
-            ? b.sixConditionsScore - a.sixConditionsScore
-            : b.changePercent - a.changePercent
+            : b.sixConditionsScore - a.sixConditionsScore
         );
         return { results: sorted, partial: true, marketTrend };
       }
@@ -266,14 +385,68 @@ export abstract class MarketScanner {
       }
     }
 
+    // ── Sector momentum: hot sectors get bonus ──────────────────────────────
+    this.applySectorMomentum(results);
+
+    // ── Market breadth: adjust all scores by overall market health ────────
+    const breadth = computeMarketBreadth(results, stocks.length);
+    if (breadth.compositeAdjust !== 0) {
+      for (const r of results) {
+        r.compositeScore = Math.max(0, Math.min(100,
+          (r.compositeScore ?? 0) + breadth.compositeAdjust
+        ));
+      }
+    }
+    console.log(`[${config.marketId}] Market breadth: ${breadth.breadth} (${breadth.uptrendPct.toFixed(0)}% uptrend, adjust: ${breadth.compositeAdjust > 0 ? '+' : ''}${breadth.compositeAdjust})`);
+
     return {
       results: results.sort((a, b) =>
-        b.sixConditionsScore !== a.sixConditionsScore
-          ? b.sixConditionsScore - a.sixConditionsScore
-          : b.changePercent - a.changePercent
+        (b.compositeScore ?? 0) !== (a.compositeScore ?? 0)
+          ? (b.compositeScore ?? 0) - (a.compositeScore ?? 0)
+          : (b.surgeScore ?? 0) !== (a.surgeScore ?? 0)
+          ? (b.surgeScore ?? 0) - (a.surgeScore ?? 0)
+          : b.sixConditionsScore - a.sixConditionsScore
       ),
       partial: false,
       marketTrend,
     };
+  }
+
+  /**
+   * Sector momentum scoring: when multiple stocks from the same sector/industry
+   * pass the scanner filters, it indicates institutional rotation into that sector.
+   * Hot sectors get a compositeScore bonus (up to +20).
+   *
+   * Thresholds:
+   * - 2 stocks in same sector: +5 bonus
+   * - 3 stocks: +10 bonus
+   * - 4 stocks: +15 bonus
+   * - 5+ stocks: +20 bonus (max)
+   */
+  private applySectorMomentum(results: StockScanResult[]): void {
+    // Group by industry/sector
+    const sectorCounts = new Map<string, number>();
+    for (const r of results) {
+      const sector = r.industry;
+      if (!sector) continue;
+      sectorCounts.set(sector, (sectorCounts.get(sector) ?? 0) + 1);
+    }
+
+    // Apply bonus to stocks in hot sectors
+    for (const r of results) {
+      const sector = r.industry;
+      if (!sector) continue;
+      const count = sectorCounts.get(sector) ?? 0;
+      let bonus = 0;
+      if (count >= 5) bonus = 20;
+      else if (count >= 4) bonus = 15;
+      else if (count >= 3) bonus = 10;
+      else if (count >= 2) bonus = 5;
+
+      if (bonus > 0) {
+        r.sectorHeat = bonus;
+        r.compositeScore = Math.min(100, (r.compositeScore ?? 0) + bonus);
+      }
+    }
   }
 }

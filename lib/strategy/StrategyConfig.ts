@@ -132,4 +132,98 @@ export const ZHU_CONSERVATIVE: StrategyConfig = {
   },
 };
 
-export const BUILT_IN_STRATEGIES: StrategyConfig[] = [ZHU_V1, ZHU_V2, ZHU_CONSERVATIVE];
+/**
+ * 多因子策略 v3 — 結合技術面、籌碼面代理、基本面代理
+ *
+ * 核心改進：
+ * 1. 降低六大條件最低門檻至 3（靠 smart money + surge 來補足品質篩選）
+ * 2. 放寬量比至 1.3x（配合 smart money OBV 分析，不再只依賴單日量能）
+ * 3. KD 上限放寬至 90（高動能股票 KD 本來就高，由 surge grade 把關）
+ * 4. 乖離上限放寬至 25%（由 composite score 綜合把關）
+ *
+ * 設計理念：「門檻放寬，排名收緊」
+ * - 進場門檻適度放寬，讓更多候選股進入排名池
+ * - 最終靠 compositeScore（含 smart money 30%）排名選出最優
+ * - 搭配 adaptive exit rules：強信號長持、弱信號快出
+ */
+export const ZHU_V3_MULTIFACTOR: StrategyConfig = {
+  id:          'zhu-v3-multifactor',
+  name:        '多因子策略 v3（技術+籌碼+基本面）',
+  description: '結合朱老師六大條件 + Smart Money 偵測 + 飆股潛力 + 歷史勝率的多因子排名策略',
+  version:     '3.0.0',
+  author:      '系統優化',
+  createdAt:   '2026-03-29T00:00:00.000Z',
+  isBuiltIn:   true,
+  conditions:  ALL_CONDITIONS_ON,
+  thresholds:  {
+    ...BASE_THRESHOLDS,
+    volumeRatioMin: 1.3,    // 放寬：由 smart money OBV 補足
+    kdMaxEntry:     90,     // 放寬：高動能股 KD 本來就高
+    deviationMax:   0.25,   // 放寬：由 composite score 把關
+    minScore:       3,      // 放寬：多因子排名會篩掉弱股
+    bullMinScore:   3,      // 多頭時更寬鬆（靠排名篩選）
+    sidewaysMinScore: 4,    // 盤整時維持
+    bearMinScore:   5,      // 空頭時嚴格
+  },
+};
+
+/**
+ * 台股專用多因子策略
+ * 針對台股特性優化：
+ * - 台股量能單位為「張」，門檻不同
+ * - 台股有 10% 漲跌停限制
+ * - 法人買賣超資訊更透明（smart money 偵測更有效）
+ */
+export const ZHU_V3_TW: StrategyConfig = {
+  id:          'zhu-v3-tw',
+  name:        '台股多因子策略',
+  description: '針對台股最佳化的多因子策略，強化法人籌碼面偵測',
+  version:     '3.1.0',
+  author:      '系統優化',
+  createdAt:   '2026-03-29T00:00:00.000Z',
+  isBuiltIn:   true,
+  conditions:  ALL_CONDITIONS_ON,
+  thresholds:  {
+    ...BASE_THRESHOLDS,
+    volumeRatioMin: 1.4,    // 台股量比門檻稍高（法人大量進場更明顯）
+    kdMaxEntry:     88,     // 台股 KD 超買較敏感
+    deviationMax:   0.22,   // 台股乖離容忍度
+    minScore:       3,
+    bullMinScore:   3,
+    sidewaysMinScore: 4,
+    bearMinScore:   5,
+  },
+};
+
+/**
+ * 陸股專用多因子策略
+ * 針對 A 股特性優化：
+ * - A 股散戶多，均值回歸效應強
+ * - 波動率較大，需更寬鬆的技術指標
+ * - 北向資金（smart money proxy）影響力大
+ */
+export const ZHU_V3_CN: StrategyConfig = {
+  id:          'zhu-v3-cn',
+  name:        '陸股多因子策略',
+  description: '針對 A 股最佳化的多因子策略，適應高波動散戶市場',
+  version:     '3.2.0',
+  author:      '系統優化',
+  createdAt:   '2026-03-29T00:00:00.000Z',
+  isBuiltIn:   true,
+  conditions:  ALL_CONDITIONS_ON,
+  thresholds:  {
+    ...BASE_THRESHOLDS,
+    volumeRatioMin: 1.2,    // A 股量能波動大，門檻放低
+    kdMaxEntry:     92,     // A 股波動大，KD 容忍度更高
+    deviationMax:   0.28,   // A 股乖離容忍度更高
+    minScore:       3,
+    bullMinScore:   3,
+    sidewaysMinScore: 4,
+    bearMinScore:   6,      // A 股空頭更危險，門檻更嚴
+  },
+};
+
+export const BUILT_IN_STRATEGIES: StrategyConfig[] = [
+  ZHU_V1, ZHU_V2, ZHU_CONSERVATIVE,
+  ZHU_V3_MULTIFACTOR, ZHU_V3_TW, ZHU_V3_CN,
+];

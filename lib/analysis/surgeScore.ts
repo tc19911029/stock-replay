@@ -28,20 +28,22 @@ export interface SurgeScoreResult {
     kbarStrength: SurgeComponent;
     indicatorConfluence: SurgeComponent;
     longTermQuality: SurgeComponent;
+    volumePriceDivergence: SurgeComponent;
   };
   flags: string[];
 }
 
 const WEIGHTS = {
-  momentum:    0.18,
-  volatility:  0.12,
-  volume:      0.15,
-  breakout:    0.15,
-  trendQuality: 0.15,
+  momentum:    0.16,
+  volatility:  0.10,
+  volume:      0.13,
+  breakout:    0.13,
+  trendQuality: 0.13,
   pricePosition: 0.05,
   kbarStrength: 0.05,
   indicatorConfluence: 0.05,
-  longTermQuality: 0.10,  // 新增：長期品質（區分結構性多頭 vs 死貓跳）
+  longTermQuality: 0.10,
+  volumePriceDivergence: 0.10, // 量價背離偵測：排除弱勢假突破
 };
 
 function clamp(v: number, min = 0, max = 100): number {
@@ -441,6 +443,79 @@ function scoreLongTermQuality(candles: CandleWithIndicators[], idx: number): Sur
   return { score: clamp(score), detail: details.join('，') || '長期品質不明' };
 }
 
+// ── Sub-score: Volume-Price Divergence ──────────────────────────────────────
+// Detects mismatches between price trend and volume trend.
+// Bullish divergence (price flat/down but volume pattern bullish) = accumulation
+// Bearish divergence (price up but volume shrinking) = distribution risk
+
+function scoreVolumePriceDivergence(candles: CandleWithIndicators[], idx: number): SurgeComponent {
+  let score = 50; // neutral baseline
+  const details: string[] = [];
+  if (idx < 20) return { score: 50, detail: 'data insufficient' };
+
+  // Compare price trend vs volume trend over 10 days
+  const priceNow = candles[idx].close;
+  const price10 = candles[idx - 10]?.close;
+  const priceTrend = price10 && price10 > 0 ? (priceNow - price10) / price10 : 0;
+
+  // Volume trend: compare avg volume last 5 days vs 5 days before that
+  let recentVol = 0, priorVol = 0;
+  for (let i = idx - 4; i <= idx; i++) {
+    if (i >= 0) recentVol += candles[i].volume;
+  }
+  for (let i = idx - 9; i <= idx - 5; i++) {
+    if (i >= 0) priorVol += candles[i].volume;
+  }
+  recentVol /= 5;
+  priorVol /= 5;
+  const volTrend = priorVol > 0 ? (recentVol - priorVol) / priorVol : 0;
+
+  // Healthy: price up + volume up (confirmation)
+  if (priceTrend > 0.03 && volTrend > 0.1) {
+    score = 85;
+    details.push('price+vol confirmation');
+  }
+  // Bullish divergence: price flat/down but volume increasing on up days
+  else if (priceTrend <= 0.02 && volTrend > 0.15) {
+    let upDayVol = 0, downDayVol = 0;
+    for (let i = idx - 4; i <= idx; i++) {
+      if (i > 0 && candles[i].close > candles[i - 1].close) upDayVol += candles[i].volume;
+      else if (i > 0) downDayVol += candles[i].volume;
+    }
+    if (upDayVol > downDayVol * 1.3) {
+      score = 80;
+      details.push('bullish divergence (accumulation)');
+    } else {
+      score = 55;
+    }
+  }
+  // Strong bearish: price up but volume collapsing
+  else if (priceTrend > 0.05 && volTrend < -0.3) {
+    score = 10;
+    details.push('strong bearish divergence');
+  }
+  // Bearish divergence: price rising but volume declining
+  else if (priceTrend > 0.03 && volTrend < -0.15) {
+    score = 25;
+    details.push('bearish divergence (distribution risk)');
+  }
+
+  // Check for volume dry-up then spike (accumulation completion signal)
+  if (idx >= 10) {
+    let minVol = Infinity;
+    for (let i = idx - 10; i < idx - 2; i++) {
+      if (i >= 0) minVol = Math.min(minVol, candles[i].volume);
+    }
+    const todayVol = candles[idx].volume;
+    if (minVol !== Infinity && todayVol > minVol * 3 && candles[idx].close > candles[idx].open) {
+      score = Math.max(score, 90);
+      details.push('volume dry-up→spike');
+    }
+  }
+
+  return { score: clamp(score), detail: details.join(', ') || 'neutral' };
+}
+
 // ── Main: Compute Surge Score ────────────────────────────────────────────────
 
 export function computeSurgeScore(
@@ -457,8 +532,9 @@ export function computeSurgeScore(
   const indicatorConfluence = scoreIndicatorConfluence(candles, idx);
 
   const longTermQuality = scoreLongTermQuality(candles, idx);
+  const volumePriceDivergence = scoreVolumePriceDivergence(candles, idx);
 
-  const components = { momentum, volatility, volume, breakout, trendQuality, pricePosition, kbarStrength, indicatorConfluence, longTermQuality };
+  const components = { momentum, volatility, volume, breakout, trendQuality, pricePosition, kbarStrength, indicatorConfluence, longTermQuality, volumePriceDivergence };
 
   const totalScore = Math.round(
     momentum.score * WEIGHTS.momentum +
@@ -469,7 +545,8 @@ export function computeSurgeScore(
     pricePosition.score * WEIGHTS.pricePosition +
     kbarStrength.score * WEIGHTS.kbarStrength +
     indicatorConfluence.score * WEIGHTS.indicatorConfluence +
-    longTermQuality.score * WEIGHTS.longTermQuality
+    longTermQuality.score * WEIGHTS.longTermQuality +
+    volumePriceDivergence.score * WEIGHTS.volumePriceDivergence
   );
 
   // Collect flags
@@ -481,6 +558,9 @@ export function computeSurgeScore(
   if (breakout.detail.includes('60日新高')) flags.push('NEW_60D_HIGH');
   if (momentum.detail.includes('ROC加速')) flags.push('MOMENTUM_ACCELERATION');
   if (volume.detail.includes('連3日量增')) flags.push('PROGRESSIVE_VOLUME');
+  if (volumePriceDivergence.detail.includes('bearish divergence')) flags.push('BEARISH_VOL_DIVERGENCE');
+  if (volumePriceDivergence.detail.includes('bullish divergence')) flags.push('BULLISH_VOL_DIVERGENCE');
+  if (volumePriceDivergence.detail.includes('dry-up')) flags.push('VOLUME_DRY_SPIKE');
 
   return {
     totalScore,

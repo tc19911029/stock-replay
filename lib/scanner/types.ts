@@ -49,10 +49,19 @@ export interface StockScanResult {
     kbarStrength: SurgeComponentSummary;
     indicatorConfluence: SurgeComponentSummary;
     longTermQuality: SurgeComponentSummary;
+    volumePriceDivergence: SurgeComponentSummary;
   };
   // ── 歷史信號績效 ──────────────────────────────────────────────────────────
   histWinRate?: number;        // 歷史20日勝率 (%)
   histSignalCount?: number;    // 歷史信號次數
+  // ── Smart Money / Multi-Factor ──────────────────────────────────────────
+  smartMoneyScore?: number;       // 0-100 (institutional flow proxy)
+  smartMoneyGrade?: 'S' | 'A' | 'B' | 'C' | 'D';
+  compositeScore?: number;        // 0-100 (weighted multi-factor ranking)
+  sectorHeat?: number;             // 0-20 bonus from hot sector momentum
+  retailSentiment?: number;        // 0-100 (0=panic, 100=euphoria)
+  contrarianSignal?: 'bullish' | 'bearish' | null;
+  volatilityRegime?: 'LOW' | 'NORMAL' | 'HIGH' | 'EXTREME';
   // ── AI 排名 ───────────────────────────────────────────────────────────────
   aiRank?: number;
   aiConfidence?: 'high' | 'medium' | 'low';

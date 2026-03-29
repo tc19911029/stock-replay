@@ -77,6 +77,10 @@ def diagnose(results: dict[str, dict]) -> dict[str, Any]:
         "val_pf": val_stats.get("profit_factor", 0),
     }
 
+    # ── Multi-factor analysis ────────────────────────────────────────────
+    all_trades_combined = all_train_trades + all_val_trades
+    diagnosis["multi_factor_analysis"] = _analyze_multi_factor(all_trades_combined)
+
     # ── 自動建議 ──────────────────────────────────────────────────────────
     diagnosis["suggestions"] = _generate_suggestions(diagnosis)
 
@@ -152,7 +156,58 @@ def _generate_suggestions(diagnosis: dict) -> list[str]:
     if val_trades < 20:
         suggestions.append(f"📌 驗證集僅 {val_trades} 筆交易，統計意義不足，建議放寬進場條件")
 
+    # Multi-factor analysis suggestions
+    mf_analysis = diagnosis.get("multi_factor_analysis", {})
+    if mf_analysis:
+        high_bonus_wr = mf_analysis.get("high_bonus_win_rate", 0)
+        low_bonus_wr = mf_analysis.get("low_bonus_win_rate", 0)
+        if high_bonus_wr > low_bonus_wr + 10:
+            suggestions.append(
+                f"💡 高 multi-factor bonus (>0.6) 的勝率 {high_bonus_wr:.1f}% 顯著高於"
+                f"低 bonus (<0.4) 的 {low_bonus_wr:.1f}%，建議啟用加權評分模式"
+            )
+        elif high_bonus_wr < low_bonus_wr:
+            suggestions.append(
+                "⚠ Multi-factor bonus 反而降低勝率，可能基本面/籌碼數據品質不佳，"
+                "建議暫時關閉加權評分"
+            )
+
     if not suggestions:
         suggestions.append("✅ 目前無明顯問題，可嘗試微調參數")
 
     return suggestions
+
+
+def _analyze_multi_factor(trades: list[dict]) -> dict:
+    """
+    Analyze the impact of multi-factor bonus on trade outcomes.
+    Helps determine whether fundamental + chip scoring adds value.
+    """
+    if not trades:
+        return {}
+
+    high_bonus = [t for t in trades if t.get("multi_factor_bonus", 0.5) >= 0.6]
+    low_bonus = [t for t in trades if t.get("multi_factor_bonus", 0.5) < 0.4]
+    mid_bonus = [t for t in trades if 0.4 <= t.get("multi_factor_bonus", 0.5) < 0.6]
+
+    def _wr(tlist):
+        if not tlist:
+            return 0
+        return sum(1 for t in tlist if t["net_return"] > 0) / len(tlist) * 100
+
+    def _avg_ret(tlist):
+        if not tlist:
+            return 0
+        return float(np.mean([t["net_return"] for t in tlist]))
+
+    return {
+        "high_bonus_count": len(high_bonus),
+        "high_bonus_win_rate": round(_wr(high_bonus), 1),
+        "high_bonus_avg_return": round(_avg_ret(high_bonus), 2),
+        "mid_bonus_count": len(mid_bonus),
+        "mid_bonus_win_rate": round(_wr(mid_bonus), 1),
+        "mid_bonus_avg_return": round(_avg_ret(mid_bonus), 2),
+        "low_bonus_count": len(low_bonus),
+        "low_bonus_win_rate": round(_wr(low_bonus), 1),
+        "low_bonus_avg_return": round(_avg_ret(low_bonus), 2),
+    }
