@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useDaytradeStore } from '@/store/daytradeStore';
 import type { IntradayTimeframe, IntradaySignal } from '@/lib/daytrade/types';
+import { PositionCalculator, TradeJournal } from '@/features/daytrade';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Stock List (same as main page StockSelector)
@@ -56,6 +57,7 @@ const SIDE_TABS = [
   { key: 'eod',      label: '結算' },
   { key: 'sigbt',    label: '訊號回測' },
   { key: 'optim',    label: '策略優化' },
+  { key: 'posjnl',  label: '倉位/日誌' },
 ] as const;
 
 type SideTabKey = typeof SIDE_TABS[number]['key'];
@@ -895,6 +897,12 @@ export default function LiveDaytradePage() {
             {sideTab === 'eod' && <EODReportPanel />}
             {sideTab === 'sigbt' && <SignalBacktestPanel symbol={symbol} />}
             {sideTab === 'optim' && <StrategyOptimizerPanel symbol={symbol} />}
+            {sideTab === 'posjnl' && (
+              <div className="space-y-4 p-1">
+                <PositionCalculator />
+                <TradeJournal />
+              </div>
+            )}
           </div>
         </div>
       </div>

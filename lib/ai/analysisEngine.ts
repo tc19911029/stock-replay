@@ -25,6 +25,7 @@ import type {
 } from './roles/types';
 import type { StockScanResult } from '@/lib/scanner/types';
 import type { NewsAnalysisResult } from '@/lib/news/types';
+import type { FundamentalsData, InstitutionalData } from '@/lib/datasource/FinMindClient';
 
 const client = new Anthropic();
 const MODEL = 'claude-sonnet-4-6';
@@ -142,6 +143,50 @@ function formatNewsContext(news: NewsAnalysisResult | null): string {
   return lines.join('\n');
 }
 
+/** Format real FinMind fundamentals for the fundamental analyst */
+function formatFundamentalsContext(
+  scan: StockScanResult,
+  fundamentals: FundamentalsData | null,
+  institutional: InstitutionalData[] | null,
+): string {
+  const lines = [
+    `股票：${scan.symbol} ${scan.name}`,
+    `現價：${scan.price}  漲跌幅：${scan.changePercent.toFixed(2)}%`,
+    `趨勢：${scan.trendState}`,
+  ];
+
+  if (fundamentals) {
+    if (fundamentals.eps != null)        lines.push(`EPS（最近期）：${fundamentals.eps}`);
+    if (fundamentals.epsYoY != null)     lines.push(`EPS 年增率：${fundamentals.epsYoY.toFixed(1)}%`);
+    if (fundamentals.grossMargin != null) lines.push(`毛利率：${fundamentals.grossMargin.toFixed(1)}%`);
+    if (fundamentals.netMargin != null)   lines.push(`淨利率：${fundamentals.netMargin.toFixed(1)}%`);
+    if (fundamentals.per != null)         lines.push(`本益比(PE)：${fundamentals.per.toFixed(1)}`);
+    if (fundamentals.pbr != null)         lines.push(`股價淨值比(PB)：${fundamentals.pbr.toFixed(2)}`);
+    if (fundamentals.dividendYield != null) lines.push(`殖利率：${fundamentals.dividendYield.toFixed(2)}%`);
+    if (fundamentals.revenueLatest != null) {
+      const revStr = (fundamentals.revenueLatest / 1e8).toFixed(1);
+      lines.push(`最新月營收：${revStr} 億`);
+    }
+    if (fundamentals.revenueMoM != null) lines.push(`月營收 MoM：${fundamentals.revenueMoM.toFixed(1)}%`);
+    if (fundamentals.revenueYoY != null) lines.push(`月營收 YoY：${fundamentals.revenueYoY.toFixed(1)}%`);
+  } else {
+    lines.push('（注意：詳細財報數據暫未提供，請根據可用資料分析）');
+  }
+
+  if (scan.chipDetail) lines.push(`當日籌碼摘要：${scan.chipDetail}`);
+
+  if (institutional && institutional.length > 0) {
+    const recent = institutional.slice(0, 5);
+    const foreignNet5d = recent.reduce((s, r) => s + r.foreignNet, 0);
+    const trustNet5d   = recent.reduce((s, r) => s + r.trustNet, 0);
+    lines.push(`外資近5日淨買超：${foreignNet5d.toLocaleString()} 張`);
+    lines.push(`投信近5日淨買超：${trustNet5d.toLocaleString()} 張`);
+    lines.push(`外資連買天數：${recent[0].consecutiveForeignBuy} 日`);
+  }
+
+  return lines.join('\n');
+}
+
 interface RawRole {
   verdict: string;
   confidence: number;
@@ -173,18 +218,14 @@ interface RawSynthesis {
 export async function runFullAnalysis(
   scan: StockScanResult,
   news: NewsAnalysisResult | null,
-  onEvent?: AnalysisEventCallback
+  onEvent?: AnalysisEventCallback,
+  fundamentals?: FundamentalsData | null,
+  institutionalHistory?: InstitutionalData[] | null,
 ): Promise<FullAnalysisResult> {
   const start = Date.now();
   const techContext = formatTechnicalContext(scan);
   const newsContext = formatNewsContext(news);
-  const fundamentalContext = [
-    `股票：${scan.symbol} ${scan.name}`,
-    `現價：${scan.price}  漲跌幅：${scan.changePercent.toFixed(2)}%`,
-    `趨勢：${scan.trendState}`,
-    scan.chipDetail ? `籌碼：${scan.chipDetail}` : '',
-    '（注意：詳細財報數據暫未提供，請根據可用資料分析）',
-  ].filter(Boolean).join('\n');
+  const fundamentalContext = formatFundamentalsContext(scan, fundamentals ?? null, institutionalHistory ?? null);
 
   // ── Phase 1: Three independent analysts in PARALLEL ───────────────────
   // Use .then() on each individual promise so onEvent fires as each role

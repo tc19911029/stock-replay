@@ -4,6 +4,9 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import type { RoleAnalysis, DebateAnalysis, SynthesisResult, FullAnalysisResult } from '@/lib/ai/roles/types';
 import type { NewsAnalysisResult } from '@/lib/news/types';
+import { PageShell } from '@/components/shared';
+import { FundamentalsPanel } from '@/features/analysis';
+import type { FundamentalsData } from '@/lib/datasource/FinMindClient';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -164,6 +167,16 @@ export default function AnalysisPage() {
     cost: null,
     errorMsg: null,
   });
+  const [fundamentals, setFundamentals] = useState<FundamentalsData | null>(null);
+
+  // Pre-fetch fundamentals so PDF can include them
+  useEffect(() => {
+    if (!ticker) return;
+    fetch(`/api/fundamentals/${ticker}`)
+      .then(r => r.json())
+      .then(json => { if (json.ok) setFundamentals(json.data as FundamentalsData); })
+      .catch(() => {});
+  }, [ticker]);
 
   const runAnalysis = useCallback(async () => {
     // Cancel any in-flight request
@@ -271,6 +284,7 @@ export default function AnalysisPage() {
     await generateReport({
       analysis: state.fullResult,
       news: state.news,
+      fundamentals,
       costSummary: state.cost
         ? { totalCostUsd: state.cost.totalCostUsd, callCount: state.cost.callCount, totalInputTokens: 0, totalOutputTokens: 0 }
         : undefined,
@@ -281,9 +295,10 @@ export default function AnalysisPage() {
   const synthVerdict = synthesis ? (VERDICT_LABELS[synthesis.overallVerdict] ?? { text: synthesis.overallVerdict, cls: 'text-slate-400 bg-slate-800 border-slate-600' }) : null;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      {/* Header */}
-      <div className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
+    <PageShell>
+    <div className="text-slate-100">
+      {/* Sub-header for analysis context */}
+      <div className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-14 z-40">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
           <button
             onClick={() => router.back()}
@@ -349,6 +364,9 @@ export default function AnalysisPage() {
             </button>
           </div>
         )}
+
+        {/* Fundamentals panel — fetches real FinMind data */}
+        <FundamentalsPanel ticker={ticker} />
 
         {/* Research Director synthesis — shown as soon as synthesis event arrives */}
         {synthesis && synthVerdict && (
@@ -467,5 +485,6 @@ export default function AnalysisPage() {
         </p>
       </div>
     </div>
+    </PageShell>
   );
 }

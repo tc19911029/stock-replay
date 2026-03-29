@@ -7,55 +7,14 @@ import { useWatchlistStore } from '@/store/watchlistStore';
 import { StockForwardPerformance } from '@/lib/scanner/types';
 import { calcBacktestSummary } from '@/lib/backtest/ForwardAnalyzer';
 import { BacktestTrade, BacktestStats } from '@/lib/backtest/BacktestEngine';
+import {
+  calcComposite, chipTooltip, retColor, fmtRet, exportToCsv,
+  BacktestStatsPanel, CapitalPanel, ResearchAssumptions, SessionHistory, WalkForwardPanel,
+} from '@/features/scan';
+import { fetchInstitutionalBatch, type InstitutionalSummary } from '@/lib/datasource/useInstitutionalSummary';
+import { PageShell } from '@/components/shared';
 
-// ── CSV Export ─────────────────────────────────────────────────────────────────
-
-function exportToCsv(trades: BacktestTrade[], scanDate: string) {
-  const headers = ['代號','名稱','市場','訊號日','評分','趨勢','進場日','進場價','出場日','出場價','出場原因','持有天數','毛報酬%','淨報酬%','交易成本','命中原因'];
-  const rows = trades.map(t => [
-    t.symbol, t.name, t.market, t.signalDate, t.signalScore, t.trendState,
-    t.entryDate, t.entryPrice, t.exitDate, t.exitPrice, t.exitReason, t.holdDays,
-    t.grossReturn, t.netReturn, t.totalCost, t.signalReasons.join('|'),
-  ]);
-  const csv = '\uFEFF' + [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `backtest_${scanDate}.csv`;
-  a.click();
-  // 延遲釋放，避免慢速網路下載失敗
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-// 漲跌色彩：根據用戶設定（亞洲紅漲綠跌 / 歐美綠漲紅跌）
-function retColor(v: number | null | undefined) {
-  if (v == null) return 'text-slate-500';
-  const theme = typeof window !== 'undefined'
-    ? (JSON.parse(localStorage.getItem('settings-v4') || '{}')?.state?.colorTheme ?? 'asia')
-    : 'asia';
-  if (theme === 'western') {
-    if (v > 0) return 'text-green-400';
-    if (v < 0) return 'text-red-500';
-  } else {
-    if (v > 0) return 'text-red-400';
-    if (v < 0) return 'text-green-500';
-  }
-  return 'text-slate-400';
-}
-
-function fmtRet(v: number | null | undefined) {
-  if (v == null) return '–';
-  return (v > 0 ? '+' : '') + v.toFixed(2) + '%';
-}
-
-function scoreColor(s: number) {
-  if (s >= 5) return 'text-amber-400 font-bold';
-  if (s >= 4) return 'text-sky-400 font-semibold';
-  return 'text-sky-400';
-}
+// ── Helpers (local only) ───────────────────────────────────────────────────────
 
 // 亞洲慣例：多頭=紅，空頭=綠
 function trendBadge(t: string) {
@@ -121,241 +80,7 @@ function HorizonCard({ label, horizon, performance }: {
   );
 }
 
-// ── Strict Stats Panel ──────────────────────────────────────────────────────────
 
-function StrictStatsPanel({ stats, tradesCount, trades }: { stats: BacktestStats; tradesCount: number; trades: BacktestTrade[] }) {
-  const winColor = stats.winRate >= 50 ? 'text-red-400' : 'text-green-500';
-  return (
-    <div className="bg-slate-900 border border-slate-700/60 rounded-xl overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-800 bg-slate-800/40">
-        <div className="w-1.5 h-4 rounded-full bg-sky-500" />
-        <h3 className="text-sm font-semibold text-slate-100">嚴謹回測統計（含成本）</h3>
-        <div className="ml-auto flex items-center gap-3 text-xs text-slate-400">
-          <span>{tradesCount} 筆</span>
-          <span className={`font-bold text-sm ${winColor}`}>勝率 {stats.winRate}%</span>
-          <span className={`font-bold text-sm ${retColor(stats.avgNetReturn)}`}>均值 {fmtRet(stats.avgNetReturn)}</span>
-        </div>
-      </div>
-      {/* 統計可靠性警告 */}
-      {tradesCount < 30 && (
-        <div className="px-5 py-2.5 bg-amber-950/40 border-b border-amber-800/40 flex items-center gap-2">
-          <span className="text-amber-400 text-sm">!</span>
-          <span className="text-[11px] text-amber-300/90">
-            樣本數僅 {tradesCount} 筆（建議 &ge; 30 筆），統計結果參考價值有限，勝率和期望值可能有較大偏差
-          </span>
-        </div>
-      )}
-      {stats.sharpeRatio != null && stats.sharpeRatio < 0.5 && tradesCount >= 10 && (
-        <div className="px-5 py-2 bg-red-950/30 border-b border-red-800/30 flex items-center gap-2">
-          <span className="text-red-400 text-sm">!</span>
-          <span className="text-[11px] text-red-300/80">
-            Sharpe Ratio {stats.sharpeRatio.toFixed(2)} 偏低（&lt;0.5），表示風險調整後報酬不佳，策略在此條件下風險較高
-          </span>
-        </div>
-      )}
-      {/* KPI grid — 基本指標 */}
-      <div className="grid grid-cols-3 sm:grid-cols-5 divide-x divide-y divide-slate-800/60">
-        <Kpi label="淨報酬均值" value={fmtRet(stats.avgNetReturn)} color={retColor(stats.avgNetReturn)} />
-        <Kpi label="毛報酬均值" value={fmtRet(stats.avgGrossReturn)} color={retColor(stats.avgGrossReturn)} />
-        <Kpi label="中位數報酬" value={fmtRet(stats.medianReturn)} color={retColor(stats.medianReturn)} />
-        <Kpi label="最大單筆獲利" value={fmtRet(stats.maxGain)} color="text-red-400" />
-        <Kpi label="最大單筆虧損" value={fmtRet(stats.maxLoss)} color="text-green-500" />
-        <Kpi label="期望值" value={fmtRet(stats.expectancy)} color={retColor(stats.expectancy)} subtext="每筆平均" />
-        <Kpi label="最大回撤 MDD" value={fmtRet(stats.maxDrawdown)} color="text-green-500" subtext="峰值到谷值" />
-        <Kpi label="勝 / 負筆數" value={`${stats.wins} / ${stats.losses}`} color="text-slate-200" />
-        <Kpi label="淨報酬加總" value={fmtRet(stats.totalNetReturn)} color={retColor(stats.totalNetReturn)} subtext="非複利" />
-        <Kpi label="勝率" value={`${stats.winRate}%`} color={winColor} />
-      </div>
-      {/* 風險調整指標 */}
-      <div className="border-t border-slate-800 px-5 py-3 flex flex-wrap gap-6 bg-slate-800/20">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-slate-500 uppercase tracking-wide">Sharpe Ratio</span>
-          <span className={`text-sm font-bold ${stats.sharpeRatio != null ? retColor(stats.sharpeRatio) : 'text-slate-500'}`}>
-            {stats.sharpeRatio != null ? stats.sharpeRatio.toFixed(2) : '–'}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-slate-500 uppercase tracking-wide">Profit Factor</span>
-          <span className={`text-sm font-bold ${stats.profitFactor != null ? (stats.profitFactor >= 1 ? 'text-red-400' : 'text-green-500') : 'text-slate-500'}`}>
-            {stats.profitFactor != null ? stats.profitFactor.toFixed(2) : '–'}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-slate-500 uppercase tracking-wide">Payoff Ratio</span>
-          <span className={`text-sm font-bold ${stats.payoffRatio != null ? (stats.payoffRatio >= 1 ? 'text-red-400' : 'text-slate-400') : 'text-slate-500'}`}>
-            {stats.payoffRatio != null ? stats.payoffRatio.toFixed(2) : '–'}
-          </span>
-        </div>
-        <div className="flex items-center gap-2 ml-auto">
-          <span className="text-[10px] text-slate-500 uppercase tracking-wide">覆蓋率</span>
-          <span className={`text-sm font-semibold ${stats.coverageRate >= 90 ? 'text-slate-300' : 'text-amber-400'}`}>
-            {stats.coverageRate}%
-          </span>
-          {stats.skippedCount > 0 && (
-            <span className="text-[10px] text-slate-600">（跳過 {stats.skippedCount} 筆）</span>
-          )}
-        </div>
-      </div>
-      {/* 大盤對比提示 */}
-      {stats.avgNetReturn != null && (
-        <div className="px-5 py-2 bg-slate-800/30 border-t border-slate-800/50 text-[11px] text-slate-500">
-          提醒：回測績效需與同期大盤表現對比才有意義。若大盤同期漲 5%，策略均值 {fmtRet(stats.avgNetReturn)} 的實際超額報酬為 {stats.avgNetReturn >= 0 ? '需扣除大盤漲幅' : '且大盤可能也在跌'}。
-          建議搭配 Walk-Forward 驗證策略是否真的優於買入持有。
-        </div>
-      )}
-      {/* 成本與滑點說明 */}
-      <div className="px-5 py-2 border-t border-slate-800/50 text-[10px] text-slate-600 flex flex-wrap gap-x-4 gap-y-0.5">
-        <span>成本模型：台股手續費 0.1425%×0.6 + 證交稅 0.3%</span>
-        <span>陸股佣金 0.025% + 印花稅 0.1%</span>
-        <span>滑點 0.1%（買高賣低）</span>
-        <span>實際成本因券商而異，可能高出 10-30%</span>
-      </div>
-      {/* Equity curve */}
-      <EquityCurveMini trades={trades} />
-    </div>
-  );
-}
-
-function Kpi({ label, value, color, subtext }: {
-  label: string; value: string; color: string; subtext?: string;
-}) {
-  return (
-    <div className="flex flex-col gap-0.5 p-4">
-      <div className="text-[10px] text-slate-500 uppercase tracking-wide">{label}</div>
-      <div className={`text-lg font-bold leading-tight ${color}`}>{value}</div>
-      {subtext && <div className="text-[10px] text-slate-600 mt-0.5">{subtext}</div>}
-    </div>
-  );
-}
-
-// ── Equity Curve Mini-Chart ────────────────────────────────────────────────────
-
-function EquityCurveMini({ trades }: { trades: BacktestTrade[] }) {
-  if (trades.length < 2) return null;
-
-  // Build cumulative equity by exit date order
-  const sorted = [...trades].sort((a, b) => a.exitDate.localeCompare(b.exitDate));
-  const points: number[] = [0];
-  let eq = 0;
-  for (const t of sorted) {
-    eq += t.netReturn;
-    points.push(eq);
-  }
-
-  const min   = Math.min(...points);
-  const max   = Math.max(...points);
-  const range = max - min || 1;
-  const W = 400; const H = 52;
-  const pad = 2;
-
-  const toX = (i: number) => (i / (points.length - 1)) * W;
-  const toY = (v: number) => H - pad - ((v - min) / range) * (H - pad * 2);
-
-  const pathD  = points.map((v, i) => `${i === 0 ? 'M' : 'L'} ${toX(i).toFixed(1)} ${toY(v).toFixed(1)}`).join(' ');
-  const areaD  = `${pathD} L ${W} ${H} L 0 ${H} Z`;
-  const final  = points[points.length - 1];
-  const color  = final >= 0 ? '#f87171' : '#4ade80';  // 亞洲：紅漲綠跌
-  const zeroY  = toY(0);
-
-  return (
-    <div className="px-5 py-3 border-t border-slate-800 bg-slate-900/40">
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[10px] text-slate-500 uppercase tracking-wide">累積淨報酬曲線</span>
-        <span className={`text-xs font-bold tabular-nums ${final >= 0 ? 'text-red-400' : 'text-green-500'}`}>
-          {final >= 0 ? '+' : ''}{final.toFixed(1)}% 累積
-        </span>
-      </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-12" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="eq-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.25" />
-            <stop offset="100%" stopColor={color} stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {/* Zero baseline */}
-        {min < 0 && max > 0 && (
-          <line x1="0" y1={zeroY.toFixed(1)} x2={W} y2={zeroY.toFixed(1)}
-            stroke="#334155" strokeWidth="1" strokeDasharray="4,3" />
-        )}
-        <path d={areaD} fill="url(#eq-grad)" />
-        <path d={pathD} stroke={color} strokeWidth="1.5" fill="none" strokeLinejoin="round" />
-        {/* Start & end dots */}
-        <circle cx={toX(0).toFixed(1)} cy={toY(0).toFixed(1)} r="2" fill="#64748b" />
-        <circle cx={toX(points.length - 1).toFixed(1)} cy={toY(final).toFixed(1)} r="2.5" fill={color} />
-      </svg>
-    </div>
-  );
-}
-
-// ── Capital Panel ──────────────────────────────────────────────────────────────
-
-function CapitalPanel({ trades, constraints, finalCapital, capitalReturn, skippedByCapital }: {
-  trades: BacktestTrade[];
-  constraints: CapitalConstraints;
-  finalCapital: number | null;
-  capitalReturn: number | null;
-  skippedByCapital: number;
-}) {
-  if (trades.length === 0) return null;
-
-  // Use engine-computed values (accurate), or fall back to estimate
-  const capFinal  = finalCapital  ?? constraints.initialCapital;
-  const capReturn = capitalReturn ?? 0;
-  const positionNominal = constraints.initialCapital * constraints.positionSizePct;
-  const totalPnL  = capFinal - constraints.initialCapital;
-  const capColor  = capReturn >= 0 ? 'text-red-400' : 'text-green-500';
-
-  return (
-    <div className="bg-amber-950/20 border border-amber-800/40 rounded-xl overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-amber-900/30 bg-amber-950/30">
-        <div className="w-1.5 h-4 rounded-full bg-amber-500" />
-        <span className="text-sm font-semibold text-amber-200">資本限制模擬</span>
-        <span className="text-xs text-slate-500 ml-1">
-          {(constraints.initialCapital / 10000).toLocaleString('zh-TW')} 萬元 ×
-          前 {constraints.maxPositions} 檔 ×
-          每筆 {(constraints.positionSizePct * 100).toFixed(0)}%
-        </span>
-      </div>
-      <div className="grid grid-cols-3 sm:grid-cols-5 divide-x divide-slate-800/60">
-        <div className="flex flex-col gap-0.5 p-4">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wide">初始資金</div>
-          <div className="text-base font-bold text-slate-300">
-            {(constraints.initialCapital / 10000).toFixed(0)}萬
-          </div>
-        </div>
-        <div className="flex flex-col gap-0.5 p-4">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wide">最終資金</div>
-          <div className="text-base font-bold text-slate-100">
-            {(capFinal / 10000).toFixed(1)}萬
-          </div>
-        </div>
-        <div className="flex flex-col gap-0.5 p-4">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wide">資金報酬</div>
-          <div className={`text-lg font-bold ${capColor}`}>
-            {capReturn >= 0 ? '+' : ''}{capReturn.toFixed(2)}%
-          </div>
-        </div>
-        <div className="flex flex-col gap-0.5 p-4">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wide">實際損益</div>
-          <div className={`text-base font-bold ${capColor}`}>
-            {totalPnL >= 0 ? '+' : ''}{Math.round(totalPnL).toLocaleString('zh-TW')} 元
-          </div>
-        </div>
-        <div className="flex flex-col gap-0.5 p-4">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wide">資本排除</div>
-          <div className="text-base font-bold text-slate-400">{skippedByCapital} 筆</div>
-          <div className="text-[10px] text-slate-600">取前 {constraints.maxPositions} 高分</div>
-        </div>
-      </div>
-      {trades.length > 0 && (
-        <div className="px-4 py-2 border-t border-amber-900/30 text-xs text-slate-500">
-          入選：{trades.map(t => `${t.name}（${(t.netReturn >= 0 ? '+' : '') + t.netReturn.toFixed(1)}%）`).join('　')}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── Trade Row ──────────────────────────────────────────────────────────────────
 
@@ -391,19 +116,6 @@ function calcTradeComposite(t: BacktestTrade, scanResults?: Array<{ symbol: stri
                  : t.trendPosition?.includes('主升') ? 70
                  : t.trendPosition?.includes('末升') ? 20 : 50;
   return Math.round((sixCon * 0.30 + surge * 0.20 + winR * 0.25 + posBonus * 0.10 + 50 * 0.10 + 0 * 0.05) * 10) / 10;
-}
-
-function chipTooltip(r: { foreignBuy?: number; trustBuy?: number; dealerBuy?: number; marginNet?: number; shortNet?: number; dayTradeRatio?: number; largeTraderNet?: number; chipDetail?: string }): string {
-  const parts: string[] = [];
-  if (r.foreignBuy != null) parts.push(`外資: ${r.foreignBuy > 0 ? '+' : ''}${r.foreignBuy.toLocaleString()}張`);
-  if (r.trustBuy != null) parts.push(`投信: ${r.trustBuy > 0 ? '+' : ''}${r.trustBuy.toLocaleString()}張`);
-  if (r.dealerBuy != null && r.dealerBuy !== 0) parts.push(`自營: ${r.dealerBuy > 0 ? '+' : ''}${r.dealerBuy.toLocaleString()}張`);
-  if (r.marginNet != null && r.marginNet !== 0) parts.push(`融資: ${r.marginNet > 0 ? '+' : ''}${r.marginNet}張`);
-  if (r.shortNet != null && r.shortNet !== 0) parts.push(`融券: ${r.shortNet > 0 ? '+' : ''}${r.shortNet}張`);
-  if (r.dayTradeRatio != null && r.dayTradeRatio > 0) parts.push(`當沖: ${r.dayTradeRatio}%`);
-  if (r.largeTraderNet != null && r.largeTraderNet !== 0) parts.push(`大戶: ${r.largeTraderNet > 0 ? '+' : ''}${r.largeTraderNet.toLocaleString()}張`);
-  if (r.chipDetail) parts.push(`\n${r.chipDetail}`);
-  return parts.join(' | ') || '無籌碼資料';
 }
 
 function chipBadge(score: number | undefined, grade: string | undefined, signal: string | undefined, tooltip: string) {
@@ -474,362 +186,8 @@ function TradeRow({ t, chip, composite }: { t: BacktestTrade; chip?: { chipScore
   );
 }
 
-// ── Research Assumptions Panel ─────────────────────────────────────────────────
 
-function ResearchAssumptions({ market, strategy }: {
-  market: string;
-  strategy: { holdDays: number; stopLoss: number | null; takeProfit: number | null; entryType: string };
-}) {
-  const [open, setOpen] = useState(false);
-  const poolDesc = market === 'TW'
-    ? '台股全市場（上市+上櫃，約 1700+ 支，TWSE/TPEx API 動態取得）'
-    : '陸股全市場（滬深主板+創業板+科創板，約 5000+ 支，東方財富 API 動態取得）';
-  return (
-    <div className="border border-amber-800/50 bg-amber-950/20 rounded-xl overflow-hidden">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-amber-900/10 transition-colors"
-      >
-        <span className="text-amber-400 text-sm">⚠</span>
-        <span className="text-amber-300 text-sm font-medium">研究假設與偏誤說明</span>
-        <span className="ml-auto text-slate-500 text-xs">{open ? '收起 ▲' : '展開 ▼'}</span>
-      </button>
-      {open && (
-        <div className="px-4 pb-4 grid sm:grid-cols-2 gap-4 text-xs text-slate-300">
-          <div>
-            <div className="text-slate-400 font-semibold mb-1.5 uppercase tracking-wide text-[10px]">進出場規則</div>
-            <ul className="space-y-1 text-slate-400">
-              <li>• 訊號時間：<span className="text-slate-200">收盤後評分，不含未來資訊</span></li>
-              <li>• 進場方式：<span className="text-slate-200">訊號日隔日開盤價</span>（{strategy.entryType}）</li>
-              <li>• 持有天數：<span className="text-slate-200">{strategy.holdDays} 個交易日後以收盤出場</span></li>
-              <li>• 停損：<span className="text-slate-200">{strategy.stopLoss == null ? '未設定' : `${(strategy.stopLoss * 100).toFixed(0)}%（以停損價出場）`}</span></li>
-              <li>• 停利：<span className="text-slate-200">{strategy.takeProfit == null ? '未設定' : `+${(strategy.takeProfit * 100).toFixed(0)}%（固定停利）`}</span></li>
-              <li>• 移動停利：<span className="text-slate-200">漲到 +{((strategy as any).trailingActivate ?? 0.05) * 100}% 啟動，從最高點回撤 {((strategy as any).trailingStop ?? 0.03) * 100}% 出場</span></li>
-            </ul>
-          </div>
-          <div>
-            <div className="text-slate-400 font-semibold mb-1.5 uppercase tracking-wide text-[10px]">掃描池定義（關鍵偏誤）</div>
-            <ul className="space-y-1 text-slate-400">
-              <li>• 掃描池：<span className="text-amber-300">{poolDesc}</span></li>
-              <li>• <span className="text-amber-300">非</span>動態每日成交量排名篩選</li>
-              <li>• 影響：包含部分低流動性股票，回測滑價可能被低估</li>
-              <li>• 數據源：Yahoo Finance（歷史K線）+ TWSE/東方財富（股票清單）</li>
-            </ul>
-          </div>
-          <div className="sm:col-span-2 pt-1 border-t border-slate-800 text-slate-500">
-            回測結果代表「全市場股票中，符合六大條件者的後續表現」。歷史回測績效僅供研究參考，過去績效不代表未來結果。實際交易需考慮流動性、滑價、市場情緒等因素。
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
-// ── Session History Sidebar ────────────────────────────────────────────────────
-
-function SessionHistory() {
-  const { sessions, loadSession, market, scanDate } = useBacktestStore();
-  const filtered = sessions.filter(s => s.market === market);
-  if (filtered.length === 0) return null;
-
-  // 統計所有歷史掃描的整體命中率
-  const sessionsWithStats = filtered.filter(s => s.stats?.winRate != null);
-  const avgWinRate = sessionsWithStats.length > 0
-    ? Math.round(sessionsWithStats.reduce((sum, s) => sum + (s.stats?.winRate ?? 0), 0) / sessionsWithStats.length)
-    : null;
-  const totalTrades = sessionsWithStats.reduce((sum, s) => sum + (s.stats?.count ?? 0), 0);
-
-  return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-      <div className="px-4 py-2.5 border-b border-slate-800 bg-slate-800/40">
-        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide">回測歷史</h3>
-        {avgWinRate != null && sessionsWithStats.length >= 2 && (
-          <div className="flex items-center gap-2 mt-1 text-[10px]">
-            <span className="text-slate-500">{sessionsWithStats.length} 次掃描</span>
-            <span className="text-slate-500">·</span>
-            <span className={avgWinRate >= 50 ? 'text-red-400' : 'text-green-500'}>
-              平均勝率 {avgWinRate}%
-            </span>
-            <span className="text-slate-500">·</span>
-            <span className="text-slate-500">{totalTrades} 筆交易</span>
-          </div>
-        )}
-      </div>
-      <div className="p-2 space-y-1">
-        {filtered.map(s => {
-          const isActive = s.scanDate === scanDate;
-          const wr = s.stats?.winRate;
-          return (
-            <button
-              key={s.id}
-              onClick={() => loadSession(s.id)}
-              className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${
-                isActive
-                  ? 'bg-sky-900/40 border border-sky-800/60'
-                  : 'hover:bg-slate-800 border border-transparent'
-              }`}
-            >
-              <div className={`font-mono text-xs font-semibold ${isActive ? 'text-sky-300' : 'text-slate-300'}`}>
-                {s.scanDate}
-              </div>
-              <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500">
-                <span>{s.scanResults.length} 檔</span>
-                {wr != null && (
-                  <>
-                    <span>｜</span>
-                    <span className={wr >= 50 ? 'text-red-400' : 'text-green-500'}>勝率 {wr}%</span>
-                  </>
-                )}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── Walk-Forward Panel ─────────────────────────────────────────────────────────
-
-function WalkForwardPanel({
-  result, sessionCount, minRequired, isRunning, onRun,
-  trainSize, testSize, stepSize,
-  onTrainSize, onTestSize, onStepSize,
-}: {
-  result: WalkForwardResult | null;
-  sessionCount: number;
-  minRequired: number;
-  isRunning: boolean;
-  onRun: () => void;
-  trainSize: number; testSize: number; stepSize: number;
-  onTrainSize: (n: number) => void;
-  onTestSize:  (n: number) => void;
-  onStepSize:  (n: number) => void;
-}) {
-  const enough = sessionCount >= minRequired;
-
-  return (
-    <div className="space-y-4">
-      {/* Header explanation */}
-      <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl px-5 py-4 space-y-2">
-        <div className="flex items-center gap-2">
-          <div className="w-1.5 h-4 rounded-full bg-violet-500" />
-          <h3 className="text-sm font-semibold text-slate-100">步進式向前回測 (Walk-Forward)</h3>
-          <span className="ml-auto text-xs text-slate-500">防止過度擬合的標準方法</span>
-        </div>
-        <p className="text-xs text-slate-400 leading-relaxed">
-          將歷史 session 切分為滾動的訓練/測試窗口。在訓練集上評估策略，
-          再驗證測試集（out-of-sample）是否一樣穩健。
-          穩健性分數越高、效率比越接近 1，代表策略在未見過的資料上仍然有效。
-        </p>
-        <div className="text-xs text-slate-500">
-          目前 <span className={enough ? 'text-slate-200 font-medium' : 'text-amber-400 font-medium'}>{sessionCount}</span> 個歷史 session
-          {!enough && <span className="text-amber-400">（需至少 {minRequired} 個才能執行）</span>}
-        </div>
-      </div>
-
-      {/* Config + Run */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-        <div className="px-5 py-3 border-b border-slate-800 bg-slate-800/30">
-          <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">窗口參數</h4>
-        </div>
-        <div className="p-5 flex flex-wrap items-end gap-4">
-          {[
-            { label: '訓練窗口', value: trainSize, min: 1, max: 10, onChange: onTrainSize,
-              hint: '幾個 session 做訓練' },
-            { label: '測試窗口', value: testSize, min: 1, max: 5, onChange: onTestSize,
-              hint: '幾個 session 做驗證' },
-            { label: '步進大小', value: stepSize, min: 1, max: 5, onChange: onStepSize,
-              hint: '每次向前幾個 session' },
-          ].map(({ label, value, min, max, onChange, hint }) => (
-            <div key={label} className="space-y-1">
-              <label className="text-xs text-slate-500 font-medium">{label}</label>
-              <select
-                value={value}
-                onChange={e => onChange(+e.target.value)}
-                className="bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
-              >
-                {Array.from({ length: max - min + 1 }, (_, i) => i + min).map(n => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-              <div className="text-[10px] text-slate-600">{hint}</div>
-            </div>
-          ))}
-          <button
-            onClick={onRun}
-            disabled={!enough || isRunning}
-            className="ml-auto px-5 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-lg text-sm font-semibold transition-colors"
-          >
-            {isRunning ? '計算中…' : '執行 Walk-Forward'}
-          </button>
-        </div>
-      </div>
-
-      {/* Results */}
-      {result && (
-        <div className="space-y-4">
-          {/* Summary KPIs */}
-          <div className="bg-slate-900 border border-slate-700/60 rounded-xl overflow-hidden">
-            <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-800 bg-slate-800/40">
-              <div className="w-1.5 h-4 rounded-full bg-violet-500" />
-              <h3 className="text-sm font-semibold text-slate-100">跨窗口聚合（Out-of-Sample）</h3>
-              <div className="ml-auto flex items-center gap-4 text-xs text-slate-400">
-                <span>{result.windows.length} 個窗口</span>
-                <span className={`font-bold text-sm ${result.robustnessScore >= 60 ? 'text-red-400' : 'text-amber-400'}`}>
-                  穩健性 {result.robustnessScore}%
-                </span>
-                {result.efficiencyRatio !== null && (
-                  <span className={`font-bold text-sm ${
-                    result.efficiencyRatio >= 0.7 ? 'text-slate-200' : 'text-amber-400'
-                  }`}>
-                    效率比 {result.efficiencyRatio.toFixed(2)}
-                  </span>
-                )}
-              </div>
-            </div>
-            {result.aggregateTestStats && (
-              <div className="grid grid-cols-3 sm:grid-cols-6 divide-x divide-y divide-slate-800/60">
-                <Kpi label="勝率" value={`${result.aggregateTestStats.winRate}%`}
-                  color={result.aggregateTestStats.winRate >= 50 ? 'text-red-400' : 'text-green-500'} />
-                <Kpi label="均值報酬" value={fmtRet(result.aggregateTestStats.avgNetReturn)}
-                  color={retColor(result.aggregateTestStats.avgNetReturn)} />
-                <Kpi label="中位報酬" value={fmtRet(result.aggregateTestStats.medianReturn)}
-                  color={retColor(result.aggregateTestStats.medianReturn)} />
-                <Kpi label="MDD" value={fmtRet(result.aggregateTestStats.maxDrawdown)}
-                  color="text-green-500" subtext="峰谷最大回撤" />
-                <Kpi label="Sharpe" value={result.aggregateTestStats.sharpeRatio?.toFixed(2) ?? '–'}
-                  color={retColor(result.aggregateTestStats.sharpeRatio)} />
-                <Kpi label="筆數" value={String(result.aggregateTestStats.count)}
-                  color="text-slate-300" />
-              </div>
-            )}
-            {/* Robustness gauge */}
-            {result.robustnessScore < 70 && (
-              <div className="px-5 py-2.5 bg-amber-950/40 border-t border-amber-800/40 flex items-center gap-2">
-                <span className="text-amber-400 text-sm">!</span>
-                <span className="text-[11px] text-amber-300/90">
-                  穩健度 {result.robustnessScore}% 低於 70%，策略可能過度擬合歷史數據，實際交易表現可能大幅不如回測
-                </span>
-              </div>
-            )}
-            <div className="px-5 py-3 border-t border-slate-800 space-y-1.5">
-              <div className="flex items-center justify-between text-xs text-slate-500">
-                <span>穩健性分數（測試窗口勝率 &gt; 50% 的比例）</span>
-                <span className="font-bold text-slate-200">{result.robustnessScore}%</span>
-              </div>
-              <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-700 ${
-                    result.robustnessScore >= 70 ? 'bg-red-500' :
-                    result.robustnessScore >= 50 ? 'bg-amber-500' : 'bg-green-600'
-                  }`}
-                  style={{ width: `${result.robustnessScore}%` }}
-                />
-              </div>
-              {result.efficiencyRatio !== null && (
-                <div className="text-[11px] text-slate-500 mt-1">
-                  效率比 {result.efficiencyRatio.toFixed(2)}
-                  <span className="ml-1.5 text-slate-600">
-                    （= 測試集平均報酬 ÷ 訓練集平均報酬，越接近 1 代表策略可複製性越高）
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Per-window table */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-            <div className="px-5 py-3 border-b border-slate-800 bg-slate-800/30">
-              <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">各窗口詳情</h4>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-[10px] text-slate-500 uppercase tracking-wide border-b border-slate-700/80 bg-slate-800/60">
-                    <th className="py-2.5 px-4 text-left">窗口</th>
-                    <th className="py-2.5 px-3 text-left">訓練期</th>
-                    <th className="py-2.5 px-3 text-center">訓練勝率</th>
-                    <th className="py-2.5 px-3 text-center">訓練均值</th>
-                    <th className="py-2.5 px-3 text-left">測試期</th>
-                    <th className="py-2.5 px-3 text-center">測試勝率</th>
-                    <th className="py-2.5 px-3 text-center">測試均值</th>
-                    <th className="py-2.5 px-3 text-center">測試 MDD</th>
-                    <th className="py-2.5 px-3 text-center">穩健</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.windows.map(w => {
-                    const trainWR  = w.trainStats?.winRate ?? null;
-                    const testWR   = w.testStats?.winRate  ?? null;
-                    const robust   = testWR !== null && testWR > 50;
-                    return (
-                      <tr key={w.windowIndex}
-                        className={`border-t border-slate-700/40 hover:bg-slate-800/60 transition-colors ${
-                          robust ? '' : 'opacity-60'
-                        }`}>
-                        <td className="py-2.5 px-4 text-slate-400 font-mono text-xs">#{w.windowIndex + 1}</td>
-                        <td className="py-2.5 px-3 text-xs text-slate-400">
-                          {w.trainSessions[0]} ~ {w.trainSessions[w.trainSessions.length - 1]}
-                          <div className="text-slate-600">{w.trainSessions.length} 個 session</div>
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
-                          {trainWR !== null
-                            ? <span className={trainWR >= 50 ? 'text-red-400 font-bold' : 'text-green-500'}>{trainWR}%</span>
-                            : <span className="text-slate-600">–</span>}
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
-                          <span className={retColor(w.trainStats?.avgNetReturn)}>
-                            {fmtRet(w.trainStats?.avgNetReturn)}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-xs text-slate-300">
-                          {w.testSessions[0]} ~ {w.testSessions[w.testSessions.length - 1]}
-                          <div className="text-slate-600">{w.testSessions.length} 個 session</div>
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
-                          {testWR !== null
-                            ? <span className={`font-bold ${testWR >= 50 ? 'text-red-400' : 'text-green-500'}`}>{testWR}%</span>
-                            : <span className="text-slate-600">–</span>}
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
-                          <span className={retColor(w.testStats?.avgNetReturn)}>
-                            {fmtRet(w.testStats?.avgNetReturn)}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-center text-green-500 text-xs">
-                          {w.testStats?.maxDrawdown != null ? fmtRet(w.testStats.maxDrawdown) : '–'}
-                        </td>
-                        <td className="py-2.5 px-3 text-center text-lg">
-                          {w.testStats == null ? '–' : robust ? '✓' : '✗'}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Empty state when no sessions */}
-      {!result && !isRunning && (
-        <div className="text-center py-16 text-slate-500 space-y-2">
-          <div className="text-4xl">📈</div>
-          <div className="text-sm font-medium text-slate-400">
-            {enough
-              ? '設定窗口參數後，點擊「執行 Walk-Forward」'
-              : `需要至少 ${minRequired} 個歷史回測 session（目前 ${sessionCount} 個）`}
-          </div>
-          {!enough && (
-            <div className="text-xs">先回到「回測參數設定」執行不同日期的回測，累積歷史 session</div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
@@ -861,6 +219,14 @@ export default function UnifiedScanPage() {
   const [newsCache, setNewsCache] = useState<Record<string, { sentiment: number; summary: string; hasNews: boolean; loading: boolean }>>({});
   const [gradeFilter, setGradeFilter] = useState<string>('all');
   const [conceptFilter, setConceptFilter] = useState<string>('all');
+  const [instData, setInstData] = useState<Map<string, InstitutionalSummary | null>>(new Map());
+
+  // Fetch FinMind historical institutional summaries when TW scan results appear
+  useEffect(() => {
+    if (market !== 'TW' || scanResults.length === 0) return;
+    const tickers = scanResults.map(r => r.symbol.replace(/\.(TW|TWO)$/i, ''));
+    fetchInstitutionalBatch(tickers).then(setInstData).catch(() => {});
+  }, [market, scanResults]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch news sentiment on-demand when a scan row is expanded
   useEffect(() => {
@@ -957,9 +323,10 @@ export default function UnifiedScanPage() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200">
-      {/* Header */}
-      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
+    <PageShell>
+    <div className="text-slate-200">
+      {/* Sub-header */}
+      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-14 z-40">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 h-12 sm:h-14 flex items-center gap-2 sm:gap-4">
           <Link href="/" className="text-slate-400 hover:text-slate-200 text-xs sm:text-sm">← 主頁</Link>
           <div className="h-4 w-px bg-slate-700" />
@@ -1433,6 +800,8 @@ export default function UnifiedScanPage() {
                           <th className="text-left py-1.5 px-2 whitespace-nowrap">位置</th>
                           <th className="text-center py-1.5 px-2 whitespace-nowrap"
                             title="籌碼面評分 (0-100)\nS(80+)=主力強力買超\nA(65-79)=法人偏多\nB(50-64)=中性\nC(35-49)=法人偏空\nD(<35)=主力出貨\n\n依據：三大法人買賣超+融資融券+大額交易人+當沖比例">籌碼ⓘ</th>
+                          <th className="text-center py-1.5 px-2 whitespace-nowrap" title="FinMind: 外資近5日淨買超（張）">外資5日</th>
+                          <th className="text-center py-1.5 px-2 whitespace-nowrap" title="FinMind: 外資連續買超天數">連買</th>
                           <th className="text-center py-1.5 px-2">操作</th>
                         </tr>
                       </thead>
@@ -1495,6 +864,25 @@ export default function UnifiedScanPage() {
                             <td className="py-1.5 px-2 text-[10px] text-slate-400 whitespace-nowrap">{r.trendPosition}</td>
                             <td className="py-1.5 px-2 text-center whitespace-nowrap">
                               {chipBadge(r.chipScore, r.chipGrade, r.chipSignal, chipTooltip(r))}
+                            </td>
+                            <td className="py-1.5 px-2 text-center whitespace-nowrap font-mono text-xs">
+                              {(() => {
+                                const inst = instData.get(r.symbol.replace(/\.(TW|TWO)$/i, ''));
+                                if (!inst) return <span className="text-slate-600">—</span>;
+                                const v = inst.foreignNet5d;
+                                return <span className={v > 0 ? 'text-red-400' : v < 0 ? 'text-green-400' : 'text-slate-500'}>
+                                  {v > 0 ? '+' : ''}{v.toLocaleString()}
+                                </span>;
+                              })()}
+                            </td>
+                            <td className="py-1.5 px-2 text-center whitespace-nowrap text-xs">
+                              {(() => {
+                                const inst = instData.get(r.symbol.replace(/\.(TW|TWO)$/i, ''));
+                                if (!inst || inst.consecutiveForeignBuy === 0) return <span className="text-slate-600">—</span>;
+                                return <span className={`font-bold ${inst.consecutiveForeignBuy >= 3 ? 'text-red-400' : 'text-slate-300'}`}>
+                                  {inst.consecutiveForeignBuy}日
+                                </span>;
+                              })()}
                             </td>
                             <td className="py-1.5 px-2 text-center whitespace-nowrap">
                               <Link href={`/?load=${r.symbol}`}
@@ -1657,7 +1045,7 @@ export default function UnifiedScanPage() {
               {/* ── Tab: Strict ── */}
               {tab === 'strict' && (
                 <div className="space-y-4">
-                  {stats && <StrictStatsPanel stats={stats} tradesCount={trades.length} trades={trades} />}
+                  {stats && <BacktestStatsPanel stats={stats} tradesCount={trades.length} trades={trades} />}
                   {useCapitalMode && trades.length > 0 && (
                     <CapitalPanel
                       trades={trades}
@@ -1946,5 +1334,6 @@ export default function UnifiedScanPage() {
 
       </div>
     </div>
+    </PageShell>
   );
 }

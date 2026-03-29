@@ -107,16 +107,18 @@ async function fetchMargin(date: string): Promise<Map<string, { marginBalance: n
     for (const row of json?.tables?.[1]?.data ?? []) {
       const sym = row[0]?.trim();
       if (!sym) continue;
-      const mBuy = parseNum(row[2]), mSell = parseNum(row[3]);
-      const sBuy = parseNum(row[8]), sSell = parseNum(row[9]);
-      const mBalance = parseNum(row[6]);  // 融資餘額
-      const sBalance = parseNum(row[12]); // 融券餘額
-      const mLimit = parseNum(row[7]);    // 融資限額
+      // row[5]=前日餘額, row[6]=今日餘額, row[7]=融資限額
+      // row[11]=融券前日餘額, row[12]=融券今日餘額
+      const mPrev    = parseNum(row[5]);
+      const mBalance = parseNum(row[6]);
+      const mLimit   = parseNum(row[7]);
+      const sPrev    = parseNum(row[11]);
+      const sBalance = parseNum(row[12]);
       map.set(sym, {
         marginBalance: mBalance,
-        marginNet: mBuy - mSell,
+        marginNet: mBalance - mPrev,          // 今日餘額 − 前日餘額 = 精確增減
         shortBalance: sBalance,
-        shortNet: sSell - sBuy,
+        shortNet: sBalance - sPrev,           // 同上
         marginUtilRate: mLimit > 0 ? +(mBalance / mLimit * 100).toFixed(1) : 0,
       });
     }
@@ -236,22 +238,38 @@ function calculateChipScore(
   return { score, grade, signal, detail: details.join('；') || '中性' };
 }
 
+// ── 找最近有資料的交易日（最多往前找 5 天）────────────────────────────────
+async function findLatestTradingDate(requestedDate: string): Promise<string> {
+  let d = new Date(requestedDate + 'T12:00:00');
+  for (let i = 0; i < 5; i++) {
+    const dateStr = d.toISOString().slice(0, 10);
+    const test = await fetchInstitutional(dateStr);
+    if (test.size > 0) return dateStr;
+    d = new Date(d.getTime() - 86400000); // go back one day
+  }
+  return requestedDate; // fallback
+}
+
 // ── 快取 ─────────────────────────────────────────────────────────────────────
 let cache: { date: string; data: Map<string, ChipData>; ts: number } | null = null;
 const CACHE_TTL = 10 * 60 * 1000;
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const date = searchParams.get('date') || new Date().toISOString().slice(0, 10);
+  const rawDate = searchParams.get('date') || new Date().toISOString().slice(0, 10);
   const symbol = searchParams.get('symbol');
 
-  if (cache && cache.date === date && Date.now() - cache.ts < CACHE_TTL) {
+  // Use cached data if available for any recent date
+  if (cache && Date.now() - cache.ts < CACHE_TTL) {
     if (symbol) {
       const d = cache.data.get(symbol.replace(/\.(TW|TWO)$/i, ''));
       return NextResponse.json(d || { error: 'not found' });
     }
-    return NextResponse.json({ date, count: cache.data.size, data: Array.from(cache.data.values()) });
+    return NextResponse.json({ date: cache.date, count: cache.data.size, data: Array.from(cache.data.values()) });
   }
+
+  // Find the most recent trading day with available data
+  const date = await findLatestTradingDate(rawDate);
 
   // 並行抓取所有數據源
   const [instMap, marginMap, dtMap, ltMap] = await Promise.all([

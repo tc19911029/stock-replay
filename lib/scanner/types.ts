@@ -80,6 +80,10 @@ export interface StockScanResult {
   shortBalance?: number;         // 融券餘額（張）
   dayTradeRatio?: number;        // 當沖比例 %
   largeTraderNet?: number;       // 大額交易人淨買超
+  // ── FinMind 歷史法人（近5日）──────────────────────────────────────────────
+  foreignNet5d?: number;         // 外資近5日淨買賣超（張）
+  trustNet5d?: number;           // 投信近5日淨買賣超（張）
+  consecutiveForeignBuy?: number;// 外資連續買超天數
 }
 
 export interface MarketConfig {

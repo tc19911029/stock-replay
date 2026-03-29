@@ -8,20 +8,20 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
-/* Custom scrollbar for dark theme */
+/* Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: #1e293b;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #475569;
+  background: oklch(0.45 0 0 / 50%);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
+  background: oklch(0.55 0 0 / 70%);
 }
 
 @theme inline {
@@ -67,73 +67,85 @@ body {
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* ── Light Theme ── */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --radius: 0.5rem;
+  --background: oklch(0.97 0.005 240);
+  --foreground: oklch(0.15 0.02 250);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.15 0.02 250);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --popover-foreground: oklch(0.15 0.02 250);
+  --primary: oklch(0.55 0.2 263);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.93 0.01 250);
+  --secondary-foreground: oklch(0.15 0.02 250);
+  --muted: oklch(0.94 0.008 250);
+  --muted-foreground: oklch(0.5 0.02 250);
+  --accent: oklch(0.93 0.01 250);
+  --accent-foreground: oklch(0.15 0.02 250);
+  --destructive: oklch(0.58 0.24 27);
+  --border: oklch(0.88 0.01 250);
+  --input: oklch(0.88 0.01 250);
+  --ring: oklch(0.55 0.2 263);
+  /* Stock semantic colors */
+  --bull: oklch(0.52 0.18 145);
+  --bear: oklch(0.57 0.22 27);
+  --neutral-price: oklch(0.5 0.02 250);
+  /* Chart colors */
+  --chart-1: oklch(0.55 0.2 263);
+  --chart-2: oklch(0.52 0.18 145);
+  --chart-3: oklch(0.72 0.18 55);
+  --chart-4: oklch(0.57 0.22 27);
+  --chart-5: oklch(0.65 0.15 310);
+  --sidebar: oklch(0.95 0.01 250);
+  --sidebar-foreground: oklch(0.15 0.02 250);
+  --sidebar-primary: oklch(0.55 0.2 263);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.93 0.01 250);
+  --sidebar-accent-foreground: oklch(0.15 0.02 250);
+  --sidebar-border: oklch(0.88 0.01 250);
+  --sidebar-ring: oklch(0.55 0.2 263);
 }
 
+/* ── Dark Theme — slate-blue, optimized for financial data ── */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: oklch(0.14 0.015 258);
+  --foreground: oklch(0.93 0.01 250);
+  --card: oklch(0.18 0.018 258);
+  --card-foreground: oklch(0.93 0.01 250);
+  --popover: oklch(0.18 0.018 258);
+  --popover-foreground: oklch(0.93 0.01 250);
+  --primary: oklch(0.65 0.2 263);
+  --primary-foreground: oklch(0.14 0.015 258);
+  --secondary: oklch(0.23 0.018 258);
+  --secondary-foreground: oklch(0.93 0.01 250);
+  --muted: oklch(0.23 0.018 258);
+  --muted-foreground: oklch(0.62 0.02 250);
+  --accent: oklch(0.23 0.018 258);
+  --accent-foreground: oklch(0.93 0.01 250);
+  --destructive: oklch(0.65 0.22 27);
+  --border: oklch(1 0 0 / 9%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.65 0.2 263);
+  /* Stock semantic colors */
+  --bull: oklch(0.68 0.18 145);
+  --bear: oklch(0.68 0.22 27);
+  --neutral-price: oklch(0.62 0.02 250);
+  /* Chart colors */
+  --chart-1: oklch(0.65 0.2 263);
+  --chart-2: oklch(0.68 0.18 145);
+  --chart-3: oklch(0.78 0.18 55);
+  --chart-4: oklch(0.68 0.22 27);
+  --chart-5: oklch(0.72 0.15 310);
+  --sidebar: oklch(0.18 0.018 258);
+  --sidebar-foreground: oklch(0.93 0.01 250);
+  --sidebar-primary: oklch(0.65 0.2 263);
+  --sidebar-primary-foreground: oklch(0.93 0.01 250);
+  --sidebar-accent: oklch(0.23 0.018 258);
+  --sidebar-accent-foreground: oklch(0.93 0.01 250);
+  --sidebar-border: oklch(1 0 0 / 9%);
+  --sidebar-ring: oklch(0.65 0.2 263);
 }
 
 @layer base {
@@ -146,4 +158,22 @@ body {
   html {
     @apply font-sans;
   }
+}
+
+/* ── Stock-specific utilities ── */
+@layer utilities {
+  .text-bull { color: var(--bull); }
+  .text-bear { color: var(--bear); }
+  .text-neutral-price { color: var(--neutral-price); }
+  .bg-bull\/10 { background: color-mix(in oklch, var(--bull) 10%, transparent); }
+  .bg-bear\/10 { background: color-mix(in oklch, var(--bear) 10%, transparent); }
+  .border-bull { border-color: var(--bull); }
+  .border-bear { border-color: var(--bear); }
+  /* Number display */
+  .tabular-nums { font-variant-numeric: tabular-nums; }
+  /* Tight card padding for dense financial tables */
+  .card-dense { @apply p-3; }
+  /* Stat block */
+  .stat-label { @apply text-xs text-muted-foreground uppercase tracking-wide; }
+  .stat-value { @apply text-lg font-semibold tabular-nums; }
 }

@@ -6,6 +6,7 @@ import { analyzeNewsSentiment } from '@/lib/news/sentiment';
 import { getTWChineseName } from '@/lib/datasource/TWSENames';
 import { TaiwanScanner } from '@/lib/scanner/TaiwanScanner';
 import type { StockScanResult } from '@/lib/scanner/types';
+import { getFundamentals, getInstitutional } from '@/lib/datasource/FinMindClient';
 
 export const maxDuration = 120;
 
@@ -77,8 +78,12 @@ export async function GET(
           };
         }
 
-        // Fetch news
-        const newsItems = await aggregateNews(ticker, companyName);
+        // Fetch news + FinMind data in parallel
+        const [newsItems, fundamentals, institutionalHistory] = await Promise.all([
+          aggregateNews(ticker, companyName),
+          getFundamentals(ticker).catch(() => null),
+          getInstitutional(ticker, 10).catch(() => null),
+        ]);
         const news = await analyzeNewsSentiment(ticker, newsItems);
 
         // Send news data upfront so the frontend can display it immediately
@@ -89,8 +94,8 @@ export async function GET(
           send(type, data);
         };
 
-        // Run full analysis with streaming
-        const result = await runFullAnalysis(scan, news, onEvent);
+        // Run full analysis with streaming + real FinMind data
+        const result = await runFullAnalysis(scan, news, onEvent, fundamentals, institutionalHistory);
 
         // Send the final complete result
         send('complete', result);

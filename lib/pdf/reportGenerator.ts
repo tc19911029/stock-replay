@@ -14,10 +14,12 @@
  */
 import type { FullAnalysisResult } from '@/lib/ai/roles/types';
 import type { NewsAnalysisResult } from '@/lib/news/types';
+import type { FundamentalsData } from '@/lib/datasource/FinMindClient';
 
 interface ReportData {
   analysis: FullAnalysisResult;
   news: NewsAnalysisResult | null;
+  fundamentals?: FundamentalsData | null;
   costSummary?: {
     totalCostUsd: number;
     callCount: number;
@@ -57,7 +59,7 @@ export async function generateReport(data: ReportData): Promise<void> {
   const pdfFonts = await import('pdfmake/build/vfs_fonts');
   (pdfMake as unknown as { vfs: unknown }).vfs = (pdfFonts as unknown as { pdfMake: { vfs: unknown } }).pdfMake.vfs;
 
-  const { analysis, news, costSummary } = data;
+  const { analysis, news, costSummary, fundamentals } = data;
   const date = formatDate(analysis.analysisDate);
 
   // Build document definition
@@ -85,6 +87,29 @@ export async function generateReport(data: ReportData): Promise<void> {
           ]
         : []),
       { text: '\n' },
+
+      // ── Fundamentals ──
+      ...(fundamentals
+        ? [
+            { text: '基本面數據（FinMind）', style: 'sectionHeader' as const },
+            {
+              table: {
+                widths: ['*', 'auto', '*', 'auto', '*', 'auto', '*', 'auto'],
+                body: [
+                  ['EPS', fundamentals.eps?.toFixed(2) ?? '—',
+                   'EPS YoY', fundamentals.epsYoY != null ? `${fundamentals.epsYoY.toFixed(1)}%` : '—',
+                   '毛利率', fundamentals.grossMargin != null ? `${fundamentals.grossMargin.toFixed(1)}%` : '—',
+                   '淨利率', fundamentals.netMargin != null ? `${fundamentals.netMargin.toFixed(1)}%` : '—'],
+                  ['本益比', fundamentals.per?.toFixed(1) ?? '—',
+                   '淨值比', fundamentals.pbr?.toFixed(2) ?? '—',
+                   '殖利率', fundamentals.dividendYield != null ? `${fundamentals.dividendYield.toFixed(2)}%` : '—',
+                   '月營收 YoY', fundamentals.revenueYoY != null ? `${fundamentals.revenueYoY.toFixed(1)}%` : '—'],
+                ],
+              },
+              margin: [0, 0, 0, 10] as [number, number, number, number],
+            },
+          ]
+        : []),
 
       // ── Analysts ──
       { text: '分析師報告', style: 'sectionHeader' },
