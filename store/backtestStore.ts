@@ -313,7 +313,7 @@ export const useBacktestStore = create<BacktestState>()(
           else if (cd.getDay() === 6) chipDate = new Date(cd.getTime() - 1 * 86400000).toISOString().slice(0, 10);
           fetch(`/api/chip?date=${chipDate}`)
             .then(r => r.json())
-            .then((chipJson: { data?: Array<{ symbol: string; chipScore: number; chipGrade: string; chipSignal: string; foreignBuy: number; trustBuy: number; dealerBuy: number; marginNet: number; shortNet: number }> }) => {
+            .then((chipJson: { data?: Array<{ symbol: string; chipScore: number; chipGrade: string; chipSignal: string; chipDetail: string; foreignBuy: number; trustBuy: number; dealerBuy: number; marginNet: number; shortNet: number; marginBalance: number; shortBalance: number; dayTradeRatio: number; largeTraderNet: number }> }) => {
               if (!chipJson.data) return;
               const chipMap = new Map(chipJson.data.map(d => [d.symbol, d]));
               const current = get().scanResults;
@@ -321,7 +321,7 @@ export const useBacktestStore = create<BacktestState>()(
                 const sym = r.symbol.replace(/\.(TW|TWO)$/i, '');
                 const chip = chipMap.get(sym);
                 if (!chip) return r;
-                return { ...r, chipScore: chip.chipScore, chipGrade: chip.chipGrade, chipSignal: chip.chipSignal, foreignBuy: chip.foreignBuy, trustBuy: chip.trustBuy, dealerBuy: chip.dealerBuy, marginNet: chip.marginNet, shortNet: chip.shortNet };
+                return { ...r, chipScore: chip.chipScore, chipGrade: chip.chipGrade, chipSignal: chip.chipSignal, chipDetail: chip.chipDetail, foreignBuy: chip.foreignBuy, trustBuy: chip.trustBuy, dealerBuy: chip.dealerBuy, marginNet: chip.marginNet, shortNet: chip.shortNet, marginBalance: chip.marginBalance, shortBalance: chip.shortBalance, dayTradeRatio: chip.dayTradeRatio, largeTraderNet: chip.largeTraderNet };
               });
               set({ scanResults: enriched });
             })

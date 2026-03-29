@@ -70,11 +70,16 @@ export interface StockScanResult {
   chipScore?: number;            // 0–100 籌碼面評分
   chipGrade?: string;            // S/A/B/C/D
   chipSignal?: string;           // 主力進場/法人偏多/散戶追高/主力出貨/中性
+  chipDetail?: string;           // 籌碼面摘要（外資買超50M；投信買超10M）
   foreignBuy?: number;           // 外資買賣超（元）
   trustBuy?: number;             // 投信買賣超（元）
   dealerBuy?: number;            // 自營商買賣超（元）
   marginNet?: number;            // 融資增減（張）
   shortNet?: number;             // 融券增減（張）
+  marginBalance?: number;        // 融資餘額（張）
+  shortBalance?: number;         // 融券餘額（張）
+  dayTradeRatio?: number;        // 當沖比例 %
+  largeTraderNet?: number;       // 大額交易人淨買超
 }
 
 export interface MarketConfig {

@@ -253,9 +253,9 @@ export const useScannerStore = create<ScannerStore>()(
             else if (cd.getDay() === 6) chipDate = new Date(cd.getTime() - 1 * 86400000).toISOString().slice(0, 10); // 週六→週五
             fetch(`/api/chip?date=${chipDate}`)
               .then(r => r.json())
-              .then((chipJson: { data?: Array<{ symbol: string; chipScore: number; chipGrade: string; chipSignal: string; foreignBuy: number; trustBuy: number; dealerBuy: number; marginNet: number; shortNet: number }> }) => {
+              .then((chipJson: { data?: Array<{ symbol: string; chipScore: number; chipGrade: string; chipSignal: string; chipDetail: string; foreignBuy: number; trustBuy: number; dealerBuy: number; marginNet: number; shortNet: number; marginBalance: number; shortBalance: number; dayTradeRatio: number; largeTraderNet: number }> }) => {
                 if (!chipJson.data) return;
-                const chipMap = new Map(chipJson.data.map((d: { symbol: string; chipScore: number; chipGrade: string; chipSignal: string; foreignBuy: number; trustBuy: number; dealerBuy: number; marginNet: number; shortNet: number }) => [d.symbol, d]));
+                const chipMap = new Map(chipJson.data.map(d => [d.symbol, d]));
                 const currentResults = get()[mKey].results;
                 const enriched = currentResults.map(r => {
                   const sym = r.symbol.replace(/\.(TW|TWO)$/i, '');
@@ -266,11 +266,16 @@ export const useScannerStore = create<ScannerStore>()(
                     chipScore: chip.chipScore,
                     chipGrade: chip.chipGrade,
                     chipSignal: chip.chipSignal,
+                    chipDetail: chip.chipDetail,
                     foreignBuy: chip.foreignBuy,
                     trustBuy: chip.trustBuy,
                     dealerBuy: chip.dealerBuy,
                     marginNet: chip.marginNet,
                     shortNet: chip.shortNet,
+                    marginBalance: chip.marginBalance,
+                    shortBalance: chip.shortBalance,
+                    dayTradeRatio: chip.dayTradeRatio,
+                    largeTraderNet: chip.largeTraderNet,
                   };
                 });
                 set(s => ({

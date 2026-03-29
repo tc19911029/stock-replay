@@ -371,7 +371,27 @@ function calcTradeComposite(t: BacktestTrade): number {
   return Math.round((sixCon * 0.35 + surge * 0.25 + winR * 0.20 + posBonus * 0.10 + volBonus * 0.10) * 10) / 10;
 }
 
-function TradeRow({ t, chip }: { t: BacktestTrade; chip?: { chipScore: number; chipGrade: string; chipSignal: string; foreignBuy: number; trustBuy: number; marginNet: number } }) {
+function chipTooltip(r: { foreignBuy?: number; trustBuy?: number; dealerBuy?: number; marginNet?: number; shortNet?: number; dayTradeRatio?: number; largeTraderNet?: number; chipDetail?: string }): string {
+  const parts: string[] = [];
+  if (r.foreignBuy != null) parts.push(`外資: ${r.foreignBuy > 0 ? '+' : ''}${(r.foreignBuy / 1e6).toFixed(1)}M`);
+  if (r.trustBuy != null) parts.push(`投信: ${r.trustBuy > 0 ? '+' : ''}${(r.trustBuy / 1e6).toFixed(1)}M`);
+  if (r.dealerBuy != null && r.dealerBuy !== 0) parts.push(`自營: ${r.dealerBuy > 0 ? '+' : ''}${(r.dealerBuy / 1e6).toFixed(1)}M`);
+  if (r.marginNet != null && r.marginNet !== 0) parts.push(`融資: ${r.marginNet > 0 ? '+' : ''}${r.marginNet}張`);
+  if (r.shortNet != null && r.shortNet !== 0) parts.push(`融券: ${r.shortNet > 0 ? '+' : ''}${r.shortNet}張`);
+  if (r.dayTradeRatio != null && r.dayTradeRatio > 0) parts.push(`當沖: ${r.dayTradeRatio}%`);
+  if (r.largeTraderNet != null && r.largeTraderNet !== 0) parts.push(`大戶: ${r.largeTraderNet > 0 ? '+' : ''}${(r.largeTraderNet / 1e6).toFixed(1)}M`);
+  if (r.chipDetail) parts.push(`\n${r.chipDetail}`);
+  return parts.join(' | ') || '無籌碼資料';
+}
+
+function chipBadge(score: number | undefined, grade: string | undefined, signal: string | undefined, tooltip: string) {
+  if (score == null) return <span className="text-[10px] text-slate-600">—</span>;
+  const colorClass = score >= 70 ? 'bg-green-900/60 text-green-300' : score >= 50 ? 'bg-yellow-900/60 text-yellow-300' : 'bg-red-900/60 text-red-300';
+  const icon = signal === '主力進場' ? '🟢' : signal === '法人偏多' ? '🔵' : signal === '大戶加碼' ? '🟡' : signal === '主力出貨' ? '🔴' : signal === '散戶追高' ? '⚠️' : signal === '法人偏空' ? '🟠' : '';
+  return <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${colorClass}`} title={tooltip}>{icon}{grade}</span>;
+}
+
+function TradeRow({ t, chip }: { t: BacktestTrade; chip?: { chipScore: number; chipGrade: string; chipSignal: string; foreignBuy: number; trustBuy: number; marginNet: number; chipDetail?: string; dayTradeRatio?: number; largeTraderNet?: number } }) {
   const sym = t.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
   return (
     <tr className="border-b border-slate-800/50 hover:bg-slate-800/40">
@@ -415,15 +435,7 @@ function TradeRow({ t, chip }: { t: BacktestTrade; chip?: { chipScore: number; c
       <td className="py-1.5 px-2 text-[10px] text-slate-400 whitespace-nowrap">{trendBadge(t.trendState)}</td>
       <td className="py-1.5 px-2 text-[10px] text-slate-400 whitespace-nowrap">{t.trendPosition}</td>
       <td className="py-1.5 px-2 text-center whitespace-nowrap">
-        {chip ? (
-          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-            chip.chipScore >= 70 ? 'bg-green-900/60 text-green-300' :
-            chip.chipScore >= 50 ? 'bg-yellow-900/60 text-yellow-300' :
-            'bg-red-900/60 text-red-300'
-          }`} title={`外資: ${(chip.foreignBuy > 0 ? '+' : '') + (chip.foreignBuy / 1e6).toFixed(1)}M | 投信: ${(chip.trustBuy > 0 ? '+' : '') + (chip.trustBuy / 1e6).toFixed(1)}M | 融資: ${(chip.marginNet > 0 ? '+' : '') + chip.marginNet}張`}>
-            {chip.chipSignal === '主力進場' ? '🟢' : chip.chipSignal === '主力出貨' ? '🔴' : chip.chipSignal === '散戶追高' ? '⚠️' : ''}{chip.chipGrade}
-          </span>
-        ) : <span className="text-[10px] text-slate-600">—</span>}
+        {chipBadge(chip?.chipScore, chip?.chipGrade, chip?.chipSignal, chip ? chipTooltip(chip) : '')}
       </td>
       <td className="py-1.5 px-2 text-right font-mono text-slate-400 whitespace-nowrap">{t.exitPrice.toFixed(2)}</td>
       <td className="py-1.5 px-1 text-center text-slate-500">{t.holdDays}日</td>
