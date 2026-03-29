@@ -66,6 +66,15 @@ export interface StockScanResult {
   aiRank?: number;
   aiConfidence?: 'high' | 'medium' | 'low';
   aiReason?: string;
+  // ── 籌碼面 ────────────────────────────────────────────────────────────────
+  chipScore?: number;            // 0–100 籌碼面評分
+  chipGrade?: string;            // S/A/B/C/D
+  chipSignal?: string;           // 主力進場/法人偏多/散戶追高/主力出貨/中性
+  foreignBuy?: number;           // 外資買賣超（元）
+  trustBuy?: number;             // 投信買賣超（元）
+  dealerBuy?: number;            // 自營商買賣超（元）
+  marginNet?: number;            // 融資增減（張）
+  shortNet?: number;             // 融券增減（張）
 }
 
 export interface MarketConfig {

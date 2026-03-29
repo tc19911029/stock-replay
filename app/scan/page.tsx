@@ -1365,6 +1365,8 @@ export default function UnifiedScanPage() {
                           ))}
                           <th className="text-left py-1.5 px-2 whitespace-nowrap">趨勢</th>
                           <th className="text-left py-1.5 px-2 whitespace-nowrap">位置</th>
+                          <th className="text-center py-1.5 px-2 whitespace-nowrap"
+                            title="籌碼面評分：三大法人買賣超 + 融資融券變化">籌碼</th>
                           <th className="text-center py-1.5 px-2">操作</th>
                         </tr>
                       </thead>
@@ -1425,6 +1427,20 @@ export default function UnifiedScanPage() {
                             </td>
                             <td className="py-1.5 px-2 text-[10px] text-slate-400 whitespace-nowrap">{r.trendState}</td>
                             <td className="py-1.5 px-2 text-[10px] text-slate-400 whitespace-nowrap">{r.trendPosition}</td>
+                            <td className="py-1.5 px-2 text-center whitespace-nowrap">
+                              {r.chipScore != null ? (
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                                  r.chipScore >= 70 ? 'bg-green-900/60 text-green-300' :
+                                  r.chipScore >= 50 ? 'bg-yellow-900/60 text-yellow-300' :
+                                  'bg-red-900/60 text-red-300'
+                                }`} title={`外資: ${r.foreignBuy != null ? (r.foreignBuy > 0 ? '+' : '') + (r.foreignBuy / 1e6).toFixed(1) + 'M' : '?'} | 投信: ${r.trustBuy != null ? (r.trustBuy > 0 ? '+' : '') + (r.trustBuy / 1e6).toFixed(1) + 'M' : '?'} | 融資: ${r.marginNet != null ? (r.marginNet > 0 ? '+' : '') + r.marginNet + '張' : '?'}`}>
+                                  {r.chipSignal === '主力進場' ? '🟢' : r.chipSignal === '主力出貨' ? '🔴' : r.chipSignal === '散戶追高' ? '⚠️' : ''}
+                                  {r.chipGrade}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-slate-600">—</span>
+                              )}
+                            </td>
                             <td className="py-1.5 px-2 text-center whitespace-nowrap">
                               <Link href={`/?load=${r.symbol}`}
                                 className="text-[10px] text-sky-400 hover:text-sky-300 px-1.5 py-0.5 rounded border border-sky-700/50 hover:bg-sky-900/30 mr-1">

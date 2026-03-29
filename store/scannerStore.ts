@@ -244,8 +244,37 @@ export const useScannerStore = create<ScannerStore>()(
             [histKey]: newHist,
           }));
 
-          // Auto-trigger AI ranking for top results
-          get().runAiRank(market);
+          // ── 台股：異步補充籌碼面資料 ──────────────────────────────────────
+          if (market === 'TW' && results.length > 0) {
+            const chipDate = scanDate || now.split('T')[0];
+            fetch(`/api/chip?date=${chipDate}`)
+              .then(r => r.json())
+              .then((chipJson: { data?: Array<{ symbol: string; chipScore: number; chipGrade: string; chipSignal: string; foreignBuy: number; trustBuy: number; dealerBuy: number; marginNet: number; shortNet: number }> }) => {
+                if (!chipJson.data) return;
+                const chipMap = new Map(chipJson.data.map((d: { symbol: string; chipScore: number; chipGrade: string; chipSignal: string; foreignBuy: number; trustBuy: number; dealerBuy: number; marginNet: number; shortNet: number }) => [d.symbol, d]));
+                const currentResults = get()[mKey].results;
+                const enriched = currentResults.map(r => {
+                  const sym = r.symbol.replace(/\.(TW|TWO)$/i, '');
+                  const chip = chipMap.get(sym);
+                  if (!chip) return r;
+                  return {
+                    ...r,
+                    chipScore: chip.chipScore,
+                    chipGrade: chip.chipGrade,
+                    chipSignal: chip.chipSignal,
+                    foreignBuy: chip.foreignBuy,
+                    trustBuy: chip.trustBuy,
+                    dealerBuy: chip.dealerBuy,
+                    marginNet: chip.marginNet,
+                    shortNet: chip.shortNet,
+                  };
+                });
+                set(s => ({
+                  [mKey]: { ...s[mKey], results: enriched },
+                }));
+              })
+              .catch(() => { /* 籌碼查詢失敗不影響主流程 */ });
+          }
         } catch (err) {
           set(s => ({
             [mKey]: { ...s[mKey], isScanning: false, error: err instanceof Error ? err.message : '未知錯誤' },
