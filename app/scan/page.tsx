@@ -410,7 +410,9 @@ function chipBadge(score: number | undefined, grade: string | undefined, signal:
   if (score == null) return <span className="text-[10px] text-slate-600">—</span>;
   const colorClass = score >= 70 ? 'bg-green-900/60 text-green-300' : score >= 50 ? 'bg-yellow-900/60 text-yellow-300' : 'bg-red-900/60 text-red-300';
   const icon = signal === '主力進場' ? '🟢' : signal === '法人偏多' ? '🔵' : signal === '大戶加碼' ? '🟡' : signal === '主力出貨' ? '🔴' : signal === '散戶追高' ? '⚠️' : signal === '法人偏空' ? '🟠' : '';
-  return <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${colorClass}`} title={tooltip}>{icon}{grade}</span>;
+  const gradeDesc = grade === 'S' ? 'S(80+)主力強力買超' : grade === 'A' ? 'A(65-79)法人偏多' : grade === 'B' ? 'B(50-64)中性' : grade === 'C' ? 'C(35-49)法人偏空' : 'D(<35)主力出貨';
+  const fullTooltip = `籌碼評分 ${score}分 ${gradeDesc}\n信號：${signal || '中性'}\n\n${tooltip}`;
+  return <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${colorClass}`} title={fullTooltip}>{icon}{grade}</span>;
 }
 
 function TradeRow({ t, chip, composite }: { t: BacktestTrade; chip?: { chipScore: number; chipGrade: string; chipSignal: string; foreignBuy: number; trustBuy: number; marginNet: number; chipDetail?: string; dayTradeRatio?: number; largeTraderNet?: number }; composite?: number }) {
@@ -1401,7 +1403,7 @@ export default function UnifiedScanPage() {
                           <th className="text-left py-1.5 px-2 whitespace-nowrap">趨勢</th>
                           <th className="text-left py-1.5 px-2 whitespace-nowrap">位置</th>
                           <th className="text-center py-1.5 px-2 whitespace-nowrap"
-                            title="籌碼面評分：三大法人買賣超 + 融資融券變化">籌碼</th>
+                            title="籌碼面評分 (0-100)\nS(80+)=主力強力買超\nA(65-79)=法人偏多\nB(50-64)=中性\nC(35-49)=法人偏空\nD(<35)=主力出貨\n\n依據：三大法人買賣超+融資融券+大額交易人+當沖比例">籌碼ⓘ</th>
                           <th className="text-center py-1.5 px-2">操作</th>
                         </tr>
                       </thead>
@@ -1640,7 +1642,7 @@ export default function UnifiedScanPage() {
                           <th className="text-right py-1.5 px-2 whitespace-nowrap">進場價</th>
                           <th className="text-center py-1.5 px-2 whitespace-nowrap">趨勢</th>
                           <th className="text-left py-1.5 px-2 whitespace-nowrap">位置</th>
-                          <th className="text-center py-1.5 px-2 whitespace-nowrap" title="籌碼面評分：三大法人買賣超 + 融資融券變化">籌碼</th>
+                          <th className="text-center py-1.5 px-2 whitespace-nowrap" title="籌碼面評分 (0-100)\nS(80+)=主力強力買超\nA(65-79)=法人偏多\nB(50-64)=中性\nC(35-49)=法人偏空\nD(<35)=主力出貨\n\n依據：三大法人買賣超+融資融券+大額交易人+當沖比例">籌碼ⓘ</th>
                           <th className="text-right py-1.5 px-2 whitespace-nowrap">出場價</th>
                           <th className="text-center py-1.5 px-2 whitespace-nowrap cursor-pointer hover:text-white select-none"
                             onClick={() => {
@@ -1721,7 +1723,7 @@ export default function UnifiedScanPage() {
                           ))}
                           <th className="text-left py-1.5 px-2 whitespace-nowrap">趨勢</th>
                           <th className="text-left py-1.5 px-2 whitespace-nowrap">位置</th>
-                          <th className="text-center py-1.5 px-2 whitespace-nowrap" title="籌碼面評分：三大法人買賣超 + 融資融券變化">籌碼</th>
+                          <th className="text-center py-1.5 px-2 whitespace-nowrap" title="籌碼面評分 (0-100)\nS(80+)=主力強力買超\nA(65-79)=法人偏多\nB(50-64)=中性\nC(35-49)=法人偏空\nD(<35)=主力出貨\n\n依據：三大法人買賣超+融資融券+大額交易人+當沖比例">籌碼ⓘ</th>
                           <th className="text-right py-1.5 px-1.5 whitespace-nowrap">隔日開</th>
                           <th className="text-right py-1.5 px-1.5 whitespace-nowrap">1日</th>
                           <th className="text-right py-1.5 px-1.5 whitespace-nowrap">2日</th>
