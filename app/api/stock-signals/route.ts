@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchCandlesYahoo } from '@/lib/datasource/YahooFinanceDS';
+// 台股即時報價已在 YahooDataProvider 內部自動覆蓋，無需額外處理
 import { evaluateSixConditions, detectTrendPosition } from '@/lib/analysis/trendAnalysis';
 import { computeSurgeScore } from '@/lib/analysis/surgeScore';
 import { resolveThresholds } from '@/lib/strategy/resolveThresholds';

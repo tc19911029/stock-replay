@@ -5,6 +5,7 @@ import { computeSurgeScore } from '@/lib/analysis/surgeScore';
 import { ruleEngine } from '@/lib/rules/ruleEngine';
 import { resolveThresholds } from '@/lib/strategy/resolveThresholds';
 import { getTWChineseName, getCNChineseName } from '@/lib/datasource/TWSENames';
+import { yahooProvider } from '@/lib/datasource/YahooDataProvider';
 
 export const runtime = 'nodejs';
 
@@ -13,26 +14,13 @@ async function fetchCandles(symbol: string) {
   const candidates = isTwDigits ? [`${symbol}.TW`, `${symbol}.TWO`] : [symbol.toUpperCase()];
 
   for (const ticker of candidates) {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1y&includePrePost=false`;
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!res.ok) continue;
-    const json = await res.json();
-    const result = json?.chart?.result?.[0];
-    if (!result) continue;
-
-    const timestamps: number[] = result.timestamp ?? [];
-    const q = result.indicators.quote[0];
-    const candles = timestamps.map((ts, i) => {
-      const o = q.open[i]; const h = q.high[i]; const l = q.low[i]; const c = q.close[i];
-      if (o == null || h == null || l == null || c == null || isNaN(o)) return null;
-      return { date: new Date(ts * 1000).toISOString().split('T')[0], open: +o.toFixed(2), high: +h.toFixed(2), low: +l.toFixed(2), close: +c.toFixed(2), volume: q.volume[i] ?? 0 };
-    }).filter(Boolean) as { date: string; open: number; high: number; low: number; close: number; volume: number }[];
-
-    const meta = result.meta;
-    return { candles, name: meta.longName ?? meta.shortName ?? ticker, ticker };
+    try {
+      // 使用 yahooProvider（已內建 TWSE 即時報價覆蓋）
+      const candles = await yahooProvider.getHistoricalCandles(ticker, '1y');
+      if (candles.length > 0) {
+        return { candles, name: ticker, ticker };
+      }
+    } catch { continue; }
   }
   return null;
 }
@@ -48,7 +36,7 @@ export async function GET(req: NextRequest) {
     const data = await fetchCandles(symbol);
     if (!data) return NextResponse.json({ error: '找不到股票資料' }, { status: 404 });
 
-    const allCandles = computeIndicators(data.candles);
+    const allCandles = data.candles;
     if (allCandles.length < 30) return NextResponse.json({ error: '資料不足' }, { status: 400 });
 
     const lastIdx = allCandles.length - 1;

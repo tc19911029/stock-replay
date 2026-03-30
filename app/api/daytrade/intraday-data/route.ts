@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { IntradayTimeframe } from '@/lib/daytrade/types';
 import { getTWChineseName } from '@/lib/datasource/TWSENames';
 import { unixToTW, todayTW } from '@/lib/timezone';
+import { getTWSEQuote } from '@/lib/datasource/TWSERealtime';
 
 /**
  * API Route: /api/daytrade/intraday-data?symbol=6770&timeframe=5m&todayOnly=1
@@ -116,6 +117,22 @@ export async function GET(req: NextRequest) {
         const totalMin = hour * 60 + min;
         return totalMin >= 540 && totalMin <= 810; // 09:00 ~ 13:30
       });
+    }
+
+    // 台股即時報價覆蓋：盤中最後一根分鐘 K 的 close 用 TWSE 即時價格
+    if (isTwDigits && isIntraday && candles.length > 0) {
+      try {
+        const pureCode = symbol.replace(/\.(TW|TWO)$/i, '');
+        const quote = await getTWSEQuote(pureCode);
+        if (quote && quote.close > 0) {
+          const lastCandle = candles[candles.length - 1];
+          // 用 TWSE 即時收盤價更新最後一根 K 線的 close
+          lastCandle.close = quote.close;
+          // 如果 TWSE 的 high/low 比分鐘 K 更極端，也更新
+          if (quote.high > lastCandle.high) lastCandle.high = quote.high;
+          if (quote.low < lastCandle.low && quote.low > 0) lastCandle.low = quote.low;
+        }
+      } catch { /* TWSE 失敗不影響主流程 */ }
     }
 
     // 找可用的日期列表

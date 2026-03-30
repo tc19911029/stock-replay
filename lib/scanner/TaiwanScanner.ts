@@ -4,6 +4,7 @@ import { MarketScanner, StockEntry } from './MarketScanner';
 import { MarketConfig } from './types';
 import { detectTrend, TrendState } from '@/lib/analysis/trendAnalysis';
 import { getTWConcept } from './conceptMap';
+import { getTWSERealtime } from '@/lib/datasource/TWSERealtime';
 
 // Fallback list if exchange APIs are unavailable
 const FALLBACK_TW_STOCKS: StockEntry[] = [
