@@ -5,6 +5,8 @@
  * 快取 24 小時，讓個股資料 API 可以補上中文公司名。
  */
 
+import fs from 'fs';
+import path from 'path';
 import { globalCache } from './MemoryCache';
 import { CN_STOCKS } from '@/lib/scanner/ChinaScanner';
 
@@ -12,6 +14,29 @@ import { CN_STOCKS } from '@/lib/scanner/ChinaScanner';
 const CN_NAME_MAP: Record<string, string> = Object.fromEntries(
   CN_STOCKS.map(s => [s.symbol.replace(/\.(SS|SZ)$/i, ''), s.name]),
 );
+
+/** 檔案快取路徑（持久化動態查詢到的名稱，避免重啟後重查） */
+const CN_FILE_CACHE = path.join(process.cwd(), '.cache', 'cn-names.json');
+
+// 啟動時載入檔案快取，補充靜態清單沒有的名稱
+try {
+  const saved = JSON.parse(fs.readFileSync(CN_FILE_CACHE, 'utf-8')) as Record<string, string>;
+  for (const [code, name] of Object.entries(saved)) {
+    CN_NAME_MAP[code] ??= name;
+  }
+} catch { /* 檔案不存在或讀取失敗，忽略 */ }
+
+/** 將動態查詢到的名稱寫回檔案快取 */
+function persistCNName(code: string, name: string): void {
+  try {
+    let saved: Record<string, string> = {};
+    try { saved = JSON.parse(fs.readFileSync(CN_FILE_CACHE, 'utf-8')); } catch { /* 新檔 */ }
+    if (saved[code] === name) return; // 已存在，不重寫
+    saved[code] = name;
+    fs.mkdirSync(path.dirname(CN_FILE_CACHE), { recursive: true });
+    fs.writeFileSync(CN_FILE_CACHE, JSON.stringify(saved, null, 2), 'utf-8');
+  } catch { /* 寫入失敗，不影響主流程 */ }
+}
 
 /**
  * 查詢 A 股中文名稱（滬市/深市 6 位代號）。
@@ -36,6 +61,7 @@ export async function getCNChineseName(code: string): Promise<string | null> {
       if (name && typeof name === 'string') {
         CN_NAME_MAP[code] = name;
         globalCache.set(cacheKey, name, 24 * 60 * 60 * 1000);
+        persistCNName(code, name);
         return name;
       }
     }
@@ -57,6 +83,7 @@ export async function getCNChineseName(code: string): Promise<string | null> {
         const name = match[1];
         CN_NAME_MAP[code] = name;
         globalCache.set(cacheKey, name, 24 * 60 * 60 * 1000);
+        persistCNName(code, name);
         return name;
       }
     }

@@ -3,8 +3,9 @@ import { runFullAnalysis } from '@/lib/ai/analysisEngine';
 import type { AnalysisEventCallback } from '@/lib/ai/analysisEngine';
 import { aggregateNews } from '@/lib/news/aggregator';
 import { analyzeNewsSentiment } from '@/lib/news/sentiment';
-import { getTWChineseName } from '@/lib/datasource/TWSENames';
+import { getTWChineseName, getCNChineseName } from '@/lib/datasource/TWSENames';
 import { TaiwanScanner } from '@/lib/scanner/TaiwanScanner';
+import { ChinaScanner } from '@/lib/scanner/ChinaScanner';
 import type { StockScanResult } from '@/lib/scanner/types';
 import { getFundamentals, getInstitutional } from '@/lib/datasource/FinMindClient';
 
@@ -29,7 +30,7 @@ export async function GET(
 
   if (!ticker || !/^\d{4,6}$/.test(ticker)) {
     return NextResponse.json(
-      { error: 'Invalid ticker format. Expected 4–6 digit Taiwan stock code.' },
+      { error: 'Invalid ticker format. Expected 4–5 digit Taiwan or 6-digit China stock code.' },
       { status: 400 }
     );
   }
@@ -49,12 +50,26 @@ export async function GET(
       };
 
       try {
-        // Resolve company name
-        const companyName = (await getTWChineseName(ticker)) ?? ticker;
-        const symbol = `${ticker}.TW`;
+        // Detect market from ticker length
+        const isCN = /^\d{6}$/.test(ticker);
+
+        let companyName: string;
+        let symbol: string;
+        let market: 'TW' | 'CN';
+
+        if (isCN) {
+          companyName = (await getCNChineseName(ticker)) ?? ticker;
+          const suffix = (ticker.startsWith('6') || ticker.startsWith('9')) ? '.SS' : '.SZ';
+          symbol = `${ticker}${suffix}`;
+          market = 'CN';
+        } else {
+          companyName = (await getTWChineseName(ticker)) ?? ticker;
+          symbol = `${ticker}.TW`;
+          market = 'TW';
+        }
 
         // Compute real scan data
-        const scanner = new TaiwanScanner();
+        const scanner = isCN ? new ChinaScanner() : new TaiwanScanner();
         const scanData = await scanner.fetchStockScanData(symbol, companyName);
 
         let scan: StockScanResult;
@@ -65,7 +80,7 @@ export async function GET(
           scan = {
             symbol,
             name: companyName,
-            market: 'TW',
+            market,
             price: 0,
             changePercent: 0,
             volume: 0,
