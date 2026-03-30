@@ -220,6 +220,37 @@ export default function UnifiedScanPage() {
   const [gradeFilter, setGradeFilter] = useState<string>('all');
   const [conceptFilter, setConceptFilter] = useState<string>('all');
   const [instData, setInstData] = useState<Map<string, InstitutionalSummary | null>>(new Map());
+  const [realtimePrices, setRealtimePrices] = useState<Map<string, { price: number; changePct: number; time: string }>>(new Map());
+
+  // ── 盤中即時價格更新（每 30 秒，僅台股+掃描選股模式）────────────────────
+  useEffect(() => {
+    if (market !== 'TW' || scanResults.length === 0 || !scanOnly) return;
+
+    // 判斷是否在交易時間（台股 09:00-13:30）
+    const now = new Date();
+    const h = now.getHours(), m = now.getMinutes();
+    const isMarketHour = (h >= 9 && (h < 13 || (h === 13 && m <= 30)));
+    if (!isMarketHour) return;
+
+    const fetchRealtime = async () => {
+      try {
+        const symbols = scanResults.slice(0, 50).map(r => r.symbol).join(',');
+        const res = await fetch(`/api/realtime?symbols=${symbols}`);
+        const json = await res.json();
+        if (json.quotes) {
+          const map = new Map<string, { price: number; changePct: number; time: string }>();
+          for (const q of json.quotes) {
+            if (q.price > 0) map.set(q.symbol, { price: q.price, changePct: q.changePct, time: q.time });
+          }
+          setRealtimePrices(map);
+        }
+      } catch { /* silent */ }
+    };
+
+    fetchRealtime(); // 立即抓一次
+    const timer = setInterval(fetchRealtime, 30_000); // 每 30 秒更新
+    return () => clearInterval(timer);
+  }, [market, scanResults.length, scanOnly]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch FinMind historical institutional summaries when TW scan results appear
   useEffect(() => {
@@ -856,10 +887,21 @@ export default function UnifiedScanPage() {
                                 </span>
                               )}
                             </td>
-                            <td className="py-1.5 px-2 text-right font-mono text-white">{r.price.toFixed(2)}</td>
-                            <td className={`py-1.5 px-2 text-right font-mono font-bold ${r.changePercent >= 0 ? 'text-red-400' : 'text-green-400'}`}>
-                              {r.changePercent >= 0 ? '+' : ''}{r.changePercent.toFixed(2)}%
-                            </td>
+                            {(() => {
+                              const sym = r.symbol.replace(/\.(TW|TWO)$/i, '');
+                              const rt = realtimePrices.get(sym);
+                              const price = rt?.price ?? r.price;
+                              const chgPct = rt?.changePct ?? r.changePercent;
+                              return (<>
+                                <td className="py-1.5 px-2 text-right font-mono text-white" title={rt ? `即時 ${rt.time}` : '掃描時價格'}>
+                                  {price.toFixed(2)}
+                                  {rt && <span className="text-[8px] text-sky-500 ml-0.5">⚡</span>}
+                                </td>
+                                <td className={`py-1.5 px-2 text-right font-mono font-bold ${chgPct >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                  {chgPct >= 0 ? '+' : ''}{chgPct.toFixed(2)}%
+                                </td>
+                              </>);
+                            })()}
                             <td className="py-1.5 px-2 text-[10px] text-slate-400 whitespace-nowrap">{r.trendState}</td>
                             <td className="py-1.5 px-2 text-[10px] text-slate-400 whitespace-nowrap">{r.trendPosition}</td>
                             <td className="py-1.5 px-2 text-center whitespace-nowrap">
