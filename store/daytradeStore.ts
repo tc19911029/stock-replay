@@ -156,6 +156,30 @@ async function fetchRealCandles(symbol: string, timeframe: IntradayTimeframe, to
   return { candles: json.candles ?? [], name: json.name ?? '' };
 }
 
+/** 從 TWSE mis API 取得即時報價（5 秒更新），用於覆蓋 Yahoo 延遲數據 */
+async function fetchRealtimePrice(symbol: string): Promise<{
+  price: number; open: number; high: number; low: number; volume: number; time: string;
+} | null> {
+  try {
+    const clean = symbol.replace(/\.(TW|TWO)$/i, '');
+    const res = await fetch(`/api/realtime?symbols=${encodeURIComponent(clean)}`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const q = json.quotes?.[0];
+    if (!q || q.price <= 0) return null;
+    return {
+      price: q.price,
+      open: q.open,
+      high: q.high,
+      low: q.low,
+      volume: q.volume,
+      time: q.time,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ── Store ────────────────────────────────────────────────────────────────────
 
 export const useDaytradeStore = create<DaytradeState>((set, get) => ({
@@ -180,7 +204,7 @@ export const useDaytradeStore = create<DaytradeState>((set, get) => ({
   todayOnly: true,
   signalThreshold: 0,
   autoRefresh: false,
-  refreshInterval: 30,
+  refreshInterval: 10,
   hoverCandle: null,
   latestPrice: 0,
   openPrice: 0,
@@ -235,8 +259,21 @@ export const useDaytradeStore = create<DaytradeState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const { candles: rawCandles, name: stockName } = await fetchRealCandles(symbol, selectedTimeframe, todayOnly);
+      // 同時抓分鐘 K 線 + 即時報價
+      const [candleResult, rtQuote] = await Promise.all([
+        fetchRealCandles(symbol, selectedTimeframe, todayOnly),
+        fetchRealtimePrice(symbol),
+      ]);
+      const { candles: rawCandles, name: stockName } = candleResult;
       if (rawCandles.length === 0) throw new Error('無分鐘數據，可能非交易時間');
+
+      // 用即時報價覆蓋最後一根 K 線的 close（消除 Yahoo 15-20 分鐘延遲）
+      if (rtQuote && rawCandles.length > 0) {
+        const lastCandle = rawCandles[rawCandles.length - 1];
+        lastCandle.close = rtQuote.price;
+        if (rtQuote.high > lastCandle.high) lastCandle.high = rtQuote.high;
+        if (rtQuote.low > 0 && rtQuote.low < lastCandle.low) lastCandle.low = rtQuote.low;
+      }
 
       const displayCandles = computeIntradayIndicators(rawCandles);
 
@@ -260,14 +297,14 @@ export const useDaytradeStore = create<DaytradeState>((set, get) => ({
       const newSigs = allSignals.filter(s => !prevIds.has(s.id) && (s.type === 'BUY' || s.type === 'SELL') && s.score >= 60);
       const newSignalAlert = newSigs.length > 0 ? newSigs[newSigs.length - 1] : null;
 
-      // Quote info
+      // Quote info — 優先使用 TWSE 即時報價
       const today = displayCandles[displayCandles.length - 1]?.time.split('T')[0];
       const todayCandles = displayCandles.filter(c => c.time.split('T')[0] === today);
       const src = todayCandles.length > 0 ? todayCandles : displayCandles;
       const first = src[0];
       const last = src[src.length - 1];
-      const openPrice = first.open;
-      const latestPrice = last.close;
+      const openPrice = rtQuote?.open && rtQuote.open > 0 ? rtQuote.open : first.open;
+      const latestPrice = rtQuote?.price ?? last.close;
 
       // Init paper engine if not exists
       if (!paperEngine) {
@@ -302,9 +339,15 @@ export const useDaytradeStore = create<DaytradeState>((set, get) => ({
         isLoading: false,
         latestPrice,
         openPrice,
-        highPrice: Math.max(...src.map(c => c.high)),
-        lowPrice: Math.min(...src.map(c => c.low)),
-        dayVolume: src.reduce((s, c) => s + c.volume, 0),
+        highPrice: rtQuote?.high && rtQuote.high > 0
+          ? Math.max(rtQuote.high, ...src.map(c => c.high))
+          : Math.max(...src.map(c => c.high)),
+        lowPrice: rtQuote?.low && rtQuote.low > 0
+          ? Math.min(rtQuote.low, ...src.map(c => c.low))
+          : Math.min(...src.map(c => c.low)),
+        dayVolume: rtQuote?.volume && rtQuote.volume > 0
+          ? rtQuote.volume
+          : src.reduce((s, c) => s + c.volume, 0),
         priceChange: latestPrice - openPrice,
         priceChangePct: ((latestPrice - openPrice) / openPrice) * 100,
         lastUpdateTime: formatTWTime(nowISOTW()),
