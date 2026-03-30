@@ -3,6 +3,7 @@ import type { IntradayTimeframe } from '@/lib/daytrade/types';
 import { getTWChineseName } from '@/lib/datasource/TWSENames';
 import { unixToTW, todayTW } from '@/lib/timezone';
 import { getTWSEQuote } from '@/lib/datasource/TWSERealtime';
+import { getEastMoneyQuote } from '@/lib/datasource/EastMoneyRealtime';
 
 /**
  * API Route: /api/daytrade/intraday-data?symbol=6770&timeframe=5m&todayOnly=1
@@ -119,18 +120,21 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 台股即時報價覆蓋：盤中最後一根分鐘 K 的 close 用 TWSE 即時價格
-    if (isTwDigits && isIntraday && candles.length > 0) {
+    // 即時報價覆蓋：盤中最後一根分鐘 K 的 close 用交易所即時價格
+    const isCnDigits = /^\d{6}$/.test(symbol);
+    if ((isTwDigits || isCnDigits) && isIntraday && candles.length > 0) {
       try {
-        const pureCode = symbol.replace(/\.(TW|TWO)$/i, '');
-        const quote = await getTWSEQuote(pureCode);
+        const pureCode = symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
+        const quote = isTwDigits
+          ? await getTWSEQuote(pureCode)
+          : await getEastMoneyQuote(pureCode);
         if (quote && quote.close > 0) {
           const lastCandle = candles[candles.length - 1];
           lastCandle.close = quote.close;
           if (quote.high > lastCandle.high) lastCandle.high = quote.high;
           if (quote.low < lastCandle.low && quote.low > 0) lastCandle.low = quote.low;
         }
-      } catch { /* TWSE 失敗不影響主流程 */ }
+      } catch { /* 即時報價失敗不影響主流程 */ }
     }
 
     // 找可用的日期列表

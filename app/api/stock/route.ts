@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getTWChineseName, getCNChineseName } from '@/lib/datasource/TWSENames';
 import { unixToTW } from '@/lib/timezone';
 import { getTWSEQuote } from '@/lib/datasource/TWSERealtime';
+import { getEastMoneyQuote } from '@/lib/datasource/EastMoneyRealtime';
 
 /**
  * API Route: /api/stock?symbol=2330&interval=1d&period=2y
@@ -143,10 +144,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: '資料為空，請嘗試其他期間' }, { status: 404 });
     }
 
-    // 台股即時報價覆蓋：用 TWSE/TPEx 即時 OHLCV 取代 Yahoo 延遲數據
-    if (isTwDigits && interval === '1d') {
+    // 即時報價覆蓋：用交易所 API 取代 Yahoo 延遲數據（台股 + A 股）
+    if ((isTwDigits || isCnDigits) && interval === '1d') {
       try {
-        const quote = await getTWSEQuote(pureCode);
+        const quote = isTwDigits
+          ? await getTWSEQuote(pureCode)
+          : await getEastMoneyQuote(pureCode);
         if (quote && quote.close > 0) {
           const todayStr = new Date(Date.now() + 8 * 3600_000).toISOString().split('T')[0];
           const lastCandle = candles[candles.length - 1] as { date: string; open: number; high: number; low: number; close: number; volume: number } | undefined;
@@ -169,7 +172,7 @@ export async function GET(req: NextRequest) {
             }
           }
         }
-      } catch { /* TWSE 失敗不影響主流程 */ }
+      } catch { /* 即時報價失敗不影響主流程 */ }
     }
 
     const meta     = result.meta;
