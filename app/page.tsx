@@ -58,15 +58,15 @@ export default function HomePage() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 跳到指定日期的 K 線位置
+  // 跳到指定日期的 K 線位置（等 allCandles 載入完成後才跳）
   useEffect(() => {
-    if (!jumpToDate || allCandles.length === 0) return;
+    if (!jumpToDate || allCandles.length < 30) return; // 等數據載入完成（至少30根K線）
     const idx = allCandles.findIndex(c => c.date >= jumpToDate);
     if (idx >= 0) {
       useReplayStore.getState().jumpToIndex(idx);
     }
-    setJumpToDate(null);
-  }, [jumpToDate, allCandles]); // eslint-disable-line react-hooks/exhaustive-deps
+    setJumpToDate(null); // 成功後才清除
+  }, [jumpToDate, allCandles.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleKey = useCallback((e: KeyboardEvent) => {
     if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
