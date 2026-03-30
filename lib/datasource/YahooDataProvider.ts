@@ -3,6 +3,13 @@ import { Candle, CandleWithIndicators } from '@/types';
 import { computeIndicators } from '@/lib/indicators';
 import { DataProvider } from './DataProvider';
 import { globalCache } from './MemoryCache';
+import { getTWSEQuote } from './TWSERealtime';
+
+/** 從 symbol 提取台股純數字代碼，非台股回傳 null */
+function extractTWCode(symbol: string): string | null {
+  const m = symbol.match(/^(\d{4,5})\.(TW|TWO)$/i);
+  return m ? m[1] : null;
+}
 
 const YF_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
@@ -127,6 +134,36 @@ export class YahooDataProvider implements DataProvider {
       ? rawCandles.filter(c => c.date <= asOfDate)
       : rawCandles;
 
+    // 台股即時報價覆蓋：用 TWSE/TPEx 即時 OHLCV 補上最新一根日 K
+    const twCode = extractTWCode(symbol);
+    if (twCode && !isHistorical && filtered.length > 0) {
+      try {
+        const quote = await getTWSEQuote(twCode);
+        if (quote && quote.close > 0) {
+          const todayStr = new Date(Date.now() + 8 * 3600_000).toISOString().split('T')[0];
+          const lastCandle = filtered[filtered.length - 1];
+          if (lastCandle.date === todayStr) {
+            lastCandle.open   = quote.open;
+            lastCandle.high   = quote.high;
+            lastCandle.low    = quote.low;
+            lastCandle.close  = quote.close;
+            lastCandle.volume = quote.volume;
+          } else if (lastCandle.date < todayStr) {
+            filtered.push({
+              date:   todayStr,
+              open:   quote.open,
+              high:   quote.high,
+              low:    quote.low,
+              close:  quote.close,
+              volume: quote.volume,
+            });
+          }
+        }
+      } catch (e) {
+        console.warn(`[YahooDataProvider] TWSE overlay failed for ${twCode}:`, e);
+      }
+    }
+
     const result = computeIndicators(filtered);
     globalCache.set(cacheKey, result, ttl);
     return result;
@@ -153,9 +190,42 @@ export class YahooDataProvider implements DataProvider {
     if (!res.ok) throw new Error(`Yahoo Finance ${res.status} for ${symbol}`);
 
     const result = parseYahooCandlesRaw(await res.json());
-    // 若區間包含今天或最近 2 天，用短快取（5分鐘）避免少算最新交易日
+
+    // 台股即時報價覆蓋
+    const twCode = extractTWCode(symbol);
     const twoDaysAgo = new Date(Date.now() - 2 * 86400_000).toISOString().split('T')[0];
     const isRecent = endDate >= twoDaysAgo;
+
+    if (twCode && isRecent && result.length > 0) {
+      try {
+        const quote = await getTWSEQuote(twCode);
+        if (quote && quote.close > 0) {
+          const todayStr = new Date(Date.now() + 8 * 3600_000).toISOString().split('T')[0];
+          if (todayStr >= startDate && todayStr <= endDate) {
+            const lastCandle = result[result.length - 1];
+            if (lastCandle.date === todayStr) {
+              lastCandle.open   = quote.open;
+              lastCandle.high   = quote.high;
+              lastCandle.low    = quote.low;
+              lastCandle.close  = quote.close;
+              lastCandle.volume = quote.volume;
+            } else if (lastCandle.date < todayStr) {
+              result.push({
+                date:   todayStr,
+                open:   quote.open,
+                high:   quote.high,
+                low:    quote.low,
+                close:  quote.close,
+                volume: quote.volume,
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn(`[YahooDataProvider] TWSE range overlay failed for ${twCode}:`, e);
+      }
+    }
+
     globalCache.set(cacheKey, result, isRecent ? RECENT_TTL : HISTORICAL_TTL);
     return result;
   }

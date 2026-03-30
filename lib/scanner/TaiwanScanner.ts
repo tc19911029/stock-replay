@@ -4,6 +4,7 @@ import { fetchCandlesTWSE } from '@/lib/datasource/TWSEDataSource';
 import { MarketScanner, StockEntry } from './MarketScanner';
 import { MarketConfig } from './types';
 import { detectTrend, TrendState } from '@/lib/analysis/trendAnalysis';
+import { getTWSERealtime } from '@/lib/datasource/TWSERealtime';
 import { getTWConcept } from './conceptMap';
 
 // Fallback list if exchange APIs are unavailable
