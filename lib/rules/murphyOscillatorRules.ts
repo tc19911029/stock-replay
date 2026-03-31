@@ -3,7 +3,7 @@
 // 擺動指數規則 — KD背離、MACD柱狀圖、RSI趨勢內涵、動力指數、ROC
 // ═══════════════════════════════════════════════════════════════
 
-import { TradingRule, RuleSignal, CandleWithIndicators } from '@/types';
+import { TradingRule, RuleSignal } from '@/types';
 import { findSwingHighs, findSwingLows } from './ruleUtils';
 
 // ── 規則 ──────────────────────────────────────────────────────────────────────

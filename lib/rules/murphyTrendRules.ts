@@ -7,7 +7,6 @@ import { TradingRule, RuleSignal, CandleWithIndicators } from '@/types';
 import {
   findSwingHighs, findSwingLows, linearRegression,
   gapUp, gapDown, isVolumeBreakout, isLongRedCandle,
-  SwingPoint,
 } from './ruleUtils';
 
 // ── 工具函數 ──────────────────────────────────────────────────────────────────

@@ -33,29 +33,6 @@ function findLastUpswing(
   return { swingHigh, swingLow };
 }
 
-/** 找最近一段下跌波段的高點和低點 */
-function findLastDownswing(
-  candles: CandleWithIndicators[], index: number,
-): { swingHigh: SwingPoint; swingLow: SwingPoint } | null {
-  const highs = findSwingHighs(candles, index, 80, 3);
-  const lows = findSwingLows(candles, index, 80, 3);
-  if (highs.length === 0 || lows.length === 0) return null;
-
-  const swingLow = lows[lows.length - 1];
-
-  let swingHigh: SwingPoint | null = null;
-  for (let i = highs.length - 1; i >= 0; i--) {
-    if (highs[i].idx < swingLow.idx) {
-      swingHigh = highs[i];
-      break;
-    }
-  }
-  if (swingHigh == null) return null;
-  if (swingHigh.price <= swingLow.price) return null;
-
-  return { swingHigh, swingLow };
-}
-
 // ── 規則 ──────────────────────────────────────────────────────────────────────
 
 /**

@@ -4,10 +4,10 @@
 // （與現有 Edwards & Magee 規則不重複的部分）
 // ═══════════════════════════════════════════════════════════════
 
-import { TradingRule, RuleSignal, CandleWithIndicators } from '@/types';
+import { TradingRule, RuleSignal } from '@/types';
 import {
   findSwingHighs, findSwingLows, linearRegression,
-  gapUp, gapDown, isVolumeBreakout, bodyPct,
+  gapUp, gapDown, isVolumeBreakout,
 } from './ruleUtils';
 
 // ── 規則 ──────────────────────────────────────────────────────────────────────
@@ -238,7 +238,6 @@ export const broadeningFormation: TradingRule = {
   description: '價格波動幅度逐漸擴大，高點越來越高、低點越來越低',
   evaluate(candles, index): RuleSignal | null {
     if (index < 30) return null;
-    const c = candles[index];
 
     // 找近40根的 swing highs 和 swing lows
     const highs = findSwingHighs(candles, index, 40, 2);

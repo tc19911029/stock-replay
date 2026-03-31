@@ -3,7 +3,7 @@
 // 市場結構規則 — 道氏理論驗證、相對力度分析、多指標同步確認
 // ═══════════════════════════════════════════════════════════════
 
-import { TradingRule, RuleSignal, CandleWithIndicators } from '@/types';
+import { TradingRule, RuleSignal } from '@/types';
 import {
   findSwingHighs, findSwingLows, isMaTrendingUp, isMaTrendingDown,
   isVolumeBreakout,
