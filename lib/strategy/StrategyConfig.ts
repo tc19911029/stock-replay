@@ -366,7 +366,41 @@ export const CHART_WALKING_SOP: StrategyConfig = {
   ruleGroups:  ['lin-sop', ...BASE_GROUPS],
 };
 
+/**
+ * 回測驗證最佳策略（2024-2026 台股 200 股回測結果）
+ *
+ * 回測結論：
+ * - 大盤多頭 + 六條件≥5 + 停損 3% + MA5 出場 → PF 1.11, Sharpe 0.20（唯一正 Sharpe 停損策略）
+ * - 大盤多頭 + 六條件=6 → 排名第一（10D報酬 +1.27%, 20D報酬 +3.48%）
+ * - 共振信號≥2 作為圖表預設過濾，大幅降噪
+ *
+ * 設計：進場嚴格（五條件以上），停損果斷（3% 硬停損 + 黑K跌破MA5）
+ */
+export const ZHU_OPTIMIZED: StrategyConfig = {
+  id:          'zhu-optimized',
+  name:        '回測驗證版（台股最佳）',
+  description: '大盤多頭+六條件≥5+停損3%+MA5出場，2024-2026台股200股回測驗證的最高Sharpe策略',
+  version:     '1.0.0',
+  author:      '回測優化',
+  createdAt:   '2026-03-31T00:00:00.000Z',
+  isBuiltIn:   true,
+  conditions:  ALL_CONDITIONS_ON,
+  thresholds:  {
+    ...BASE_THRESHOLDS,
+    volumeRatioMin: 1.5,      // 回測驗證：帶量突破 1.5x 是基本門檻
+    kdMaxEntry:     88,
+    deviationMax:   0.15,     // 嚴格：乖離 >15% 不追高
+    minScore:       5,        // 核心：六條件至少過 5 關
+    marketTrendFilter: true,  // 核心：大盤多頭才買
+    bullMinScore:   5,        // 即使大盤多頭也要 5 分
+    sidewaysMinScore: 6,      // 盤整要 6/6 全過
+    bearMinScore:   6,        // 空頭不進場（設 6 等於幾乎不會觸發）
+  },
+  ruleGroups:  [...ALL_ZHU_GROUPS, 'lin-sop', 'bollinger', ...BASE_GROUPS],
+};
+
 export const BUILT_IN_STRATEGIES: StrategyConfig[] = [
+  ZHU_OPTIMIZED,   // 回測驗證最佳，放第一個
   ZHU_V1, ZHU_V2, ZHU_CONSERVATIVE,
   ZHU_V3_MULTIFACTOR, ZHU_V3_TW, ZHU_V3_CN,
   MASTER_CONSENSUS, ZHU_5STEPS, CHART_WALKING_SOP,

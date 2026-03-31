@@ -36,11 +36,8 @@ const INITIAL_CAPITAL = 1_000_000;
 let _cachedMarkers: ChartSignalMarker[] = [];
 /** 當前策略篩選後的引擎（precomputeMarkers 和 buildState 共用） */
 let _activeEngine: RuleEngine = ruleEngine;
-
-// Priority: SELL > BUY > REDUCE > ADD (one marker per candle)
-const MARKER_PRIORITY: Record<string, number> = {
-  SELL: 4, BUY: 3, REDUCE: 2, ADD: 1, WATCH: 0,
-};
+/** 信號共振強度最低門檻（多少個群組同意才顯示 marker） */
+let _signalStrengthMin = 2;
 
 /**
  * 根據當前策略建立篩選後的 RuleEngine。
@@ -56,7 +53,10 @@ function buildFilteredEngine(): RuleEngine {
 
 function precomputeMarkers(allCandles: CandleWithIndicators[]): void {
   _activeEngine = buildFilteredEngine();
+  const strategy = useSettingsStore.getState().getActiveStrategy();
+  const minScore = strategy.thresholds.minScore ?? 4;
   const result: ChartSignalMarker[] = [];
+
   for (let i = 0; i < allCandles.length; i++) {
     const c = allCandles[i];
 
@@ -64,22 +64,46 @@ function precomputeMarkers(allCandles: CandleWithIndicators[]): void {
     const isBullish = c.ma5 != null && c.ma20 != null && c.ma5 > c.ma20;
     const isBearish = c.ma5 != null && c.ma20 != null && c.ma5 < c.ma20;
 
-    const signals = _activeEngine.evaluate(allCandles, i)
-      .filter(s => s.type !== 'WATCH')
-      .filter(s => {
-        if (s.type === 'BUY' || s.type === 'ADD')    return isBullish;  // 只在多頭買進
-        if (s.type === 'SELL' || s.type === 'REDUCE') return isBearish; // 只在空頭賣出
-        return true;
-      });
+    // 用 evaluateDetailed 拿到每個 signal 的 groupId
+    const { allSignals } = _activeEngine.evaluateDetailed(allCandles, i);
 
-    if (signals.length === 0) continue;
-
-    // Pick highest-priority signal for this candle
-    const best = signals.reduce((a, b) =>
-      (MARKER_PRIORITY[b.type] ?? 0) > (MARKER_PRIORITY[a.type] ?? 0) ? b : a
+    // 按方向統計來自幾個不同群組
+    const buyGroups = new Set(
+      allSignals
+        .filter(s => (s.type === 'BUY' || s.type === 'ADD') && isBullish)
+        .map(s => s.groupId),
     );
-    result.push({ date: c.date, type: best.type, label: best.label });
+    const sellGroups = new Set(
+      allSignals
+        .filter(s => (s.type === 'SELL' || s.type === 'REDUCE') && isBearish)
+        .map(s => s.groupId),
+    );
+
+    const buyStrength = buyGroups.size;
+    const sellStrength = sellGroups.size;
+
+    // ── 六大條件過濾（買進方向需過門檻，賣出不限） ──
+    if (buyStrength >= _signalStrengthMin) {
+      const score = minScore > 1 ? evaluateSixConditions(allCandles, i, strategy.thresholds).totalScore : 6;
+      if (score >= minScore) {
+        result.push({
+          date: c.date,
+          type: 'BUY',
+          label: `買 ×${buyStrength} (${score}/6)`,
+          strength: buyStrength,
+        });
+      }
+    }
+    if (sellStrength >= _signalStrengthMin) {
+      result.push({
+        date: c.date,
+        type: 'SELL',
+        label: sellStrength >= 3 ? `強賣 ×${sellStrength}` : `賣 ×${sellStrength}`,
+        strength: sellStrength,
+      });
+    }
   }
+
   _cachedMarkers = result;
 }
 
@@ -110,6 +134,7 @@ interface ReplayStore {
   // ── Signals ───────────────────────────────────────────────
   currentSignals: RuleSignal[];
   chartMarkers: ChartSignalMarker[];  // all past signal markers up to currentIndex
+  signalStrengthMin: number;          // 共振門檻（幾個群組同意才顯示）
 
   // ── Analysis ──────────────────────────────────────────────
   trendState: TrendState;
@@ -133,6 +158,7 @@ interface ReplayStore {
   sell: (shares: number) => void;
   buyPercent: (percent: number) => void;
   sellPercent: (percent: number) => void;
+  setSignalStrengthMin: (min: number) => void;
 }
 
 const EMPTY_STATS: PerformanceStats = {
@@ -179,6 +205,7 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
   stats: EMPTY_STATS,
   currentSignals: [],
   chartMarkers: [],
+  signalStrengthMin: 2,
   trendState: '盤整' as TrendState,
   trendPosition: '盤整觀望' as TrendPosition,
   sixConditions: null,
@@ -336,5 +363,19 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
     const { account } = get();
     const shares = Math.floor(account.shares * percent);
     if (shares > 0) get().sell(shares);
+  },
+
+  setSignalStrengthMin: (min) => {
+    _signalStrengthMin = min;
+    const { allCandles, currentIndex, account } = get();
+    if (allCandles.length > 0) {
+      precomputeMarkers(allCandles);
+      set({
+        signalStrengthMin: min,
+        ...buildState(allCandles, currentIndex, account),
+      });
+    } else {
+      set({ signalStrengthMin: min });
+    }
   },
 }));

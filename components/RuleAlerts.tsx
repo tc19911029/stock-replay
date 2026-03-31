@@ -55,9 +55,42 @@ function SignalCard({ sig }: { sig: RuleSignal }) {
   );
 }
 
+/** 共振摘要 bar */
+function ResonanceSummary({ signals }: { signals: RuleSignal[] }) {
+  const buyCount = signals.filter(s => s.type === 'BUY' || s.type === 'ADD').length;
+  const sellCount = signals.filter(s => s.type === 'SELL' || s.type === 'REDUCE').length;
+  const watchCount = signals.filter(s => s.type === 'WATCH').length;
+
+  if (buyCount === 0 && sellCount === 0 && watchCount === 0) return null;
+
+  return (
+    <div className="flex items-center gap-2 px-2 py-1.5 bg-slate-900 rounded text-xs mb-2">
+      <span className="text-slate-500 font-medium">共振:</span>
+      {buyCount > 0 && (
+        <span className={`px-1.5 py-0.5 rounded font-bold ${buyCount >= 3 ? 'bg-red-600 text-white' : buyCount >= 2 ? 'bg-red-800/60 text-red-300' : 'text-red-400'}`}>
+          買 ×{buyCount}
+        </span>
+      )}
+      {sellCount > 0 && (
+        <span className={`px-1.5 py-0.5 rounded font-bold ${sellCount >= 3 ? 'bg-green-700 text-white' : sellCount >= 2 ? 'bg-green-800/60 text-green-300' : 'text-green-400'}`}>
+          賣 ×{sellCount}
+        </span>
+      )}
+      {watchCount > 0 && (
+        <span className="text-yellow-500">觀察 ×{watchCount}</span>
+      )}
+    </div>
+  );
+}
+
 export default function RuleAlerts() {
   const { currentSignals, allCandles, currentIndex } = useReplayStore();
   const currentDate = allCandles[currentIndex]?.date;
+  const [showWeak, setShowWeak] = useState(false);
+
+  // 分成強信號（BUY/SELL/ADD/REDUCE）和觀察信號（WATCH）
+  const actionSignals = currentSignals.filter(s => s.type !== 'WATCH');
+  const watchSignals = currentSignals.filter(s => s.type === 'WATCH');
 
   return (
     <div className="bg-slate-800 rounded-lg p-4">
@@ -68,13 +101,33 @@ export default function RuleAlerts() {
         )}
       </div>
 
+      {/* 共振摘要 */}
+      <ResonanceSummary signals={currentSignals} />
+
       {currentSignals.length === 0 ? (
         <p className="text-xs text-slate-500 text-center py-4">本根K線無觸發規則</p>
       ) : (
         <div className="space-y-2">
-          {currentSignals.map((sig, i) => (
+          {/* 動作信號（BUY/SELL/ADD/REDUCE） */}
+          {actionSignals.map((sig, i) => (
             <SignalCard key={`${sig.ruleId}-${i}`} sig={sig} />
           ))}
+
+          {/* WATCH 信號折疊 */}
+          {watchSignals.length > 0 && (
+            <>
+              <button
+                onClick={() => setShowWeak(v => !v)}
+                className="w-full text-xs text-slate-500 hover:text-slate-400 py-1 transition"
+              >
+                {showWeak ? '▲ 收起觀察信號' : `▼ 觀察信號 (${watchSignals.length})`}
+              </button>
+              {showWeak && watchSignals.map((sig, i) => (
+                <SignalCard key={`watch-${sig.ruleId}-${i}`} sig={sig} />
+              ))}
+            </>
+          )}
+
           <p className="text-xs text-slate-600 text-center pt-1">點選卡片展開詳細分析</p>
         </div>
       )}

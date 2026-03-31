@@ -160,6 +160,8 @@ export interface ChartSignalMarker {
   date: string;
   type: RuleSignal['type'];
   label: string;
+  /** 共振強度：同方向觸發的不同群組數 */
+  strength?: number;
 }
 
 /** Replay engine state */

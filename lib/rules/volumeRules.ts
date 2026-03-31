@@ -20,8 +20,8 @@ export const volumeBreakoutHigh: TradingRule = {
     const ratio = c.volume / avgVol;
     if (ratio < 2 || c.close <= prevHigh) return null;
     return {
-      type: 'WATCH',
-      label: '攻擊量觀察',
+      type: 'BUY',
+      label: '放量突破買進',
       description: `量比 ${ratio.toFixed(1)}倍（${c.volume.toLocaleString()} / 均量 ${avgVol.toLocaleString()}），突破近20日高點 ${prevHigh.toFixed(2)}`,
       reason: [
         '【書中攻擊量定義】「攻擊量：成交量 > 前日 1.2 倍」。本K棒量達均量2倍，屬重度攻擊量，力道強勁。',

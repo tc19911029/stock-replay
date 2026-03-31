@@ -18,8 +18,8 @@ export const macdGoldenCross: TradingRule = {
     if (!crossed) return null;
     const aboveZero = c.macdDIF > 0;
     return {
-      type: 'WATCH',
-      label: aboveZero ? 'MACD金叉（0軸上）' : 'MACD金叉（0軸下）',
+      type: 'BUY',
+      label: aboveZero ? 'MACD金叉買進（0軸上）' : 'MACD金叉買進（0軸下）',
       description: `DIF(${c.macdDIF}) 上穿 MACD(${c.macdSignal})，OSC由負轉正（綠轉紅柱）`,
       reason: [
         '【書中MACD規則】「OSC（柱狀圖）由綠柱轉紅柱」是書中多頭確認的指標條件之一，與波浪型態、均線共同判斷。',
@@ -123,8 +123,8 @@ export const kdOversoldBounce: TradingRule = {
     const goldenCross = prev.kdK <= prev.kdD && c.kdK > c.kdD;
     if (!isOversold || !goldenCross) return null;
     return {
-      type: 'WATCH',
-      label: 'KD低檔金叉',
+      type: 'BUY',
+      label: 'KD低檔金叉買進',
       description: `KD在超賣區（K=${c.kdK}，D=${c.kdD}）出現黃金交叉`,
       reason: [
         '【書中KD規則】「KD黃金交叉向上（K線由下往上穿過D線）」是多頭確認的指標條件之一，也是書中多頭選股條件第6項。',

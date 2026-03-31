@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   Moon, Sun, TrendingUp,
   BarChart2, ScanSearch, Activity, FileBarChart, Settings2,
-  Star, Briefcase, Settings, Menu, BookOpen,
+  Star, Briefcase, Settings, Menu, BookOpen, FlaskConical,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
@@ -30,12 +30,14 @@ const PRIMARY_NAV = [
 function getBrandTitle(pathname: string): string {
   if (pathname.startsWith('/scan')) return '選股神器';
   if (pathname.startsWith('/live-daytrade')) return '當沖神器';
+  if (pathname.startsWith('/rule-group-analysis')) return '規則回測';
   return '走圖神器';
 }
 
 const SECONDARY_NAV = [
   { href: '/watchlist',  label: '自選股', icon: Star },
   { href: '/portfolio',  label: '持倉',   icon: Briefcase },
+  { href: '/rule-group-analysis', label: '規則回測', icon: FlaskConical },
   { href: '/settings',   label: '設定',   icon: Settings },
 ] as const;
 

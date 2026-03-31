@@ -36,6 +36,7 @@ export default function HomePage() {
     isLoadingStock, allCandles, currentIndex,
     nextCandle, prevCandle, isPlaying, startPlay, stopPlay, metrics,
     loadStock, currentStock,
+    signalStrengthMin, setSignalStrengthMin,
   } = useReplayStore();
 
   useEffect(() => { initData(); }, [initData]);
@@ -227,6 +228,18 @@ export default function HomePage() {
                   >
                     訊號
                   </button>
+                  {showMarkers && (
+                    <select
+                      value={signalStrengthMin}
+                      onChange={e => setSignalStrengthMin(Number(e.target.value))}
+                      className="px-1 py-0.5 rounded text-[9px] font-medium bg-slate-800 text-slate-300 border border-slate-700 outline-none"
+                      title="信號共振強度過濾"
+                    >
+                      <option value={1}>全部</option>
+                      <option value={2}>共振≥2</option>
+                      <option value={3}>強≥3</option>
+                    </select>
+                  )}
                 </div>
                 {metrics.shares > 0 && displayCandle && (() => {
                   const unrealizedPct = metrics.avgCost > 0
