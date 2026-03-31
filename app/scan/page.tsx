@@ -2,19 +2,15 @@
 
 import { useState, useEffect, useMemo, Fragment, useCallback } from 'react';
 import Link from 'next/link';
-import { useBacktestStore, BacktestHorizon, CapitalConstraints, WalkForwardResult } from '@/store/backtestStore';
+import { useBacktestStore } from '@/store/backtestStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { BUILT_IN_STRATEGIES } from '@/lib/strategy/StrategyConfig';
 import { useWatchlistStore } from '@/store/watchlistStore';
-import { StockForwardPerformance } from '@/lib/scanner/types';
-import { calcBacktestSummary } from '@/lib/backtest/ForwardAnalyzer';
-import { BacktestTrade, BacktestStats } from '@/lib/backtest/BacktestEngine';
 import {
-  calcComposite, chipTooltip, retColor, fmtRet, exportToCsv,
-  BacktestStatsPanel, CapitalPanel, ResearchAssumptions, SessionHistory, WalkForwardPanel,
+  calcComposite,
+  ResearchAssumptions, SessionHistory,
   ScanResultsTable, BacktestSection,
 } from '@/features/scan';
-import { fetchInstitutionalBatch, type InstitutionalSummary } from '@/lib/datasource/useInstitutionalSummary';
 import { PageShell } from '@/components/shared';
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
@@ -23,16 +19,13 @@ export default function UnifiedScanPage() {
   const {
     market, scanDate, strategy,
     useCapitalMode, capitalConstraints,
-    walkForwardConfig, walkForwardResult, isRunningWF,
     sessions,
     setMarket, setScanDate, setStrategy,
     setCapitalConstraints, toggleCapitalMode,
-    setWalkForwardConfig, computeWalkForward,
     isScanning, scanProgress, scanError,
     scanResults, isFetchingForward, forwardError, performance,
-    trades, stats,
-    skippedByCapital, finalCapital, capitalReturn,
-    runScan, clearCurrent,
+    trades,
+    clearCurrent,
     scanOnly, setScanOnly,
     scanMode, setScanMode,
     marketTrend,

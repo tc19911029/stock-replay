@@ -45,13 +45,6 @@ function isHighVolume(c: CandleWithIndicators): boolean {
   return c.avgVol5 != null && c.avgVol5 > 0 && c.volume >= c.avgVol5 * 1.3;
 }
 
-/** 均線4線多排：MA5 > MA10 > MA20 > MA60 */
-function is4MABullish(c: CandleWithIndicators): boolean {
-  const { ma5, ma10, ma20, ma60 } = c;
-  if (ma5 == null || ma10 == null || ma20 == null) return false;
-  if (ma60 != null) return ma5 > ma10 && ma10 > ma20 && ma20 > ma60;
-  return ma5 > ma10 && ma10 > ma20; // 3線多排也算
-}
 
 /** 均線3線多排：MA5 > MA10 > MA20 */
 function is3MABullish(c: CandleWithIndicators): boolean {
@@ -237,7 +230,7 @@ function checkFakeBreakdown(
   if (lookback.length < 5) return false;
   const closes = lookback.map(x => x.close);
   const minClose = Math.min(...closes);
-  const maxClose = Math.max(...closes);
+  const _maxClose = Math.max(...closes);
   if (minClose <= 0) return false;
 
   // 前1-3天有跌破盤整低點

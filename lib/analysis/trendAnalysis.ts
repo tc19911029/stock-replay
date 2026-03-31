@@ -135,7 +135,7 @@ export function detectTrendPosition(
 
   const c   = candles[index];
   const ma20 = c.ma20;
-  const ma60 = c.ma60;
+  const _ma60 = c.ma60;
 
   if (trend === '多頭') {
     if (!ma20) return '盤整觀望';

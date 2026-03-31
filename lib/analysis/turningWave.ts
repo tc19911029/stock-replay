@@ -60,7 +60,7 @@ export function computeTurningWave(
     return c.ma20 ?? null;
   };
 
-  let groupStart = startIdx;
+  let _groupStart = startIdx;
   let aboveMA: boolean | null = null;
   let groupHighIdx = startIdx;
   let groupLowIdx = startIdx;
@@ -75,7 +75,7 @@ export function computeTurningWave(
     // 初始化
     if (aboveMA === null) {
       aboveMA = currentAbove;
-      groupStart = i;
+      _groupStart = i;
       groupHighIdx = i;
       groupLowIdx = i;
       continue;
@@ -107,7 +107,7 @@ export function computeTurningWave(
 
       // 重置
       aboveMA = currentAbove;
-      groupStart = i;
+      _groupStart = i;
       groupHighIdx = i;
       groupLowIdx = i;
     }

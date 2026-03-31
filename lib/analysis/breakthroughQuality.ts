@@ -358,7 +358,7 @@ function scoreRetestStatus(
 ): { score: number; retestConfirmed: boolean; detail: string } {
   if (idx < 15) return { score: 50, retestConfirmed: false, detail: '資料不足' };
 
-  const price = candles[idx].close;
+  const _price = candles[idx].close;
   const lookback = Math.min(idx, 40);
   const startIdx = idx - lookback;
 

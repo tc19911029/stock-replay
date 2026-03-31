@@ -5,7 +5,7 @@
 
 import { TradingRule, RuleSignal, CandleWithIndicators } from '@/types';
 import {
-  isLongRedCandle, isLongBlackCandle, findSwingLow,
+  isLongRedCandle,
   isMaTrendingUp, bodyPct,
 } from './ruleUtils';
 

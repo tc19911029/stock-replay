@@ -38,7 +38,7 @@ export default function PortfolioPage() {
 
   useEffect(() => {
     holdings.forEach(h => fetchPrice(h.symbol));
-  }, [holdings]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [holdings]);
 
   function openEdit(h: PortfolioHolding) {
     setEditId(h.id);

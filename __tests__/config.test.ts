@@ -47,7 +47,7 @@ describe('SCANNER', () => {
 
 describe('INDICATORS', () => {
   test('all values are positive numbers', () => {
-    for (const [key, val] of Object.entries(INDICATORS)) {
+    for (const [, val] of Object.entries(INDICATORS)) {
       expect(typeof val).toBe('number');
       expect(val).toBeGreaterThan(0);
     }

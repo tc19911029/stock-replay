@@ -40,10 +40,6 @@ function upperShadow(c: CandleWithIndicators): number {
   return c.high - Math.max(c.open, c.close);
 }
 
-function lowerShadow(c: CandleWithIndicators): number {
-  return Math.min(c.open, c.close) - c.low;
-}
-
 function bodySize(c: CandleWithIndicators): number {
   return Math.abs(c.close - c.open);
 }

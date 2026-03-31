@@ -2,11 +2,11 @@
  * 朱家泓《抓住K線 獲利無限》第7篇 — K線交易法
  * 多頭/空頭交易規則 + V形/倒V形反轉交易法
  */
-import { TradingRule, RuleSignal, CandleWithIndicators } from '@/types';
+import { TradingRule, RuleSignal } from '@/types';
 import {
-  isLongRedCandle, isLongBlackCandle, isRedCandle, isBlackCandle,
-  isMedLongRed, isMedLongBlack, hasLongUpperShadow, hasLongLowerShadow,
-  isDoji, isRising45, isFalling45, priceChangePercent, halfPrice,
+  isRedCandle, isBlackCandle,
+  hasLongUpperShadow, hasLongLowerShadow,
+  isDoji, isRising45,
 } from './ruleUtils';
 
 /** 訣竅4：多頭K線交易法進場 — 收盤突破前一日高點 */
@@ -127,7 +127,6 @@ export const vShapeReversalBuy: TradingRule = {
     if (!isStopSignal && !isRedCandle(c)) return null;
 
     const stopLoss = c.low;
-    const stopPct = (c.close - stopLoss) / c.close;
 
     return {
       type: 'BUY',
@@ -201,7 +200,6 @@ export const invertedVReversalSell: TradingRule = {
     if (!isStopSignal && !isBlackCandle(c)) return null;
 
     const stopLoss = c.high;
-    const stopPct = (stopLoss - c.close) / c.close;
 
     return {
       type: 'SELL',

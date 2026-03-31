@@ -9,7 +9,6 @@ import type {
   IntradayCandle,
   IntradayDataProvider,
   IntradayTimeframe,
-  TIMEFRAME_MINUTES as TFM,
 } from './types';
 
 // ── 聚合工具 ──────────────────────────────────────────────────────────────────

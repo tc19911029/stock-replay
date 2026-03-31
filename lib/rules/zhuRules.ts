@@ -40,11 +40,6 @@ function ticksBelow(price: number, ticks: number): number {
   return price - tickSize(price) * ticks;
 }
 
-/** 向上放寬 N 碼 */
-function ticksAbove(price: number, ticks: number): number {
-  return price + tickSize(price) * ticks;
-}
-
 /** 漲跌幅百分比 (close vs open) */
 function changePct(c: CandleWithIndicators): number {
   return (c.close - c.open) / c.open;
@@ -96,18 +91,6 @@ function isPullback(
   return shrinkCount >= 2;
 }
 
-/** 是否有 KD 金叉 */
-function isKDGoldenCross(c: CandleWithIndicators, prev: CandleWithIndicators): boolean {
-  if (c.kdK == null || c.kdD == null || prev.kdK == null || prev.kdD == null) return false;
-  return prev.kdK <= prev.kdD && c.kdK > c.kdD;
-}
-
-/** 是否有 KD 死叉 */
-function isKDDeathCross(c: CandleWithIndicators, prev: CandleWithIndicators): boolean {
-  if (c.kdK == null || c.kdD == null || prev.kdK == null || prev.kdD == null) return false;
-  return prev.kdK >= prev.kdD && c.kdK < c.kdD;
-}
-
 /** MACD 多頭 (DIF > Signal) */
 function isMACDBullish(c: CandleWithIndicators): boolean {
   return c.macdDIF != null && c.macdSignal != null && c.macdDIF > c.macdSignal;
@@ -154,7 +137,6 @@ export const zhuShortBullSOP: TradingRule = {
   evaluate(candles, index): RuleSignal | null {
     if (index < 20) return null;
     const c = candles[index];
-    const prev = candles[index - 1];
     if (c.ma5 == null || c.ma10 == null || c.ma20 == null) return null;
 
     // 1. 趨勢：頭頭高底底高

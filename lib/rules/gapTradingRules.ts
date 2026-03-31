@@ -2,10 +2,10 @@
  * 朱家泓《抓住K線 獲利無限》第6篇 — K線缺口操作規則
  * 5 條缺口操作秘訣
  */
-import { TradingRule, RuleSignal, CandleWithIndicators } from '@/types';
+import { TradingRule, RuleSignal } from '@/types';
 import {
-  gapUp, gapDown, isLongRedCandle, isLongBlackCandle, isRedCandle, isBlackCandle,
-  isMedLongRed, isMedLongBlack, halfPrice,
+  gapUp, gapDown, isLongRedCandle, isLongBlackCandle,
+  halfPrice,
 } from './ruleUtils';
 
 /** 秘訣1：缺口之上見長紅 — 向上跳空配合長紅，拉回做多 */
@@ -125,7 +125,6 @@ export const threeDayTwoGapsUp: TradingRule = {
     }
     if (gapCount < 2) return null;
 
-    const c = candles[index];
     return {
       type: 'BUY',
       label: '三日二缺口漲',
@@ -155,7 +154,6 @@ export const threeDayTwoGapsDown: TradingRule = {
     }
     if (gapCount < 2) return null;
 
-    const c = candles[index];
     return {
       type: 'SELL',
       label: '三日二缺口跌',

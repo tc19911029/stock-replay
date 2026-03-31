@@ -3,10 +3,10 @@
  * 高檔轉折向下 3 種 + 低檔轉折向上 3 種 = 6 條規則
  * 包含變化組合（雙星、雙肩、群星）
  */
-import { TradingRule, RuleSignal, CandleWithIndicators } from '@/types';
+import { TradingRule, RuleSignal } from '@/types';
 import {
-  bodyPct, isMedLongRed, isMedLongBlack, isSmallCandle, isDoji,
-  isRedCandle, isBlackCandle, isUptrendWave, isDowntrendWave,
+  isMedLongRed, isMedLongBlack, isSmallCandle, isDoji,
+  isUptrendWave, isDowntrendWave,
 } from './ruleUtils';
 
 // ═══════════════════════════════════════════
@@ -27,10 +27,6 @@ export const eveningStarHigh: TradingRule = {
     if (!isMedLongRed(c0)) return null;
     if (!isSmallCandle(c1) && !isDoji(c1)) return null;
     if (!isMedLongBlack(c2)) return null;
-
-    // 星需高於左右兩根實體（經典型態）
-    const starBody = Math.max(c1.open, c1.close);
-    const isClassic = starBody >= c0.close && starBody >= c2.open;
 
     // 黑K收盤要深入紅K實體（至少到1/2）
     const redHalf = (c0.open + c0.close) / 2;

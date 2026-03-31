@@ -4,7 +4,6 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { TradingRule, RuleSignal, CandleWithIndicators } from '@/types';
-import { isLongRedCandle, isLongBlackCandle } from './ruleUtils';
 
 // ── 工具函數 ──────────────────────────────────────────────────────────────────
 

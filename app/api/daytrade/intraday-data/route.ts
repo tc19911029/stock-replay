@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import type { IntradayTimeframe } from '@/lib/daytrade/types';
 import { getTWChineseName } from '@/lib/datasource/TWSENames';
-import { unixToTW, todayTW } from '@/lib/timezone';
+import { unixToTW } from '@/lib/timezone';
 import { getTWSEQuote } from '@/lib/datasource/TWSERealtime';
 import { getEastMoneyQuote, getUSStockQuote } from '@/lib/datasource/EastMoneyRealtime';
 
@@ -133,7 +133,6 @@ export async function GET(req: NextRequest) {
 
     // 即時報價覆蓋：盤中最後一根分鐘 K 的 close 用交易所即時價格
     const isCnDigits = /^\d{6}$/.test(symbol);
-    const isUSStock = !isTwDigits && !isCnDigits;
     if (isIntraday && candles.length > 0) {
       try {
         const pureCode = symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');

@@ -8,7 +8,7 @@ type Mode = 'percent' | 'shares' | 'amount';
 type Confirm = { action: 'buy' | 'sell'; shares: number; price: number } | null;
 
 export default function TradePanel() {
-  const { allCandles, currentIndex, metrics, buy, sell, buyPercent, sellPercent, sixConditions } = useReplayStore();
+  const { allCandles, currentIndex, metrics, buy, sell, sixConditions } = useReplayStore();
   const [input,   setInput]   = useState('');
   const [mode,    setMode]    = useState<Mode>('percent');
   const [mounted, setMounted] = useState(false);

@@ -134,7 +134,7 @@ function generateSuggestions(
   metrics: BacktestMetrics,
   rules: RuleDiagnostic[],
   params: StrategyParams,
-  issues: DiagnosticIssue[],
+  _issues: DiagnosticIssue[],
 ): OptimizationSuggestion[] {
   const suggestions: OptimizationSuggestion[] = [];
   let idx = 0;

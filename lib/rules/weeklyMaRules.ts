@@ -4,8 +4,8 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { TradingRule, RuleSignal } from '@/types';
-import { crossedAbove, crossedBelow } from '@/lib/indicators';
-import { isLongRedCandle, isMaTrendingUp, isHigherLow, maDeviation } from './ruleUtils';
+import { crossedBelow } from '@/lib/indicators';
+import { isLongRedCandle, isMaTrendingUp, isHigherLow } from './ruleUtils';
 
 /** 20週均線戰法買進：站上MA100 + MA100上揚 + 底底高 */
 export const weeklyMa20Buy: TradingRule = {

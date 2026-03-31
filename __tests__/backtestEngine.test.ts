@@ -1,7 +1,7 @@
 import {
   runSingleBacktest, runBatchBacktest, calcBacktestStats,
   scanResultToSignal,
-  DEFAULT_STRATEGY, BacktestStrategyParams, TradeSignal,
+  DEFAULT_STRATEGY, BacktestStrategyParams,
 } from '../lib/backtest/BacktestEngine';
 import { StockScanResult, ForwardCandle } from '../lib/scanner/types';
 

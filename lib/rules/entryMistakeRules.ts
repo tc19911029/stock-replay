@@ -3,9 +3,9 @@
 // 10大進場錯誤 — 負面篩選條件（觸發時為警告，不應進場）
 // ═══════════════════════════════════════════════════════════════
 
-import { TradingRule, RuleSignal, CandleWithIndicators } from '@/types';
+import { TradingRule, RuleSignal } from '@/types';
 import {
-  bodyPct, maDeviation, isLongBlackCandle, isLongRedCandle,
+  bodyPct, maDeviation, isLongBlackCandle,
   isHighPosition, findSwingHigh,
 } from './ruleUtils';
 

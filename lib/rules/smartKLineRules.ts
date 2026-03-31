@@ -3,8 +3,8 @@
 // 智慧K線戰法 + K線合併判斷 + 8個攻擊/下殺訊號
 // ═══════════════════════════════════════════════════════════════
 
-import { TradingRule, RuleSignal, CandleWithIndicators } from '@/types';
-import { recentHigh, recentLow } from '@/lib/indicators';
+import { TradingRule, RuleSignal } from '@/types';
+import { recentHigh } from '@/lib/indicators';
 import {
   isLongRedCandle, isLongBlackCandle, halfPrice, bodyPct,
   hasLongUpperShadow, hasLongLowerShadow, isDoji,

@@ -21,20 +21,6 @@ const stockQuerySchema = z.object({
   period:   z.string().default('2y'),
 });
 
-// Valid combinations for Yahoo Finance
-const PERIOD_MAP: Record<string, string> = {
-  '1d_1y':  '1y',
-  '1d_2y':  '2y',
-  '1d_3y':  '3y',
-  '1d_5y':  '5y',
-  '1wk_2y': '2y',
-  '1wk_5y': '5y',
-  '1wk_10y':'10y',
-  '1mo_5y': '5y',
-  '1mo_10y':'10y',
-  '1mo_20y':'20y',
-};
-
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const parsed = stockQuerySchema.safeParse(Object.fromEntries(searchParams));

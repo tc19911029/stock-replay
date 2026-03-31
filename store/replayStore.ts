@@ -294,7 +294,7 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
   setPlaySpeed: (ms) => set({ playSpeed: ms }),
 
   resetReplay: () => {
-    const { allCandles, currentInterval } = get();
+    const { allCandles } = get();
     const index = calcStartIndex(allCandles);
     const account = createAccount(INITIAL_CAPITAL);
     set({

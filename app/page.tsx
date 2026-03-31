@@ -76,13 +76,13 @@ export default function HomePage() {
       }
     });
     return unsub;
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleKey = useCallback((e: KeyboardEvent) => {
     if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
     if (e.key === 'ArrowRight') { e.preventDefault(); nextCandle(); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); prevCandle(); }
-    else if (e.key === ' ') { e.preventDefault(); isPlaying ? stopPlay() : startPlay(); }
+    else if (e.key === ' ') { e.preventDefault(); if (isPlaying) { stopPlay(); } else { startPlay(); } }
   }, [nextCandle, prevCandle, isPlaying, startPlay, stopPlay]);
 
   useEffect(() => {

@@ -11,11 +11,6 @@ function parseNum(s: string): number {
   return parseInt(s.replace(/,/g, ''), 10) || 0;
 }
 
-function parsePct(s: string): number {
-  if (!s) return 0;
-  return parseFloat(s.replace(/,/g, '').replace('%', '')) || 0;
-}
-
 // ── 完整籌碼數據 ─────────────────────────────────────────────────────────────
 export interface ChipData {
   symbol: string;

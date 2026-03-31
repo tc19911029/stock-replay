@@ -8,8 +8,7 @@
  */
 
 import { TradingRule, RuleSignal, CandleWithIndicators } from '@/types';
-import { isUptrendWave, isDowntrendWave, isLongRedCandle, isLongBlackCandle } from './ruleUtils';
-import { recentHigh, recentLow } from '@/lib/indicators';
+import { isUptrendWave, isDowntrendWave } from './ruleUtils';
 
 // ─── 內部輔助 ────────────────────────────────────────────────────────────────
 
@@ -271,7 +270,6 @@ export const marketCycleStage: TradingRule = {
     // 打底期：空頭後橫盤 + 在低位 (ma60以下或接近)
     if (ranging && !aboveMA60) {
       const low20 = nLow(candles, index, 20);
-      const high20 = nHigh(candles, index, 20);
       const fromLow = low20 > 0 ? (c.close - low20) / low20 : 0;
       if (fromLow < 0.15) {
         return {
@@ -294,7 +292,6 @@ export const marketCycleStage: TradingRule = {
 
     // 做頭期：多頭後橫盤 + 在高位
     if (ranging && aboveMA20) {
-      const low20 = nLow(candles, index, 20);
       const high20 = nHigh(candles, index, 20);
       const fromHigh = high20 > 0 ? (high20 - c.close) / high20 : 0;
       if (fromHigh < 0.1) {

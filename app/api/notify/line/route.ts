@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: data.message ?? '傳送失敗', code: res.status }, { status: 400 });
     }
     return NextResponse.json({ ok: true });
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: '伺服器錯誤' }, { status: 500 });
   }
 }

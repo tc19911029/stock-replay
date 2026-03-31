@@ -59,7 +59,7 @@ export function ScanResultsTable() {
     if (market !== 'TW' || scanResults.length === 0) return;
     const tickers = scanResults.map(r => r.symbol.replace(/\.(TW|TWO)$/i, ''));
     fetchInstitutionalBatch(tickers).then(setInstData).catch(() => {});
-  }, [market, scanResults]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [market, scanResults]);
 
   // Fetch news sentiment on-demand when a scan row is expanded
   /* eslint-disable react-hooks/set-state-in-effect */

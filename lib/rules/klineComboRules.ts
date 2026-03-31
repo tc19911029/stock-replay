@@ -2,11 +2,11 @@
  * 朱家泓《抓住K線 獲利無限》第5篇 — 行進中的K線組合
  * 上漲中 8 種 + 下跌中 7 種 = 15 條規則
  */
-import { TradingRule, RuleSignal, CandleWithIndicators } from '@/types';
+import { TradingRule, RuleSignal } from '@/types';
 import {
-  bodyPct, isLongRedCandle, isLongBlackCandle, isSmallCandle, isDoji,
+  isLongRedCandle, isLongBlackCandle, isSmallCandle, isDoji,
   isRedCandle, isBlackCandle, hasLongUpperShadow, isMedLongRed, isMedLongBlack,
-  gapUp, gapDown, isUptrendWave, isDowntrendWave, halfPrice, bodySize,
+  gapUp, gapDown, isUptrendWave, isDowntrendWave, halfPrice,
 } from './ruleUtils';
 
 // ═══════════════════════════════════════════

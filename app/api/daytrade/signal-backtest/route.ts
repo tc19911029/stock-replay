@@ -9,7 +9,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { computeIntradayIndicators } from '@/lib/daytrade/IntradayIndicators';
 import { IntradaySignalEngine } from '@/lib/daytrade/IntradaySignalEngine';
-import { analyzeMultiTimeframe } from '@/lib/daytrade/MultiTimeframeAnalyzer';
 import type { IntradayCandle, IntradayCandleWithIndicators, IntradayTimeframe, IntradaySignal } from '@/lib/daytrade/types';
 import { unixToTW } from '@/lib/timezone';
 

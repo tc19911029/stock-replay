@@ -28,7 +28,7 @@ export function detectSellSignals(
 
   const c     = candles[index];
   const prev  = candles[index - 1];
-  const prev2 = candles[index - 2];
+  const _prev2 = candles[index - 2];
 
   const ma5  = c.ma5;
   const ma20 = c.ma20;

@@ -310,7 +310,7 @@ export function runSingleBacktest(
     // 漲停鎖死特徵：開盤=最高價 且 振幅極小（<0.5%）
     const isLockUp = entryCandle.open === entryCandle.high && rangeRatio < 0.005;
     // 大幅跳空高開（>9%）且收在最高價附近 — 可能漲停
-    const gapUpPct = forwardCandles.length >= 2
+    const _gapUpPct = forwardCandles.length >= 2
       ? 0 // 無前日資料時不判斷
       : 0;
     if (isLockUp) {

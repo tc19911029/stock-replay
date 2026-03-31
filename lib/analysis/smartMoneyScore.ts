@@ -135,7 +135,7 @@ function scoreSmartFlow(candles: CandleWithIndicators[], idx: number): SmartMone
   // Smart money = volume weighted by body size
 
   let bigBodyVol = 0, smallBodyVol = 0;
-  let bigBodyCount = 0, smallBodyCount = 0;
+  let bigBodyCount = 0, _smallBodyCount = 0;
 
   for (let i = idx - lookback + 1; i <= idx; i++) {
     const c = candles[i];
@@ -145,7 +145,7 @@ function scoreSmartFlow(candles: CandleWithIndicators[], idx: number): SmartMone
       bigBodyCount++;
     } else {
       smallBodyVol += c.volume;
-      smallBodyCount++;
+      _smallBodyCount++;
     }
   }
 

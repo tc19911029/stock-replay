@@ -61,7 +61,7 @@ export function detectCandlePatterns(
   const body0 = bodySize(c0);
   const body1 = bodySize(c1);
   const range0 = totalRange(c0);
-  const range1 = totalRange(c1);
+  const _range1 = totalRange(c1);
 
   // Minimum body relative to close price
   const bodyPct0 = c0.close > 0 ? body0 / c0.close : 0;

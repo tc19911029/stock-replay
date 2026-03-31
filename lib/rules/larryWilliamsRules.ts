@@ -35,20 +35,6 @@ function getDayOfWeek(dateStr: string): number {
   return dow === 0 ? 7 : dow; // 轉為 1=Mon ~ 7=Sun
 }
 
-/** 判斷當月第幾個交易日（從 index 回溯同月K線來計算） */
-function getTradingDayOfMonth(candles: CandleWithIndicators[], index: number): number {
-  const month = candles[index].date.slice(0, 7); // "YYYY-MM"
-  let count = 0;
-  for (let i = index; i >= 0; i--) {
-    if (candles[i].date.slice(0, 7) === month) {
-      count++;
-    } else {
-      break;
-    }
-  }
-  return count;
-}
-
 /** 收盤在當日區間中的位置 (0 = 最低, 1 = 最高) */
 function closePosition(c: CandleWithIndicators): number {
   const range = c.high - c.low;
@@ -71,7 +57,6 @@ export const volatilityBreakoutBuy: TradingRule = {
   evaluate(candles, index): RuleSignal | null {
     if (index < 20) return null;
     const c = candles[index];
-    const prev = candles[index - 1];
 
     // 趨勢過濾：MA20 向上
     if (!isMaTrendingUp(candles, index, 'ma20', 5)) return null;

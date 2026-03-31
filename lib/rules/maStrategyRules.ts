@@ -4,8 +4,8 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { TradingRule, RuleSignal } from '@/types';
-import { crossedAbove, crossedBelow } from '@/lib/indicators';
-import { isLongRedCandle, isMaTrendingUp, isMaTrendingDown, isHigherLow } from './ruleUtils';
+import { crossedBelow } from '@/lib/indicators';
+import { isLongRedCandle, isMaTrendingUp, isHigherLow } from './ruleUtils';
 
 // ── 戰法2：一條均線戰法（MA20）──────────────────────────────────────────────
 

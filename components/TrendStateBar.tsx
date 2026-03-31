@@ -6,10 +6,6 @@ export default function TrendStateBar() {
   const trendState    = useReplayStore(s => s.trendState);
   const trendPosition = useReplayStore(s => s.trendPosition);
   const sixConditions = useReplayStore(s => s.sixConditions);
-  const visibleCandles = useReplayStore(s => s.visibleCandles);
-
-  const c = visibleCandles[visibleCandles.length - 1];
-
   const trendColor =
     trendState === '多頭' ? 'bg-green-600/80 text-green-100' :
     trendState === '空頭' ? 'bg-red-600/80 text-red-100' :

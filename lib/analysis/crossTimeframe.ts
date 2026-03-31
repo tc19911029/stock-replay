@@ -145,7 +145,7 @@ export function analyzeCrossTimeframe(
     ? (currentWeek.close - currentWeek.open) / currentWeek.open * 100
     : 0;
   const range = currentWeek.high - currentWeek.low;
-  const upperShadow = currentWeek.high - Math.max(currentWeek.open, currentWeek.close);
+  const _upperShadow = currentWeek.high - Math.max(currentWeek.open, currentWeek.close);
   const lowerShadow = Math.min(currentWeek.open, currentWeek.close) - currentWeek.low;
 
   if (bodyPct > 2 && currentWeek.volume > prevWeek.volume) {

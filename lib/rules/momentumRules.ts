@@ -4,9 +4,9 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { TradingRule, RuleSignal } from '@/types';
-import { recentHigh, recentLow } from '@/lib/indicators';
+import { recentHigh } from '@/lib/indicators';
 import {
-  isLongRedCandle, isLongBlackCandle, maConvergence,
+  isLongRedCandle, maConvergence,
   isHigherLow, fibRetracementLevel, findSwingHigh, findSwingLow,
 } from './ruleUtils';
 

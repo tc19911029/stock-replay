@@ -1,4 +1,4 @@
-import { AccountState, AccountMetrics, Trade, CandleWithIndicators } from '@/types';
+import { AccountState, AccountMetrics, Trade } from '@/types';
 
 const TRADE_FEE_RATE = 0.001425; // 0.1425% 買賣手續費
 const SELL_TAX_RATE  = 0.003;    // 0.3%  賣出證交稅 (台股)

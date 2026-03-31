@@ -1,4 +1,4 @@
-import { Trade, PerformanceStats, AccountState, CandleWithIndicators } from '@/types';
+import { PerformanceStats, AccountState, CandleWithIndicators } from '@/types';
 
 /**
  * Compute performance statistics from trade history.

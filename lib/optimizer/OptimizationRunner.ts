@@ -7,7 +7,6 @@ import type {
   StrategyVersion, StrategyParams, BacktestMetrics,
   SplitResult, Experiment, DiagnosticsReport,
 } from './types';
-import { DEFAULT_STRATEGY_PARAMS } from './types';
 import {
   initBaselineVersion, createVersion, recordExperiment,
   saveDiagnostics, getVersion,
@@ -115,11 +114,11 @@ export async function runSplitBacktest(
   // 但 Yahoo API 回傳的是近 N 天，我們用不同天數模擬切分
   const trainDays = Math.max(5, Math.floor(totalDays * 0.5));
   const valDays = Math.max(3, Math.floor(totalDays * 0.25));
-  const testDays = Math.max(3, totalDays - trainDays - valDays);
+  const _testDays = Math.max(3, totalDays - trainDays - valDays);
 
   // 跑完整期間
   const fullResult = await runBacktestAPI(symbol, totalDays, timeframe, params, baseUrl);
-  const fullTrades = fullResult.allTrades;
+  const _fullTrades = fullResult.allTrades;
   const fullDays = fullResult.dailyResults;
 
   // 切分 daily results

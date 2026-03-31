@@ -2,7 +2,6 @@
 
 import type { BacktestTrade } from '@/lib/backtest/BacktestEngine';
 import type { CapitalConstraints } from '@/store/backtestStore';
-import { retColor } from '../utils';
 
 interface CapitalPanelProps {
   trades: BacktestTrade[];

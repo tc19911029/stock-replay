@@ -2,10 +2,10 @@
  * 朱家泓《抓住K線 獲利無限》第3篇 — 2根K線看轉折
  * 高檔轉折向下 4 種 + 低檔轉折向上 4 種 = 8 條規則
  */
-import { TradingRule, RuleSignal, CandleWithIndicators } from '@/types';
+import { TradingRule, RuleSignal } from '@/types';
 import {
   bodyPct, isMedLongRed, isMedLongBlack, isRedCandle, isBlackCandle,
-  halfPrice, isUptrendWave, isDowntrendWave,
+  isUptrendWave, isDowntrendWave,
 } from './ruleUtils';
 
 // ═══════════════════════════════════════════
