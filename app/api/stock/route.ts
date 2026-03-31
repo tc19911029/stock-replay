@@ -156,6 +156,23 @@ export async function GET(req: NextRequest) {
 
     // 即時報價覆蓋：用交易所 API 取代 Yahoo 延遲數據（台股 + A 股 + 美股）
     const isUSStock = !isTwDigits && !isCnDigits;
+    // 台股/A股 UTC+8, 美股 UTC-4/UTC-5
+    const todayStr = isUSStock
+      ? new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+      : new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' });
+
+    // 台股盤前（<09:00）：Yahoo 有時提前產生今日佔位 K 棒（OHLCV 與昨日相同），
+    // 市場尚未開盤時直接移除，避免出現視覺上兩根一模一樣的 K 棒。
+    if (isTwDigits && interval === '1d' && candles.length > 0) {
+      const lastC = candles[candles.length - 1];
+      if (lastC.date === todayStr) {
+        const twHour = new Date().toLocaleTimeString('en-US', {
+          timeZone: 'Asia/Taipei', hour12: false, hour: '2-digit',
+        }).split(':')[0];
+        if (parseInt(twHour) < 9) candles.pop();
+      }
+    }
+
     if (interval === '1d') {
       try {
         const quote = isTwDigits
@@ -164,27 +181,30 @@ export async function GET(req: NextRequest) {
             ? await getEastMoneyQuote(pureCode)
             : await getUSStockQuote(pureCode);
         if (quote && quote.close > 0) {
-          // 台股/A股 UTC+8, 美股 UTC-4
-          const todayStr = isUSStock
-            ? new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
-            : new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' });
-          const lastCandle = candles[candles.length - 1] as { date: string; open: number; high: number; low: number; close: number; volume: number } | undefined;
-          if (lastCandle) {
-            if (lastCandle.date === todayStr) {
-              lastCandle.open   = quote.open;
-              lastCandle.high   = quote.high;
-              lastCandle.low    = quote.low;
-              lastCandle.close  = quote.close;
-              lastCandle.volume = quote.volume;
-            } else if (lastCandle.date < todayStr) {
-              candles.push({
-                date:   todayStr,
-                open:   quote.open,
-                high:   quote.high,
-                low:    quote.low,
-                close:  quote.close,
-                volume: quote.volume,
-              });
+          // 台股：若 API 回傳的日期不是今日（例如盤中 API 還未更新），跳過覆蓋
+          // 避免用昨日資料產生今日 K 棒，造成視覺上出現兩根一模一樣的 K 棒
+          const quoteDate = (quote as { date?: string }).date;
+          if (isTwDigits && quoteDate && quoteDate !== todayStr) {
+            // quote 是昨日（或更早）資料，不套用
+          } else {
+            const lastCandle = candles[candles.length - 1] as { date: string; open: number; high: number; low: number; close: number; volume: number } | undefined;
+            if (lastCandle) {
+              if (lastCandle.date === todayStr) {
+                lastCandle.open   = quote.open;
+                lastCandle.high   = quote.high;
+                lastCandle.low    = quote.low;
+                lastCandle.close  = quote.close;
+                lastCandle.volume = quote.volume;
+              } else if (lastCandle.date < todayStr) {
+                candles.push({
+                  date:   todayStr,
+                  open:   quote.open,
+                  high:   quote.high,
+                  low:    quote.low,
+                  close:  quote.close,
+                  volume: quote.volume,
+                });
+              }
             }
           }
         }

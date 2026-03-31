@@ -19,6 +19,7 @@ export interface TWSEQuote {
   close: number;
   volume: number;     // 成交量（股數），TWSE/TPEx 原始單位為張(1張=1000股)，已轉換
   previousClose?: number; // 昨收（由 Change 欄位推算），可用於驗證資料是否為今日
+  date?: string;      // 資料日期 YYYY-MM-DD（由 API 的民國日期欄位解析）
 }
 
 const REALTIME_CACHE_KEY = 'twse:realtime:all';
@@ -62,6 +63,7 @@ export async function getTWSEQuote(code: string): Promise<TWSEQuote | null> {
 // ── 內部實作 ──────────────────────────────────────────────────────────────────
 
 interface TWSERawRow {
+  Date?: string;    // 民國日期，如 "1150330"
   Code: string;
   Name: string;
   OpeningPrice: string;
@@ -73,6 +75,7 @@ interface TWSERawRow {
 }
 
 interface TPExRawRow {
+  Date?: string;    // 民國日期，如 "1150330"
   SecuritiesCompanyCode: string;
   CompanyName: string;
   Open: string;
@@ -81,6 +84,16 @@ interface TPExRawRow {
   Close: string;
   TradingShares: string;
   Change?: string;  // 漲跌
+}
+
+/** 將民國日期 "YYYMMDD" 轉為 "YYYY-MM-DD" */
+function parseROCDate(rocDate: string | undefined): string | undefined {
+  if (!rocDate || rocDate.length < 7) return undefined;
+  const year = parseInt(rocDate.slice(0, rocDate.length - 4)) + 1911;
+  const month = rocDate.slice(-4, -2);
+  const day = rocDate.slice(-2);
+  const result = `${year}-${month}-${day}`;
+  return /^\d{4}-\d{2}-\d{2}$/.test(result) ? result : undefined;
 }
 
 function parseNum(s: string | undefined): number {
@@ -129,6 +142,7 @@ async function fetchAllQuotes(): Promise<Map<string, TWSEQuote>> {
           close,
           volume: parseNum(row.TradeVolume),
           previousClose,
+          date: parseROCDate(row.Date),
         });
       }
     } catch {
@@ -156,6 +170,7 @@ async function fetchAllQuotes(): Promise<Map<string, TWSEQuote>> {
           close,
           volume: parseNum(row.TradingShares),
           previousClose,
+          date: parseROCDate(row.Date),
         });
       }
     } catch {
