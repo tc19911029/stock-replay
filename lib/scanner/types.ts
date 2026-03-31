@@ -62,6 +62,28 @@ export interface StockScanResult {
   retailSentiment?: number;        // 0-100 (0=panic, 100=euphoria)
   contrarianSignal?: 'bullish' | 'bearish' | null;
   volatilityRegime?: 'LOW' | 'NORMAL' | 'HIGH' | 'EXTREME';
+  // ── 壓力區 & 突破品質 ────────────────────────────────────────────────────
+  pressureZoneAdjust?: number;       // composite 調整值 (-15 to +10)
+  overheadPressure?: number;         // 0-100 上方壓力強度
+  overheadDistancePct?: number;      // 距最近壓力區 %
+  breakthroughScore?: number;        // 0-100 突破品質總分
+  breakthroughGrade?: string;        // S/A/B/C/D
+  nWaveDetected?: boolean;           // N字型攻擊
+  retestConfirmed?: boolean;         // 回測確認
+  srFlipDetected?: boolean;          // 壓力轉支撐
+  // ── 高勝率進場位置 (朱老師《活用技術分析寶典》) ────────────────────────
+  highWinRateTypes?: string[];       // 匹配的高勝率位置類型
+  highWinRateScore?: number;         // 高勝率加分 0-30
+  highWinRateDetails?: string[];     // 匹配說明
+  // ── 33 種贏家圖像 ──────────────────────────────────────────────────────
+  winnerBearishPatterns?: string[];   // 多轉空圖像名稱
+  winnerBullishPatterns?: string[];   // 空轉多圖像名稱
+  // ── 切線分析 ───────────────────────────────────────────────────────────
+  trendlineBreakAbove?: boolean;      // 突破下降切線
+  trendlineBreakBelow?: boolean;      // 跌破上升切線
+  // ── 淘汰法 ────────────────────────────────────────────────────────────
+  eliminationReasons?: string[];      // 淘汰原因
+  eliminationPenalty?: number;        // 淘汰扣分
   // ── AI 排名 ───────────────────────────────────────────────────────────────
   aiRank?: number;
   aiConfidence?: 'high' | 'medium' | 'low';
@@ -124,6 +146,7 @@ export interface ForwardCandle {
   close: number;
   high:  number;
   low:   number;
+  volume?: number;  // 成交量（SOP 出場規則需要）
 }
 
 export interface StockForwardPerformance {

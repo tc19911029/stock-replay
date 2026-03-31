@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 台股籌碼面完整 API
@@ -71,7 +72,7 @@ async function fetchInstitutional(date: string): Promise<Map<string, { foreignBu
       const db = Math.round(parseNum(row[11]) / 1000);
       map.set(sym, { foreignBuy: fb, trustBuy: tb, dealerBuy: db, totalBuy: fb + tb + db, name: row[1]?.trim() || '' });
     }
-  } catch (e) { console.warn('TWSE institutional:', e); }
+  } catch { /* TWSE institutional fetch failed */ }
 
   // TPEX 上櫃
   try {
@@ -90,7 +91,7 @@ async function fetchInstitutional(date: string): Promise<Map<string, { foreignBu
       const db = Math.round(parseNum(row[16]) / 1000);
       map.set(sym, { foreignBuy: fb, trustBuy: tb, dealerBuy: db, totalBuy: fb + tb + db, name: row[1]?.trim() || '' });
     }
-  } catch (e) { console.warn('TPEX institutional:', e); }
+  } catch { /* TPEX institutional fetch failed */ }
 
   return map;
 }
@@ -122,7 +123,7 @@ async function fetchMargin(date: string): Promise<Map<string, { marginBalance: n
         marginUtilRate: mLimit > 0 ? +(mBalance / mLimit * 100).toFixed(1) : 0,
       });
     }
-  } catch (e) { console.warn('fetchMargin:', e); }
+  } catch { /* fetchMargin failed */ }
   return map;
 }
 
@@ -145,7 +146,7 @@ async function fetchDayTrade(date: string): Promise<Map<string, { dayTradeVolume
         dayTradeRatio: totalVol > 0 ? +(dtVol / totalVol * 100).toFixed(1) : 0,
       });
     }
-  } catch (e) { console.warn('fetchDayTrade:', e); }
+  } catch { /* fetchDayTrade failed */ }
   return map;
 }
 
@@ -167,7 +168,7 @@ async function fetchLargeTrader(date: string): Promise<Map<string, { buy: number
       const net = Math.round(parseNum(row[5]) / 1000);
       map.set(sym, { buy, sell, net });
     }
-  } catch (e) { console.warn('fetchLargeTrader:', e); }
+  } catch { /* fetchLargeTrader failed */ }
   return map;
 }
 
@@ -250,14 +251,23 @@ async function findLatestTradingDate(requestedDate: string): Promise<string> {
   return requestedDate; // fallback
 }
 
+const chipQuerySchema = z.object({
+  date:   z.string().optional(),
+  symbol: z.string().optional(),
+});
+
 // ── 快取 ─────────────────────────────────────────────────────────────────────
 let cache: { date: string; data: Map<string, ChipData>; ts: number } | null = null;
 const CACHE_TTL = 10 * 60 * 1000;
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const rawDate = searchParams.get('date') || new Date().toISOString().slice(0, 10);
-  const symbol = searchParams.get('symbol');
+  const parsed = chipQuerySchema.safeParse(Object.fromEntries(searchParams));
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+  }
+  const rawDate = parsed.data.date ?? new Date().toISOString().slice(0, 10);
+  const symbol = parsed.data.symbol ?? null;
 
   // Use cached data if available for any recent date
   if (cache && Date.now() - cache.ts < CACHE_TTL) {

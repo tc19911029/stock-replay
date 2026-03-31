@@ -28,14 +28,13 @@ const safeStorage = {
       localStorage.setItem(name, value);
     } catch (e) {
       if (e instanceof DOMException && e.name === 'QuotaExceededError') {
-        console.warn('[Storage] Quota exceeded, clearing old data...');
         try {
           // Clear old scanner data to free space
           localStorage.removeItem('scanner-v3');
           localStorage.removeItem('scanner-v2');
           localStorage.removeItem('scanner-v1');
           localStorage.setItem(name, value);
-        } catch { console.error('[Storage] Still full after cleanup'); }
+        } catch { /* storage still full after cleanup */ }
       }
     }
   },
@@ -165,7 +164,7 @@ export const useScannerStore = create<ScannerStore>()(
           };
           updateProgress(5, names[0], 1);
 
-          const scanChunk = async (chunk: Array<{ symbol: string; name: string }>, chunkIdx: number) => {
+          const scanChunk = async (chunk: Array<{ symbol: string; name: string }>) => {
             const res = await fetch('/api/scanner/chunk', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -182,8 +181,8 @@ export const useScannerStore = create<ScannerStore>()(
           // ── Step 3: Run both chunks in parallel ────────────────────────────
           updateProgress(10, `掃描第1批 (${chunk1.length}檔)`, 0);
           const [r1, r2] = await Promise.allSettled([
-            scanChunk(chunk1, 0).then(r => { completedChunks++; updateProgress(completedChunks === 1 ? 50 : 88, `第${completedChunks}批完成`, half * completedChunks); return r; }),
-            scanChunk(chunk2, 1).then(r => { completedChunks++; updateProgress(completedChunks === 1 ? 50 : 88, `第${completedChunks}批完成`, total); return r; }),
+            scanChunk(chunk1).then(r => { completedChunks++; updateProgress(completedChunks === 1 ? 50 : 88, `第${completedChunks}批完成`, half * completedChunks); return r; }),
+            scanChunk(chunk2).then(r => { completedChunks++; updateProgress(completedChunks === 1 ? 50 : 88, `第${completedChunks}批完成`, total); return r; }),
           ]);
 
           // Use market trend from whichever chunk succeeded (should be the same)
@@ -201,9 +200,6 @@ export const useScannerStore = create<ScannerStore>()(
               : b.changePercent - a.changePercent
           );
 
-          // Log if either chunk failed
-          if (r1.status === 'rejected') console.warn('[scanner] chunk1 failed:', r1.reason);
-          if (r2.status === 'rejected') console.warn('[scanner] chunk2 failed:', r2.reason);
 
           const now = new Date().toISOString();
 
@@ -249,11 +245,17 @@ export const useScannerStore = create<ScannerStore>()(
             // 如果是週末，往回找到最近的交易日
             let chipDate = scanDate || now.split('T')[0];
             const cd = new Date(chipDate + 'T00:00:00');
-            if (cd.getDay() === 0) chipDate = new Date(cd.getTime() - 2 * 86400000).toISOString().slice(0, 10); // 週日→週五
-            else if (cd.getDay() === 6) chipDate = new Date(cd.getTime() - 1 * 86400000).toISOString().slice(0, 10); // 週六→週五
-            fetch(`/api/chip?date=${chipDate}`)
-              .then(r => r.json())
-              .then((chipJson: { data?: Array<{ symbol: string; chipScore: number; chipGrade: string; chipSignal: string; chipDetail: string; foreignBuy: number; trustBuy: number; dealerBuy: number; marginNet: number; shortNet: number; marginBalance: number; shortBalance: number; dayTradeRatio: number; largeTraderNet: number }> }) => {
+            if (cd.getDay() === 0) chipDate = new Date(cd.getTime() - 2 * 86400000).toISOString().slice(0, 10);
+            else if (cd.getDay() === 6) chipDate = new Date(cd.getTime() - 1 * 86400000).toISOString().slice(0, 10);
+
+            // Fire-and-forget with proper error handling
+            void (async () => {
+              try {
+                const chipRes = await fetch(`/api/chip?date=${chipDate}`);
+                if (!chipRes.ok) return;
+                const chipJson = await chipRes.json() as {
+                  data?: Array<{ symbol: string; chipScore: number; chipGrade: string; chipSignal: string; chipDetail: string; foreignBuy: number; trustBuy: number; dealerBuy: number; marginNet: number; shortNet: number; marginBalance: number; shortBalance: number; dayTradeRatio: number; largeTraderNet: number }>;
+                };
                 if (!chipJson.data) return;
                 const chipMap = new Map(chipJson.data.map(d => [d.symbol, d]));
                 const currentResults = get()[mKey].results;
@@ -261,28 +263,13 @@ export const useScannerStore = create<ScannerStore>()(
                   const sym = r.symbol.replace(/\.(TW|TWO)$/i, '');
                   const chip = chipMap.get(sym);
                   if (!chip) return r;
-                  return {
-                    ...r,
-                    chipScore: chip.chipScore,
-                    chipGrade: chip.chipGrade,
-                    chipSignal: chip.chipSignal,
-                    chipDetail: chip.chipDetail,
-                    foreignBuy: chip.foreignBuy,
-                    trustBuy: chip.trustBuy,
-                    dealerBuy: chip.dealerBuy,
-                    marginNet: chip.marginNet,
-                    shortNet: chip.shortNet,
-                    marginBalance: chip.marginBalance,
-                    shortBalance: chip.shortBalance,
-                    dayTradeRatio: chip.dayTradeRatio,
-                    largeTraderNet: chip.largeTraderNet,
-                  };
+                  return { ...r, ...chip };
                 });
-                set(s => ({
-                  [mKey]: { ...s[mKey], results: enriched },
-                }));
-              })
-              .catch(() => { /* 籌碼查詢失敗不影響主流程 */ });
+                set(s => ({ [mKey]: { ...s[mKey], results: enriched } }));
+              } catch {
+                // 籌碼查詢失敗不影響主流程
+              }
+            })();
           }
         } catch (err) {
           set(s => ({

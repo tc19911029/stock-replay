@@ -141,16 +141,19 @@ async function fetchMarketQuotes(market: 'cn' | 'us'): Promise<Map<string, EastM
         if (!close || close <= 0 || close === '-' as unknown as number) continue;
 
         if (market === 'cn') {
-          // A 股：只保留 6 位數字，排除 B 股
+          // A 股：只保留合法的 A 股代碼前綴，排除 B 股和其他
           if (!/^\d{6}$/.test(code)) continue;
-          if (code.startsWith('900') || code.startsWith('200')) continue;
+          // 合法 A 股前綴：600/601/603/605(滬主板), 688(科創板),
+          //   000/001/002/003(深主板), 300/301(創業板)
+          // 排除：200xxx(深B), 900xxx(滬B), 4xxxxx(三板), 8xxxxx(北交所)
+          if (!/^(00[0-3]|30[01]|60[0135]|688)\d{3}$/.test(code)) continue;
 
           map.set(code, {
             code,
             name: (item.f14 && item.f14 !== '-') ? item.f14 : code,
-            open:   item.f17 > 0 ? item.f17 : close,
-            high:   item.f15 > 0 ? item.f15 : close,
-            low:    item.f16 > 0 ? item.f16 : close,
+            open:   (item.f17 != null && item.f17 > 0) ? item.f17 : close,
+            high:   (item.f15 != null && item.f15 > 0) ? item.f15 : close,
+            low:    (item.f16 != null && item.f16 > 0) ? item.f16 : close,
             close,
             volume: (item.f5 ?? 0) * 100, // 手 → 股
           });
@@ -159,9 +162,9 @@ async function fetchMarketQuotes(market: 'cn' | 'us'): Promise<Map<string, EastM
           map.set(code.toUpperCase(), {
             code: code.toUpperCase(),
             name: (item.f14 && item.f14 !== '-') ? item.f14 : code,
-            open:   item.f17 > 0 ? item.f17 : close,
-            high:   item.f15 > 0 ? item.f15 : close,
-            low:    item.f16 > 0 ? item.f16 : close,
+            open:   (item.f17 != null && item.f17 > 0) ? item.f17 : close,
+            high:   (item.f15 != null && item.f15 > 0) ? item.f15 : close,
+            low:    (item.f16 != null && item.f16 > 0) ? item.f16 : close,
             close,
             volume: item.f5 ?? 0, // 美股直接是股
           });
@@ -169,14 +172,9 @@ async function fetchMarketQuotes(market: 'cn' | 'us'): Promise<Map<string, EastM
       }
 
       if (items.length < pageSize) break;
-    } catch (e) {
-      console.warn(`[EastMoneyRealtime] ${market} page ${page} error:`, e);
+    } catch {
       break;
     }
-  }
-
-  if (map.size > 0) {
-    console.log(`[EastMoneyRealtime] 取得 ${map.size} 檔${market === 'cn' ? 'A股' : '美股'}即時報價`);
   }
 
   return map;

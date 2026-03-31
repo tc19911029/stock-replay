@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { StockScanResult } from '@/lib/scanner/types';
+
+const emailBodySchema = z.object({
+  to: z.string().email().optional(),
+  subject: z.string().optional(),
+  results: z.array(z.unknown()).default([]),
+  market: z.string().default('TW'),
+});
 
 function generateEmailHtml(results: StockScanResult[], market: string): string {
   const marketName = market === 'TW' ? '台灣股市' : '中國A股';
@@ -87,13 +95,11 @@ function generateEmailHtml(results: StockScanResult[], market: string): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { to, subject, results, market } = body as {
-      to?: string;
-      subject?: string;
-      results: StockScanResult[];
-      market: string;
-    };
+    const raw = await req.json().catch(() => ({}));
+    const parsed = emailBodySchema.safeParse(raw);
+    if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+    const { to, subject, market } = parsed.data;
+    const results = parsed.data.results as StockScanResult[];
 
     const apiKey = process.env.RESEND_API_KEY;
     if (!apiKey) {
@@ -131,6 +137,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, id: json.id });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error('[notify/email] error:', err);
+    return NextResponse.json({ error: '通知發送失敗' }, { status: 500 });
   }
 }

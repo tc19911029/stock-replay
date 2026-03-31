@@ -17,7 +17,8 @@ export interface TWSEQuote {
   high: number;
   low: number;
   close: number;
-  volume: number;     // 股數
+  volume: number;     // 成交量（股數），TWSE/TPEx 原始單位為張(1張=1000股)，已轉換
+  previousClose?: number; // 昨收（由 Change 欄位推算），可用於驗證資料是否為今日
 }
 
 const REALTIME_CACHE_KEY = 'twse:realtime:all';
@@ -68,6 +69,7 @@ interface TWSERawRow {
   LowestPrice: string;
   ClosingPrice: string;
   TradeVolume: string;
+  Change?: string;  // 漲跌，如 "▲7.00", "▼3.50", " 0.00"
 }
 
 interface TPExRawRow {
@@ -78,12 +80,22 @@ interface TPExRawRow {
   Low: string;
   Close: string;
   TradingShares: string;
+  Change?: string;  // 漲跌
 }
 
 function parseNum(s: string | undefined): number {
   if (!s) return 0;
   const n = parseFloat(s.replace(/,/g, ''));
   return isNaN(n) ? 0 : n;
+}
+
+/** 解析 TWSE/TPEx 漲跌欄位，回傳帶正負號的數值（無法解析回傳 null） */
+function parseChange(s: string | undefined): number | null {
+  if (!s) return null;
+  const stripped = s.replace(/[▲▼\s]/g, '').replace(/,/g, '');
+  const n = parseFloat(stripped);
+  if (isNaN(n)) return null;
+  return s.includes('▼') ? -Math.abs(n) : Math.abs(n);
 }
 
 async function fetchAllQuotes(): Promise<Map<string, TWSEQuote>> {
@@ -106,6 +118,8 @@ async function fetchAllQuotes(): Promise<Map<string, TWSEQuote>> {
         if (!/^\d{4,5}$/.test(row.Code)) continue;
         const close = parseNum(row.ClosingPrice);
         if (close <= 0) continue; // 跳過無交易的股票
+        const change = parseChange(row.Change);
+        const previousClose = change !== null ? +(close - change).toFixed(2) : undefined;
         map.set(row.Code, {
           code: row.Code,
           name: row.Name?.trim() ?? row.Code,
@@ -114,10 +128,11 @@ async function fetchAllQuotes(): Promise<Map<string, TWSEQuote>> {
           low: parseNum(row.LowestPrice),
           close,
           volume: parseNum(row.TradeVolume),
+          previousClose,
         });
       }
-    } catch (e) {
-      console.warn('[TWSERealtime] TWSE parse error:', e);
+    } catch {
+      // TWSE parse error, skip
     }
   }
 
@@ -130,6 +145,8 @@ async function fetchAllQuotes(): Promise<Map<string, TWSEQuote>> {
         if (!/^\d{4,5}$/.test(code)) continue;
         const close = parseNum(row.Close);
         if (close <= 0) continue;
+        const change = parseChange(row.Change);
+        const previousClose = change !== null ? +(close - change).toFixed(2) : undefined;
         map.set(code, {
           code,
           name: row.CompanyName?.trim() ?? code,
@@ -138,15 +155,12 @@ async function fetchAllQuotes(): Promise<Map<string, TWSEQuote>> {
           low: parseNum(row.Low),
           close,
           volume: parseNum(row.TradingShares),
+          previousClose,
         });
       }
-    } catch (e) {
-      console.warn('[TWSERealtime] TPEx parse error:', e);
+    } catch {
+      // TPEx parse error, skip
     }
-  }
-
-  if (map.size > 0) {
-    console.log(`[TWSERealtime] 取得 ${map.size} 檔即時報價`);
   }
 
   return map;

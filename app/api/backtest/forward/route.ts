@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { analyzeForwardBatch } from '@/lib/backtest/ForwardAnalyzer';
+
+const forwardSchema = z.object({
+  scanDate: z.string(),
+  stocks:   z.array(z.object({ symbol: z.string(), name: z.string(), scanPrice: z.number() })).default([]),
+});
 
 export const runtime    = 'nodejs';
 export const maxDuration = 60;
@@ -15,22 +21,22 @@ export const maxDuration = 60;
  * Safe to call even if scan date is recent (returns partial data).
  */
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({})) as {
-    scanDate?: string;
-    stocks?:   Array<{ symbol: string; name: string; scanPrice: number }>;
-  };
-
-  const scanDate = typeof body.scanDate === 'string' ? body.scanDate : '';
-  const stocks   = Array.isArray(body.stocks) ? body.stocks : [];
+  const body = await req.json().catch(() => ({}));
+  const parsed = forwardSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+  }
+  const { scanDate, stocks } = parsed.data;
 
   if (!scanDate || stocks.length === 0) {
     return NextResponse.json({ performance: [] });
   }
 
   try {
-    const performance = await analyzeForwardBatch(stocks, scanDate);
-    return NextResponse.json({ performance });
+    const { results: performance, nullCount, totalRequested } = await analyzeForwardBatch(stocks, scanDate);
+    return NextResponse.json({ performance, nullCount, totalRequested });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error('[backtest/forward] error:', err);
+    return NextResponse.json({ error: '回測服務暫時無法使用' }, { status: 500 });
   }
 }

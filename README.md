@@ -1,4 +1,4 @@
-# stock-replay
+# rockstock
 
 一個基於朱家泓老師技術分析理論的股票策略研究平台，支援歷史回放、條件掃描、嚴謹回測與研究報表。
 
@@ -106,7 +106,7 @@ UI 層：app/ + components/
 
 ```bash
 git clone <repository-url>
-cd stock-replay
+cd rockstock
 npm install
 cp .env.local.example .env.local
 # 填入 ANTHROPIC_API_KEY（選填，問老師 AI 功能需要）

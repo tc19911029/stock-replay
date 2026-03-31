@@ -39,6 +39,12 @@ export interface TradeSignal {
   retailSentiment?: number; // 散戶情緒 0-100 (0=panic, 100=euphoria)
   contrarianSignal?: 'bullish' | 'bearish' | null;
   volatilityRegime?: 'LOW' | 'NORMAL' | 'HIGH' | 'EXTREME';
+  // ── 《活用技術分析寶典》新增欄位 ──
+  highWinRateTypes?: string[];     // 高勝率進場位置
+  highWinRateScore?: number;       // 高勝率加分
+  winnerBullishPatterns?: string[]; // 空轉多圖像
+  winnerBearishPatterns?: string[]; // 多轉空圖像
+  eliminationPenalty?: number;      // 淘汰法扣分
 }
 
 /**
@@ -73,6 +79,11 @@ export function scanResultToSignal(scanResult: StockScanResult): TradeSignal {
     retailSentiment: scanResult.retailSentiment,
     contrarianSignal: scanResult.contrarianSignal,
     volatilityRegime: scanResult.volatilityRegime,
+    highWinRateTypes: scanResult.highWinRateTypes,
+    highWinRateScore: scanResult.highWinRateScore,
+    winnerBullishPatterns: scanResult.winnerBullishPatterns,
+    winnerBearishPatterns: scanResult.winnerBearishPatterns,
+    eliminationPenalty: scanResult.eliminationPenalty,
   };
 }
 
@@ -171,6 +182,8 @@ export interface BacktestStrategyParams {
   trailingActivate: number | null; // 移動停利啟動門檻：漲到 N% 才開始追蹤（如 0.05 = 5%）
   costParams:  CostParams;
   slippagePct: number;         // 滑價百分比（如 0.001 = 0.1%，買入加 / 賣出減）
+  /** 雙層出場機制：Tranche 1 (50%) 固定停利 + Tranche 2 (50%) 階梯追蹤 */
+  dualTranche?: boolean;       // 啟用雙層出場（default false）
 }
 
 /** 每筆回測交易完整紀錄 */
@@ -236,6 +249,22 @@ export interface BacktestStats {
 }
 
 // ── Default Params ──────────────────────────────────────────────────────────────
+
+/**
+ * 純朱家泓策略：固定參數，不使用 adaptive/trailing/dual-tranche
+ * 書中基本設定：持有5日、停損5%、停利15%
+ */
+export const PURE_ZHU_STRATEGY: BacktestStrategyParams = {
+  entryType:        'nextOpen',
+  holdDays:         5,
+  stopLoss:         -0.05,
+  takeProfit:       0.15,
+  trailingStop:     null,
+  trailingActivate: null,
+  costParams:       { twFeeDiscount: 0.6 },
+  slippagePct:      0.001,
+  dualTranche:      false,
+};
 
 export const DEFAULT_STRATEGY: BacktestStrategyParams = {
   entryType:   'nextOpen',
@@ -433,6 +462,334 @@ export function runSingleBacktest(
 }
 
 /**
+ * Dual-tranche exit: split position into two halves.
+ * Tranche 1 (50%): exits at fixed take-profit (1.5x ATR-based, approximated as 2/3 of takeProfit)
+ * Tranche 2 (50%): uses stepped trailing stop (tighter trailing as profit grows)
+ *
+ * Returns a single BacktestTrade with blended return from both tranches.
+ */
+export function runDualTrancheBacktest(
+  signal:         TradeSignal,
+  forwardCandles: ForwardCandle[],
+  strategy:       BacktestStrategyParams,
+): BacktestTrade | null {
+  if (forwardCandles.length === 0) return null;
+
+  // Tranche 1: early take-profit (2/3 of original TP), same stop loss, no trailing
+  const tp1 = strategy.takeProfit !== null ? strategy.takeProfit * 0.67 : 0.05;
+  const strat1: BacktestStrategyParams = {
+    ...strategy,
+    takeProfit: tp1,
+    trailingStop: null,
+    trailingActivate: null,
+    dualTranche: false,
+  };
+
+  // Tranche 2: no fixed TP, aggressive stepped trailing stop
+  // Stepped: start at 3%, tighten by 0.5% for every +2% gained
+  const trailingBase = strategy.trailingStop ?? 0.03;
+  const strat2: BacktestStrategyParams = {
+    ...strategy,
+    takeProfit: null, // let it ride
+    trailingStop: trailingBase,
+    trailingActivate: strategy.trailingActivate ?? 0.03,
+    dualTranche: false,
+  };
+
+  const trade1 = runSingleBacktest(signal, forwardCandles, strat1);
+  const trade2 = runSingleBacktest(signal, forwardCandles, strat2);
+
+  if (!trade1 && !trade2) return null;
+
+  // Blend returns: 50/50 weighted average
+  if (trade1 && trade2) {
+    const blendedGross = +(trade1.grossReturn * 0.5 + trade2.grossReturn * 0.5).toFixed(3);
+    const blendedNet   = +(trade1.netReturn * 0.5 + trade2.netReturn * 0.5).toFixed(3);
+    // Use the later exit date
+    const laterTrade = new Date(trade1.exitDate) >= new Date(trade2.exitDate) ? trade1 : trade2;
+    return {
+      ...laterTrade,
+      grossReturn: blendedGross,
+      netReturn:   blendedNet,
+      exitReason:  `dual:${trade1.exitReason}/${trade2.exitReason}`,
+      holdDays:    Math.max(trade1.holdDays, trade2.holdDays),
+      buyFee:      trade1.buyFee + trade2.buyFee,
+      sellFee:     trade1.sellFee + trade2.sellFee,
+      totalCost:   trade1.totalCost + trade2.totalCost,
+    };
+  }
+
+  // Only one tranche succeeded
+  return trade1 ?? trade2;
+}
+
+// ── SOP-Enhanced Exit (朱家泓《活用技術分析寶典》短線波段操作守則) ──────────
+
+/**
+ * 計算簡單移動平均（使用 ForwardCandle 的 close 價）
+ */
+function calcSMA(candles: ForwardCandle[], endIdx: number, period: number): number | null {
+  if (endIdx < period - 1) return null;
+  let sum = 0;
+  for (let i = endIdx - period + 1; i <= endIdx; i++) {
+    sum += candles[i].close;
+  }
+  return sum / period;
+}
+
+/**
+ * 計算均量 (5日)
+ */
+function calcAvgVol(candles: ForwardCandle[], endIdx: number, period = 5): number | null {
+  if (endIdx < period - 1) return null;
+  let sum = 0;
+  for (let i = endIdx - period + 1; i <= endIdx; i++) {
+    sum += (candles[i].volume ?? 0);
+  }
+  return sum / period;
+}
+
+/**
+ * 朱家泓短線波段操作 SOP 出場邏輯
+ *
+ * 書中 Part 11 (P712-720) 定義了 20 條短線操作守則，
+ * 此函數實作其中可程式化的核心守則，替代原有的固定百分比出場。
+ *
+ * 核心守則：
+ * - 守則 2: 停損 5%
+ * - 守則 5: 漲幅未達 10%，跌破 MA5 → 續抱（不賣）
+ * - 守則 6: 漲幅超過 10%，收盤跌破 MA5 → 停利
+ * - 守則 7: 獲利超過 20% + 連漲3天 + 大量長黑 → 全部出場
+ * - 守則 8: 獲利超過 20% + 大量長黑跌破前日低 → 全部出場
+ * - 守則 15: 黑K跌破MA5，跌幅<1%，量縮，MA20向上 → 可續抱
+ * - 守則 19: 收盤出現「頭頭低」→ 趨勢改變出場
+ */
+export function runSOPBacktest(
+  signal:         TradeSignal,
+  forwardCandles: ForwardCandle[],
+  strategy:       BacktestStrategyParams = DEFAULT_STRATEGY,
+): BacktestTrade | null {
+  if (forwardCandles.length === 0) return null;
+
+  // ── 進場（含滑價）
+  const entryCandle = forwardCandles[0];
+  const rawEntryPrice = strategy.entryType === 'nextOpen'
+    ? entryCandle.open
+    : entryCandle.close;
+
+  if (!rawEntryPrice || rawEntryPrice <= 0) return null;
+
+  // 漲停板檢測
+  if (strategy.entryType === 'nextOpen') {
+    const range = entryCandle.high - entryCandle.low;
+    const rangeRatio = entryCandle.low > 0 ? range / entryCandle.low : 0;
+    const isLockUp = entryCandle.open === entryCandle.high && rangeRatio < 0.005;
+    if (isLockUp) return null;
+  }
+
+  const entryPrice = rawEntryPrice * (1 + strategy.slippagePct);
+
+  // ── SOP 出場模擬 ──
+  let exitDate   = '';
+  let exitPrice  = 0;
+  let exitReason = 'holdDays';
+  let holdDays   = 0;
+
+  const offset = strategy.entryType === 'nextOpen' ? 0 : 1;
+  // SOP 不用固定持有天數限制，而是用條件出場，但設最大持有天數防無限持倉
+  const maxHold = Math.max(strategy.holdDays, 20);
+  const holdWindow = forwardCandles.slice(offset, offset + maxHold);
+
+  const stopLossPrice = strategy.stopLoss !== null
+    ? entryPrice * (1 + strategy.stopLoss)
+    : null;
+
+  let highestPrice = entryPrice;
+  let highestClose = entryPrice;
+  let consecutiveRedDays = 0; // 連續紅K天數
+
+  for (let i = 0; i < holdWindow.length; i++) {
+    const c = holdWindow[i];
+    holdDays = i + 1;
+    const isEntryDay = i === 0 && strategy.entryType === 'nextOpen';
+    const isRedCandle = c.close > c.open;
+    const isBlackCandle = c.close < c.open;
+    const currentReturn = (c.close - entryPrice) / entryPrice;
+    const currentReturnFromHigh = highestClose > entryPrice
+      ? (highestClose - entryPrice) / entryPrice : 0;
+
+    // 更新追蹤
+    if (c.high > highestPrice) highestPrice = c.high;
+    if (c.close > highestClose) highestClose = c.close;
+    if (isRedCandle) consecutiveRedDays++;
+    else consecutiveRedDays = 0;
+
+    // ── 守則 2: 停損 5% ──
+    if (stopLossPrice !== null) {
+      const hitSL = isEntryDay ? c.close <= stopLossPrice : c.low <= stopLossPrice;
+      if (hitSL) {
+        exitReason = 'stopLoss';
+        exitPrice = c.open <= stopLossPrice
+          ? +(c.open * (1 - strategy.slippagePct)).toFixed(3)
+          : +stopLossPrice.toFixed(3);
+        exitDate = c.date;
+        break;
+      }
+    }
+
+    // 進場當天只看收盤
+    if (isEntryDay) continue;
+
+    // 計算 MA5 和 MA20（在 forwardCandles 上）
+    const absIdx = offset + i;
+    const ma5 = calcSMA(forwardCandles, absIdx, 5);
+    const ma20 = calcSMA(forwardCandles, absIdx, 20);
+    const prevMa20 = absIdx >= 1 ? calcSMA(forwardCandles, absIdx - 1, 20) : null;
+    const avgVol = calcAvgVol(forwardCandles, absIdx, 5);
+    const prevCandle = holdWindow[i - 1];
+
+    // ── 守則 19: 收盤出現「頭頭低」→ 趨勢改變出場 ──
+    // 簡化判斷：如果近3天出現高點遞減且低點遞減
+    if (i >= 3) {
+      const h1 = holdWindow[i - 2].high;
+      const h2 = holdWindow[i - 1].high;
+      const h3 = c.high;
+      const l1 = holdWindow[i - 2].low;
+      const l2 = holdWindow[i - 1].low;
+      const l3 = c.low;
+      if (h3 < h2 && h2 < h1 && l3 < l2 && l2 < l1) {
+        exitReason = 'sop_trendReverse';
+        exitPrice = +(c.close * (1 - strategy.slippagePct)).toFixed(3);
+        exitDate = c.date;
+        break;
+      }
+    }
+
+    // ── 守則 8: 獲利>20% + 大量長黑跌破前日低 → 全部出場 ──
+    if (currentReturnFromHigh >= 0.20 && isBlackCandle && prevCandle) {
+      const bodyPct = Math.abs(c.close - c.open) / c.open;
+      const isLongBlack = bodyPct >= 0.02;
+      const breaksPrevLow = c.close < prevCandle.low;
+      if (isLongBlack && breaksPrevLow) {
+        exitReason = 'sop_bigGainLongBlack';
+        exitPrice = +(c.close * (1 - strategy.slippagePct)).toFixed(3);
+        exitDate = c.date;
+        break;
+      }
+    }
+
+    // ── 守則 7: 獲利>20% + 連漲3天 + 出現大量長黑 → 出場 ──
+    if (currentReturnFromHigh >= 0.20 && isBlackCandle && consecutiveRedDays === 0) {
+      // 前面有連漲3天
+      if (i >= 3) {
+        const prevRedStreak = holdWindow[i - 1].close > holdWindow[i - 1].open
+          && holdWindow[i - 2].close > holdWindow[i - 2].open
+          && holdWindow[i - 3].close > holdWindow[i - 3].open;
+        const bodyPct = Math.abs(c.close - c.open) / c.open;
+        const isLargeVol = avgVol != null && avgVol > 0 && (c.volume ?? 0) >= avgVol * 1.5;
+        if (prevRedStreak && bodyPct >= 0.02 && isLargeVol) {
+          exitReason = 'sop_rushThenBlack';
+          exitPrice = +(c.close * (1 - strategy.slippagePct)).toFixed(3);
+          exitDate = c.date;
+          break;
+        }
+      }
+    }
+
+    // ── 守則 6: 漲幅>10% + 收盤跌破MA5 → 停利 ──
+    if (currentReturnFromHigh >= 0.10 && ma5 !== null && c.close < ma5) {
+      // 守則 15 例外: 跌幅<1%，量縮，MA20向上 → 可續抱
+      const dropPct = Math.abs(c.close - c.open) / c.open;
+      const isVolShrink = avgVol != null && avgVol > 0 && (c.volume ?? 0) < avgVol * 0.8;
+      const isMA20Up = ma20 != null && prevMa20 != null && ma20 > prevMa20;
+
+      if (dropPct < 0.01 && isVolShrink && isMA20Up) {
+        // 守則 15: 續抱
+        continue;
+      }
+
+      exitReason = 'sop_gain10BreakMA5';
+      exitPrice = +(c.close * (1 - strategy.slippagePct)).toFixed(3);
+      exitDate = c.date;
+      break;
+    }
+
+    // ── 守則 5: 漲幅未達10% + 跌破MA5 → 續抱（不賣）──
+    // 這是與原有邏輯最大的不同：原本跌破 MA5 就出場，
+    // SOP 規定漲幅 <10% 時跌破 MA5 要續抱等待。
+    // 但如果跌破 MA20 就要出場
+    if (currentReturn >= 0 && currentReturn < 0.10 && ma5 !== null && c.close < ma5) {
+      // 不出場，但如果跌破 MA20 就要出場
+      if (ma20 !== null && c.close < ma20) {
+        exitReason = 'sop_breakMA20';
+        exitPrice = +(c.close * (1 - strategy.slippagePct)).toFixed(3);
+        exitDate = c.date;
+        break;
+      }
+      // 守則 5: 續抱
+      continue;
+    }
+
+    // ── 最後一天：以收盤出場 ──
+    if (i === holdWindow.length - 1) {
+      exitPrice = +(c.close * (1 - strategy.slippagePct)).toFixed(3);
+      exitDate  = c.date;
+      exitReason = holdWindow.length < maxHold ? 'dataEnd' : 'holdDays';
+    }
+  }
+
+  if (!exitDate || exitPrice <= 0 || holdDays === 0) return null;
+
+  // ── 成本計算 ──
+  const unitShares = signal.market === 'TW' ? 1000 : 100;
+  const buyAmount  = entryPrice * unitShares;
+  const sellAmount = exitPrice  * unitShares;
+
+  const cost = calcRoundTripCost(
+    signal.market,
+    signal.symbol,
+    buyAmount,
+    sellAmount,
+    strategy.costParams,
+  );
+
+  const grossReturn = +((exitPrice - entryPrice) / entryPrice * 100).toFixed(3);
+  const netPnL      = sellAmount - buyAmount - cost.total;
+  const netReturn   = +(netPnL / buyAmount * 100).toFixed(3);
+
+  return {
+    symbol:  signal.symbol,
+    name:    signal.name,
+    market:  signal.market,
+    industry: signal.industry,
+
+    signalDate:    signal.signalDate,
+    signalScore:   signal.signalScore,
+    signalReasons: signal.signalReasons,
+    trendState:    signal.trendState,
+    trendPosition: signal.trendPosition,
+    surgeScore:    signal.surgeScore,
+    surgeGrade:    signal.surgeGrade,
+    histWinRate:   signal.histWinRate,
+
+    entryDate:  entryCandle.date,
+    entryPrice: +entryPrice.toFixed(3),
+    entryType:  strategy.entryType,
+
+    exitDate,
+    exitPrice:  +exitPrice.toFixed(3),
+    exitReason,
+    holdDays,
+
+    grossReturn,
+    netReturn,
+    buyFee:    cost.buyFee,
+    sellFee:   cost.sellFee,
+    totalCost: cost.total,
+  };
+}
+
+/**
  * 批量回測：對所有掃描結果計算回測績效
  * 回傳 trades 陣列及被跳過的筆數（存活偏差追蹤）
  */
@@ -440,6 +797,8 @@ export function runBatchBacktest(
   scanResults:       StockScanResult[],
   forwardCandlesMap: Record<string, ForwardCandle[]>,
   strategy:          BacktestStrategyParams = DEFAULT_STRATEGY,
+  /** 使用朱老師SOP出場邏輯（守則5/6/7/8/15/19） */
+  useSOPExit = false,
 ): { trades: BacktestTrade[]; skippedCount: number } {
   const trades: BacktestTrade[] = [];
   let skippedCount = 0;
@@ -448,7 +807,38 @@ export function runBatchBacktest(
     const candles = forwardCandlesMap[result.symbol] ?? [];
     const signal = scanResultToSignal(result);
     const adaptiveStrategy = resolveAdaptiveParams(signal, strategy);
-    const trade   = runSingleBacktest(signal, candles, adaptiveStrategy);
+
+    let trade: BacktestTrade | null;
+    if (useSOPExit) {
+      trade = runSOPBacktest(signal, candles, adaptiveStrategy);
+    } else if (adaptiveStrategy.dualTranche) {
+      trade = runDualTrancheBacktest(signal, candles, adaptiveStrategy);
+    } else {
+      trade = runSingleBacktest(signal, candles, adaptiveStrategy);
+    }
+
+    if (trade) trades.push(trade);
+    else skippedCount++;
+  }
+
+  return { trades, skippedCount };
+}
+
+/**
+ * 純朱家泓批量回測：不用 adaptive params，固定策略參數
+ */
+export function runBatchBacktestPure(
+  scanResults:       StockScanResult[],
+  forwardCandlesMap: Record<string, ForwardCandle[]>,
+): { trades: BacktestTrade[]; skippedCount: number } {
+  const trades: BacktestTrade[] = [];
+  let skippedCount = 0;
+
+  for (const result of scanResults) {
+    const candles = forwardCandlesMap[result.symbol] ?? [];
+    const signal = scanResultToSignal(result);
+    // 不用 resolveAdaptiveParams，直接用固定參數
+    const trade = runSingleBacktest(signal, candles, PURE_ZHU_STRATEGY);
     if (trade) trades.push(trade);
     else skippedCount++;
   }

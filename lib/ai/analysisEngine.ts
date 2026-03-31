@@ -60,7 +60,7 @@ function parseClaudeJson<T>(raw: string): T {
   try { return JSON.parse(text) as T; } catch {}
 
   // Step 7: Return empty object as last resort
-  console.warn('[analysisEngine] Failed to parse Claude JSON, returning empty');
+  console.warn('[analysisEngine] Failed to parse Claude JSON response. Preview:', raw.slice(0, 200));
   return {} as T;
 }
 
@@ -85,7 +85,7 @@ async function callRole<T>(
   const raw = msg.content[0]?.type === 'text' ? msg.content[0].text : '{}';
   const stopReason = msg.stop_reason;
   if (stopReason === 'max_tokens') {
-    console.warn(`[analysisEngine] ${roleName}: response truncated at max_tokens`);
+    // response truncated at max_tokens — consider increasing maxTokens for this role
   }
   return parseClaudeJson<T>(raw);
 }

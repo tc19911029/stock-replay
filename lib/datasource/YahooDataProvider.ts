@@ -29,6 +29,16 @@ function extractUSTicker(symbol: string): string | null {
   return null;
 }
 
+/** 取得美股紐約時間的「今日」日期字串（自動處理夏令/冬令時） */
+function getUSDateStr(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+}
+
+/** 取得台股/A股 UTC+8 的「今日」日期字串 */
+function getAsiaDateStr(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' });
+}
+
 const YF_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
   'Accept': 'application/json',
@@ -93,8 +103,8 @@ function parseYahooCandles(json: unknown): Candle[] {
       const v = q.volume[i];
       if (o == null || h == null || l == null || c == null || isNaN(o)) return null;
 
-      // 除權息調整：用 adjclose / close 比例同步調整所有 OHLC
-      // 確保均線、報酬率在除權息日前後連續，不產生假跳空
+      // 除權息調整：用 adjclose / close 比例同步調整所有 OHLC 和成交量
+      // 確保均線、報酬率、量能在除權息日前後連續，不產生假跳空或量能斷層
       const adjFactor = (adj && adj[i] != null && c > 0) ? adj[i] / c : 1;
 
       return {
@@ -103,7 +113,7 @@ function parseYahooCandles(json: unknown): Candle[] {
         high:   +(h * adjFactor).toFixed(2),
         low:    +(l * adjFactor).toFixed(2),
         close:  +(c * adjFactor).toFixed(2),
-        volume: v ?? 0,
+        volume: adjFactor !== 1 ? Math.round((v ?? 0) / adjFactor) : (v ?? 0),
       };
     })
     .filter((c): c is Candle => c != null);
@@ -134,16 +144,13 @@ async function overlayRealtimeQuote(
         : await getUSStockQuote(usTicker!);
     if (!quote || quote.close <= 0) return;
 
-    // 台股/A股 UTC+8, 美股 UTC-4（東部時間）
-    // 用各市場當地日期判斷「今天」
-    let todayStr: string;
-    if (usTicker) {
-      // 美股：使用 UTC-4 (EDT) 判斷交易日
-      todayStr = new Date(Date.now() - 4 * 3600_000).toISOString().split('T')[0];
-    } else {
-      // 台股/A股：UTC+8
-      todayStr = new Date(Date.now() + 8 * 3600_000).toISOString().split('T')[0];
-    }
+    // 用各市場當地日期判斷「今天」（自動處理夏令/冬令時）
+    const todayStr = usTicker ? getUSDateStr() : getAsiaDateStr();
+
+    // 週末不覆蓋（所有市場六日休市）
+    const todayDate = new Date(todayStr + 'T12:00:00Z');
+    const dayOfWeek = todayDate.getUTCDay(); // 0=Sun, 6=Sat
+    if (dayOfWeek === 0 || dayOfWeek === 6) return;
 
     // getCandlesRange 模式：檢查 today 是否在請求範圍內
     if (dateRangeStart && dateRangeEnd) {
@@ -151,6 +158,35 @@ async function overlayRealtimeQuote(
     }
 
     const lastCandle = candles[candles.length - 1];
+
+    // 過期資料防護：TWSE STOCK_DAY_ALL 在收盤後灰區（~13:30-15:30）可能仍回傳前一交易日數據。
+    // 策略一：若有 previousClose 欄位，檢查 TWSE 昨收 ≈ Yahoo 倒數第二根 K（代表 TWSE 是昨日資料）。
+    // 策略二：若無 previousClose，用時段防護（台股/A股盤後灰區不覆蓋）。
+    const prevClose = 'previousClose' in quote ? (quote.previousClose as number | undefined) : undefined;
+    if (lastCandle.date === todayStr) {
+      if (prevClose !== undefined) {
+        const prevCandle = candles[candles.length - 2];
+        if (prevCandle) {
+          const staleness = Math.abs(prevClose - prevCandle.close) / (prevCandle.close || 1);
+          if (staleness < 0.005) {
+            // TWSE 的昨收 ≈ Yahoo 倒數第二根 K（昨日）→ TWSE 資料是昨日，跳過
+            return;
+          }
+        }
+      } else if (!usTicker) {
+        // 無 previousClose 且非美股：檢查是否在灰區時段（收盤後~更新前）
+        const nowAsia = new Date().toLocaleString('en-US', { timeZone: 'Asia/Taipei', hour12: false });
+        const hour = parseInt(nowAsia.split(' ')[1]?.split(':')[0] ?? '0', 10);
+        const min  = parseInt(nowAsia.split(' ')[1]?.split(':')[1] ?? '0', 10);
+        const timeMin = hour * 60 + min;
+        // 盤前 (< 09:00 = 540min)：STOCK_DAY_ALL 可能仍是前一日數據
+        // 收盤灰區 (13:30~15:30 = 810~930min)：TWSE 尚未更新今日收盤
+        if (timeMin < 540 || (timeMin >= 810 && timeMin < 930)) {
+          return; // 不信任 STOCK_DAY_ALL 資料
+        }
+      }
+    }
+
     if (lastCandle.date === todayStr) {
       lastCandle.open   = quote.open;
       lastCandle.high   = quote.high;
@@ -167,9 +203,8 @@ async function overlayRealtimeQuote(
         volume: quote.volume,
       });
     }
-  } catch (e) {
-    const market = twCode ? 'TWSE' : cnCode ? 'EastMoney-CN' : 'EastMoney-US';
-    console.warn(`[YahooDataProvider] ${market} overlay failed for ${symbol}:`, e);
+  } catch {
+    // Realtime overlay failed, use Yahoo data only
   }
 }
 

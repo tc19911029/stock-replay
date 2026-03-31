@@ -5,7 +5,7 @@
 
 import type {
   BacktestMetrics, DiagnosticsReport, DiagnosticIssue,
-  OptimizationSuggestion, RuleDiagnostic, StrategyParams,
+  OptimizationSuggestion, RuleDiagnostic, StrategyParams, SplitResult,
 } from './types';
 
 interface TradeWithRule {
@@ -237,7 +237,7 @@ export function generateDiagnostics(
   metrics: BacktestMetrics,
   trades: TradeWithRule[],
   params: StrategyParams,
-  splitResults?: any,
+  splitResults?: SplitResult,
 ): DiagnosticsReport {
   const ruleAnalysis = analyzeRules(trades);
   const issues = findIssues(metrics, ruleAnalysis, params);

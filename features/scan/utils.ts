@@ -5,13 +5,31 @@ import type { StockScanResult } from '@/lib/scanner/types';
 
 // ── Color helpers ─────────────────────────────────────────────────────────────
 
+// ── Cached color theme (avoids parsing localStorage on every render) ────────
+let _cachedColorTheme: string | null = null;
+let _cacheTimestamp = 0;
+const THEME_CACHE_TTL = 5000; // 5 seconds
+
+function getColorTheme(): string {
+  const now = Date.now();
+  if (_cachedColorTheme && now - _cacheTimestamp < THEME_CACHE_TTL) return _cachedColorTheme;
+  try {
+    if (typeof window !== 'undefined') {
+      _cachedColorTheme = JSON.parse(localStorage.getItem('settings-v4') || '{}')?.state?.colorTheme ?? 'asia';
+    } else {
+      _cachedColorTheme = 'asia';
+    }
+  } catch {
+    _cachedColorTheme = 'asia';
+  }
+  _cacheTimestamp = now;
+  return _cachedColorTheme!;
+}
+
 /** Return/PnL color based on color theme (亞洲: 紅漲綠跌) */
 export function retColor(v: number | null | undefined): string {
   if (v == null) return 'text-slate-500';
-  const theme =
-    typeof window !== 'undefined'
-      ? (JSON.parse(localStorage.getItem('settings-v4') || '{}')?.state?.colorTheme ?? 'asia')
-      : 'asia';
+  const theme = getColorTheme();
   if (theme === 'western') {
     if (v > 0) return 'text-green-400';
     if (v < 0) return 'text-red-500';
@@ -37,13 +55,20 @@ export function scoreColor(s: number): string {
 
 // ── Composite score ───────────────────────────────────────────────────────────
 
-/** Composite score v2: 六條件30% + 潛力20% + 勝率25% + 位置10% + 量能10% + 突破5% */
+/**
+ * Composite score — 直接使用 Scanner 的完整評分（含智慧資金、市場寬度等12+維度）。
+ * 若 Scanner 未提供 compositeScore，fallback 到簡化公式。
+ */
 export function calcComposite(r: Pick<StockScanResult,
-  'sixConditionsScore' | 'surgeScore' | 'histWinRate' | 'trendPosition' | 'surgeComponents' | 'surgeFlags'
+  'compositeScore' | 'sixConditionsScore' | 'surgeScore' | 'histWinRate' | 'trendPosition' | 'surgeComponents' | 'surgeFlags'
 >): number {
+  // 優先使用 Scanner 已計算的 compositeScore（包含智慧資金、板塊動能、壓力帶等完整分析）
+  if (r.compositeScore != null) return r.compositeScore;
+
+  // Fallback: 簡化公式（相容舊資料）
   const sixCon    = (r.sixConditionsScore / 6) * 100;
   const surge     = (r.surgeScore ?? 0);
-  const winR      = r.histWinRate ?? 50;
+  const winR      = r.histWinRate ?? 42;
   const posBonus  = r.trendPosition?.includes('起漲') ? 100
                   : r.trendPosition?.includes('主升') ? 70
                   : r.trendPosition?.includes('末升') ? 20 : 50;

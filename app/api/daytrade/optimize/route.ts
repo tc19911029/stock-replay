@@ -9,15 +9,28 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import {
   getAllVersions, getVersion, initBaselineVersion,
   getExperiments, getDiagnostics, compareVersions,
 } from '@/lib/optimizer/StrategyRegistry';
 import { runIteration, applyTopSuggestion } from '@/lib/optimizer/OptimizationRunner';
 
+const querySchema = z.object({
+  action: z.enum(['versions', 'run', 'diagnostics', 'apply', 'iterate', 'compare']).default('versions'),
+  symbol: z.string().default('2330'),
+  days: z.string().default('30'),
+  timeframe: z.string().default('5m'),
+  version: z.string().optional(),
+  rounds: z.string().default('3'),
+  v1: z.string().optional(),
+  v2: z.string().optional(),
+});
+
 export async function GET(req: NextRequest) {
-  const sp = req.nextUrl.searchParams;
-  const action = sp.get('action') || 'versions';
+  const parsed = querySchema.safeParse(Object.fromEntries(req.nextUrl.searchParams));
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+  const { action } = parsed.data;
   // Build base URL for server-side fetch
   const baseUrl = `${req.nextUrl.protocol}//${req.nextUrl.host}`;
 
@@ -32,10 +45,10 @@ export async function GET(req: NextRequest) {
       }
 
       case 'run': {
-        const symbol = sp.get('symbol') || '2330';
-        const days = parseInt(sp.get('days') || '30');
-        const timeframe = sp.get('timeframe') || '5m';
-        const versionId = sp.get('version') || undefined;
+        const symbol = parsed.data.symbol;
+        const days = parseInt(parsed.data.days);
+        const timeframe = parsed.data.timeframe;
+        const versionId = parsed.data.version;
 
         const result = await runIteration(symbol, days, timeframe, versionId, baseUrl);
 
@@ -47,14 +60,14 @@ export async function GET(req: NextRequest) {
       }
 
       case 'diagnostics': {
-        const vId = sp.get('version') || 'v1.0';
+        const vId = parsed.data.version || 'v1.0';
         const diag = getDiagnostics(vId);
         if (!diag) return NextResponse.json({ error: '尚未有診斷報告，請先跑 action=run' }, { status: 404 });
         return NextResponse.json(diag);
       }
 
       case 'apply': {
-        const vId = sp.get('version') || 'v1.0';
+        const vId = parsed.data.version || 'v1.0';
         const diag = getDiagnostics(vId);
         const version = getVersion(vId);
         if (!diag || !version) return NextResponse.json({ error: '找不到版本或診斷' }, { status: 404 });
@@ -66,13 +79,20 @@ export async function GET(req: NextRequest) {
       }
 
       case 'iterate': {
-        const symbol = sp.get('symbol') || '2330';
-        const days = parseInt(sp.get('days') || '30');
-        const timeframe = sp.get('timeframe') || '5m';
-        const rounds = Math.min(parseInt(sp.get('rounds') || '3'), 10);
+        const symbol = parsed.data.symbol;
+        const days = parseInt(parsed.data.days);
+        const timeframe = parsed.data.timeframe;
+        const rounds = Math.min(parseInt(parsed.data.rounds), 10);
 
         initBaselineVersion();
-        const iterations: any[] = [];
+        const iterations: Array<{
+          round: number;
+          version: unknown;
+          metrics: unknown;
+          issues: number;
+          topSuggestion: string;
+          nextVersion: string | null;
+        }> = [];
         let currentVersionId: string | undefined;
 
         for (let i = 0; i < rounds; i++) {
@@ -110,8 +130,8 @@ export async function GET(req: NextRequest) {
       }
 
       case 'compare': {
-        const v1 = sp.get('v1') || '';
-        const v2 = sp.get('v2') || '';
+        const v1 = parsed.data.v1 || '';
+        const v2 = parsed.data.v2 || '';
         const comparison = compareVersions(v1, v2);
         if (!comparison) return NextResponse.json({ error: '版本不存在' }, { status: 404 });
 

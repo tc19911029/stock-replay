@@ -18,7 +18,6 @@ export async function GET(req: NextRequest) {
   try {
     const scanner = new ChinaScanner();
     const { results, partial, marketTrend } = await scanner.scan();
-    if (partial) console.warn('[cron/scan-cn] Scan returned partial results due to timeout');
     const date = new Date().toISOString().split('T')[0];
 
     const session: ScanSession = {

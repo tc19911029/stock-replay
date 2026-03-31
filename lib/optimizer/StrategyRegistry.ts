@@ -102,20 +102,22 @@ export function getDiagnostics(versionId: string): DiagnosticsReport | undefined
 }
 
 /** 比較兩個版本 */
+type ParamValue = string | number | boolean | string[] | Record<string, string | number | boolean>;
+
 export function compareVersions(v1Id: string, v2Id: string): {
   v1: StrategyVersion; v2: StrategyVersion;
-  paramDiffs: Array<{ param: string; v1Value: any; v2Value: any }>;
+  paramDiffs: Array<{ param: string; v1Value: ParamValue; v2Value: ParamValue }>;
 } | null {
   const v1 = versions.get(v1Id);
   const v2 = versions.get(v2Id);
   if (!v1 || !v2) return null;
 
-  const paramDiffs: Array<{ param: string; v1Value: any; v2Value: any }> = [];
+  const paramDiffs: Array<{ param: string; v1Value: ParamValue; v2Value: ParamValue }> = [];
   const allKeys = new Set([...Object.keys(v1.params), ...Object.keys(v2.params)]);
 
   for (const key of allKeys) {
-    const val1 = (v1.params as any)[key];
-    const val2 = (v2.params as any)[key];
+    const val1 = v1.params[key as keyof StrategyParams] as ParamValue;
+    const val2 = v2.params[key as keyof StrategyParams] as ParamValue;
     if (JSON.stringify(val1) !== JSON.stringify(val2)) {
       paramDiffs.push({ param: key, v1Value: val1, v2Value: val2 });
     }

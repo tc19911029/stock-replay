@@ -75,6 +75,8 @@ interface BacktestState {
 
   // ── 模式 ──
   scanOnly: boolean;  // true = 只掃描不回測（今天的掃描）
+  /** 掃描模式：full=完整管線(60規則), pure=純朱家泓(14規則) */
+  scanMode: 'full' | 'pure';
 
   // ── Actions ──
   setMarket:              (m: MarketId) => void;
@@ -83,6 +85,7 @@ interface BacktestState {
   setCapitalConstraints:  (c: Partial<CapitalConstraints>) => void;
   toggleCapitalMode:      () => void;
   setScanOnly:            (v: boolean) => void;
+  setScanMode:            (m: 'full' | 'pure') => void;
   setWalkForwardConfig:   (c: Partial<WalkForwardConfig>) => void;
   computeWalkForward:     () => void;
   runScan:                () => Promise<void>;  // 統一入口（掃描+回測）
@@ -133,10 +136,12 @@ export const useBacktestStore = create<BacktestState>()(
       aiRanking: { isRanking: false, error: null },
       sessions: [],
       scanOnly: false,
+      scanMode: 'full' as const,
 
       setMarket:             (market)   => set({ market }),
       setScanDate:           (scanDate) => set({ scanDate }),
       setScanOnly:           (scanOnly) => set({ scanOnly }),
+      setScanMode:           (scanMode) => set({ scanMode }),
       setStrategy:           (partial)  => set(s => ({ strategy: { ...s.strategy, ...partial } })),
       setCapitalConstraints: (partial)  => set(s => ({ capitalConstraints: { ...s.capitalConstraints, ...partial } })),
       toggleCapitalMode:     ()         => set(s => ({ useCapitalMode: !s.useCapitalMode })),
@@ -262,6 +267,7 @@ export const useBacktestStore = create<BacktestState>()(
           ? { strategyId: activeStrategy.id }
           : { thresholds: activeStrategy.thresholds };
 
+        const { scanMode } = get();
         const scanChunk = async (chunk: typeof stocks) => {
           const res = await fetch('/api/scanner/chunk', {
             method:  'POST',
@@ -270,6 +276,7 @@ export const useBacktestStore = create<BacktestState>()(
               market,
               stocks: chunk,
               date: scanDate,
+              mode: scanMode,
               ...strategyPayload,
             }),
           });
@@ -346,7 +353,7 @@ export const useBacktestStore = create<BacktestState>()(
             body:    JSON.stringify({ scanDate, stocks: forwardPayload }),
           });
           if (!fwdRes.ok) throw new Error('無法取得後續績效資料');
-          const fwdJson = await fwdRes.json() as { performance?: StockForwardPerformance[] };
+          const fwdJson = await fwdRes.json() as { performance?: StockForwardPerformance[]; nullCount?: number; totalRequested?: number };
           const performance = fwdJson.performance ?? [];
 
           // ── Phase 4: Run strict BacktestEngine ────────────────────────────
@@ -426,7 +433,6 @@ export const useBacktestStore = create<BacktestState>()(
           try { localStorage.setItem(name, value); }
           catch (e) {
             if (e instanceof DOMException && e.name === 'QuotaExceededError') {
-              console.warn('[Backtest] Quota exceeded, clearing old sessions...');
               try { localStorage.removeItem('backtest-v2'); localStorage.removeItem('backtest-v1'); localStorage.setItem(name, value); } catch {}
             }
           }

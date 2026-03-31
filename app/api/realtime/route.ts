@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TWSE 即時報價 API — 延遲約 5-15 秒（盤中）
@@ -15,9 +16,13 @@ export interface RealtimeQuote {
   prevClose: number;   // 昨收
   change: number;      // 漲跌
   changePct: number;   // 漲跌幅 %
-  volume: number;      // 成交量（張）
+  volume: number;      // 成交量（張，mis.twse.com.tw d.v 單位為張=1000股）
   time: string;        // 成交時間 HH:MM:SS
 }
+
+const realtimeQuerySchema = z.object({
+  symbols: z.string().min(1),
+});
 
 function parsePrice(s: string): number {
   const v = parseFloat(s);
@@ -26,11 +31,11 @@ function parsePrice(s: string): number {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const symbols = searchParams.get('symbols'); // 逗號分隔：2330,2317,6770
-
-  if (!symbols) {
-    return NextResponse.json({ error: 'missing symbols param' }, { status: 400 });
+  const parsed = realtimeQuerySchema.safeParse(Object.fromEntries(searchParams));
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
   }
+  const { symbols } = parsed.data;
 
   const codes = symbols.split(',').map(s => s.trim()).filter(Boolean).slice(0, 50); // 最多 50 支
   if (codes.length === 0) {

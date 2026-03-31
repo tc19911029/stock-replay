@@ -16,6 +16,19 @@ import { generateDiagnostics } from './StrategyDiagnostics';
 
 // ── API-based backtest runner ─────────────────────────────────────────────
 
+interface BacktestTrade {
+  entrySignal: string;
+  exitReason: string;
+  pnl: number;
+  returnPct: number;
+  holdBars: number;
+}
+
+interface BacktestDailyResult {
+  totalPnL: number;
+  trades: BacktestTrade[];
+}
+
 interface BacktestAPIResult {
   winRate: number;
   totalTrades: number;
@@ -32,8 +45,8 @@ interface BacktestAPIResult {
   profitFactor: number;
   sharpeApprox: number;
   avgTradesPerDay: number;
-  allTrades: any[];
-  dailyResults: any[];
+  allTrades: BacktestTrade[];
+  dailyResults: BacktestDailyResult[];
 }
 
 /** 呼叫 signal-backtest API（支援 server-side 和 client-side） */
@@ -57,8 +70,8 @@ async function runBacktestAPI(
 
 /** API 結果 → BacktestMetrics */
 function toMetrics(r: BacktestAPIResult): BacktestMetrics {
-  const stopLossCount = r.allTrades.filter((t: any) => t.exitReason === '停損').length;
-  const takeProfitCount = r.allTrades.filter((t: any) => t.exitReason === '停利').length;
+  const stopLossCount = r.allTrades.filter((t: BacktestTrade) => t.exitReason === '停損').length;
+  const takeProfitCount = r.allTrades.filter((t: BacktestTrade) => t.exitReason === '停利').length;
 
   return {
     totalTrades: r.totalTrades,
@@ -75,7 +88,7 @@ function toMetrics(r: BacktestAPIResult): BacktestMetrics {
     avgLoss: r.avgLoss,
     profitFactor: r.profitFactor,
     sharpe: r.sharpeApprox,
-    maxDrawdown: Math.abs(Math.min(0, ...r.dailyResults.map((d: any) => d.totalPnL))),
+    maxDrawdown: Math.abs(Math.min(0, ...r.dailyResults.map((d: BacktestDailyResult) => d.totalPnL))),
     avgMFE: 0, // TODO: calculate from trades
     avgMAE: 0,
     stopLossRate: r.totalTrades > 0 ? Math.round((stopLossCount / r.totalTrades) * 100) : 0,
@@ -114,34 +127,34 @@ export async function runSplitBacktest(
   const valDaily = fullDays.slice(trainDays, trainDays + valDays);
   const testDaily = fullDays.slice(trainDays + valDays);
 
-  const metricsFromDays = (days: any[]): BacktestMetrics => {
-    const trades = days.flatMap((d: any) => d.trades);
-    const wins = trades.filter((t: any) => t.pnl > 0);
-    const losses = trades.filter((t: any) => t.pnl <= 0);
-    const returns = trades.map((t: any) => t.returnPct);
+  const metricsFromDays = (days: BacktestDailyResult[]): BacktestMetrics => {
+    const trades = days.flatMap((d: BacktestDailyResult) => d.trades);
+    const wins = trades.filter((t: BacktestTrade) => t.pnl > 0);
+    const losses = trades.filter((t: BacktestTrade) => t.pnl <= 0);
+    const returns = trades.map((t: BacktestTrade) => t.returnPct);
     const sortedRet = [...returns].sort((a: number, b: number) => a - b);
-    const grossProfit = wins.reduce((s: number, t: any) => s + t.pnl, 0);
-    const grossLoss = Math.abs(losses.reduce((s: number, t: any) => s + t.pnl, 0));
+    const grossProfit = wins.reduce((s: number, t: BacktestTrade) => s + t.pnl, 0);
+    const grossLoss = Math.abs(losses.reduce((s: number, t: BacktestTrade) => s + t.pnl, 0));
 
     return {
       totalTrades: trades.length,
       winCount: wins.length,
       lossCount: losses.length,
       winRate: trades.length > 0 ? Math.round((wins.length / trades.length) * 100) : 0,
-      totalPnL: trades.reduce((s: number, t: any) => s + t.pnl, 0),
+      totalPnL: trades.reduce((s: number, t: BacktestTrade) => s + t.pnl, 0),
       totalReturnPct: 0,
       avgTradeReturn: returns.length > 0 ? returns.reduce((a: number, b: number) => a + b, 0) / returns.length : 0,
       medianTradeReturn: sortedRet.length > 0 ? sortedRet[Math.floor(sortedRet.length / 2)] : 0,
       maxWin: returns.length > 0 ? Math.max(...returns) : 0,
       maxLoss: returns.length > 0 ? Math.min(...returns) : 0,
-      avgWin: wins.length > 0 ? wins.reduce((s: number, t: any) => s + t.returnPct, 0) / wins.length : 0,
-      avgLoss: losses.length > 0 ? losses.reduce((s: number, t: any) => s + t.returnPct, 0) / losses.length : 0,
+      avgWin: wins.length > 0 ? wins.reduce((s: number, t: BacktestTrade) => s + t.returnPct, 0) / wins.length : 0,
+      avgLoss: losses.length > 0 ? losses.reduce((s: number, t: BacktestTrade) => s + t.returnPct, 0) / losses.length : 0,
       profitFactor: grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0,
       sharpe: 0,
       maxDrawdown: 0,
       avgMFE: 0, avgMAE: 0,
-      stopLossRate: trades.length > 0 ? Math.round(trades.filter((t: any) => t.exitReason === '停損').length / trades.length * 100) : 0,
-      takeProfitRate: trades.length > 0 ? Math.round(trades.filter((t: any) => t.exitReason === '停利').length / trades.length * 100) : 0,
+      stopLossRate: trades.length > 0 ? Math.round(trades.filter((t: BacktestTrade) => t.exitReason === '停損').length / trades.length * 100) : 0,
+      takeProfitRate: trades.length > 0 ? Math.round(trades.filter((t: BacktestTrade) => t.exitReason === '停利').length / trades.length * 100) : 0,
       avgTradesPerDay: days.length > 0 ? trades.length / days.length : 0,
       avgSignalsPerDay: 0,
     };
@@ -215,7 +228,7 @@ export async function runIteration(
     const diag = generateDiagnostics(
       version.id,
       metrics,
-      result.allTrades.map((t: any) => ({
+      result.allTrades.map((t: BacktestTrade) => ({
         entrySignal: t.entrySignal,
         returnPct: t.returnPct,
         pnl: t.pnl,

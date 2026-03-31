@@ -13,7 +13,7 @@ created: 2026-03-29
 
 ## Project Context
 
-現有 stock-replay 是成熟的台股研究平台（130+ TypeScript 檔案、60+ API 端點），已有：
+現有 rockstock 是成熟的台股研究平台（130+ TypeScript 檔案、60+ API 端點），已有：
 - 完整的六大條件選股系統（朱老師方法）
 - 嚴謹回測引擎
 - 6 角色 AI 深度分析（技術/基本面/新聞/辯論/綜合）

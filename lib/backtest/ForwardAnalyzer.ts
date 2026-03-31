@@ -37,6 +37,7 @@ async function analyzeOne(
       .filter(c => c.date > scanDate && c.date <= todayStr)
       .map(c => ({
         date: c.date, open: c.open, close: c.close, high: c.high, low: c.low,
+        volume: c.volume,
       }));
 
     // 以訊號日收盤價（scanPrice）為基準的報酬率
@@ -94,14 +95,24 @@ async function analyzeOne(
   }
 }
 
+export interface ForwardBatchResult {
+  results: StockForwardPerformance[];
+  /** 無法取得前瞻數據的股票數（存活偏差指標） */
+  nullCount: number;
+  /** 總請求數 */
+  totalRequested: number;
+}
+
 /**
  * Batch-analyze forward performance for a list of stocks.
+ * Returns results + null count for survivorship bias tracking.
  */
 export async function analyzeForwardBatch(
   stocks:   Array<{ symbol: string; name: string; scanPrice: number }>,
   scanDate: string,
-): Promise<StockForwardPerformance[]> {
+): Promise<ForwardBatchResult> {
   const results: StockForwardPerformance[] = [];
+  let nullCount = 0;
 
   for (let i = 0; i < stocks.length; i += CONCURRENCY) {
     const batch = stocks.slice(i, i + CONCURRENCY);
@@ -111,11 +122,15 @@ export async function analyzeForwardBatch(
       )
     );
     for (const r of settled) {
-      if (r.status === 'fulfilled' && r.value) results.push(r.value);
+      if (r.status === 'fulfilled' && r.value) {
+        results.push(r.value);
+      } else {
+        nullCount++;
+      }
     }
   }
 
-  return results;
+  return { results, nullCount, totalRequested: stocks.length };
 }
 
 /**

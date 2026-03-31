@@ -139,12 +139,23 @@ interface DaytradeState {
   setReplaySpeed: (ms: number) => void;
 }
 
+// ── Constants ────────────────────────────────────────────────────────────────
+
+/** Maximum number of candles to keep in memory to prevent unbounded growth */
+const MAX_DISPLAY_CANDLES = 2000;
+
 // ── Engine instances ─────────────────────────────────────────────────────────
 
-const signalEngine = new IntradaySignalEngine();
+let signalEngine = new IntradaySignalEngine();
 let paperEngine: PaperTradingEngine | null = null;
 let autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
 let replayTimer: ReturnType<typeof setInterval> | null = null;
+
+/** Clean up all active timers */
+function clearAllTimers() {
+  if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
+  if (replayTimer) { clearInterval(replayTimer); replayTimer = null; }
+}
 
 async function fetchRealCandles(symbol: string, timeframe: IntradayTimeframe, todayOnly = true): Promise<{ candles: IntradayCandle[]; name: string }> {
   const res = await fetch(`/api/daytrade/intraday-data?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}&todayOnly=${todayOnly ? '1' : '0'}`);
@@ -223,11 +234,16 @@ export const useDaytradeStore = create<DaytradeState>((set, get) => ({
 
   // ── Setters ──
 
-  setSymbol: (symbol) => set({ symbol }),
+  setSymbol: (symbol) => {
+    // Reset engines for the new symbol
+    paperEngine = null;
+    signalEngine = new IntradaySignalEngine();
+    set({ symbol, allSignals: [], currentSignals: [], displayCandles: [], newSignalAlert: null, session: null, position: null, eodReport: null });
+  },
   setDate: (date) => set({ date }),
   setViewMode: (viewMode) => {
-    if (replayTimer) { clearInterval(replayTimer); replayTimer = null; }
-    set({ viewMode, isReplaying: false });
+    clearAllTimers();
+    set({ viewMode, isReplaying: false, autoRefresh: false });
   },
   setTimeframe: (tf) => {
     set({ selectedTimeframe: tf });
@@ -258,6 +274,12 @@ export const useDaytradeStore = create<DaytradeState>((set, get) => ({
     const { symbol, selectedTimeframe, initialCapital, todayOnly, allSignals: prevSignals, autoTrade } = get();
     set({ isLoading: true, error: null });
 
+    // Reset engines when symbol changes to avoid stale state
+    if (paperEngine && paperEngine.getSession().symbol !== symbol) {
+      paperEngine = null;
+      signalEngine = new IntradaySignalEngine();
+    }
+
     try {
       // 同時抓分鐘 K 線 + 即時報價
       const [candleResult, rtQuote] = await Promise.all([
@@ -275,7 +297,11 @@ export const useDaytradeStore = create<DaytradeState>((set, get) => ({
         if (rtQuote.low > 0 && rtQuote.low < lastCandle.low) lastCandle.low = rtQuote.low;
       }
 
-      const displayCandles = computeIntradayIndicators(rawCandles);
+      // Cap candles to prevent unbounded memory growth
+      const cappedRaw = rawCandles.length > MAX_DISPLAY_CANDLES
+        ? rawCandles.slice(-MAX_DISPLAY_CANDLES)
+        : rawCandles;
+      const displayCandles = computeIntradayIndicators(cappedRaw);
 
       // MTF analysis (try 1m data)
       let minuteCandles = rawCandles;

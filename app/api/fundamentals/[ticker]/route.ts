@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { getFundamentals, getMonthlyRevenue } from '@/lib/datasource/FinMindClient';
+
+const querySchema = z.object({
+  mode: z.enum(['full', 'revenue']).default('full'),
+  months: z.string().optional(),
+});
 
 export async function GET(
   req: NextRequest,
@@ -7,12 +13,13 @@ export async function GET(
 ) {
   const { ticker } = await params;
   const stockId = ticker.replace(/\.(TW|TWO)$/i, '');
-  const { searchParams } = new URL(req.url);
-  const mode = searchParams.get('mode') ?? 'full';  // 'full' | 'revenue'
+  const parsed = querySchema.safeParse(Object.fromEntries(new URL(req.url).searchParams));
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+  const { mode } = parsed.data;
 
   try {
     if (mode === 'revenue') {
-      const months = Math.min(24, Math.max(1, parseInt(searchParams.get('months') ?? '13')));
+      const months = Math.min(24, Math.max(1, parseInt(parsed.data.months ?? '13')));
       const data = await getMonthlyRevenue(stockId, months);
       return NextResponse.json({ ok: true, data });
     }

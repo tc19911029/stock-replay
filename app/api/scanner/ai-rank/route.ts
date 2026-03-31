@@ -1,23 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+import { z } from 'zod';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-function getApiKey(): string | undefined {
-  if (process.env.ANTHROPIC_API_KEY) return process.env.ANTHROPIC_API_KEY;
-  try {
-    const envPath = path.join(process.cwd(), '.env.local');
-    const lines = fs.readFileSync(envPath, 'utf-8').split('\n');
-    for (const line of lines) {
-      const t = line.trim();
-      if (t.startsWith('ANTHROPIC_API_KEY=')) return t.slice('ANTHROPIC_API_KEY='.length).trim();
-    }
-  } catch {}
-  return undefined;
-}
+const aiRankSchema = z.object({
+  stocks: z.array(z.unknown()).default([]),
+  market: z.string().optional(),
+});
 
 interface StockForAI {
   symbol: string;
@@ -34,13 +25,18 @@ interface StockForAI {
 }
 
 export async function POST(req: NextRequest) {
-  const apiKey = getApiKey();
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: '未設定 ANTHROPIC_API_KEY' }, { status: 500 });
   }
 
-  const body = await req.json().catch(() => ({})) as { stocks?: StockForAI[]; market?: string };
-  const stocks = body.stocks ?? [];
+  const body = await req.json().catch(() => ({}));
+  const parsed = aiRankSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+  }
+  const stocks = (parsed.data.stocks ?? []) as StockForAI[];
+  const market = parsed.data.market;
   if (stocks.length === 0) {
     return NextResponse.json({ rankings: [], marketComment: '' });
   }
@@ -77,7 +73,7 @@ export async function POST(req: NextRequest) {
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
       system: systemPrompt,
-      messages: [{ role: 'user', content: `以下是今日${body.market === 'CN' ? '中國A股' : '台灣股市'}掃描結果，請排名飆股潛力：\n\n${stockSummary}` }],
+      messages: [{ role: 'user', content: `以下是今日${market === 'CN' ? '中國A股' : '台灣股市'}掃描結果，請排名飆股潛力：\n\n${stockSummary}` }],
     });
 
     const text = msg.content[0].type === 'text' ? msg.content[0].text : '';
@@ -95,6 +91,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(parsed);
   } catch (err) {
     console.error('[ai-rank] error:', err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json({ error: 'AI 排名服務暫時無法使用' }, { status: 500 });
   }
 }

@@ -40,7 +40,7 @@ async function fetchTWSEMonth(ticker: string, dateStr: string): Promise<Candle[]
   try {
     const res = await fetch(url, {
       signal: AbortSignal.timeout(10_000),
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; stock-replay/2.0)' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; rockstock/2.0)' },
     });
     if (!res.ok) return [];
     const json = await res.json() as TWSEResponse;

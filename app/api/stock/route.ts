@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { getTWChineseName, getCNChineseName } from '@/lib/datasource/TWSENames';
 import { unixToTW } from '@/lib/timezone';
 import { getTWSEQuote } from '@/lib/datasource/TWSERealtime';
@@ -13,6 +14,12 @@ import { getEastMoneyQuote, getUSStockQuote } from '@/lib/datasource/EastMoneyRe
  * Taiwan stocks: pure digits → append .TW automatically
  * US stocks: use ticker directly (AAPL, TSLA, etc.)
  */
+
+const stockQuerySchema = z.object({
+  symbol:   z.string().min(1),
+  interval: z.enum(['1d', '1wk', '1mo']).default('1d'),
+  period:   z.string().default('2y'),
+});
 
 // Valid combinations for Yahoo Finance
 const PERIOD_MAP: Record<string, string> = {
@@ -30,13 +37,11 @@ const PERIOD_MAP: Record<string, string> = {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const symbol   = searchParams.get('symbol')   ?? '';
-  const interval = searchParams.get('interval') ?? '1d';
-  const period   = searchParams.get('period')   ?? '2y';
-
-  if (!symbol) {
-    return NextResponse.json({ error: 'Missing symbol' }, { status: 400 });
+  const parsed = stockQuerySchema.safeParse(Object.fromEntries(searchParams));
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
   }
+  const { symbol, interval, period } = parsed.data;
 
   // Taiwan: 4-digit (main board) or 5-digit (OTC)
   const isTwDigits = /^\d{4,5}$/.test(symbol) || /^\d{4,5}\.(TW|TWO)$/i.test(symbol);
@@ -156,8 +161,8 @@ export async function GET(req: NextRequest) {
         if (quote && quote.close > 0) {
           // 台股/A股 UTC+8, 美股 UTC-4
           const todayStr = isUSStock
-            ? new Date(Date.now() - 4 * 3600_000).toISOString().split('T')[0]
-            : new Date(Date.now() + 8 * 3600_000).toISOString().split('T')[0];
+            ? new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+            : new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' });
           const lastCandle = candles[candles.length - 1] as { date: string; open: number; high: number; low: number; close: number; volume: number } | undefined;
           if (lastCandle) {
             if (lastCandle.date === todayStr) {
@@ -205,7 +210,7 @@ export async function GET(req: NextRequest) {
       totalBars: candles.length,
     });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: `伺服器錯誤：${msg}` }, { status: 500 });
+    console.error('[stock] error:', err);
+    return NextResponse.json({ error: '股票資料暫時無法取得' }, { status: 500 });
   }
 }

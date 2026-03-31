@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import type { IntradayTimeframe } from '@/lib/daytrade/types';
 import { getTWChineseName } from '@/lib/datasource/TWSENames';
 import { unixToTW, todayTW } from '@/lib/timezone';
@@ -10,6 +11,12 @@ import { getEastMoneyQuote, getUSStockQuote } from '@/lib/datasource/EastMoneyRe
  *
  * 使用 Yahoo Finance 真實分鐘數據，時間已轉換為台灣時間 (UTC+8)
  */
+
+const intradayQuerySchema = z.object({
+  symbol:    z.string().min(1).default('2330'),
+  timeframe: z.string().default('5m'),
+  todayOnly: z.string().optional(),
+});
 
 const TF_TO_YAHOO: Record<string, { interval: string; range: string }> = {
   '1m':  { interval: '1m',  range: '5d' },
@@ -25,9 +32,13 @@ const TF_TO_YAHOO: Record<string, { interval: string; range: string }> = {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const symbol    = searchParams.get('symbol') ?? '2330';
-  const timeframe = (searchParams.get('timeframe') ?? '5m') as IntradayTimeframe;
-  const todayOnly = searchParams.get('todayOnly') === '1';
+  const parsedQuery = intradayQuerySchema.safeParse(Object.fromEntries(searchParams));
+  if (!parsedQuery.success) {
+    return NextResponse.json({ error: parsedQuery.error.issues[0].message }, { status: 400 });
+  }
+  const symbol    = parsedQuery.data.symbol;
+  const timeframe = parsedQuery.data.timeframe as IntradayTimeframe;
+  const todayOnly = parsedQuery.data.todayOnly === '1';
 
   if (!TF_TO_YAHOO[timeframe]) {
     return NextResponse.json({ error: 'Invalid timeframe' }, { status: 400 });

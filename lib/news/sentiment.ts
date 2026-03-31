@@ -41,8 +41,7 @@ async function scoreArticle(item: NewsItem): Promise<ArticleSentiment | null> {
       label: parsed.label,
       rationale: parsed.rationale,
     };
-  } catch (err) {
-    console.warn('[sentiment] scoreArticle failed:', String(err));
+  } catch {
     return null;
   }
 }

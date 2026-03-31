@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120; // one chunk takes ~80s max
@@ -8,21 +9,28 @@ import { ChinaScanner } from '@/lib/scanner/ChinaScanner';
 import { MarketId } from '@/lib/scanner/types';
 import { resolveThresholds } from '@/lib/strategy/resolveThresholds';
 
-export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({})) as {
-    market?: string;
-    stocks?: Array<{ symbol: string; name: string }>;
-    strategyId?: string;
-    thresholds?: Record<string, unknown>;
-    date?: string;  // 歷史日期掃描 (YYYY-MM-DD)
-  };
+const scannerChunkSchema = z.object({
+  market:     z.enum(['TW', 'CN']).default('TW'),
+  stocks:     z.array(z.object({ symbol: z.string(), name: z.string() })).default([]),
+  strategyId: z.string().optional(),
+  thresholds: z.record(z.string(), z.unknown()).optional(),
+  date:       z.string().optional(),
+  /** 掃描模式：full=完整管線, pure=純朱家泓六大條件 */
+  mode:       z.enum(['full', 'pure']).default('full'),
+});
 
-  const market = (body.market === 'CN' ? 'CN' : 'TW') as MarketId;
-  const stocks = Array.isArray(body.stocks) ? body.stocks : [];
-  const asOfDate = body.date || undefined;
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => ({}));
+  const parsed = scannerChunkSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+  }
+  const market = parsed.data.market as MarketId;
+  const stocks = parsed.data.stocks;
+  const asOfDate = parsed.data.date || undefined;
   const thresholds = resolveThresholds({
-    strategyId: body.strategyId,
-    thresholds: body.thresholds as never,
+    strategyId: parsed.data.strategyId,
+    thresholds: parsed.data.thresholds as never,
   });
 
   if (stocks.length === 0) {
@@ -31,11 +39,25 @@ export async function POST(req: NextRequest) {
 
   try {
     const scanner = market === 'CN' ? new ChinaScanner() : new TaiwanScanner();
-    const { results, marketTrend } = asOfDate
-      ? await scanner.scanListAtDate(stocks, asOfDate, thresholds)
-      : await scanner.scanList(stocks, thresholds);
-    return NextResponse.json({ results, marketTrend });
+    const isPure = parsed.data.mode === 'pure';
+
+    let scanResult;
+    if (isPure && asOfDate) {
+      scanResult = await scanner.scanListAtDatePure(stocks, asOfDate, thresholds);
+    } else if (isPure) {
+      // Live scan with pure mode — use the same date-based method with today
+      const today = new Date().toISOString().split('T')[0];
+      scanResult = await scanner.scanListAtDatePure(stocks, today, thresholds);
+    } else if (asOfDate) {
+      scanResult = await scanner.scanListAtDate(stocks, asOfDate, thresholds);
+    } else {
+      scanResult = await scanner.scanList(stocks, thresholds);
+    }
+
+    const { results, marketTrend } = scanResult;
+    return NextResponse.json({ results, marketTrend, mode: parsed.data.mode });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error('[scanner/chunk] error:', err);
+    return NextResponse.json({ error: '掃描服務暫時無法使用' }, { status: 500 });
   }
 }

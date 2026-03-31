@@ -78,8 +78,8 @@ async function fetchTWIndustryMap(): Promise<Map<string, string>> {
         }
       }
     }
-  } catch (e) {
-    console.warn('[TaiwanScanner] 取得上市產業分類失敗:', e);
+  } catch {
+    // 取得上市產業分類失敗，忽略
   }
 
   try {
@@ -98,14 +98,13 @@ async function fetchTWIndustryMap(): Promise<Map<string, string>> {
         }
       }
     }
-  } catch (e) {
-    console.warn('[TaiwanScanner] 取得上櫃產業分類失敗:', e);
+  } catch {
+    // 取得上櫃產業分類失敗，忽略
   }
 
   if (map.size > 0) {
     industryCache = map;
     industryCacheTime = Date.now();
-    console.log(`[TaiwanScanner] 產業分類快取: ${map.size} 家公司`);
   }
   return map;
 }
@@ -169,7 +168,6 @@ export class TaiwanScanner extends MarketScanner {
     ];
 
     if (withVol.length === 0) {
-      console.warn('[TaiwanScanner] Exchange APIs failed, using fallback list');
       return FALLBACK_TW_STOCKS;
     }
 
@@ -178,7 +176,6 @@ export class TaiwanScanner extends MarketScanner {
     // Deduplicate, sort by volume (highest first) — 全部台股不設上限
     const deduped = Array.from(new Map(withVol.map(s => [s.symbol, s])).values());
     const sorted  = deduped.sort((a, b) => b.vol - a.vol);
-    console.log(`[TaiwanScanner] 取得 ${sorted.length} 檔台股（產業分類 ${indMap.size} 筆）`);
     return sorted.map(({ symbol, name }) => {
       const code = symbol.replace(/\.(TW|TWO)$/i, '');
       return { symbol, name, industry: getTWConcept(code, indMap.get(code)) };
@@ -190,19 +187,18 @@ export class TaiwanScanner extends MarketScanner {
     try {
       const candles = await fetchCandlesYahoo(symbol, '1y', 8000, asOfDate);
       if (candles.length >= 30) return candles;
-    } catch (e) {
-      console.warn(`[TaiwanScanner] Yahoo failed for ${symbol}:`, (e as Error).message);
+    } catch {
+      // Yahoo failed, try fallback
     }
 
     // Fallback: TWSE direct API (listed stocks only, no asOfDate support)
     if (/\.TW$/i.test(symbol) && !asOfDate) {
       const ticker = symbol.replace(/\.TW$/i, '');
-      console.log(`[TaiwanScanner] Using TWSE fallback for ${symbol}`);
       try {
         const candles = await fetchCandlesTWSE(ticker);
         if (candles.length >= 30) return candles;
-      } catch (e) {
-        console.warn(`[TaiwanScanner] TWSE fallback also failed for ${symbol}:`, (e as Error).message);
+      } catch {
+        // TWSE fallback also failed
       }
     }
 

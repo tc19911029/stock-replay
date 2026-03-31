@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { promises as fs } from 'fs';
 
 export const runtime = 'nodejs';
@@ -7,10 +8,16 @@ import { ScanSession, MarketId } from '@/lib/scanner/types';
 
 const DATA_DIR = process.env.VERCEL ? '/tmp/scan-data' : path.join(process.cwd(), 'data');
 
+const querySchema = z.object({
+  market: z.enum(['TW', 'CN']).default('TW'),
+  date: z.string().optional(),
+});
+
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const market: MarketId = searchParams.get('market') === 'CN' ? 'CN' : 'TW';
-  const dateParam = searchParams.get('date'); // optional YYYY-MM-DD
+  const parsed = querySchema.safeParse(Object.fromEntries(new URL(req.url).searchParams));
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+  const market: MarketId = parsed.data.market;
+  const dateParam = parsed.data.date;
 
   try {
     const files = await fs.readdir(DATA_DIR).catch(() => [] as string[]);
@@ -43,7 +50,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ sessions });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error('[scanner/results] error:', err);
+    return NextResponse.json({ error: '掃描服務暫時無法使用' }, { status: 500 });
   }
 }

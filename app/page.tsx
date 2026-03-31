@@ -2,9 +2,9 @@
 
 import { useEffect, useCallback, useState, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
 import { useReplayStore } from '@/store/replayStore';
 import StockSelector from '@/components/StockSelector';
+import { PageShell } from '@/components/shared';
 import ReplayControls from '@/components/ReplayControls';
 import TradePanel from '@/components/TradePanel';
 import AccountInfo from '@/components/AccountInfo';
@@ -93,7 +93,6 @@ export default function HomePage() {
   const [sideTab, setSideTab] = useState<SideTab>('conditions');
   const [showMarkers, setShowMarkers] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   // 均線開關
   const [maToggles, setMaToggles] = useState({ ma5: true, ma10: true, ma20: true, ma60: true });
   // 布林通道開關
@@ -129,82 +128,9 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="h-screen flex flex-col bg-[#0b1120] text-white overflow-hidden">
-
-      {/* ── Header ── */}
-      <header className="shrink-0 border-b border-slate-800 bg-slate-950 px-3 py-1.5 flex items-center gap-2 min-w-0">
-        {/* Left: Logo / Title */}
-        <span className="text-sm font-bold text-sky-400 whitespace-nowrap shrink-0 hidden sm:block">📈 K線走圖</span>
-        <span className="text-sm font-bold text-sky-400 whitespace-nowrap shrink-0 sm:hidden">📈</span>
-
-        {/* Stock Selector */}
-        <StockSelector />
-
-        {/* Center/Right: Nav links */}
-        <nav className="flex items-center gap-0.5 shrink-0 ml-auto">
-          {/* Primary nav */}
-          <div className="flex items-center gap-0.5">
-            <span className="text-[10px] font-bold text-sky-500 border border-sky-700/60 bg-sky-900/30 px-2 py-1 rounded cursor-default select-none whitespace-nowrap">
-              走圖
-            </span>
-            <Link href="/scan"       title="批量掃描台股/陸股，找出符合六大條件的個股並回測績效" className="text-[11px] px-2 py-1 rounded text-slate-300 hover:bg-slate-700 hover:text-white font-medium transition whitespace-nowrap">掃描選股</Link>
-            <Link href="/live-daytrade" title="多時間框架即時訊號，適合當沖交易者" className="text-[11px] px-2 py-1 rounded bg-violet-900/50 text-violet-300 hover:bg-violet-700 hover:text-white font-medium transition whitespace-nowrap border border-violet-700/50">當沖 <span className="text-[8px] bg-amber-600 text-white px-1 rounded-full">β</span></Link>
-            <Link href="/report"     title="查看歷次掃描的績效統計報表，匯出CSV" className="text-[11px] px-2 py-1 rounded text-slate-300 hover:bg-slate-700 hover:text-white font-medium transition whitespace-nowrap hidden md:block">報表</Link>
-            <Link href="/strategies" title="調整六大條件門檻，管理多個策略版本" className="text-[11px] px-2 py-1 rounded text-slate-300 hover:bg-slate-700 hover:text-white font-medium transition whitespace-nowrap hidden md:block">策略</Link>
-            <Link href="/disclaimer" className="text-[11px] px-2 py-1 rounded text-slate-500 hover:bg-slate-700 hover:text-white font-medium transition whitespace-nowrap hidden md:block">免責</Link>
-          </div>
-
-          {/* Divider */}
-          <span className="w-px h-4 bg-slate-700 mx-1 shrink-0 hidden sm:block" />
-
-          {/* Secondary nav */}
-          <div className="flex items-center gap-0.5">
-            <Link href="/watchlist"  className="text-[11px] px-2 py-1 rounded text-slate-400 hover:bg-slate-700 hover:text-slate-200 transition whitespace-nowrap hidden sm:block" title="自選股">⭐ 自選</Link>
-            <Link href="/portfolio"  className="text-[11px] px-2 py-1 rounded text-slate-400 hover:bg-slate-700 hover:text-slate-200 transition whitespace-nowrap hidden sm:block" title="持倉">💼</Link>
-            <Link href="/settings"   className="text-[11px] px-2 py-1 rounded text-slate-400 hover:bg-slate-700 hover:text-slate-200 transition whitespace-nowrap hidden sm:block" title="設定">⚙</Link>
-            {/* 移動端漢堡選單 */}
-            <div className="relative sm:hidden">
-              <button onClick={() => setMobileMenuOpen(v => !v)}
-                className="text-slate-400 hover:text-white px-2 py-1 rounded hover:bg-slate-700 transition text-sm">
-                ☰
-              </button>
-              {mobileMenuOpen && (
-                <div className="absolute right-0 top-full mt-1 w-40 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 py-1">
-                  {[
-                    { href: '/scan', label: '🔍 掃描選股' },
-                    { href: '/watchlist', label: '⭐ 自選股' },
-                    { href: '/portfolio', label: '💼 持倉' },
-                    { href: '/report', label: '📊 報表' },
-                    { href: '/strategies', label: '⚙ 策略' },
-                    { href: '/live-daytrade', label: '⚡ 當沖' },
-                    { href: '/settings', label: '🔧 設定' },
-                    { href: '/disclaimer', label: '📋 免責聲明' },
-                  ].map(item => (
-                    <Link key={item.href} href={item.href}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="block px-3 py-2 text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition">
-                      {item.label}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <span className="text-[10px] text-slate-600 hidden lg:block ml-1.5 whitespace-nowrap group relative cursor-help">
-            ← → Space
-            <div className="absolute z-50 right-0 top-full mt-1 hidden group-hover:block w-48 p-2.5 rounded-lg bg-slate-800 border border-slate-600 text-[10px] text-slate-300 shadow-lg space-y-1">
-              <div className="font-medium text-white mb-1">鍵盤快捷鍵</div>
-              <div className="flex justify-between"><span>→ 右箭頭</span><span className="text-slate-500">下一根K線</span></div>
-              <div className="flex justify-between"><span>← 左箭頭</span><span className="text-slate-500">上一根K線</span></div>
-              <div className="flex justify-between"><span>Space</span><span className="text-slate-500">播放/暫停</span></div>
-            </div>
-          </span>
-        </nav>
-      </header>
-
+    <PageShell fullViewport headerSlot={<StockSelector />}>
       {/* ── Main ── */}
-      <div className="flex-1 flex flex-col md:flex-row gap-2 px-3 py-2 min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row gap-2 px-3 py-2 min-h-0 overflow-hidden h-full">
 
         {/* Left: Chart */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0 gap-1.5">
@@ -409,6 +335,6 @@ export default function HomePage() {
         <BacktestPanel />
       </div>
 
-    </div>
+    </PageShell>
   );
 }

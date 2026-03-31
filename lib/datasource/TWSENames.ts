@@ -8,7 +8,7 @@
 import fs from 'fs';
 import path from 'path';
 import { globalCache } from './MemoryCache';
-import { CN_STOCKS } from '@/lib/scanner/ChinaScanner';
+import { CN_STOCKS } from '@/lib/scanner/cnStocks';
 
 /** A 股代號 → 中文名靜態對照表（從 ChinaScanner 清單建立） */
 const CN_NAME_MAP: Record<string, string> = Object.fromEntries(

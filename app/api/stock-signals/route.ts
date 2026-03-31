@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { fetchCandlesYahoo } from '@/lib/datasource/YahooFinanceDS';
 import { evaluateSixConditions, detectTrendPosition } from '@/lib/analysis/trendAnalysis';
 import { computeSurgeScore } from '@/lib/analysis/surgeScore';
 import { resolveThresholds } from '@/lib/strategy/resolveThresholds';
+import { evaluateHighWinRateEntry } from '@/lib/analysis/highWinRateEntry';
+import { evaluateWinnerPatterns } from '@/lib/rules/winnerPatternRules';
+
+const querySchema = z.object({
+  symbol: z.string().min(1),
+  period: z.string().default('2y'),
+  strategyId: z.string().optional(),
+  minScore: z.string().optional(),
+});
 
 export interface SignalDate {
   date: string;
@@ -19,17 +29,17 @@ export interface SignalDate {
   maxLoss5: number | null;
   maxGain20: number | null;
   maxLoss20: number | null;
+  highWinRateTypes?: string[];
+  winnerBullish?: string[];
+  winnerBearish?: string[];
 }
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const symbol = searchParams.get('symbol') ?? '';
-  const period = searchParams.get('period') ?? '2y';
-  const strategyId = searchParams.get('strategyId') ?? undefined;
+  const parsed = querySchema.safeParse(Object.fromEntries(new URL(req.url).searchParams));
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+  const { symbol, period, strategyId } = parsed.data;
   const thresholds = resolveThresholds({ strategyId });
-  const minScore = parseInt(searchParams.get('minScore') ?? String(thresholds.minScore));
-
-  if (!symbol) return NextResponse.json({ error: 'Missing symbol' }, { status: 400 });
+  const minScore = parseInt(parsed.data.minScore ?? String(thresholds.minScore));
 
   try {
     const candles = await fetchCandlesYahoo(symbol, period, 30000);
@@ -45,6 +55,8 @@ export async function GET(req: NextRequest) {
 
       const surge = computeSurgeScore(candles, i);
       const position = detectTrendPosition(candles, i);
+      const hwre = evaluateHighWinRateEntry(candles, i);
+      const wp = evaluateWinnerPatterns(candles, i);
       const entry = candles[i].close;
       const get = (offset: number) => candles[i + offset]?.close ?? null;
       const ret = (c: number | null) => c != null ? +((c - entry) / entry * 100).toFixed(2) : null;
@@ -72,6 +84,9 @@ export async function GET(req: NextRequest) {
         maxLoss5: +maxL5.toFixed(2),
         maxGain20: +maxG20.toFixed(2),
         maxLoss20: +maxL20.toFixed(2),
+        highWinRateTypes: hwre.types,
+        winnerBullish: wp.bullishPatterns.map(p => p.name),
+        winnerBearish: wp.bearishPatterns.map(p => p.name),
       });
     }
 
@@ -112,7 +127,7 @@ export async function GET(req: NextRequest) {
       surgeGradePerformance,
     });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error('[stock-signals] error:', err);
+    return NextResponse.json({ error: '訊號分析暫時無法使用' }, { status: 500 });
   }
 }

@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 
 export const runtime = 'nodejs';
 
+const bodySchema = z.object({
+  token: z.string().min(1),
+  message: z.string().min(1),
+});
+
 export async function POST(req: NextRequest) {
   try {
-    const { token, message } = await req.json();
-    if (!token || !message) {
-      return NextResponse.json({ error: '缺少 token 或 message' }, { status: 400 });
-    }
+    const raw = await req.json().catch(() => ({}));
+    const parsed = bodySchema.safeParse(raw);
+    if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+    const { token, message } = parsed.data;
 
     const res = await fetch('https://notify-api.line.me/api/notify', {
       method: 'POST',

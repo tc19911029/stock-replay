@@ -216,10 +216,10 @@ export default function ChipDetailPanel({ symbol, date }: { symbol: string; date
       range: 2000,
     },
     {
-      // 主力 = 外資 + 自營（法人主力，排除投信）
+      // 主力 = 三大法人合計（外資 + 投信 + 自營）
       label: '主力',
-      value: data.foreignBuy + data.dealerBuy,
-      signal: getSignal(data.foreignBuy + data.dealerBuy, 8000, 800),
+      value: data.totalInstitutional,
+      signal: getSignal(data.totalInstitutional, 8000, 800),
       range: 25000,
     },
     {

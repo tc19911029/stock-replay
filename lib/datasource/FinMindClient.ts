@@ -191,8 +191,7 @@ export async function getInstitutional(
 
     cacheSet(cacheKey, result, TTL.INSTITUTIONAL);
     return result;
-  } catch (e) {
-    console.warn(`[FinMind] 三大法人 failed for ${stockId}:`, (e as Error).message);
+  } catch {
     return [];
   }
 }
@@ -230,8 +229,7 @@ export async function getMarginBalance(
 
     cacheSet(cacheKey, result, TTL.MARGIN);
     return result;
-  } catch (e) {
-    console.warn(`[FinMind] 融資融券 failed for ${stockId}:`, (e as Error).message);
+  } catch {
     return [];
   }
 }
@@ -261,8 +259,7 @@ export async function getMonthlyRevenue(
     const recent = rows.slice(0, months);
     cacheSet(cacheKey, recent, TTL.FUNDAMENTALS);
     return recent;
-  } catch (e) {
-    console.warn(`[FinMind] 月營收 failed for ${stockId}:`, (e as Error).message);
+  } catch {
     return [];
   }
 }

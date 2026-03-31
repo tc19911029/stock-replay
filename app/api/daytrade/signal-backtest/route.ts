@@ -6,6 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { computeIntradayIndicators } from '@/lib/daytrade/IntradayIndicators';
 import { IntradaySignalEngine } from '@/lib/daytrade/IntradaySignalEngine';
 import { analyzeMultiTimeframe } from '@/lib/daytrade/MultiTimeframeAnalyzer';
@@ -93,7 +94,7 @@ async function fetchYahooIntraday(
   const res = await fetch(url, {
     headers: { 'User-Agent': 'Mozilla/5.0' },
   });
-  if (!res.ok) throw new Error(`Yahoo API error: ${res.status}`);
+  if (!res.ok) throw new Error('無法取得歷史數據');
 
   const json = await res.json();
   const result = json.chart?.result?.[0];
@@ -239,14 +240,24 @@ function simulateDay(
 
 // ── Main handler ─────────────────────────────────────────────────────────────
 
+const signalBtSchema = z.object({
+  symbol: z.string().default('2330'),
+  days: z.string().default('10'),
+  timeframe: z.string().default('5m'),
+  capital: z.string().default('1000000'),
+  stopLoss: z.string().default('-2'),
+  takeProfit: z.string().default('3'),
+});
+
 export async function GET(req: NextRequest) {
-  const sp = req.nextUrl.searchParams;
-  const symbol = sp.get('symbol') || '2330';
-  const days = Math.min(parseInt(sp.get('days') || '10'), 60);
-  const timeframe = (sp.get('timeframe') || '5m') as IntradayTimeframe;
-  const capital = parseInt(sp.get('capital') || '1000000');
-  const stopLoss = parseFloat(sp.get('stopLoss') || '-2');
-  const takeProfit = parseFloat(sp.get('takeProfit') || '3');
+  const parsed = signalBtSchema.safeParse(Object.fromEntries(req.nextUrl.searchParams));
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+  const symbol = parsed.data.symbol;
+  const days = Math.min(parseInt(parsed.data.days), 60);
+  const timeframe = parsed.data.timeframe as IntradayTimeframe;
+  const capital = parseInt(parsed.data.capital);
+  const stopLoss = parseFloat(parsed.data.stopLoss);
+  const takeProfit = parseFloat(parsed.data.takeProfit);
 
   try {
     // Fetch historical intraday data

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { evaluateSixConditions, detectTrend, detectTrendPosition } from '@/lib/analysis/trendAnalysis';
 import { computeSurgeScore } from '@/lib/analysis/surgeScore';
 import { ruleEngine } from '@/lib/rules/ruleEngine';
@@ -8,6 +9,11 @@ import { yahooProvider } from '@/lib/datasource/YahooDataProvider';
 import type { CandleWithIndicators } from '@/types';
 
 export const runtime = 'nodejs';
+
+const querySchema = z.object({
+  symbol: z.string().min(1),
+  strategyId: z.string().optional(),
+});
 
 async function fetchCandles(symbol: string): Promise<{ candles: CandleWithIndicators[]; name: string; ticker: string } | null> {
   const isTwDigits = /^\d+$/.test(symbol);
@@ -25,9 +31,9 @@ async function fetchCandles(symbol: string): Promise<{ candles: CandleWithIndica
 }
 
 export async function GET(req: NextRequest) {
-  const symbol = req.nextUrl.searchParams.get('symbol') ?? '';
-  const strategyId = req.nextUrl.searchParams.get('strategyId') ?? undefined;
-  if (!symbol) return NextResponse.json({ error: '缺少 symbol' }, { status: 400 });
+  const parsed = querySchema.safeParse(Object.fromEntries(req.nextUrl.searchParams));
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+  const { symbol, strategyId } = parsed.data;
 
   const thresholds = resolveThresholds({ strategyId });
 
@@ -69,7 +75,7 @@ export async function GET(req: NextRequest) {
       surgeFlags: surge.flags,
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error('[watchlist/conditions] error:', err);
+    return NextResponse.json({ error: '條件查詢暫時無法使用' }, { status: 500 });
   }
 }
