@@ -10,7 +10,12 @@ export type SellSignalType =
   // 朱老師獲利方程式（《活用技術分析寶典》p.54）
   | 'LOWER_LOW'           // 收盤出現「頭頭低」
   | 'PROFIT_BREAK_MA5'    // 獲利>10% + 跌破MA5
-  | 'PROFIT_CLIMAX_EXIT'; // 獲利>20% 或連續急漲+長黑覆蓋
+  | 'PROFIT_CLIMAX_EXIT'  // 獲利>20% 或連續急漲+長黑覆蓋
+  // 朱老師短線20條守則補充（p.711-712）
+  | 'STRONG_COVER'        // 強覆蓋：黑K跌破前日紅K 1/2 + K值下彎（第11條）
+  | 'HIGH_VOL_2DAY_3BLACK' // 高檔連2日爆量+回檔連3黑（第14條）
+  | 'WEEKLY_RESIST_BREAK_MA5' // 週線遇壓+黑K跌破MA5（第19條）
+  | 'SEASON_LINE_DOWN_BREAK'; // 季線向下回檔跌破5均（第20條）
 
 export interface SellSignal {
   type: SellSignalType;
@@ -142,12 +147,9 @@ export function detectSellSignals(
 
   // 獲利方程式 第7條：連續急漲3天+大量長黑K覆蓋或吞噬 → 當天出場
   if (index >= 3) {
-    // 前3日連續上漲
     const prev3Up = [candles[index-1], candles[index-2], candles[index-3]]
       .every(x => x.close > x.open);
-    // 今日是長黑K
     const isLongBlack = c.close < c.open && body > 0 && (c.open - c.close) / c.open >= 0.02;
-    // 帶量
     const bigVolume = (volRatio5 ?? 0) > 1.5;
 
     if (prev3Up && isLongBlack && bigVolume) {
@@ -156,6 +158,82 @@ export function detectSellSignals(
         label: '急漲後長黑出場',
         detail: `連續3日急漲後出現大量長黑K覆蓋，主力出貨訊號`,
         severity: 'high',
+      });
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // 朱老師短線20條守則補充（《活用技術分析寶典》p.711-712）
+  // ════════════════════════════════════════════════════════════════
+
+  // 第11條：強覆蓋 — 遇壓黑K下跌，跌破前一日紅K的二分之一，K值下彎 → 減碼警示
+  if (prev && prev.close > prev.open && c.close < c.open) {
+    const prevMidPrice = (prev.open + prev.close) / 2;
+    const kdDownTurn = kd_k != null && prevKdK != null && kd_k < prevKdK;
+    if (c.close < prevMidPrice && kdDownTurn) {
+      signals.push({
+        type: 'STRONG_COVER',
+        label: '強覆蓋減碼',
+        detail: `黑K跌破前日紅K 1/2(${prevMidPrice.toFixed(1)})，KD下彎，可減碼一半`,
+        severity: 'medium',
+      });
+    }
+  }
+
+  // 第14條：高檔連2日爆量，回檔連3黑 → 不宜進場
+  if (index >= 5) {
+    // 找近5日是否有連2日爆量
+    let has2DayBigVol = false;
+    for (let i = index - 4; i < index - 1; i++) {
+      const v1 = candles[i];
+      const v2 = candles[i + 1];
+      const avg = c.avgVol5;
+      if (avg && v1.volume >= avg * 1.5 && v2.volume >= avg * 1.5) {
+        has2DayBigVol = true;
+        break;
+      }
+    }
+    // 近3日連續收黑
+    const last3Black = [candles[index], candles[index-1], candles[index-2]]
+      .every(x => x.close < x.open);
+    if (has2DayBigVol && last3Black) {
+      signals.push({
+        type: 'HIGH_VOL_2DAY_3BLACK',
+        label: '爆量後連3黑',
+        detail: `高檔連2日爆量後回檔連3黑，不宜進場做多`,
+        severity: 'high',
+      });
+    }
+  }
+
+  // 第19條：週線接近壓力 + 日線出現黑K跌破MA5 → 多單要先出場
+  // 用MA60作為週線壓力的近似（60日≈12週）
+  if (c.ma60 != null && ma5 != null && c.close < c.open) {
+    const nearMa60 = c.ma60 > c.close && (c.ma60 - c.close) / c.close < 0.05;
+    const breakMa5 = prev && prev.ma5 != null && prev.close >= prev.ma5 && c.close < ma5;
+    if (nearMa60 && breakMa5) {
+      signals.push({
+        type: 'WEEKLY_RESIST_BREAK_MA5',
+        label: '遇壓破MA5',
+        detail: `接近MA60(${c.ma60.toFixed(1)})壓力位，黑K跌破MA5(${ma5.toFixed(1)})，多單先出場`,
+        severity: 'high',
+      });
+    }
+  }
+
+  // 第20條：季線(MA60)向下 + 回檔跌破5均 → 即使漲幅未達10%也要先出場
+  if (c.ma60 != null && ma5 != null && index >= 5) {
+    const prevMa60_5 = candles[index - 5]?.ma60;
+    const ma60Declining = prevMa60_5 != null && c.ma60 < prevMa60_5;
+    const breakMa5Now = prev && prev.ma5 != null && prev.close >= prev.ma5 && c.close < ma5;
+    // 股價在MA60之上（已突破季線但季線仍向下）
+    const aboveMa60 = c.close > c.ma60;
+    if (ma60Declining && breakMa5Now && aboveMa60) {
+      signals.push({
+        type: 'SEASON_LINE_DOWN_BREAK',
+        label: '季線下彎破5均',
+        detail: `MA60(${c.ma60.toFixed(1)})仍下彎，回檔跌破MA5(${ma5.toFixed(1)})，多單先出場`,
+        severity: 'medium',
       });
     }
   }

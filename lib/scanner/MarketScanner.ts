@@ -160,6 +160,20 @@ export abstract class MarketScanner {
       // 10. 紅K必要條件 — 朱老師核心：黑K不進場
       if (last.close <= last.open) return null;
 
+      // 10.5 短線第9條：KD值向下時不買 — 大量紅K收盤突破MA5，但KD值向下 → 待K值向上再買
+      if (last.kdK != null && lastIdx > 0) {
+        const prevKdK = candles[lastIdx - 1]?.kdK;
+        if (prevKdK != null && last.kdK < prevKdK) {
+          // KD值向下，不進場
+          return null;
+        }
+      }
+
+      // 10.6 短線第10條：進場紅K線上影線超過二分之一 → 不買進
+      const dayRange = last.high - last.low;
+      const entryUpperShadow = last.high - last.close;
+      if (dayRange > 0 && entryUpperShadow / dayRange > 0.5) return null;
+
       // 11. 突破前5日高點 — 朱老師核心：突破才是真信號
       const recentHighs = candles.slice(Math.max(0, lastIdx - 5), lastIdx).map(c => c.high);
       const prev5High = Math.max(...recentHighs);
