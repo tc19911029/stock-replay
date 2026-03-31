@@ -178,7 +178,18 @@ export function BacktestSection() {
                 </tr>
               </thead>
               <tbody>
-                {sortedTrades.map(t => {
+                {sortedTrades.length === 0 ? (
+                  <tr>
+                    <td colSpan={11} className="text-center py-10 text-slate-500">
+                      <div className="text-2xl mb-2">📭</div>
+                      <div className="text-sm">目前無回測交易紀錄</div>
+                      <div className="text-xs mt-1 text-slate-600">
+                        若掃描日期為今日或近期，需等待後續交易日的開盤資料才能回測。
+                        建議改用過去日期重新掃描。
+                      </div>
+                    </td>
+                  </tr>
+                ) : sortedTrades.map(t => {
                   const sym = t.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
                   const sr = scanResults.find(r => r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '') === sym);
                   const chip = sr?.chipScore != null ? { chipScore: sr.chipScore!, chipGrade: sr.chipGrade!, chipSignal: sr.chipSignal!, foreignBuy: sr.foreignBuy ?? 0, trustBuy: sr.trustBuy ?? 0, marginNet: sr.marginNet ?? 0 } : undefined;

@@ -415,6 +415,7 @@ export const useBacktestStore = create<BacktestState>()(
       loadSession: (id) => {
         const session = get().sessions.find(s => s.id === id);
         if (!session) return;
+        const hasTrades = (session.trades?.length ?? 0) > 0;
         set({
           market:      session.market,
           scanDate:    session.scanDate,
@@ -422,6 +423,7 @@ export const useBacktestStore = create<BacktestState>()(
           performance: session.performance,
           trades:      session.trades ?? [],
           stats:       session.stats  ?? null,
+          scanOnly:    !hasTrades,
         });
       },
     }),

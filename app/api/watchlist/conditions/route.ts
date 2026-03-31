@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { evaluateSixConditions, detectTrend, detectTrendPosition } from '@/lib/analysis/trendAnalysis';
 import { computeSurgeScore } from '@/lib/analysis/surgeScore';
-import { ruleEngine } from '@/lib/rules/ruleEngine';
+import { RuleEngine, ruleEngine } from '@/lib/rules/ruleEngine';
 import { resolveThresholds } from '@/lib/strategy/resolveThresholds';
+import { BUILT_IN_STRATEGIES } from '@/lib/strategy/StrategyConfig';
 import { getTWChineseName, getCNChineseName } from '@/lib/datasource/TWSENames';
 import { yahooProvider } from '@/lib/datasource/YahooDataProvider';
 import type { CandleWithIndicators } from '@/types';
@@ -52,7 +53,12 @@ export async function GET(req: NextRequest) {
     const sixConditions = evaluateSixConditions(allCandles, lastIdx, thresholds);
     const trend = detectTrend(allCandles, lastIdx);
     const position = detectTrendPosition(allCandles, lastIdx);
-    const signals = ruleEngine.evaluate(allCandles, lastIdx).filter(s => s.type !== 'WATCH');
+    // 根據策略篩選規則群組
+    const strategy = strategyId ? BUILT_IN_STRATEGIES.find(s => s.id === strategyId) : undefined;
+    const engine = (strategy?.ruleGroups && strategy.ruleGroups.length > 0)
+      ? new RuleEngine(undefined, strategy.ruleGroups)
+      : ruleEngine;
+    const signals = engine.evaluate(allCandles, lastIdx).filter(s => s.type !== 'WATCH');
 
     const surge = computeSurgeScore(allCandles, lastIdx);
 

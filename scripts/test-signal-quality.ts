@@ -152,7 +152,9 @@ async function main() {
   const sample = shuffled.slice(0, SAMPLE_SIZE);
   console.log(`抽樣: ${SAMPLE_SIZE} 支`);
 
-  const ruleEngine = new RuleEngine();
+  const ruleEngine = ZHU_V1.ruleGroups?.length
+    ? new RuleEngine(undefined, ZHU_V1.ruleGroups)
+    : new RuleEngine();
   const thresholds = ZHU_V1.thresholds;
   const allTrades: Trade[] = [];
   let processed = 0;
