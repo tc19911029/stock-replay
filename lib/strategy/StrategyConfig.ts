@@ -223,7 +223,116 @@ export const ZHU_V3_CN: StrategyConfig = {
   },
 };
 
+/**
+ * 大師共識突破選股法
+ *
+ * 綜合朱家泓、權證小哥、蔡森三位大師核心共識：
+ * - 均線多頭排列（close > MA5 > MA20 > MA60）
+ * - 20日新高突破
+ * - 帶量突破 1.5 倍
+ * - KD黃金交叉
+ *
+ * 出場：停利 15% / 停損 -7% / 跌破 MA20 / 時間停損 20 天
+ */
+export const MASTER_CONSENSUS: StrategyConfig = {
+  id:          'master-consensus',
+  name:        '大師共識突破（朱×小哥×蔡森）',
+  description: '三大師共識因子：四線多頭(含MA60) + 20日新高 + 量增1.5x + KD黃金交叉，最高勝率組合',
+  version:     '1.0.0',
+  author:      '朱家泓 × 權證小哥 × 蔡森',
+  createdAt:   '2026-03-30T00:00:00.000Z',
+  isBuiltIn:   true,
+  conditions:  ALL_CONDITIONS_ON,
+  thresholds:  {
+    ...BASE_THRESHOLDS,
+    maShortPeriod:  5,
+    maMidPeriod:    20,     // 跳過 MA10，直接用 MA20（大師共識用 5/20/60）
+    maLongPeriod:   20,
+    volumeRatioMin: 1.5,    // 三位大師共識：帶量突破 1.5 倍
+    kdMaxEntry:     100,    // 不限制 KD 上限（突破常在中高檔發生）
+    deviationMax:   0.25,   // 放寬乖離（突破時可能偏離較大）
+    minScore:       4,      // 基本門檻
+    marketTrendFilter: true,
+    bullMinScore:   4,
+    sidewaysMinScore: 5,
+    bearMinScore:   6,
+  },
+};
+
+/**
+ * 朱家泓《做對5個實戰步驟》完整策略
+ *
+ * 書中核心：選股→進場→停損→操作→停利 五步驟循環
+ * 特色：
+ * - 選股SOP 7項條件全檢查
+ * - 做多6位置 + 做空6位置精確進場
+ * - 4種停損方法 + 10%停損上限
+ * - 長線趨勢操作 + 短線轉折操作 + 均線操作 + 綜合操作
+ * - 3大類停利（紀律/目標/特定條件）
+ * - 乖離>15%動態切換停利均線
+ */
+export const ZHU_5STEPS: StrategyConfig = {
+  id:          'zhu-5steps',
+  name:        '朱家泓五步驟實戰法',
+  description: '《做對5個實戰步驟》完整交易系統：選股SOP+6進場位+4停損法+10種操作法+3類停利',
+  version:     '1.0.0',
+  author:      '朱家泓',
+  createdAt:   '2026-03-31T00:00:00.000Z',
+  isBuiltIn:   true,
+  conditions:  ALL_CONDITIONS_ON,
+  thresholds:  {
+    ...BASE_THRESHOLDS,
+    volumeRatioMin: 1.5,    // 書中：大量 = 5日均量1.5倍以上
+    kdMaxEntry:     88,     // 書中：KD不宜過高進場
+    deviationMax:   0.15,   // 書中：乖離15%要注意停利
+    minScore:       4,      // 基本門檻
+    marketTrendFilter: true,
+    bullMinScore:   4,      // 順勢操作勝率80%
+    sidewaysMinScore: 5,    // 盤整加嚴
+    bearMinScore:   6,      // 逆勢操作勝率僅10%，極嚴格
+  },
+};
+
+/**
+ * 林穎走圖SOP策略
+ *
+ * 《學會走圖SOP 讓技術分析養我一輩子》核心交易系統
+ * 特色：
+ * - 多單3種進場：多頭確認 / 回後買上漲 / 盤整突破
+ * - 空單3種進場：空頭確認 / 彈後空下跌 / 盤整跌破
+ * - 6大條件 checklist（趨勢、位置、K棒、均線、成交量、指標）
+ * - KD(5,3,3) + MACD(10,20,10) 雙指標只要1個符合
+ * - 空頭操作不需特別考慮成交量（與多單不同）
+ * - 停利3條件：未達10% / 達10% / 超過20%
+ * - 停損5方法：進場K棒高低點 / 轉折點 / 固定比例 / 絕對停損 / 趨勢不對立刻出場
+ * - 高檔/低檔變盤線偵測（T字、倒T、天劍、蜻蜓、紡錘、十字）
+ * - 漲幅1倍＝高檔警示 / 跌幅50%＝低檔警示
+ */
+export const CHART_WALKING_SOP: StrategyConfig = {
+  id:          'chart-walking-sop',
+  name:        '走圖SOP（林穎）',
+  description: '林穎《學會走圖SOP》完整進出場邏輯：多空各3種進場模式＋6大條件＋雙指標＋變盤線偵測',
+  version:     '1.0.0',
+  author:      '林穎（朱家泓門下）',
+  createdAt:   '2026-03-31T00:00:00.000Z',
+  isBuiltIn:   true,
+  conditions:  ALL_CONDITIONS_ON,
+  thresholds:  {
+    ...BASE_THRESHOLDS,
+    kbarMinBodyPct: 0.02,     // 書中：實體 > 2% 才有攻擊力道
+    volumeRatioMin: 1.3,      // 書中：量 > 前日1.3~1.5倍
+    kdMaxEntry:     100,      // 不用KD值上限篩選（改用方向/排列判斷）
+    deviationMax:   1.0,      // 書中：漲幅1倍＝高檔，由規則內部判斷
+    minScore:       4,        // 至少4/6條件通過
+    marketTrendFilter: true,
+    bullMinScore:   4,
+    sidewaysMinScore: 5,
+    bearMinScore:   5,        // 空頭操作門檻（書中空頭不需量能，條件較寬）
+  },
+};
+
 export const BUILT_IN_STRATEGIES: StrategyConfig[] = [
   ZHU_V1, ZHU_V2, ZHU_CONSERVATIVE,
   ZHU_V3_MULTIFACTOR, ZHU_V3_TW, ZHU_V3_CN,
+  MASTER_CONSENSUS, ZHU_5STEPS, CHART_WALKING_SOP,
 ];
