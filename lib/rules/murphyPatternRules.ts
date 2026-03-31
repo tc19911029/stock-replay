@@ -198,7 +198,7 @@ export const islandReversalTop: TradingRule = {
 
     // 條件2：近 2-8 根之前曾出現向上跳空
     let upGapIdx = -1;
-    for (let i = index - 2; i >= Math.max(0, index - 8); i--) {
+    for (let i = index - 2; i >= Math.max(1, index - 8); i--) {
       if (gapUp(candles[i - 1], candles[i])) {
         upGapIdx = i;
         break;
@@ -215,7 +215,7 @@ export const islandReversalTop: TradingRule = {
     return {
       type: 'SELL',
       label: '頂部島形反轉',
-      description: `第${upGapIdx}根向上跳空→中間${index - upGapIdx}根形成島嶼→今日向下跳空完成反轉`,
+      description: `${index - upGapIdx}日前向上跳空→中間形成島嶼→今日向下跳空完成反轉`,
       reason: [
         '【出處】Murphy《金融市場技術分析》第5章 — 主要反轉形態',
         '原理：島形反轉由兩個方向相反的跳空組成，中間孤立出一組K線（島嶼）。',

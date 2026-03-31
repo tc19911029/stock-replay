@@ -63,9 +63,12 @@ export const obvBearishDivergence: TradingRule = {
         obvMaxAge = obvLen - 1 - i;
       }
     }
-    // OBV 高點在 5-15 根前，且當前 OBV 比高點低 10% 以上
-    if (obvMaxAge < 5 || obvMax === 0) return null;
-    if (currentObv >= obvMax * 0.9) return null;
+    // OBV 高點在 5+ 根前，且當前 OBV 明顯低於高點
+    if (obvMaxAge < 5) return null;
+    // 使用 OBV 區間的 10% 作為閾值（避免負值乘法錯誤）
+    const obvRange = Math.max(...obv) - Math.min(...obv);
+    if (obvRange === 0) return null;
+    if (obvMax - currentObv < obvRange * 0.1) return null;
 
     return {
       type: 'WATCH',
@@ -112,7 +115,10 @@ export const obvBullishDivergence: TradingRule = {
     for (let i = obvLen - 16; i < obvLen - 1; i++) {
       if (i >= 0 && obv[i] < obvMin) obvMin = obv[i];
     }
-    if (currentObv <= obvMin * 1.1) return null;
+    // 使用 OBV 區間的 10% 作為閾值（避免負值乘法錯誤）
+    const obvRange = Math.max(...obv) - Math.min(...obv);
+    if (obvRange === 0) return null;
+    if (currentObv - obvMin < obvRange * 0.1) return null;
 
     return {
       type: 'WATCH',

@@ -42,9 +42,10 @@ export const dowTheoryPhase: TradingRule = {
       // 判斷是否在第三階段（分散）：量能異常放大 + 加速上漲
       const recentVolHigh = c.avgVol5 != null && c.avgVol20 != null &&
                             c.avgVol5 > c.avgVol20 * 1.8;
-      const accel = index >= 10 &&
-        ((c.close - candles[index - 5].close) / candles[index - 5].close) >
-        ((candles[index - 5].close - candles[index - 10].close) / candles[index - 10].close) * 1.5;
+      const p5 = candles[index - 5]?.close;
+      const p10 = candles[index - 10]?.close;
+      const accel = index >= 10 && p5 != null && p10 != null && p5 > 0 && p10 > 0 &&
+        ((c.close - p5) / p5) > ((p5 - p10) / p10) * 1.5;
 
       if (recentVolHigh && accel) {
         return {
