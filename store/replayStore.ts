@@ -59,8 +59,6 @@ function precomputeMarkers(allCandles: CandleWithIndicators[]): void {
   const strategy = useSettingsStore.getState().getActiveStrategy();
   const minScore = strategy.thresholds.minScore ?? 4;
   const result: ChartSignalMarker[] = [];
-  let lastBuyIdx = -999;
-  let lastSellIdx = -999;
 
   for (let i = 0; i < allCandles.length; i++) {
     const c = allCandles[i];
@@ -88,50 +86,24 @@ function precomputeMarkers(allCandles: CandleWithIndicators[]): void {
     const sellStrength = sellGroups.size;
 
     // ── 六大條件過濾（買進方向需過門檻，賣出不限） ──
-    // ── 買訊號（含冷卻期）──
     if (buyStrength >= _signalStrengthMin) {
       const score = minScore > 1 ? evaluateSixConditions(allCandles, i, strategy.thresholds).totalScore : 6;
       if (score >= minScore) {
-        let skipBuy = false;
-        if (lastBuyIdx >= 0 && i - lastBuyIdx <= 3) {
-          const prev = result.findIndex(r => r.date === allCandles[lastBuyIdx].date && (r.type === 'BUY' || r.type === 'ADD'));
-          if (prev >= 0 && buyStrength > (result[prev].strength ?? 0)) {
-            result.splice(prev, 1); // 替換為更強的
-          } else {
-            skipBuy = true; // 冷卻期內較弱，跳過
-          }
-        }
-        if (!skipBuy) {
-          lastBuyIdx = i;
-          result.push({
-            date: c.date,
-            type: 'BUY',
-            label: `${buyStrength}`,
-            strength: buyStrength,
-          });
-        }
-      }
-    }
-    // ── 賣訊號（含冷卻期）──
-    if (sellStrength >= _signalStrengthMin) {
-      let skipSell = false;
-      if (lastSellIdx >= 0 && i - lastSellIdx <= 3) {
-        const prev = result.findIndex(r => r.date === allCandles[lastSellIdx].date && (r.type === 'SELL' || r.type === 'REDUCE'));
-        if (prev >= 0 && sellStrength > (result[prev].strength ?? 0)) {
-          result.splice(prev, 1);
-        } else {
-          skipSell = true;
-        }
-      }
-      if (!skipSell) {
-        lastSellIdx = i;
         result.push({
           date: c.date,
-          type: 'SELL',
-          label: `${sellStrength}`,
-          strength: sellStrength,
+          type: 'BUY',
+          label: `買 ×${buyStrength} (${score}/6)`,
+          strength: buyStrength,
         });
       }
+    }
+    if (sellStrength >= _signalStrengthMin) {
+      result.push({
+        date: c.date,
+        type: 'SELL',
+        label: sellStrength >= 3 ? `強賣 ×${sellStrength}` : `賣 ×${sellStrength}`,
+        strength: sellStrength,
+      });
     }
   }
 
