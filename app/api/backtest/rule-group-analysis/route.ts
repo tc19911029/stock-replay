@@ -21,7 +21,7 @@ import { ChinaScanner } from '@/lib/scanner/ChinaScanner';
 import { RuleGroupAnalyzer } from '@/lib/backtest/RuleGroupAnalyzer';
 import { AnalysisProgressEvent } from '@/lib/backtest/ruleGroupAnalyzerTypes';
 
-export const maxDuration = 600; // 10 分鐘
+export const maxDuration = 300; // Vercel Hobby 方案上限
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
