@@ -527,6 +527,8 @@ const marketCloseWarning: IntradayTradingRule = {
 
 // ── 導出所有規則 ──────────────────────────────────────────────────────────────
 
+import { zhuIntradayRules } from './intradayZhuRules';
+
 export const defaultIntradayRules: IntradayTradingRule[] = [
   // 買入規則（4條，每條都需要多重確認）
   strongBreakout,
@@ -544,4 +546,7 @@ export const defaultIntradayRules: IntradayTradingRule[] = [
   // 警示（不觸發交易）
   volumePriceDivergence,
   marketCloseWarning,
+
+  // 朱老師 SOP 分時版（Phase 9）
+  ...zhuIntradayRules,
 ];

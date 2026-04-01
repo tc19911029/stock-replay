@@ -285,7 +285,6 @@ export default function ReportPage() {
         <span className="text-xs text-slate-500 ml-1">
           {sessionCount} 次回測 · {allTrades.length} 筆交易
         </span>
-        <Link href="/v1/report" className="ml-auto text-[10px] text-slate-600 hover:text-slate-400">舊版</Link>
         <div className="ml-auto flex items-center gap-2">
           <Link href="/backtest" className="text-xs px-2.5 py-1 bg-violet-700/80 hover:bg-violet-600 rounded text-white font-medium transition">
             📅 回測

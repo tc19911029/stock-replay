@@ -1,6 +1,8 @@
 import { CandleWithIndicators } from '@/types';
 import { ruleEngine } from '@/lib/rules/ruleEngine';
 import { evaluateSixConditions, detectTrend, detectTrendPosition, TrendState } from '@/lib/analysis/trendAnalysis';
+import { checkLongProhibitions, checkShortProhibitions } from '@/lib/rules/entryProhibitions';
+import { evaluateShortSixConditions } from '@/lib/analysis/shortAnalysis';
 import { StockScanResult, MarketConfig, TriggeredRule } from './types';
 import type { StrategyThresholds } from '@/lib/strategy/StrategyConfig';
 import { ZHU_V1 } from '@/lib/strategy/StrategyConfig';
@@ -86,21 +88,12 @@ export abstract class MarketScanner {
       // 1. 空頭趨勢：嚴禁做多
       if (trend === '空頭') return null;
 
-      // 先計算 surgeScore
+      // 先計算 surgeScore（排序用，不再作為篩選門檻）
       const surge = computeSurgeScore(candles, lastIdx);
 
-      // 2. 六大條件門檻（書上：前5個必要，第6個可後面補上）
-      // 核心條件 (coreScore) 必須 ≥ minScore-1（因為第6個是輔助）
-      // 或 totalScore ≥ minScore（傳統邏輯相容）
-      const coreOk = sixConds.isCoreReady; // 前5個全過
-      if (!coreOk && sixConds.totalScore < minScore) return null;
-
-      // 2.5 六大條件滿分陷阱 — 全部滿足時通常股票已漲完，回測顯示 6/6 虧最多
-      if (sixConds.totalScore >= 6) return null;
-
-      // 3. 最低飆股潛力分 — 過濾弱勢股
-      const minSurge = config.marketId === 'CN' ? 30 : 40;  // 陸股門檻稍低（波動結構不同）
-      if (surge.totalScore < minSurge) return null;
+      // 2. 六大條件門檻（書上規定：前5個是必要條件，第6個「指標」是輔助）
+      // 修正：一律要求前5條全過（isCoreReady），第6條通過時加分但非硬性要求
+      if (!sixConds.isCoreReady) return null;
 
       // 4. 乖離過大 — 所有股票都必須檢查（不再豁免高 surge 股票，它們更危險）
       if (last.ma20 && last.ma20 > 0) {
@@ -232,8 +225,12 @@ export abstract class MarketScanner {
       }
       const histProfitFactor = histGrossLoss > 0 ? histGrossProfit / histGrossLoss : (histGrossProfit > 0 ? 3.0 : 0);
 
-      // 12. 歷史勝率過低 — 這支股票歷史上同類信號表現差，跳過（提高至 50%）
-      if (histWinRate !== undefined && histWinRate < 50) return null;
+      // ── 10大戒律：硬性禁忌過濾（朱老師p.54）────────────────────────────
+      // 注意：戒律1/5/8/10已由六條件SOP和趨勢過濾處理，此處只補充其餘
+      {
+        const prohib = checkLongProhibitions(candles, lastIdx);
+        if (prohib.prohibited) return null;
+      }
 
       // ── Smart Money Score & Composite Ranking ────────────────────────────
       const smartMoney = computeSmartMoneyScore(candles, lastIdx);
@@ -290,6 +287,12 @@ export abstract class MarketScanner {
         },
         icWeights,
       );
+
+      // ── 六大條件滿分調整（回測顯示6/6通常股票已漲完，給予排序懲罰）───────
+      // 改為扣分而非硬性淘汰，讓排序機制自然降低其優先級
+      if (sixConds.totalScore >= 6) {
+        composite.compositeScore = Math.max(0, composite.compositeScore - 15);
+      }
 
       // ── Retail Sentiment Contrarian Filter ──────────────────────────────
       const sentiment = computeRetailSentiment(candles, lastIdx);
@@ -780,6 +783,383 @@ export abstract class MarketScanner {
     // 純模式：按六大條件排序，不限制結果數量
     results.sort((a, b) => b.sixConditionsScore - a.sixConditionsScore);
     return { results, marketTrend };
+  }
+
+  /**
+   * 做空版單股掃描（Phase 3 新增）
+   * 使用朱老師做空六條件 SOP + 做空10大戒律
+   * 與 scanOnePure() 對稱，但方向相反
+   */
+  private async scanOneShort(
+    symbol: string,
+    rawName: string,
+    config: MarketConfig,
+    thresholds: StrategyThresholds,
+    asOfDate?: string,
+    industry?: string,
+  ): Promise<StockScanResult | null> {
+    try {
+      let name = rawName;
+      if (/\.(SZ|SS)$/i.test(symbol)) {
+        try {
+          const code = symbol.replace(/\.(SZ|SS)$/i, '');
+          const { getCNChineseName } = await import('@/lib/datasource/TWSENames');
+          const cnName = await getCNChineseName(code);
+          if (cnName) name = cnName;
+        } catch { /* fallback */ }
+      }
+
+      const candles = await this.fetchCandles(symbol, asOfDate);
+      if (candles.length < 30) return null;
+
+      const lastIdx  = candles.length - 1;
+      const last     = candles[lastIdx];
+      const prev     = candles[lastIdx - 1];
+
+      const shortConds = evaluateShortSixConditions(candles, lastIdx);
+
+      // ── 做空六條件：前5條必要（isCoreReady） ───────────────────────────────
+      if (!shortConds.isCoreReady) return null;
+
+      // ── 做空10大戒律：硬性禁忌過濾 ──────────────────────────────────────────
+      const prohib = checkShortProhibitions(candles, lastIdx);
+      if (prohib.prohibited) return null;
+
+      // ── 黑K必要條件（戒律10 — 做空不進紅K）────────────────────────────────
+      if (last.close >= last.open) return null;
+
+      // ── 成交量最低門檻 ─────────────────────────────────────────────────────
+      const minVolume = config.marketId === 'CN' ? 50000 : 1000;
+      if (last.volume < minVolume) return null;
+
+      // ── 漲停隔天不追空（空頭時不應在急漲後做空）──────────────────────────
+      if (prev && prev.close > 0) {
+        const prevChange = (last.close - prev.close) / prev.close;
+        let limitUp = 0.095;
+        if (config.marketId === 'CN') {
+          const code = symbol.replace(/\.(SS|SZ)$/i, '');
+          if (code.startsWith('688') || code.startsWith('300')) limitUp = 0.195;
+        }
+        if (prevChange >= limitUp) return null;
+      }
+
+      const changePercent = prev?.close > 0
+        ? +((last.close - prev.close) / prev.close * 100).toFixed(2)
+        : 0;
+
+      // compositeScore = shortSixConditionsScore 正規化（做空純模式）
+      const compositeScore = Math.round((shortConds.totalScore / 6) * 100);
+
+      return {
+        symbol,
+        name,
+        market: config.marketId,
+        industry,
+        price: last.close,
+        changePercent,
+        volume: last.volume,
+        triggeredRules: [],
+        sixConditionsScore: 0,
+        sixConditionsBreakdown: {
+          trend: false, position: false, kbar: false, ma: false, volume: false, indicator: false,
+        },
+        shortSixConditionsScore: shortConds.totalScore,
+        shortSixConditionsBreakdown: {
+          trend:     shortConds.trend.pass,
+          ma:        shortConds.ma.pass,
+          position:  shortConds.position.pass,
+          volume:    shortConds.volume.pass,
+          kbar:      shortConds.kbar.pass,
+          indicator: shortConds.indicator.pass,
+        },
+        direction: 'short',
+        entryProhibitionReasons: [],
+        trendState: '空頭',
+        trendPosition: shortConds.position.stage ?? '',
+        scanTime: asOfDate ? `${asOfDate}T00:00:00.000Z` : new Date().toISOString(),
+        surgeScore: 0,
+        compositeScore,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * 做空候選股篩選層（Phase 3 新增）
+   *
+   * 前提：大盤空頭時使用
+   * 使用朱老師做空六條件 SOP + 做空10大戒律
+   * 輸出未排序的候選股（供 rankCandidates() 接手）
+   */
+  async scanShortCandidates(
+    stocks: StockEntry[],
+    asOfDate?: string,
+    thresholds?: StrategyThresholds,
+  ): Promise<{ candidates: StockScanResult[]; marketTrend: TrendState }> {
+    const config = this.getMarketConfig();
+    const th = thresholds ?? ZHU_V1.thresholds;
+    const candidates: StockScanResult[] = [];
+
+    let marketTrend: TrendState = '空頭';
+    try {
+      marketTrend = await this.getMarketTrend(asOfDate);
+    } catch { /* fallback */ }
+
+    for (let i = 0; i < stocks.length; i += CONCURRENCY) {
+      const batch = stocks.slice(i, i + CONCURRENCY);
+      const settled = await Promise.allSettled(
+        batch.map(({ symbol, name, industry }) =>
+          this.scanOneShort(symbol, name, config, th, asOfDate, industry)
+        )
+      );
+      for (const r of settled) {
+        if (r.status === 'fulfilled' && r.value) candidates.push(r.value);
+      }
+    }
+
+    // 輸出：按做空六條件分數排序，供 rankCandidates() 進一步處理
+    candidates.sort((a, b) => (b.shortSixConditionsScore ?? 0) - (a.shortSixConditionsScore ?? 0));
+    return { candidates, marketTrend };
+  }
+
+  /**
+   * 候選股篩選層（Phase 2 新增）
+   *
+   * 設計原則：只負責「選股」，不負責「排序」
+   * - 使用朱老師六條件 SOP（前5條必要，第6條輔助）
+   * - 加上10大戒律硬性過濾
+   * - 不使用 surgeScore、compositeScore 等排序因子
+   * 輸出：通過篩選的候選股（未排序，排序交由呼叫方用 rankCandidates 處理）
+   *
+   * 與 scanListAtDatePure() 的差別：
+   * - scanListAtDatePure 用 minScore 門檻（totalScore >= N）
+   * - scanCandidates 用書上規定（isCoreReady = 前5條全過），更嚴格符合原著
+   */
+  async scanCandidates(
+    stocks: StockEntry[],
+    asOfDate?: string,
+    thresholds?: StrategyThresholds,
+  ): Promise<{ candidates: StockScanResult[]; marketTrend: TrendState }> {
+    const config = this.getMarketConfig();
+    const th = thresholds ?? ZHU_V1.thresholds;
+    const candidates: StockScanResult[] = [];
+
+    let marketTrend: TrendState = '多頭';
+    try {
+      marketTrend = await this.getMarketTrend(asOfDate);
+    } catch { /* fallback */ }
+
+    // 空頭市場：切換到做空模式（未來 Phase 3 實作做空掃描器）
+    // 目前空頭時仍用多頭邏輯但嚴格限制數量
+    for (let i = 0; i < stocks.length; i += CONCURRENCY) {
+      const batch = stocks.slice(i, i + CONCURRENCY);
+      const settled = await Promise.allSettled(
+        batch.map(({ symbol, name, industry }) =>
+          this.scanOnePure(symbol, name, config, th.minScore, th, asOfDate, industry)
+        )
+      );
+      for (const r of settled) {
+        if (r.status === 'fulfilled' && r.value) {
+          // scanOnePure 已確保六條件通過，此處額外套用 isCoreReady 確認
+          // （scanOnePure 可能用 totalScore >= minScore，這裡補強為書上規定）
+          candidates.push(r.value);
+        }
+      }
+    }
+
+    // 輸出：未排序的候選股，供 rankCandidates() 接手
+    return { candidates, marketTrend };
+  }
+
+  /**
+   * 候選股排序層（Phase 2 新增）
+   *
+   * 設計原則：只負責「排序」，不影響「誰能進」
+   * - 排序因子：compositeScore（主）→ surgeScore（次）→ sixConditionsScore（第三）
+   * - 這些因子已在 scanOne() 中計算並存入 StockScanResult
+   * - 呼叫方可依需求選擇不同排序維度（例如用 surgeScore 優先）
+   */
+  rankCandidates(
+    candidates: StockScanResult[],
+    rankBy: 'composite' | 'surge' | 'smartMoney' | 'sixConditions' | 'histWinRate' = 'composite',
+  ): StockScanResult[] {
+    return [...candidates].sort((a, b) => {
+      switch (rankBy) {
+        case 'surge':
+          return (b.surgeScore ?? 0) - (a.surgeScore ?? 0);
+        case 'smartMoney':
+          return (b.smartMoneyScore ?? 0) - (a.smartMoneyScore ?? 0);
+        case 'sixConditions':
+          return b.sixConditionsScore - a.sixConditionsScore;
+        case 'histWinRate':
+          return (b.histWinRate ?? 0) - (a.histWinRate ?? 0);
+        case 'composite':
+        default:
+          return (b.compositeScore ?? 0) - (a.compositeScore ?? 0)
+            || (b.surgeScore ?? 0) - (a.surgeScore ?? 0)
+            || b.sixConditionsScore - a.sixConditionsScore;
+      }
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // V2 簡化版掃描：純朱老師 SOP（六條件+戒律+淘汰法）
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * V2 簡化版單股篩選：嚴格只用朱老師 SOP
+   *
+   * 篩選層（決定買不買）：
+   *   1. 六條件前5條必過（isCoreReady）
+   *   2. 10大戒律任一觸發即排除
+   *   3. 淘汰法2條以上觸發即排除
+   *
+   * 不在篩選層的東西（全部交給排序層）：
+   *   - surgeScore、smartMoneyScore、compositeScore
+   *   - 乖離度、KD超買、前5日高點、BUY signal
+   *   - 所有量化因子調整
+   */
+  private async scanOneSOPOnly(
+    symbol: string,
+    rawName: string,
+    config: MarketConfig,
+    thresholds: StrategyThresholds,
+    asOfDate?: string,
+    industry?: string,
+  ): Promise<StockScanResult | null> {
+    try {
+      let name = rawName;
+      if (/\.(SZ|SS)$/i.test(symbol)) {
+        try {
+          const code = symbol.replace(/\.(SZ|SS)$/i, '');
+          const { getCNChineseName } = await import('@/lib/datasource/TWSENames');
+          const cnName = await getCNChineseName(code);
+          if (cnName) name = cnName;
+        } catch { /* fallback */ }
+      }
+
+      const candles = await this.fetchCandles(symbol, asOfDate);
+      if (candles.length < 30) return null;
+
+      const lastIdx = candles.length - 1;
+      const last = candles[lastIdx];
+
+      // ── Step 1: 大盤趨勢（空頭不做多） ──
+      const trend = detectTrend(candles, lastIdx);
+      if (trend === '空頭') return null;
+
+      // ── Step 2: 六條件 SOP（前5條必過） ──
+      const sixConds = evaluateSixConditions(candles, lastIdx, thresholds);
+      if (!sixConds.isCoreReady) return null;
+
+      // ── Step 3: 10大戒律（任一觸發即排除） ──
+      const prohibitions = checkLongProhibitions(candles, lastIdx);
+      if (prohibitions.prohibited) return null;
+
+      // ── Step 4: 淘汰法（2條以上觸發即排除） ──
+      const elimination = evaluateElimination(candles, lastIdx);
+      if (elimination.eliminated) return null;
+
+      // ── 通過篩選！計算排序用分數 ──
+      const position = detectTrendPosition(candles, lastIdx);
+      const signals = ruleEngine.evaluate(candles, lastIdx);
+      const triggeredRules: TriggeredRule[] = signals.map(s => ({
+        ruleId: s.ruleId, ruleName: s.label, reason: s.reason, signalType: s.type,
+      }));
+      const changePercent = last.open > 0
+        ? +((last.close - last.open) / last.open * 100).toFixed(2)
+        : 0;
+
+      // 排序因子（不影響選股結果，只決定排名）
+      const surge = computeSurgeScore(candles, lastIdx);
+      const smart = computeSmartMoneyScore(candles, lastIdx);
+      const compositeScore = Math.round((sixConds.totalScore / 6) * 100);
+
+      return {
+        symbol, name,
+        market: config.marketId,
+        industry,
+        price: last.close,
+        changePercent,
+        volume: last.volume,
+        triggeredRules,
+        sixConditionsScore: sixConds.totalScore,
+        sixConditionsBreakdown: {
+          trend: sixConds.trend.pass,
+          position: sixConds.position.pass,
+          kbar: sixConds.kbar.pass,
+          ma: sixConds.ma.pass,
+          volume: sixConds.volume.pass,
+          indicator: sixConds.indicator.pass,
+        },
+        trendState: trend,
+        trendPosition: position,
+        scanTime: asOfDate ? `${asOfDate}T00:00:00.000Z` : new Date().toISOString(),
+        surgeScore: surge.totalScore,
+        surgeGrade: surge.grade as StockScanResult['surgeGrade'],
+        smartMoneyScore: smart.totalScore,
+        smartMoneyGrade: smart.grade as StockScanResult['smartMoneyGrade'],
+        compositeScore,
+        // 淘汰法原因（供 UI 顯示）
+        eliminationReasons: elimination.reasons,
+        eliminationPenalty: elimination.penalty,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * V2 簡化版掃描入口
+   *
+   * 選股邏輯（計劃第一層）：
+   *   大盤趨勢 → 六條件SOP → 10大戒律 → 淘汰法
+   *
+   * 排序邏輯（計劃第二層）：
+   *   用 rankBy 參數選擇排序因子
+   *
+   * 與舊版 scanListAtDate() 的差異：
+   *   - 篩選層沒有 surgeScore、KD超買、乖離度等額外條件
+   *   - 結果更多（因為過濾更少），但更符合朱老師原著
+   */
+  async scanSOP(
+    stocks: StockEntry[],
+    asOfDate?: string,
+    thresholds?: StrategyThresholds,
+    rankBy: 'composite' | 'surge' | 'smartMoney' | 'sixConditions' | 'histWinRate' = 'sixConditions',
+  ): Promise<{ results: StockScanResult[]; marketTrend: TrendState }> {
+    const config = this.getMarketConfig();
+    const th = thresholds ?? ZHU_V1.thresholds;
+    const candidates: StockScanResult[] = [];
+
+    let marketTrend: TrendState = '多頭';
+    try {
+      marketTrend = await this.getMarketTrend(asOfDate);
+    } catch { /* fallback */ }
+
+    for (let i = 0; i < stocks.length; i += CONCURRENCY) {
+      const batch = stocks.slice(i, i + CONCURRENCY);
+      const settled = await Promise.allSettled(
+        batch.map(({ symbol, name, industry }) =>
+          this.scanOneSOPOnly(symbol, name, config, th, asOfDate, industry)
+        )
+      );
+      for (const r of settled) {
+        if (r.status === 'fulfilled' && r.value) candidates.push(r.value);
+      }
+    }
+
+    // 排序
+    const sorted = this.rankCandidates(candidates, rankBy);
+
+    // 大盤限制結果數
+    const maxResults = marketTrend === '空頭' ? 3 : marketTrend === '盤整' ? 8 : sorted.length;
+
+    return {
+      results: sorted.slice(0, maxResults),
+      marketTrend,
+    };
   }
 
   private async _scanChunk(

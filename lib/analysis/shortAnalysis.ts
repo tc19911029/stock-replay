@@ -7,7 +7,7 @@
  * 2. 做空獲利方程式（ShortProfitEquation — 出場/回補規則）
  * 3. 做空進場10大戒律（ShortEntryMistakes — 不應做空的情況）
  *
- * 目前 rockstock 只做多，此模組預留給未來做空功能使用。
+ * Phase 3 啟用：做空功能已完整整合進 MarketScanner.scanShortCandidates() 及 BacktestEngine.runShortSOPBacktest()。
  * 也可用於多頭持股的出場判斷（空頭訊號 = 多頭出場警示）。
  */
 

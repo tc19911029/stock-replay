@@ -28,6 +28,9 @@ import {
   SixConditionsResult,
 } from '@/lib/analysis/trendAnalysis';
 import { computeSurgeScore, SurgeScoreResult } from '@/lib/analysis/surgeScore';
+import { checkLongProhibitions, checkShortProhibitions, type ProhibitionResult } from '@/lib/rules/entryProhibitions';
+import { evaluateShortSixConditions, type ShortSixConditionsResult } from '@/lib/analysis/shortAnalysis';
+import { evaluateWinnerPatterns, type WinnerPatternResult } from '@/lib/rules/winnerPatternRules';
 import { useSettingsStore } from './settingsStore';
 
 const INITIAL_CAPITAL = 1_000_000;
@@ -141,6 +144,12 @@ interface ReplayStore {
   trendPosition: TrendPosition;
   sixConditions: SixConditionsResult | null;
   surgeScore: SurgeScoreResult | null;
+  // ── Phase 7: 10大戒律 + 做空六條件 ───────────────────────
+  longProhibitions: ProhibitionResult | null;
+  shortProhibitions: ProhibitionResult | null;
+  shortConditions: ShortSixConditionsResult | null;
+  // ── Phase 8: 33 種贏家圖像 ───────────────────────────────
+  winnerPatterns: WinnerPatternResult | null;
 
   // ── Actions ───────────────────────────────────────────────
   initData: () => void;
@@ -183,7 +192,11 @@ function buildState(
   const activeThresholds = useSettingsStore.getState().getActiveStrategy().thresholds;
   const sixConditions = evaluateSixConditions(allCandles, index, activeThresholds);
   const surgeScore = computeSurgeScore(allCandles, index);
-  return { visibleCandles, metrics, stats, currentSignals: signals, chartMarkers, trendState, trendPosition, sixConditions, surgeScore };
+  const longProhibitions  = index >= 5 ? checkLongProhibitions(allCandles, index)  : null;
+  const shortProhibitions = index >= 5 ? checkShortProhibitions(allCandles, index) : null;
+  const shortConditions   = index >= 5 ? evaluateShortSixConditions(allCandles, index) : null;
+  const winnerPatterns    = index >= 5 ? evaluateWinnerPatterns(allCandles, index)    : null;
+  return { visibleCandles, metrics, stats, currentSignals: signals, chartMarkers, trendState, trendPosition, sixConditions, surgeScore, longProhibitions, shortProhibitions, shortConditions, winnerPatterns };
 }
 
 /** Always start replay at the latest (rightmost) candle */
@@ -210,6 +223,10 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
   trendPosition: '盤整觀望' as TrendPosition,
   sixConditions: null,
   surgeScore: null,
+  longProhibitions: null,
+  shortProhibitions: null,
+  shortConditions: null,
+  winnerPatterns: null,
 
   // ── Init with mock data ───────────────────────────────────
   initData: () => {

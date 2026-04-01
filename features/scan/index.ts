@@ -8,3 +8,5 @@ export { HorizonCard } from './components/HorizonCard';
 export { TradeRow, trendBadge, exitBadge, chipBadge, calcTradeComposite } from './components/TradeRow';
 export { ScanResultsTable } from './components/ScanResultsTable';
 export { BacktestSection } from './components/BacktestSection';
+export { ABTestPanel } from './components/ABTestPanel';
+export { default as ScanPageContent } from './ScanPageContent';

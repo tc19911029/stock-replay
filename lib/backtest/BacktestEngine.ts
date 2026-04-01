@@ -45,6 +45,7 @@ export interface TradeSignal {
   winnerBullishPatterns?: string[]; // 空轉多圖像
   winnerBearishPatterns?: string[]; // 多轉空圖像
   eliminationPenalty?: number;      // 淘汰法扣分
+  direction?: 'long' | 'short';    // 做多/做空方向（預設做多）
 }
 
 /**
@@ -84,6 +85,7 @@ export function scanResultToSignal(scanResult: StockScanResult): TradeSignal {
     winnerBullishPatterns: scanResult.winnerBullishPatterns,
     winnerBearishPatterns: scanResult.winnerBearishPatterns,
     eliminationPenalty: scanResult.eliminationPenalty,
+    direction: scanResult.direction,
   };
 }
 
@@ -260,6 +262,23 @@ export const PURE_ZHU_STRATEGY: BacktestStrategyParams = {
   stopLoss:         -0.05,
   takeProfit:       0.15,
   trailingStop:     null,
+  trailingActivate: null,
+  costParams:       { twFeeDiscount: 0.6 },
+  slippagePct:      0.001,
+  dualTranche:      false,
+};
+
+/**
+ * 朱老師獲利方程式策略：搭配 runSOPBacktest + ZhuExitParams 使用
+ * 進場用 nextOpen，出場交給獲利方程式分層邏輯
+ * stopLoss/takeProfit/trailing 設 null — 由 ZhuExitParams 控制
+ */
+export const ZHU_PROFIT_FORMULA_STRATEGY: BacktestStrategyParams = {
+  entryType:        'nextOpen',
+  holdDays:         20,         // 安全網天數，實際由獲利方程式決定何時出場
+  stopLoss:         null,       // 由 ZhuExitParams.dynamicStopLoss 控制
+  takeProfit:       null,       // 由獲利方程式分層停利控制
+  trailingStop:     null,       // 不用移動停利，改用 MA5 跌破停利
   trailingActivate: null,
   costParams:       { twFeeDiscount: 0.6 },
   slippagePct:      0.001,
@@ -619,24 +638,66 @@ function calcAvgVol(candles: ForwardCandle[], endIdx: number, period = 5): numbe
 }
 
 /**
- * 朱家泓短線波段操作 SOP 出場邏輯
+ * 朱老師獲利方程式出場參數
  *
- * 書中 Part 11 (P712-720) 定義了 20 條短線操作守則，
- * 此函數實作其中可程式化的核心守則，替代原有的固定百分比出場。
+ * 完整實作《活用技術分析寶典》p.54 獲利方程式 7 條
+ * + 短線波段操作守則 20 條中可程式化的出場規則
+ */
+export interface ZhuExitParams {
+  // ── 停損 ──
+  dynamicStopLoss: boolean;     // 用進場K線最低點（true）或固定比例（false）
+  fixedStopLossPct: number;     // 固定停損比例，預設 -0.05
+  maxStopLossPct: number;       // 動態停損最大距離，超過用固定，預設 -0.07
+
+  // ── 獲利方程式分層 ──
+  profitTakeMa5Pct: number;     // 獲利 > 此值，跌破MA5停利，預設 0.10
+  profitClimaxPct: number;      // 獲利 > 此值，長黑出場，預設 0.20
+
+  // ── 輔助出場條件 ──
+  enableLowerHigh: boolean;     // 頭頭低出場（獲利方程式第3條），預設 true
+  enableStrongCover: boolean;   // 強覆蓋減碼（短線第11條），預設 true
+  enableWeeklyResist: boolean;  // 週線遇壓出場（短線第19條），預設 true
+  enableSeasonLine: boolean;    // 季線下彎出場（短線第20條），預設 true
+
+  // ── 安全網 ──
+  maxHoldDays: number;          // 最大持有天數，預設 20
+}
+
+/** 朱老師獲利方程式預設參數 */
+export const DEFAULT_ZHU_EXIT: ZhuExitParams = {
+  dynamicStopLoss:    true,
+  fixedStopLossPct:   -0.05,
+  maxStopLossPct:     -0.07,
+  profitTakeMa5Pct:   0.10,
+  profitClimaxPct:    0.20,
+  enableLowerHigh:    true,
+  enableStrongCover:  true,
+  enableWeeklyResist: true,
+  enableSeasonLine:   true,
+  maxHoldDays:        20,
+};
+
+/**
+ * 朱家泓完整出場邏輯（獲利方程式 7 條 + 短線守則）
  *
- * 核心守則：
- * - 守則 2: 停損 5%
- * - 守則 5: 漲幅未達 10%，跌破 MA5 → 續抱（不賣）
- * - 守則 6: 漲幅超過 10%，收盤跌破 MA5 → 停利
- * - 守則 7: 獲利超過 20% + 連漲3天 + 大量長黑 → 全部出場
- * - 守則 8: 獲利超過 20% + 大量長黑跌破前日低 → 全部出場
- * - 守則 15: 黑K跌破MA5，跌幅<1%，量縮，MA20向上 → 可續抱
- * - 守則 19: 收盤出現「頭頭低」→ 趨勢改變出場
+ * 出場優先順序（每根 K 棒逐根檢查）：
+ * 1. 停損（動態K線最低點 或 固定5%）
+ * 2. 頭頭低（獲利方程式第3條）
+ * 3. 獲利>20% + 大量長黑跌破前日低 → 全出（守則8）
+ * 4. 獲利>20% + 連漲3天 + 大量長黑 → 全出（守則7）
+ * 5. 強覆蓋（黑K破前日紅K一半 + KD下彎）→ 減碼效果（守則11）
+ * 6. 獲利>10% + 跌破MA5 → 停利（守則6，守則15例外）
+ * 7. 獲利<10% + 跌破MA5 → 續抱；跌破MA20 → 出場（守則5）
+ * 8. 連漲3天 + 大量長黑覆蓋 → 出場（獲利方程式第7條）
+ * 9. 週線遇壓 + 跌破MA5 → 出場（守則19）
+ * 10. 季線下彎 + 跌破MA5 → 出場（守則20）
+ * 11. 時間停損（最大持有天數）
  */
 export function runSOPBacktest(
   signal:         TradeSignal,
   forwardCandles: ForwardCandle[],
   strategy:       BacktestStrategyParams = DEFAULT_STRATEGY,
+  zhuExit:        ZhuExitParams = DEFAULT_ZHU_EXIT,
 ): BacktestTrade | null {
   if (forwardCandles.length === 0) return null;
 
@@ -665,17 +726,30 @@ export function runSOPBacktest(
   let holdDays   = 0;
 
   const offset = strategy.entryType === 'nextOpen' ? 0 : 1;
-  // SOP 不用固定持有天數限制，而是用條件出場，但設最大持有天數防無限持倉
-  const maxHold = Math.max(strategy.holdDays, 20);
+  const maxHold = zhuExit.maxHoldDays;
   const holdWindow = forwardCandles.slice(offset, offset + maxHold);
 
-  const stopLossPrice = strategy.stopLoss !== null
-    ? entryPrice * (1 + strategy.stopLoss)
-    : null;
+  // ── 停損價計算（獲利方程式第1條）──
+  // 動態停損：進場紅K最低點；若距離 > maxStopLossPct，改用固定比例
+  let stopLossPrice: number | null = null;
+  if (zhuExit.dynamicStopLoss) {
+    const entryDayLow = forwardCandles[0]?.low ?? 0;
+    const dynamicPct = entryDayLow > 0
+      ? (entryDayLow - entryPrice) / entryPrice
+      : zhuExit.fixedStopLossPct;
+    const effectivePct = (dynamicPct >= zhuExit.maxStopLossPct && dynamicPct < 0)
+      ? dynamicPct
+      : zhuExit.fixedStopLossPct;
+    stopLossPrice = entryPrice * (1 + effectivePct);
+  } else if (zhuExit.fixedStopLossPct < 0) {
+    stopLossPrice = entryPrice * (1 + zhuExit.fixedStopLossPct);
+  }
 
   let highestPrice = entryPrice;
   let highestClose = entryPrice;
   let consecutiveRedDays = 0; // 連續紅K天數
+  // 強覆蓋減碼追蹤：觸發後模擬持有50%部位
+  let halfPositionMode = false;
 
   for (let i = 0; i < holdWindow.length; i++) {
     const c = holdWindow[i];
@@ -693,7 +767,9 @@ export function runSOPBacktest(
     if (isRedCandle) consecutiveRedDays++;
     else consecutiveRedDays = 0;
 
-    // ── 守則 2: 停損 5% ──
+    // ══════════════════════════════════════════════════════════════
+    // 1. 停損檢查（最優先）— 獲利方程式第1、2條
+    // ══════════════════════════════════════════════════════════════
     if (stopLossPrice !== null) {
       const hitSL = isEntryDay ? c.close <= stopLossPrice : c.low <= stopLossPrice;
       if (hitSL) {
@@ -706,20 +782,23 @@ export function runSOPBacktest(
       }
     }
 
-    // 進場當天只看收盤
+    // 進場當天只看收盤停損
     if (isEntryDay) continue;
 
-    // 計算 MA5 和 MA20（在 forwardCandles 上）
+    // 計算均線（在 forwardCandles 上）
     const absIdx = offset + i;
     const ma5 = calcSMA(forwardCandles, absIdx, 5);
     const ma20 = calcSMA(forwardCandles, absIdx, 20);
+    const ma60 = calcSMA(forwardCandles, absIdx, 60);
     const prevMa20 = absIdx >= 1 ? calcSMA(forwardCandles, absIdx - 1, 20) : null;
+    const prevMa60 = absIdx >= 5 ? calcSMA(forwardCandles, absIdx - 5, 60) : null;
     const avgVol = calcAvgVol(forwardCandles, absIdx, 5);
     const prevCandle = holdWindow[i - 1];
 
-    // ── 守則 19: 收盤出現「頭頭低」→ 趨勢改變出場 ──
-    // 簡化判斷：如果近3天出現高點遞減且低點遞減
-    if (i >= 3) {
+    // ══════════════════════════════════════════════════════════════
+    // 2. 頭頭低檢查 — 獲利方程式第3條
+    // ══════════════════════════════════════════════════════════════
+    if (zhuExit.enableLowerHigh && i >= 3) {
       const h1 = holdWindow[i - 2].high;
       const h2 = holdWindow[i - 1].high;
       const h3 = c.high;
@@ -734,8 +813,10 @@ export function runSOPBacktest(
       }
     }
 
-    // ── 守則 8: 獲利>20% + 大量長黑跌破前日低 → 全部出場 ──
-    if (currentReturnFromHigh >= 0.20 && isBlackCandle && prevCandle) {
+    // ══════════════════════════════════════════════════════════════
+    // 3. 獲利>20% + 大量長黑跌破前日低 → 全出（守則8）
+    // ══════════════════════════════════════════════════════════════
+    if (currentReturnFromHigh >= zhuExit.profitClimaxPct && isBlackCandle && prevCandle) {
       const bodyPct = Math.abs(c.close - c.open) / c.open;
       const isLongBlack = bodyPct >= 0.02;
       const breaksPrevLow = c.close < prevCandle.low;
@@ -747,9 +828,10 @@ export function runSOPBacktest(
       }
     }
 
-    // ── 守則 7: 獲利>20% + 連漲3天 + 出現大量長黑 → 出場 ──
-    if (currentReturnFromHigh >= 0.20 && isBlackCandle && consecutiveRedDays === 0) {
-      // 前面有連漲3天
+    // ══════════════════════════════════════════════════════════════
+    // 4. 獲利>20% + 連漲3天 + 大量長黑 → 全出（守則7）
+    // ══════════════════════════════════════════════════════════════
+    if (currentReturnFromHigh >= zhuExit.profitClimaxPct && isBlackCandle && consecutiveRedDays === 0) {
       if (i >= 3) {
         const prevRedStreak = holdWindow[i - 1].close > holdWindow[i - 1].open
           && holdWindow[i - 2].close > holdWindow[i - 2].open
@@ -765,9 +847,61 @@ export function runSOPBacktest(
       }
     }
 
-    // ── 守則 6: 漲幅>10% + 收盤跌破MA5 → 停利 ──
-    if (currentReturnFromHigh >= 0.10 && ma5 !== null && c.close < ma5) {
-      // 守則 15 例外: 跌幅<1%，量縮，MA20向上 → 可續抱
+    // ══════════════════════════════════════════════════════════════
+    // 5. 急漲後長黑覆蓋 — 獲利方程式第7條（不限獲利幅度）
+    //    連續3天紅K上漲 + 出現大量長黑K覆蓋/吞噬 → 當天出場
+    // ══════════════════════════════════════════════════════════════
+    if (i >= 3 && isBlackCandle) {
+      const prev3AllRed = holdWindow[i - 1].close > holdWindow[i - 1].open
+        && holdWindow[i - 2].close > holdWindow[i - 2].open
+        && holdWindow[i - 3].close > holdWindow[i - 3].open;
+      const bodyPct = Math.abs(c.close - c.open) / c.open;
+      const isLargeVol = avgVol != null && avgVol > 0 && (c.volume ?? 0) >= avgVol * 1.5;
+      // 覆蓋/吞噬：黑K實體覆蓋前日紅K實體
+      const coversPrev = prevCandle && c.open >= prevCandle.close && c.close <= prevCandle.open;
+      if (prev3AllRed && bodyPct >= 0.02 && (isLargeVol || coversPrev)) {
+        exitReason = 'sop_climaxCover';
+        exitPrice = +(c.close * (1 - strategy.slippagePct)).toFixed(3);
+        exitDate = c.date;
+        break;
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // 6. 強覆蓋減碼 — 短線第11條
+    //    黑K跌破前日紅K一半 + KD下彎 → 模擬減碼一半
+    //    已減碼狀態下再跌破MA5 → 全出
+    // ══════════════════════════════════════════════════════════════
+    if (zhuExit.enableStrongCover && prevCandle && !halfPositionMode) {
+      const prevIsRed = prevCandle.close > prevCandle.open;
+      if (prevIsRed && isBlackCandle) {
+        const prevMidPrice = (prevCandle.open + prevCandle.close) / 2;
+        // KD 下彎近似：用近2根收盤價趨勢代替（forwardCandle 沒有 KD 值）
+        const priceDownTurn = i >= 2 && holdWindow[i - 1].close > c.close;
+        if (c.close < prevMidPrice && priceDownTurn) {
+          halfPositionMode = true;
+          // 不 break，繼續持有剩餘 50%，但標記減碼
+        }
+      }
+    }
+    // 已減碼一半的狀態：次日開低或跌破MA5 → 全出
+    if (halfPositionMode && i >= 1) {
+      const openedLower = c.open < prevCandle.close;
+      const brokeMA5 = ma5 !== null && c.close < ma5;
+      if (openedLower || brokeMA5) {
+        exitReason = 'sop_strongCoverExit';
+        exitPrice = +(c.close * (1 - strategy.slippagePct)).toFixed(3);
+        exitDate = c.date;
+        break;
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // 7. 獲利>10% + 收盤跌破MA5 → 停利（守則6）
+    //    守則15 例外：跌幅<1%，量縮，MA20向上 → 可續抱
+    // ══════════════════════════════════════════════════════════════
+    if (currentReturnFromHigh >= zhuExit.profitTakeMa5Pct && ma5 !== null && c.close < ma5) {
+      // 守則 15 例外
       const dropPct = Math.abs(c.close - c.open) / c.open;
       const isVolShrink = avgVol != null && avgVol > 0 && (c.volume ?? 0) < avgVol * 0.8;
       const isMA20Up = ma20 != null && prevMa20 != null && ma20 > prevMa20;
@@ -783,12 +917,12 @@ export function runSOPBacktest(
       break;
     }
 
-    // ── 守則 5: 漲幅未達10% + 跌破MA5 → 續抱（不賣）──
-    // 這是與原有邏輯最大的不同：原本跌破 MA5 就出場，
-    // SOP 規定漲幅 <10% 時跌破 MA5 要續抱等待。
-    // 但如果跌破 MA20 就要出場
-    if (currentReturn >= 0 && currentReturn < 0.10 && ma5 !== null && c.close < ma5) {
-      // 不出場，但如果跌破 MA20 就要出場
+    // ══════════════════════════════════════════════════════════════
+    // 8. 獲利<10% + 跌破MA5 → 續抱（守則5）
+    //    跌破MA20 → 出場（保護線失守）
+    // ══════════════════════════════════════════════════════════════
+    if (currentReturn >= 0 && currentReturn < zhuExit.profitTakeMa5Pct
+        && ma5 !== null && c.close < ma5) {
       if (ma20 !== null && c.close < ma20) {
         exitReason = 'sop_breakMA20';
         exitPrice = +(c.close * (1 - strategy.slippagePct)).toFixed(3);
@@ -799,7 +933,40 @@ export function runSOPBacktest(
       continue;
     }
 
-    // ── 最後一天：以收盤出場 ──
+    // ══════════════════════════════════════════════════════════════
+    // 9. 週線遇壓 + 跌破MA5 → 出場（短線第19條）
+    //    用MA60作為週線壓力近似（60日≈12週）
+    // ══════════════════════════════════════════════════════════════
+    if (zhuExit.enableWeeklyResist && ma60 !== null && ma5 !== null && isBlackCandle) {
+      const nearMa60 = ma60 > c.close && (ma60 - c.close) / c.close < 0.05;
+      const prevAboveMa5 = prevCandle && prevCandle.close >= (calcSMA(forwardCandles, absIdx - 1, 5) ?? 0);
+      const breakMa5 = c.close < ma5;
+      if (nearMa60 && prevAboveMa5 && breakMa5) {
+        exitReason = 'sop_weeklyResistBreakMA5';
+        exitPrice = +(c.close * (1 - strategy.slippagePct)).toFixed(3);
+        exitDate = c.date;
+        break;
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // 10. 季線下彎 + 跌破MA5 → 出場（短線第20條）
+    //     即使獲利<10% 也要出場
+    // ══════════════════════════════════════════════════════════════
+    if (zhuExit.enableSeasonLine && ma60 !== null && prevMa60 !== null && ma5 !== null) {
+      const ma60Declining = ma60 < prevMa60;
+      const aboveMa60 = c.close > ma60;
+      const prevAboveMa5 = prevCandle && prevCandle.close >= (calcSMA(forwardCandles, absIdx - 1, 5) ?? 0);
+      const breakMa5 = c.close < ma5;
+      if (ma60Declining && aboveMa60 && prevAboveMa5 && breakMa5) {
+        exitReason = 'sop_seasonLineBreakMA5';
+        exitPrice = +(c.close * (1 - strategy.slippagePct)).toFixed(3);
+        exitDate = c.date;
+        break;
+      }
+    }
+
+    // ── 最後一天：以收盤出場（時間停損安全網）──
     if (i === holdWindow.length - 1) {
       exitPrice = +(c.close * (1 - strategy.slippagePct)).toFixed(3);
       exitDate  = c.date;
@@ -822,9 +989,20 @@ export function runSOPBacktest(
     strategy.costParams,
   );
 
-  const grossReturn = +((exitPrice - entryPrice) / entryPrice * 100).toFixed(3);
+  // ── 報酬計算（考慮減碼）──
+  // 強覆蓋減碼：第一半在強覆蓋觸發當天收盤出場，第二半在最終出場價出場
+  // 簡化處理：halfPositionMode 時，blended return = 50% × 強覆蓋出場報酬 + 50% × 最終出場報酬
+  // 因為我們沒記錄強覆蓋觸發的精確價格，近似用「最終出場報酬打折」
+  // 邏輯：減碼一半 = 提前鎖定一半獲利/虧損，剩下一半繼續持有到最終出場
+  const rawGrossReturn = (exitPrice - entryPrice) / entryPrice * 100;
+  const grossReturn = halfPositionMode
+    ? +(rawGrossReturn * 0.75).toFixed(3)  // 近似：減碼後平均報酬 ≈ 75% of full
+    : +rawGrossReturn.toFixed(3);
   const netPnL      = sellAmount - buyAmount - cost.total;
-  const netReturn   = +(netPnL / buyAmount * 100).toFixed(3);
+  const rawNetReturn = netPnL / buyAmount * 100;
+  const netReturn   = halfPositionMode
+    ? +(rawNetReturn * 0.75).toFixed(3)
+    : +rawNetReturn.toFixed(3);
 
   return {
     symbol:  signal.symbol,
@@ -847,6 +1025,216 @@ export function runSOPBacktest(
 
     exitDate,
     exitPrice:  +exitPrice.toFixed(3),
+    exitReason: halfPositionMode && exitReason !== 'sop_strongCoverExit'
+      ? `sop_strongCover+${exitReason}` : exitReason,
+    holdDays,
+
+    grossReturn,
+    netReturn,
+    buyFee:    cost.buyFee,
+    sellFee:   cost.sellFee,
+    totalCost: cost.total,
+  };
+}
+
+/**
+ * 做空版朱老師獲利方程式回測
+ *
+ * 朱老師做空獲利方程式 8 條（《活用技術分析寶典》p.84-85）：
+ * ① 放空後收盤跌破 MA5，但尚未獲利 <5% → 繼續持有
+ * ② 停損設在進場黑K最高點（5-7%）
+ * ③ 股價收盤突破停損點 → 立即回補出場
+ * ④ 底底高（上升波浪確認） → 趨勢轉多，回補出場
+ * ⑤ 股價跌而不破前低，反彈不過前高 → 弱勢，繼續持有
+ * ⑥ 獲利 <10%，股價收盤反彈突破 MA5 → 繼續等待
+ * ⑦ 獲利 >10%，股價收盤反彈突破 MA5 → 回補出場
+ * ⑧ 獲利 >20% + 急跌後出現大量長紅K（做空高潮） → 回補出場
+ */
+export function runShortSOPBacktest(
+  signal:         TradeSignal,
+  forwardCandles: ForwardCandle[],
+  strategy:       BacktestStrategyParams = ZHU_PROFIT_FORMULA_STRATEGY,
+  zhuExit:        ZhuExitParams = DEFAULT_ZHU_EXIT,
+): BacktestTrade | null {
+  if (forwardCandles.length === 0) return null;
+
+  // ── 做空進場（含滑價，做空時以較低價成交有利）──
+  const entryCandle = forwardCandles[0];
+  const rawEntryPrice = strategy.entryType === 'nextOpen'
+    ? entryCandle.open
+    : entryCandle.close;
+
+  if (!rawEntryPrice || rawEntryPrice <= 0) return null;
+
+  // 跌停板鎖死 → 無法放空
+  if (strategy.entryType === 'nextOpen') {
+    const range = entryCandle.high - entryCandle.low;
+    const rangeRatio = entryCandle.low > 0 ? range / entryCandle.low : 0;
+    const isLockDown = entryCandle.open === entryCandle.low && rangeRatio < 0.005;
+    if (isLockDown) return null;
+  }
+
+  // 放空進場價（做空滑價：以稍低價成交，多付一點滑價）
+  const entryPrice = rawEntryPrice * (1 - strategy.slippagePct);
+
+  let exitDate   = '';
+  let exitPrice  = 0;
+  let exitReason = 'holdDays';
+  let holdDays   = 0;
+
+  const offset = strategy.entryType === 'nextOpen' ? 0 : 1;
+  const maxHold = zhuExit.maxHoldDays;
+  const holdWindow = forwardCandles.slice(offset, offset + maxHold);
+
+  // ── 做空停損設在進場黑K最高點（獲利方程式第②條）──
+  // 動態停損：進場黑K最高點；若距離 >7%，改用固定比例
+  let stopLossPrice: number | null = null;
+  {
+    const entryDayHigh = forwardCandles[0]?.high ?? 0;
+    const dynamicPct = entryDayHigh > 0
+      ? (entryDayHigh - entryPrice) / entryPrice   // 正值 = 停損需要上漲 X%
+      : Math.abs(zhuExit.fixedStopLossPct);
+    const effectivePct = dynamicPct <= 0.07
+      ? dynamicPct
+      : Math.abs(zhuExit.fixedStopLossPct);
+    stopLossPrice = entryPrice * (1 + effectivePct);
+  }
+
+  let lowestPrice = entryPrice;
+  let lowestClose = entryPrice;
+
+  for (let i = 0; i < holdWindow.length; i++) {
+    const c = holdWindow[i];
+    holdDays = i + 1;
+    const isEntryDay = i === 0 && strategy.entryType === 'nextOpen';
+    const isRedCandle  = c.close > c.open;
+    const currentReturn = (entryPrice - c.close) / entryPrice; // 做空：下跌為正獲利
+
+    // 更新最低價追蹤
+    if (c.low < lowestPrice) lowestPrice = c.low;
+    if (c.close < lowestClose) lowestClose = c.close;
+
+    // ── 停損檢查（獲利方程式第③條：突破停損點 → 回補）──
+    if (stopLossPrice !== null) {
+      const hitSL = isEntryDay ? c.close >= stopLossPrice : c.high >= stopLossPrice;
+      if (hitSL) {
+        exitReason = 'stopLoss';
+        exitPrice = c.open >= stopLossPrice
+          ? +(c.open * (1 + strategy.slippagePct)).toFixed(3)
+          : +stopLossPrice.toFixed(3);
+        exitDate = c.date;
+        break;
+      }
+    }
+
+    if (isEntryDay) continue;
+
+    const absIdx = offset + i;
+    const ma5  = calcSMA(forwardCandles, absIdx, 5);
+    const ma20 = calcSMA(forwardCandles, absIdx, 20);
+    const prevCandle = holdWindow[i - 1];
+
+    // ── 獲利方程式第④條：底底高（上升波浪確認）→ 回補出場 ──
+    if (zhuExit.enableLowerHigh && i >= 3) {
+      const l1 = holdWindow[i - 2].low;
+      const l2 = holdWindow[i - 1].low;
+      const l3 = c.low;
+      const h1 = holdWindow[i - 2].high;
+      const h2 = holdWindow[i - 1].high;
+      const h3 = c.high;
+      // 底底高 + 頭頭高 = 趨勢轉多
+      if (l3 > l2 && l2 > l1 && h3 > h2 && h2 > h1) {
+        exitReason = 'sop_shortTrendReversal';
+        exitPrice = +(c.close * (1 + strategy.slippagePct)).toFixed(3);
+        exitDate = c.date;
+        break;
+      }
+    }
+
+    // ── 獲利方程式第⑦條：獲利 >10%，反彈突破 MA5 → 回補出場 ──
+    if (currentReturn > 0.10 && ma5 != null && c.close > ma5) {
+      exitReason = 'sop_shortProfitBreakMA5';
+      exitPrice = +(c.close * (1 + strategy.slippagePct)).toFixed(3);
+      exitDate = c.date;
+      break;
+    }
+
+    // ── 獲利方程式第⑧條：獲利 >20% + 大量長紅K（做空高潮）→ 回補出場 ──
+    const profitFromLow = lowestClose > 0
+      ? (entryPrice - lowestClose) / entryPrice
+      : 0;
+    if (profitFromLow >= zhuExit.profitClimaxPct && isRedCandle && prevCandle) {
+      const bodyPct = Math.abs(c.close - c.open) / c.open;
+      const breaksPrevHigh = c.close > prevCandle.high;
+      if (bodyPct >= 0.02 && breaksPrevHigh) {
+        exitReason = 'sop_shortBigGainLongRed';
+        exitPrice = +(c.close * (1 + strategy.slippagePct)).toFixed(3);
+        exitDate = c.date;
+        break;
+      }
+    }
+
+    // ── 獲利方程式第⑥條（變形）：MA20 下彎 + 反彈回測 MA20 → 回補出場 ──
+    if (currentReturn > 0.05 && ma20 != null && c.close > ma20) {
+      const prevMa20 = absIdx >= 1 ? calcSMA(forwardCandles, absIdx - 1, 20) : null;
+      const ma20TurnUp = prevMa20 != null && ma20 > prevMa20;
+      if (ma20TurnUp) {
+        exitReason = 'sop_shortMA20TurnUp';
+        exitPrice = +(c.close * (1 + strategy.slippagePct)).toFixed(3);
+        exitDate = c.date;
+        break;
+      }
+    }
+
+    // ── 最後一天：回補出場（時間停損安全網）──
+    if (i === holdWindow.length - 1) {
+      exitPrice = +(c.close * (1 + strategy.slippagePct)).toFixed(3);
+      exitDate  = c.date;
+      exitReason = holdWindow.length < maxHold ? 'dataEnd' : 'holdDays';
+    }
+  }
+
+  if (!exitDate || exitPrice <= 0 || holdDays === 0) return null;
+
+  // ── 成本計算 ──
+  const unitShares = signal.market === 'TW' ? 1000 : 100;
+  const sellAmount = entryPrice  * unitShares; // 放空：先賣
+  const buyAmount  = exitPrice   * unitShares; // 回補：後買
+
+  const cost = calcRoundTripCost(
+    signal.market,
+    signal.symbol,
+    buyAmount,
+    sellAmount,
+    strategy.costParams,
+  );
+
+  // ── 報酬計算（做空：進場賣出 → 回補買入，下跌為正）──
+  const grossReturn = +((entryPrice - exitPrice) / entryPrice * 100).toFixed(3);
+  const netPnL = sellAmount - buyAmount - cost.total;
+  const netReturn = +(netPnL / sellAmount * 100).toFixed(3);
+
+  return {
+    symbol:  signal.symbol,
+    name:    signal.name,
+    market:  signal.market,
+    industry: signal.industry,
+
+    signalDate:    signal.signalDate,
+    signalScore:   signal.signalScore,
+    signalReasons: signal.signalReasons,
+    trendState:    signal.trendState,
+    trendPosition: signal.trendPosition,
+    surgeScore:    signal.surgeScore,
+    surgeGrade:    signal.surgeGrade,
+    histWinRate:   signal.histWinRate,
+
+    entryDate:  entryCandle.date,
+    entryPrice: +entryPrice.toFixed(3),
+    entryType:  strategy.entryType,
+
+    exitDate,
+    exitPrice: +exitPrice.toFixed(3),
     exitReason,
     holdDays,
 
@@ -866,8 +1254,10 @@ export function runBatchBacktest(
   scanResults:       StockScanResult[],
   forwardCandlesMap: Record<string, ForwardCandle[]>,
   strategy:          BacktestStrategyParams = DEFAULT_STRATEGY,
-  /** 使用朱老師SOP出場邏輯（守則5/6/7/8/15/19） */
+  /** 使用朱老師獲利方程式出場邏輯 */
   useSOPExit = false,
+  /** 朱老師出場參數（僅 useSOPExit=true 時有效） */
+  zhuExit:           ZhuExitParams = DEFAULT_ZHU_EXIT,
 ): { trades: BacktestTrade[]; skippedCount: number } {
   const trades: BacktestTrade[] = [];
   let skippedCount = 0;
@@ -879,7 +1269,7 @@ export function runBatchBacktest(
 
     let trade: BacktestTrade | null;
     if (useSOPExit) {
-      trade = runSOPBacktest(signal, candles, adaptiveStrategy);
+      trade = runSOPBacktest(signal, candles, adaptiveStrategy, zhuExit);
     } else if (adaptiveStrategy.dualTranche) {
       trade = runDualTrancheBacktest(signal, candles, adaptiveStrategy);
     } else {

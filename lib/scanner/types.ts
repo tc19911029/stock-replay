@@ -84,6 +84,19 @@ export interface StockScanResult {
   // ── 淘汰法 ────────────────────────────────────────────────────────────
   eliminationReasons?: string[];      // 淘汰原因
   eliminationPenalty?: number;        // 淘汰扣分
+  // ── 做空方向 ──────────────────────────────────────────────────────────────
+  direction?: 'long' | 'short';              // 做多/做空方向
+  shortSixConditionsScore?: number;          // 0–6
+  shortSixConditionsBreakdown?: {
+    trend: boolean;
+    ma: boolean;
+    position: boolean;
+    volume: boolean;
+    kbar: boolean;
+    indicator: boolean;
+  };
+  // ── 10大戒律 ──────────────────────────────────────────────────────────────
+  entryProhibitionReasons?: string[];        // 觸發的戒律說明（有值代表被禁止）
   // ── AI 排名 ───────────────────────────────────────────────────────────────
   aiRank?: number;
   aiConfidence?: 'high' | 'medium' | 'low';

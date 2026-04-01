@@ -4,10 +4,14 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useDaytradeStore } from '@/store/daytradeStore';
 import type { IntradayTimeframe } from '@/lib/daytrade/types';
+import { PositionCalculator, TradeJournal } from '@/features/daytrade';
 import { MultiTFPanel } from '@/components/daytrade/MultiTFPanel';
 import { TradeAccountPanel } from '@/components/daytrade/TradeAccountPanel';
 import { SignalListPanel } from '@/components/daytrade/SignalListPanel';
+import { ValidationPanel } from '@/components/daytrade/ValidationPanel';
 import { EODReportPanel } from '@/components/daytrade/EODReportPanel';
+import { SignalBacktestPanel } from '@/components/daytrade/SignalBacktestPanel';
+import { StrategyOptimizerPanel } from '@/components/daytrade/StrategyOptimizerPanel';
 import { IntradayChartFull } from '@/components/daytrade/IntradayChartFull';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -53,10 +57,14 @@ function saveCustomStocks(stocks: typeof DEFAULT_QUICK_STOCKS) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const SIDE_TABS = [
-  { key: 'signals',  label: '訊號' },
-  { key: 'trade',    label: '交易' },
   { key: 'mtf',      label: '多週期' },
+  { key: 'trade',    label: '交易/帳戶' },
+  { key: 'signals',  label: '訊號' },
+  { key: 'validate', label: '驗證' },
   { key: 'eod',      label: '結算' },
+  { key: 'sigbt',    label: '訊號回測' },
+  { key: 'optim',    label: '策略優化' },
+  { key: 'posjnl',  label: '倉位/日誌' },
 ] as const;
 
 type SideTabKey = typeof SIDE_TABS[number]['key'];
@@ -83,7 +91,7 @@ export default function LiveDaytradePage() {
     startReplay, stopReplay, nextBar, setReplaySpeed,
   } = useDaytradeStore();
 
-  const [sideTab, setSideTab] = useState<SideTabKey>('signals');
+  const [sideTab, setSideTab] = useState<SideTabKey>('mtf');
   const [input, setInput] = useState(symbol);
   const [showDrop, setShowDrop] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -393,29 +401,32 @@ export default function LiveDaytradePage() {
         {/* Right: Sidebar */}
         <div className="w-72 shrink-0 flex flex-col min-h-0 gap-2">
           {/* Tab switcher */}
-          {/* Tab header + 舊版連結 */}
-          <div className="shrink-0 flex items-center gap-1">
-            <div className="flex flex-1 rounded-lg overflow-hidden border border-slate-700 text-xs">
-              {SIDE_TABS.map(t => (
-                <button key={t.key} onClick={() => setSideTab(t.key)}
-                  className={`flex-1 py-1.5 font-medium transition-colors ${
-                    sideTab === t.key ? 'bg-violet-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                  }`}>
-                  {t.label}
-                </button>
-              ))}
-            </div>
-            <Link href="/v1/live-daytrade" className="text-[10px] text-slate-600 hover:text-slate-400 px-1" title="舊版當沖">
-              舊版
-            </Link>
+          <div className="shrink-0 flex rounded-lg overflow-hidden border border-slate-700 text-xs">
+            {SIDE_TABS.map(t => (
+              <button key={t.key} onClick={() => setSideTab(t.key)}
+                className={`flex-1 py-1.5 font-medium transition-colors ${
+                  sideTab === t.key ? 'bg-violet-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                }`}>
+                {t.label}
+              </button>
+            ))}
           </div>
 
-          {/* Tab content — 精簡為 4 個 */}
+          {/* Tab content */}
           <div className="flex-1 min-h-0 overflow-y-auto pr-0.5">
-            {sideTab === 'signals' && <SignalListPanel />}
-            {sideTab === 'trade' && <TradeAccountPanel />}
             {sideTab === 'mtf' && <MultiTFPanel />}
+            {sideTab === 'trade' && <TradeAccountPanel />}
+            {sideTab === 'signals' && <SignalListPanel />}
+            {sideTab === 'validate' && <ValidationPanel />}
             {sideTab === 'eod' && <EODReportPanel />}
+            {sideTab === 'sigbt' && <SignalBacktestPanel symbol={symbol} />}
+            {sideTab === 'optim' && <StrategyOptimizerPanel symbol={symbol} />}
+            {sideTab === 'posjnl' && (
+              <div className="space-y-4 p-1">
+                <PositionCalculator />
+                <TradeJournal />
+              </div>
+            )}
           </div>
         </div>
       </div>

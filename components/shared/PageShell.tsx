@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   Moon, Sun, TrendingUp,
   BarChart2, ScanSearch, Activity, FileBarChart, Settings2,
-  Star, Briefcase, Settings, Menu, BookOpen, FlaskConical,
+  Star, Briefcase, Settings, Menu, BookOpen, FlaskConical, GitCompare,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,7 @@ import { useState } from 'react';
 
 const PRIMARY_NAV = [
   { href: '/',           label: '走圖',   icon: BarChart2 },
-  { href: '/scan',       label: '掃描',   icon: ScanSearch },
+  { href: '/scanner',    label: '掃描',   icon: ScanSearch },
   { href: '/live-daytrade', label: '當沖', icon: Activity },
   { href: '/report',     label: '報表',   icon: FileBarChart },
   { href: '/strategies', label: '策略',   icon: Settings2 },
@@ -28,6 +28,7 @@ const PRIMARY_NAV = [
 
 /** Page-specific brand title shown in the logo area */
 function getBrandTitle(pathname: string): string {
+  if (pathname.startsWith('/scanner')) return '選股神器';
   if (pathname.startsWith('/scan')) return '選股神器';
   if (pathname.startsWith('/live-daytrade')) return '當沖神器';
   if (pathname.startsWith('/rule-group-analysis')) return '規則回測';
@@ -38,6 +39,7 @@ const SECONDARY_NAV = [
   { href: '/watchlist',  label: '自選股', icon: Star },
   { href: '/portfolio',  label: '持倉',   icon: Briefcase },
   { href: '/rule-group-analysis', label: '規則回測', icon: FlaskConical },
+  { href: '/ab-test',    label: 'A/B測試', icon: GitCompare },
   { href: '/settings',   label: '設定',   icon: Settings },
 ] as const;
 

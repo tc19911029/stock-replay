@@ -15,8 +15,10 @@ const scannerChunkSchema = z.object({
   strategyId: z.string().optional(),
   thresholds: z.record(z.string(), z.unknown()).optional(),
   date:       z.string().optional(),
-  /** 掃描模式：full=完整管線, pure=純朱家泓六大條件 */
-  mode:       z.enum(['full', 'pure']).default('full'),
+  /** 掃描模式：full=完整管線, pure=純朱家泓六大條件, sop=V2簡化版(六條件+戒律+淘汰法) */
+  mode:       z.enum(['full', 'pure', 'sop']).default('full'),
+  /** 排序因子（sop 模式用） */
+  rankBy:     z.enum(['composite', 'surge', 'smartMoney', 'sixConditions', 'histWinRate']).default('sixConditions'),
 });
 
 export async function POST(req: NextRequest) {
@@ -39,13 +41,15 @@ export async function POST(req: NextRequest) {
 
   try {
     const scanner = market === 'CN' ? new ChinaScanner() : new TaiwanScanner();
-    const isPure = parsed.data.mode === 'pure';
+    const mode = parsed.data.mode;
 
     let scanResult;
-    if (isPure && asOfDate) {
+    if (mode === 'sop') {
+      // V2 簡化版：純朱老師 SOP（六條件+戒律+淘汰法）
+      scanResult = await scanner.scanSOP(stocks, asOfDate, thresholds, parsed.data.rankBy);
+    } else if (mode === 'pure' && asOfDate) {
       scanResult = await scanner.scanListAtDatePure(stocks, asOfDate, thresholds);
-    } else if (isPure) {
-      // Live scan with pure mode — use the same date-based method with today
+    } else if (mode === 'pure') {
       const today = new Date().toISOString().split('T')[0];
       scanResult = await scanner.scanListAtDatePure(stocks, today, thresholds);
     } else if (asOfDate) {

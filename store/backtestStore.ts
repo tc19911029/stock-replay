@@ -75,8 +75,8 @@ interface BacktestState {
 
   // ── 模式 ──
   scanOnly: boolean;  // true = 只掃描不回測（今天的掃描）
-  /** 掃描模式：full=完整管線(60規則), pure=純朱家泓(14規則) */
-  scanMode: 'full' | 'pure';
+  /** 掃描模式：full=完整管線, pure=純朱家泓(14規則), sop=V2簡化版(六條件+戒律+淘汰法) */
+  scanMode: 'full' | 'pure' | 'sop';
 
   // ── Actions ──
   setMarket:              (m: MarketId) => void;
@@ -85,7 +85,7 @@ interface BacktestState {
   setCapitalConstraints:  (c: Partial<CapitalConstraints>) => void;
   toggleCapitalMode:      () => void;
   setScanOnly:            (v: boolean) => void;
-  setScanMode:            (m: 'full' | 'pure') => void;
+  setScanMode:            (m: 'full' | 'pure' | 'sop') => void;
   setWalkForwardConfig:   (c: Partial<WalkForwardConfig>) => void;
   computeWalkForward:     () => void;
   runScan:                () => Promise<void>;  // 統一入口（掃描+回測）

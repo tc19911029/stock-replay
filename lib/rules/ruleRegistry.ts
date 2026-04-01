@@ -51,7 +51,8 @@ export type RuleGroupId =
   | 'mkt-sl3-c4'       // 回測虛擬：大盤多頭+停損3%+六條件≥4
   | 'mkt-sl5-c4'       // 回測虛擬：大盤多頭+停損5%+六條件≥4
   | 'mkt-sl3-c5'       // 回測虛擬：大盤多頭+停損3%+六條件≥5
-  | 'mkt-sl5-c5';      // 回測虛擬：大盤多頭+停損5%+六條件≥5
+  | 'mkt-sl5-c5'       // 回測虛擬：大盤多頭+停損5%+六條件≥5
+  | 'zhu-long-term';   // 朱家泓長線操作SOP 8條
 
 // ── 群組介面 ──────────────────────────────────────────────────────────────────
 
@@ -149,6 +150,8 @@ import { BOTTOM_FORMATION_RULES } from './bottomFormationRules';
 import { ENTRY_MISTAKE_RULES } from './entryMistakeRules';
 // 朱家泓《抓住飆股輕鬆賺》
 import { ZHU_SOAR_STOCK_RULES } from './zhuSoarStockRules';
+// 朱家泓長線操作 SOP 8 條
+import { LONG_TERM_SOP_RULES } from './longTermSopRules';
 // 林穎走圖 SOP
 import {
   sopBullConfirmEntry, sopBullPullbackBuy, sopConsolidationBreakout,
@@ -276,8 +279,16 @@ function createDefaultRegistry(): RuleRegistry {
     id: 'zhu-soar-stock',
     name: '朱家泓《抓住飆股輕鬆賺》',
     author: '朱家泓',
-    description: '9種價量關係診斷 + 市場循環4階段偵測 + 位置風險評估 + 巨量後觀察',
+    description: '9種價量關係診斷 + 市場循環4階段 + 位置風險 + 飆股8條件 + 5種量能判斷',
     rules: [...ZHU_SOAR_STOCK_RULES],
+  });
+
+  registry.register({
+    id: 'zhu-long-term',
+    name: '朱家泓長線操作SOP',
+    author: '朱家泓',
+    description: '長線8條：選股3條(月/週/日線) + 操作5條(進場/停損/頭頭低/停利/第2波)',
+    rules: [...LONG_TERM_SOP_RULES],
   });
 
   registry.register({

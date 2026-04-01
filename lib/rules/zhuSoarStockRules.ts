@@ -464,9 +464,309 @@ export const postGiantVolumeWatch: TradingRule = {
   },
 };
 
+// ── Phase 10：飆股 8 條件補齊 ──────────────────────────────────────────────
+
+/**
+ * 飆股條件3: 長期盤整（2月+）、左低右高、過頸線向上突破
+ * 識別長期整理後的突破起漲
+ */
+export const surgeStockLongConsolidationBreak: TradingRule = {
+  id: 'zhu-surge-long-consol-break',
+  name: '飆股：長期盤整突破',
+  description: '長期盤整(2月+)、左低右高、過頸線向上突破',
+  evaluate(candles: CandleWithIndicators[], index: number) {
+    if (index < 60) return null;
+    const c = candles[index];
+
+    // 紅K + 量能放大
+    if (c.close <= c.open) return null;
+    if (c.avgVol5 == null || c.volume < c.avgVol5 * 2.0) return null;
+
+    // 前40根在窄幅盤整（高低振幅 < 15%）
+    const lookback = candles.slice(Math.max(0, index - 40), index);
+    const closes = lookback.map(x => x.close);
+    const maxC = Math.max(...closes);
+    const minC = Math.min(...closes);
+    if (minC <= 0 || (maxC - minC) / minC > 0.15) return null;
+
+    // 左低右高（後半最低 > 前半最低）
+    const half = Math.floor(closes.length / 2);
+    const leftLow = Math.min(...lookback.slice(0, half).map(x => x.low));
+    const rightLow = Math.min(...lookback.slice(half).map(x => x.low));
+    if (rightLow <= leftLow * 1.01) return null;
+
+    // 突破盤整高點（頸線）
+    if (c.close <= maxC) return null;
+
+    return {
+      type: 'BUY' as const,
+      label: '飆股條件3',
+      description: '長期盤整(40天)+左低右高+大量突破頸線',
+      reason: '飆股條件3: 長期盤整(40天)+左低右高+大量突破頸線',
+      ruleId: this.id,
+    };
+  },
+};
+
+/**
+ * 飆股條件4: 雙重底大量突破 + 均線4線多排
+ */
+export const surgeStockDoubleBottomBreak: TradingRule = {
+  id: 'zhu-surge-double-bottom',
+  name: '飆股：雙底大量突破',
+  description: '雙重底+大量突破+均線4線多排',
+  evaluate(candles: CandleWithIndicators[], index: number) {
+    if (index < 40) return null;
+    const c = candles[index];
+
+    // 紅K + 均線4線多排
+    if (c.close <= c.open) return null;
+    if (c.ma5 == null || c.ma10 == null || c.ma20 == null || c.ma60 == null) return null;
+    if (!(c.ma5 > c.ma10 && c.ma10 > c.ma20 && c.ma20 > c.ma60)) return null;
+
+    // 量能放大
+    if (c.avgVol5 == null || c.volume < c.avgVol5 * 1.5) return null;
+
+    // 找前30根的雙底
+    const lookback = candles.slice(Math.max(0, index - 30), index);
+    const lows = lookback.map(x => x.low);
+    const globalLow = Math.min(...lows);
+    if (globalLow <= 0) return null;
+
+    const lowZones: number[] = [];
+    for (let i = 0; i < lows.length; i++) {
+      if (lows[i] <= globalLow * 1.03) {
+        if (lowZones.length === 0 || i - lowZones[lowZones.length - 1] > 5) {
+          lowZones.push(i);
+        }
+      }
+    }
+    if (lowZones.length < 2) return null;
+
+    // 突破頸線
+    const neckline = Math.max(
+      ...lookback.slice(lowZones[0], lowZones[1]).map(x => x.high)
+    );
+    if (c.close <= neckline) return null;
+
+    return {
+      type: 'BUY' as const,
+      label: '飆股條件4',
+      description: '雙重底+均線4線多排+大量突破頸線',
+      reason: '飆股條件4: 雙重底+均線4線多排+大量突破頸線',
+      ruleId: this.id,
+    };
+  },
+};
+
+/**
+ * 飆股條件5: 均線糾結 + 大量紅K上漲
+ */
+export const surgeStockMAClusterBreak: TradingRule = {
+  id: 'zhu-surge-ma-cluster',
+  name: '飆股：均線糾結突破',
+  description: '均線糾結(MA5/10/20在2.5%內)後大量紅K突破',
+  evaluate(candles: CandleWithIndicators[], index: number) {
+    if (index < 20) return null;
+    const c = candles[index];
+    const prev = candles[index - 1];
+
+    // 紅K + 大量
+    if (c.close <= c.open) return null;
+    if ((c.close - c.open) / c.open < 0.02) return null; // 實體 > 2%
+    if (c.avgVol5 == null || c.volume < c.avgVol5 * 2.0) return null;
+
+    // 前一根均線糾結（MA5/10/20 在 2.5% 範圍內）
+    if (prev.ma5 == null || prev.ma10 == null || prev.ma20 == null) return null;
+    const maxMA = Math.max(prev.ma5, prev.ma10, prev.ma20);
+    const minMA = Math.min(prev.ma5, prev.ma10, prev.ma20);
+    if (minMA <= 0 || (maxMA - minMA) / minMA > 0.025) return null;
+
+    // 突破所有均線
+    if (c.close <= maxMA) return null;
+
+    return {
+      type: 'BUY' as const,
+      label: '飆股條件5',
+      description: '均線糾結後大量紅K(>2%)突破',
+      reason: '飆股條件5: 均線糾結後大量紅K(>2%)突破，起漲信號',
+      ruleId: this.id,
+    };
+  },
+};
+
+/**
+ * 飆股條件6: 大量紅K突破空頭長期下降切線，反彈站上月線
+ */
+export const surgeStockDowntrendBreak: TradingRule = {
+  id: 'zhu-surge-downtrend-break',
+  name: '飆股：突破下降切線站上月線',
+  description: '大量紅K突破空頭長期下降切線，反彈站上月線',
+  evaluate(candles: CandleWithIndicators[], index: number) {
+    if (index < 30) return null;
+    const c = candles[index];
+    const prev = candles[index - 1];
+
+    // 紅K + 大量
+    if (c.close <= c.open) return null;
+    if (c.avgVol5 == null || c.volume < c.avgVol5 * 1.5) return null;
+
+    // 站上 MA20（前一根在下方）
+    if (c.ma20 == null || prev.ma20 == null) return null;
+    if (c.close <= c.ma20) return null;
+    if (prev.close >= prev.ma20) return null; // 已經在上方不算
+
+    // 前期有下降趨勢
+    const prev20 = candles.slice(Math.max(0, index - 20), index);
+    const firstHalfHigh = Math.max(...prev20.slice(0, 10).map(x => x.high));
+    const secondHalfHigh = Math.max(...prev20.slice(10).map(x => x.high));
+    if (firstHalfHigh <= secondHalfHigh) return null;
+
+    return {
+      type: 'BUY' as const,
+      label: '飆股條件6',
+      description: '大量紅K突破下降切線，站上月線',
+      reason: '飆股條件6: 大量紅K突破下降切線，站上月線',
+      ruleId: this.id,
+    };
+  },
+};
+
+// ── Phase 10：飆股 5 種量能判斷 ──────────────────────────────────────────
+
+/**
+ * 飆股技術操作規則1-3: 未破上升趨勢線/前2日低價/MA5 → 可續抱
+ * 違反時 → 賣出警示
+ */
+export const surgeStockHoldOrSell: TradingRule = {
+  id: 'zhu-surge-hold-or-sell',
+  name: '飆股續抱/出場判斷',
+  description: '未破前2日低/MA5/無黑K→續抱，2項以上違反→出場',
+  evaluate(candles: CandleWithIndicators[], index: number) {
+    if (index < 10) return null;
+    const c = candles[index];
+
+    // 先確認是在上漲趨勢中（至少 MA5 > MA20）
+    if (c.ma5 == null || c.ma20 == null || c.ma5 <= c.ma20) return null;
+
+    let violations = 0;
+    const reasons: string[] = [];
+
+    // 規則1: 破前2日低價
+    const prev2Low = Math.min(candles[index - 1]?.low ?? Infinity, candles[index - 2]?.low ?? Infinity);
+    if (c.close < prev2Low) { violations++; reasons.push('破前2日低'); }
+
+    // 規則2: 破MA5（3日均線近似）
+    if (c.ma5 != null && c.close < c.ma5) { violations++; reasons.push('破MA5'); }
+
+    // 規則3: 出現黑K
+    if (c.close < c.open) { violations++; reasons.push('出現黑K'); }
+
+    // 2個以上條件違反 → 賣出
+    if (violations >= 2) {
+      return {
+        type: 'SELL' as const,
+        label: '飆股出場',
+        description: `${reasons.join('+')}，${violations}項條件違反`,
+        reason: `飆股出場: ${reasons.join('+')}，${violations}項條件違反`,
+        ruleId: this.id,
+      };
+    }
+
+    return null;
+  },
+};
+
+/**
+ * 飆股量能判斷5種：
+ * 1. 攻擊量（> 2x 均量）+ 紅K = 續攻
+ * 2. 巨量（> 3x 均量）= 可能出貨
+ * 3. 量縮（< 0.7x 均量）+ 紅K = 籌碼惜售
+ * 4. 量縮 + 黑K = 回檔休息
+ * 5. 量增價平 = 主力換手
+ */
+export const surgeStockVolumeJudge: TradingRule = {
+  id: 'zhu-surge-volume-5types',
+  name: '飆股5種量能判斷',
+  description: '攻擊量/巨量/縮量惜售/縮量回檔/量增換手 5種分類',
+  evaluate(candles: CandleWithIndicators[], index: number) {
+    if (index < 5) return null;
+    const c = candles[index];
+    if (c.avgVol5 == null || c.avgVol5 <= 0) return null;
+
+    const volRatio = c.volume / c.avgVol5;
+    const isRedK = c.close > c.open;
+    const changePct = Math.abs(c.close - c.open) / c.open;
+
+    // 1. 攻擊量 + 紅K
+    if (volRatio >= 2.0 && volRatio < 3.0 && isRedK && changePct > 0.015) {
+      return {
+        type: 'WATCH' as const,
+        label: '攻擊量',
+        description: `攻擊量(${volRatio.toFixed(1)}x)+紅K → 續攻信號`,
+        reason: `飆股量能: 攻擊量(${volRatio.toFixed(1)}x)+紅K → 續攻信號`,
+        ruleId: this.id,
+      };
+    }
+
+    // 2. 巨量（可能出貨）
+    if (volRatio >= 3.0) {
+      return {
+        type: 'REDUCE' as const,
+        label: '巨量警戒',
+        description: `巨量(${volRatio.toFixed(1)}x) → 可能出貨`,
+        reason: `飆股量能: 巨量(${volRatio.toFixed(1)}x) → 可能出貨，減碼觀察`,
+        ruleId: this.id,
+      };
+    }
+
+    // 3. 量縮 + 紅K = 惜售
+    if (volRatio < 0.7 && isRedK) {
+      return {
+        type: 'WATCH' as const,
+        label: '縮量惜售',
+        description: `縮量(${volRatio.toFixed(1)}x)+紅K → 籌碼惜售`,
+        reason: `飆股量能: 縮量(${volRatio.toFixed(1)}x)+紅K → 籌碼惜售，續抱`,
+        ruleId: this.id,
+      };
+    }
+
+    // 4. 量縮 + 黑K = 回檔
+    if (volRatio < 0.7 && !isRedK) {
+      return {
+        type: 'WATCH' as const,
+        label: '縮量回檔',
+        description: `縮量(${volRatio.toFixed(1)}x)+黑K → 回檔休息`,
+        reason: `飆股量能: 縮量(${volRatio.toFixed(1)}x)+黑K → 回檔休息，觀察`,
+        ruleId: this.id,
+      };
+    }
+
+    // 5. 量增價平 = 換手
+    if (volRatio >= 1.5 && changePct < 0.005) {
+      return {
+        type: 'WATCH' as const,
+        label: '量增換手',
+        description: `量增(${volRatio.toFixed(1)}x)+價平 → 主力換手`,
+        reason: `飆股量能: 量增(${volRatio.toFixed(1)}x)+價平 → 主力換手`,
+        ruleId: this.id,
+      };
+    }
+
+    return null;
+  },
+};
+
 export const ZHU_SOAR_STOCK_RULES: TradingRule[] = [
   priceVolumeRelation,
   marketCycleStage,
   positionRiskAssess,
   postGiantVolumeWatch,
+  // Phase 10 新增
+  surgeStockLongConsolidationBreak,
+  surgeStockDoubleBottomBreak,
+  surgeStockMAClusterBreak,
+  surgeStockDowntrendBreak,
+  surgeStockHoldOrSell,
+  surgeStockVolumeJudge,
 ];
