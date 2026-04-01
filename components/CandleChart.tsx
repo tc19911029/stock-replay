@@ -309,8 +309,8 @@ export default function CandleChart({
     const converted: SeriesMarker<Time>[] = chartMarkers.map(m => {
       const cfg = MARKER_CONFIG[m.type];
       const s = m.strength ?? 1;
-      // 箭頭長短 = 共振強度（1 最短 → 5 最長）
-      const size = Math.min(s, 5);
+      // 強訊號大箭頭、弱訊號小箭頭、都不帶文字
+      const size = s >= 4 ? 3 : s >= 3 ? 2 : 1;
       return { time: m.date as Time, position: cfg.position, shape: cfg.shape, color: cfg.color, text: '', size };
     });
     markersPlugRef.current.setMarkers(converted);
