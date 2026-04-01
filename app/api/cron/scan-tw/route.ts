@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
 import { TaiwanScanner } from '@/lib/scanner/TaiwanScanner';
 import { ScanSession } from '@/lib/scanner/types';
+import { saveScanSession } from '@/lib/storage/scanStorage';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
-
-const DATA_DIR = process.env.VERCEL ? '/tmp/scan-data' : path.join(process.cwd(), 'data');
 
 export async function GET(req: NextRequest) {
   // Verify Vercel cron secret to prevent unauthorized triggers
@@ -30,11 +27,9 @@ export async function GET(req: NextRequest) {
       results,
     };
 
-    // Persist result
+    // Persist result (Vercel Blob in production, filesystem in dev)
     try {
-      await fs.mkdir(DATA_DIR, { recursive: true });
-      const filePath = path.join(DATA_DIR, `scan-TW-${date}.json`);
-      await fs.writeFile(filePath, JSON.stringify(session, null, 2), 'utf-8');
+      await saveScanSession(session);
     } catch { /* storage failure shouldn't block notification */ }
 
     // Send email notification if configured

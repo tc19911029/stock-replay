@@ -25,6 +25,14 @@ export interface BacktestSummary {
   median: number; maxGain: number; maxLoss: number;
 }
 
+/** Summary of a cron-saved scan date (no backtest data) */
+export interface CronDateEntry {
+  market: MarketId;
+  date: string;
+  resultCount: number;
+  scanTime: string;
+}
+
 // Re-export so page components can import from the store
 export type { CapitalConstraints, WalkForwardResult };
 
@@ -80,6 +88,11 @@ interface BacktestState {
   /** 掃描方向：long=做多, short=做空 */
   scanDirection: 'long' | 'short';
 
+  // ── Cron 歷史 ──
+  cronDates: CronDateEntry[];
+  isFetchingCron: boolean;
+  isLoadingCronSession: boolean;
+
   // ── Actions ──
   setMarket:              (m: MarketId) => void;
   setScanDate:            (d: string)   => void;
@@ -95,6 +108,8 @@ interface BacktestState {
   runAiRank:              () => Promise<void>;  // AI 排名
   loadSession:            (id: string)  => void;
   clearCurrent:           () => void;
+  fetchCronDates:         (market: MarketId) => Promise<void>;
+  loadCronSession:        (market: MarketId, date: string) => Promise<void>;
 
   // helpers
   getSummary: (horizon: BacktestHorizon) => BacktestSummary | null;
@@ -141,6 +156,9 @@ export const useBacktestStore = create<BacktestState>()(
       scanOnly: false,
       scanMode: 'full' as const,
       scanDirection: 'long' as const,
+      cronDates: [],
+      isFetchingCron: false,
+      isLoadingCronSession: false,
 
       setMarket:             (market)   => set({ market }),
       setScanDate:           (scanDate) => set({ scanDate }),
@@ -431,6 +449,118 @@ export const useBacktestStore = create<BacktestState>()(
           stats:       session.stats  ?? null,
           scanOnly:    !hasTrades,
         });
+      },
+
+      // ── Cron 歷史：取得所有可用日期 ──
+      fetchCronDates: async (market) => {
+        set({ isFetchingCron: true });
+        try {
+          const res = await fetch(`/api/scanner/results?market=${market}`);
+          if (!res.ok) throw new Error('fetch failed');
+          const json = await res.json() as { sessions?: Array<{ date: string; resultCount: number; scanTime: string }> };
+          const entries: CronDateEntry[] = (json.sessions ?? []).map(s => ({
+            market,
+            date: s.date,
+            resultCount: s.resultCount,
+            scanTime: s.scanTime,
+          }));
+          set({ cronDates: entries, isFetchingCron: false });
+        } catch {
+          set({ isFetchingCron: false });
+        }
+      },
+
+      // ── Cron 歷史：載入特定日期的掃描結果，然後跑回測 ──
+      loadCronSession: async (market, date) => {
+        const { strategy, useCapitalMode, capitalConstraints } = get();
+        set({
+          isLoadingCronSession: true,
+          scanResults: [], performance: [], trades: [], stats: null,
+          scanError: null, forwardError: null,
+          market, scanDate: date, scanOnly: false,
+        });
+
+        try {
+          // Phase 1: Load scan results from server
+          const res = await fetch(`/api/scanner/results?market=${market}&date=${date}`);
+          if (!res.ok) throw new Error('無法載入歷史掃描結果');
+          const json = await res.json() as { sessions?: Array<{ results: StockScanResult[] }> };
+          const scanResults = json.sessions?.[0]?.results ?? [];
+          if (scanResults.length === 0) {
+            set({ isLoadingCronSession: false });
+            return;
+          }
+
+          set({ scanResults });
+
+          // Phase 2: Fetch forward performance
+          set({ isFetchingForward: true });
+          const forwardPayload = scanResults.map(r => ({
+            symbol: r.symbol, name: r.name, scanPrice: r.price,
+          }));
+          const fwdRes = await fetch('/api/backtest/forward', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ scanDate: date, stocks: forwardPayload }),
+          });
+          if (!fwdRes.ok) throw new Error('無法取得後續績效資料');
+          const fwdJson = await fwdRes.json() as { performance?: StockForwardPerformance[] };
+          const performance = fwdJson.performance ?? [];
+
+          // Phase 3: Run backtest engine
+          const candlesMap: Record<string, typeof performance[0]['forwardCandles']> = {};
+          for (const p of performance) {
+            candlesMap[p.symbol] = p.forwardCandles;
+          }
+
+          let trades: BacktestTrade[];
+          let skippedCount: number;
+          let skippedByCapital = 0;
+          let finalCapital: number | null = null;
+          let capitalReturn: number | null = null;
+
+          if (useCapitalMode) {
+            const result = runBatchBacktestWithCapital(scanResults, candlesMap, strategy, capitalConstraints);
+            trades = result.trades;
+            skippedCount = result.skippedCount;
+            skippedByCapital = result.skippedByCapital;
+            finalCapital = result.finalCapital;
+            capitalReturn = result.capitalReturn;
+          } else {
+            const result = runBatchBacktest(scanResults, candlesMap, strategy);
+            trades = result.trades;
+            skippedCount = result.skippedCount;
+          }
+
+          const stats = calcBacktestStats(trades, skippedCount);
+
+          // Save as session
+          const session: BacktestSession = {
+            id: `${market}-${date}-${Date.now()}`,
+            market,
+            scanDate: date,
+            createdAt: new Date().toISOString(),
+            scanResults,
+            performance,
+            trades,
+            stats: stats ?? undefined,
+            strategyVersion: `holdDays=${strategy.holdDays},sl=${strategy.stopLoss ?? 'off'},tp=${strategy.takeProfit ?? 'off'}`,
+          };
+
+          set(s => ({
+            performance,
+            trades,
+            stats,
+            skippedByCapital,
+            finalCapital,
+            capitalReturn,
+            isFetchingForward: false,
+            isLoadingCronSession: false,
+            sessions: [session, ...s.sessions].slice(0, 20),
+          }));
+        } catch (e) {
+          set({ isFetchingForward: false, isLoadingCronSession: false, forwardError: String(e) });
+        }
       },
     }),
     {

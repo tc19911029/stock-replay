@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
 import { ChinaScanner } from '@/lib/scanner/ChinaScanner';
 import { ScanSession } from '@/lib/scanner/types';
+import { saveScanSession } from '@/lib/storage/scanStorage';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
-
-const DATA_DIR = process.env.VERCEL ? '/tmp/scan-data' : path.join(process.cwd(), 'data');
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization');
@@ -29,11 +26,10 @@ export async function GET(req: NextRequest) {
       results,
     };
 
+    // Persist result (Vercel Blob in production, filesystem in dev)
     try {
-      await fs.mkdir(DATA_DIR, { recursive: true });
-      const filePath = path.join(DATA_DIR, `scan-CN-${date}.json`);
-      await fs.writeFile(filePath, JSON.stringify(session, null, 2), 'utf-8');
-    } catch {}
+      await saveScanSession(session);
+    } catch { /* storage failure shouldn't block notification */ }
 
     const notifyEmail = process.env.NOTIFY_EMAIL;
     const resendKey = process.env.RESEND_API_KEY;
@@ -45,7 +41,7 @@ export async function GET(req: NextRequest) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ to: notifyEmail, results, market: 'CN' }),
         });
-      } catch {}
+      } catch { /* notification failure is non-fatal */ }
     }
 
     return NextResponse.json({ ok: true, count: results.length, date, partial, marketTrend });

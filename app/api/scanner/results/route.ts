@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { promises as fs } from 'fs';
+import { MarketId } from '@/lib/scanner/types';
+import { listScanDates, loadScanSession } from '@/lib/storage/scanStorage';
 
 export const runtime = 'nodejs';
-import path from 'path';
-import { ScanSession, MarketId } from '@/lib/scanner/types';
-
-const DATA_DIR = process.env.VERCEL ? '/tmp/scan-data' : path.join(process.cwd(), 'data');
 
 const querySchema = z.object({
   market: z.enum(['TW', 'CN']).default('TW'),
@@ -20,33 +17,22 @@ export async function GET(req: NextRequest) {
   const dateParam = parsed.data.date;
 
   try {
-    const files = await fs.readdir(DATA_DIR).catch(() => [] as string[]);
-    const prefix = `scan-${market}-`;
-
-    // Filter and sort by filename (date) descending
-    const matching = files
-      .filter(f => f.startsWith(prefix) && f.endsWith('.json'))
-      .sort()
-      .reverse();
-
     if (dateParam) {
-      // Return the specific date session
-      const targetFile = matching.find(f => f.includes(dateParam));
-      if (!targetFile) return NextResponse.json({ sessions: [] });
-      const raw = await fs.readFile(path.join(DATA_DIR, targetFile), 'utf-8');
-      const session: ScanSession = JSON.parse(raw);
+      // Return the specific date session (full data)
+      const session = await loadScanSession(market, dateParam);
+      if (!session) return NextResponse.json({ sessions: [] });
       return NextResponse.json({ sessions: [session] });
     }
 
-    // Return last 30 days of sessions (summary only)
-    const sessions: Pick<ScanSession, 'id' | 'market' | 'date' | 'scanTime' | 'resultCount'>[] = [];
-    for (const file of matching.slice(0, 30)) {
-      try {
-        const raw = await fs.readFile(path.join(DATA_DIR, file), 'utf-8');
-        const { id, market: m, date, scanTime, resultCount } = JSON.parse(raw) as ScanSession;
-        sessions.push({ id, market: m, date, scanTime, resultCount });
-      } catch {}
-    }
+    // Return all available dates (summary only)
+    const dates = await listScanDates(market);
+    const sessions = dates.map(d => ({
+      id: `${d.market}-${d.date}`,
+      market: d.market,
+      date: d.date,
+      scanTime: d.scanTime,
+      resultCount: d.resultCount,
+    }));
 
     return NextResponse.json({ sessions });
   } catch (err: unknown) {

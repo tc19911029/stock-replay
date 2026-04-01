@@ -36,11 +36,14 @@ export default function ScanPageContent({ defaultMode = 'full' }: ScanPageConten
     scanMode, setScanMode,
     scanDirection, setScanDirection,
     marketTrend,
+    cronDates, fetchCronDates,
   } = useBacktestStore();
 
   // 根據 defaultMode 設定掃描模式
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => { setScanMode(defaultMode === 'sop' ? 'sop' : scanMode === 'sop' ? 'full' : scanMode); }, []);
+  // 載入 cron 歷史日期
+  useEffect(() => { fetchCronDates(market); }, [market, fetchCronDates]);
 
   // 用 state 避免 SSR hydration mismatch
   const [maxDate, setMaxDate] = useState('2099-12-31');
@@ -60,17 +63,9 @@ export default function ScanPageContent({ defaultMode = 'full' }: ScanPageConten
   // ── One-click scan actions ──
   const isBusy = isScanning || isFetchingForward;
 
-  const handleScanOnly = useCallback(() => {
-    if (isBusy) return;
-    setScanOnly(true);
-    // runScan reads scanOnly from store; we need to ensure it's set first
-    setTimeout(() => useBacktestStore.getState().runScan(), 0);
-  }, [isBusy, setScanOnly]);
-
-  const handleScanBacktest = useCallback(() => {
+  const handleScan = useCallback(() => {
     if (isBusy) return;
     setScanOnly(false);
-    setShowBacktestParams(true);
     setTimeout(() => useBacktestStore.getState().runScan(), 0);
   }, [isBusy, setScanOnly]);
 
@@ -224,28 +219,15 @@ export default function ScanPageContent({ defaultMode = 'full' }: ScanPageConten
               </div>
             )}
 
-            {/* ── Action Buttons (one-click) ── */}
+            {/* ── Action Button ── */}
             <div className="flex items-center gap-2 ml-auto">
               <button
-                onClick={handleScanOnly}
+                onClick={handleScan}
                 disabled={isBusy || !scanDate}
-                title="僅篩選符合條件的股票清單，速度快"
-                className="px-5 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-lg text-sm font-semibold transition-colors whitespace-nowrap"
-              >
-                {isScanning && scanOnly ? (
-                  <span className="flex items-center gap-2">
-                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    掃描中 {Math.round(scanProgress)}%
-                  </span>
-                ) : '掃描選股'}
-              </button>
-              <button
-                onClick={handleScanBacktest}
-                disabled={isBusy || !scanDate}
-                title="篩選後模擬買入出場，計算每筆交易的報酬率（含手續費）"
+                title="篩選符合條件的股票，並模擬買入出場計算報酬率（含手續費）"
                 className="px-5 py-2.5 bg-sky-600 hover:bg-sky-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-lg text-sm font-semibold transition-colors whitespace-nowrap"
               >
-                {(isScanning && !scanOnly) || isFetchingForward ? (
+                {isScanning || isFetchingForward ? (
                   <span className="flex items-center gap-2">
                     <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     {isScanning ? `掃描中 ${Math.round(scanProgress)}%` : '計算績效…'}
@@ -387,8 +369,16 @@ export default function ScanPageContent({ defaultMode = 'full' }: ScanPageConten
           )}
         </div>
 
+        {/* History sidebar (standalone, when no scan results yet but cron data exists) */}
+        {scanResults.length === 0 && trades.length === 0 && performance.length === 0
+          && (sessions.filter(s => s.market === market).length > 0 || cronDates.length > 0) && (
+          <div className="max-w-xs">
+            <SessionHistory />
+          </div>
+        )}
+
         {/* Results */}
-        {(scanResults.length > 0 || trades.length > 0 || performance.length > 0 || sessions.filter(s => s.market === market).length > 0) && (
+        {(scanResults.length > 0 || trades.length > 0 || performance.length > 0) && (
           <div className="flex gap-4">
             <div className="flex-1 min-w-0 space-y-4 overflow-x-auto">
 
@@ -562,8 +552,8 @@ export default function ScanPageContent({ defaultMode = 'full' }: ScanPageConten
           </div>
         )}
 
-        {/* Empty state */}
-        {!isScanning && !isFetchingForward && scanResults.length === 0 && !scanError && (
+        {/* Empty state (only when no cron history either) */}
+        {!isScanning && !isFetchingForward && scanResults.length === 0 && !scanError && cronDates.length === 0 && sessions.filter(s => s.market === market).length === 0 && (
           scanProgress ? (
             <div className="text-center py-16 text-slate-500 space-y-3">
               <div className="text-5xl">📭</div>
