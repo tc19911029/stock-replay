@@ -84,6 +84,7 @@ interface CandleChartProps {
   avgCost?: number;
   stopLossPrice?: number;
   onCrosshairMove?: (candle: CandleWithIndicators | null) => void;
+  onDoubleClick?: (candle: CandleWithIndicators) => void;
   height?: number;
   fillContainer?: boolean;
   maToggles?: { ma5: boolean; ma10: boolean; ma20: boolean; ma60: boolean };
@@ -91,7 +92,7 @@ interface CandleChartProps {
 }
 
 export default function CandleChart({
-  candles, signals, chartMarkers = [], avgCost, stopLossPrice, onCrosshairMove, height = 400, fillContainer = false,
+  candles, signals, chartMarkers = [], avgCost, stopLossPrice, onCrosshairMove, onDoubleClick, height = 400, fillContainer = false,
   maToggles = { ma5: true, ma10: true, ma20: true, ma60: true },
   showBollinger = false,
 }: CandleChartProps) {
@@ -106,10 +107,12 @@ export default function CandleChart({
   // Keep latest candles accessible inside event closures without re-subscribing
   const candlesRef     = useRef<CandleWithIndicators[]>(candles);
   const onCrosshairRef = useRef(onCrosshairMove);
+  const onDoubleClickRef = useRef(onDoubleClick);
   const [hoverCandle, setHoverCandle] = useState<CandleWithIndicators | null>(null);
 
   useEffect(() => { candlesRef.current = candles; }, [candles]);
   useEffect(() => { onCrosshairRef.current = onCrosshairMove; }, [onCrosshairMove]);
+  useEffect(() => { onDoubleClickRef.current = onDoubleClick; }, [onDoubleClick]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -181,6 +184,25 @@ export default function CandleChart({
       onCrosshairRef.current?.(found);
     });
 
+    // ── Double-click → jump to candle ─────────────────────────────────
+    let _lastHoverCandle: CandleWithIndicators | null = null;
+    const origCrosshairCb = chart.subscribeCrosshairMove;
+    // Patch: track hover for dblclick (crosshair already subscribed above,
+    // so we piggyback via the existing setHoverCandle flow using a local var)
+    const patchedCrosshair = chart.subscribeCrosshairMove(param => {
+      if (param.time) {
+        _lastHoverCandle = candlesRef.current.find(c => c.date === (param.time as string)) ?? null;
+      } else {
+        _lastHoverCandle = null;
+      }
+    });
+    const handleDblClick = () => {
+      if (onDoubleClickRef.current && _lastHoverCandle) {
+        onDoubleClickRef.current(_lastHoverCandle);
+      }
+    };
+    containerRef.current.addEventListener('dblclick', handleDblClick);
+
     const ro = new ResizeObserver(() => {
       if (!containerRef.current) return;
       chart.applyOptions({ width: containerRef.current.clientWidth });
@@ -188,7 +210,13 @@ export default function CandleChart({
     });
     ro.observe(containerRef.current);
 
-    return () => { ro.disconnect(); chart.remove(); chartRef.current = null; };
+    return () => {
+      containerRef.current?.removeEventListener('dblclick', handleDblClick);
+      patchedCrosshair?.();
+      ro.disconnect();
+      chart.remove();
+      chartRef.current = null;
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Load candle / MA data ────────────────────────────────────────────────

@@ -4,7 +4,7 @@
  * V2 走圖頁 — 乾淨版
  *
  * 左側：K 線圖（大）+ 播放控制
- * 右側：3 個 tab（條件 / 交易 / 訊號）
+ * 右側：2 個 tab（條件 / 訊號）
  *
  * 移除的東西：
  * - OHLCV bar 的 MA/BB/指標切換按鈕 → 預設全開
@@ -16,19 +16,19 @@
 
 import { useEffect, useCallback, useState, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
 import { useReplayStore } from '@/store/replayStore';
 import StockSelector from '@/components/StockSelector';
 import { PageShell } from '@/components/shared';
 import ReplayControls from '@/components/ReplayControls';
-import TradePanel from '@/components/TradePanel';
-import AccountInfo from '@/components/AccountInfo';
 import RuleAlerts from '@/components/RuleAlerts';
 import ProhibitionAlerts from '@/components/ProhibitionAlerts';
 import WinnerPatternAlerts from '@/components/WinnerPatternAlerts';
-import TradeHistory from '@/components/TradeHistory';
 import SixConditionsPanel from '@/components/SixConditionsPanel';
+import ChipDetailPanel from '@/components/ChipDetailPanel';
+import AnalysisChat from '@/components/AnalysisChat';
+import TrendStateBar from '@/components/TrendStateBar';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import BottomPanel from '@/components/BottomPanel';
 
 const CandleChart = dynamic(() => import('@/components/CandleChart'), {
   ssr: false,
@@ -41,7 +41,7 @@ const CandleChart = dynamic(() => import('@/components/CandleChart'), {
 
 const IndicatorCharts = dynamic(() => import('@/components/IndicatorCharts'), { ssr: false });
 
-type SideTab = 'conditions' | 'trade' | 'signals';
+type SideTab = 'conditions' | 'signals' | 'chip' | 'chat';
 
 export default function HomePage() {
   const {
@@ -49,6 +49,7 @@ export default function HomePage() {
     isLoadingStock, allCandles, currentIndex,
     nextCandle, prevCandle, isPlaying, startPlay, stopPlay, metrics,
     loadStock, currentStock, sixConditions, longProhibitions,
+    signalStrengthMin, setSignalStrengthMin,
   } = useReplayStore();
 
   useEffect(() => { initData(); }, [initData]);
@@ -104,6 +105,10 @@ export default function HomePage() {
   const [hoverCandle, setHoverCandle] = useState<typeof allCandles[0] | null>(null);
   const [sideTab, setSideTab] = useState<SideTab>('conditions');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showMarkers, setShowMarkers] = useState(true);
+  const [maToggles, setMaToggles] = useState({ ma5: true, ma10: true, ma20: true, ma60: true });
+  const [showBollinger, setShowBollinger] = useState(false);
+  const [indicators, setIndicators] = useState({ macd: true, kd: true, volume: true, rsi: false });
 
   const displayCandle = hoverCandle ?? allCandles[currentIndex];
   const prev = hoverCandle
@@ -125,10 +130,13 @@ export default function HomePage() {
     ? Math.max(ma5StopLoss, costStopLoss)
     : (ma5StopLoss ?? costStopLoss ?? undefined);
 
+  const currentDate = allCandles[currentIndex]?.date;
+
   const SIDE_TABS: Array<{ key: SideTab; label: string; alert?: boolean }> = [
     { key: 'conditions', label: '條件', alert: condAlert },
-    { key: 'trade',      label: '交易' },
     { key: 'signals',    label: '訊號', alert: prohibAlert },
+    { key: 'chip',       label: '籌碼' },
+    { key: 'chat',       label: '問老師' },
   ];
 
   return (
@@ -158,11 +166,11 @@ export default function HomePage() {
               </div>
             )}
 
-            {/* OHLCV bar — 簡化版 */}
+            {/* OHLCV bar + 指標切換列 */}
             {displayCandle && (
-              <div className="shrink-0 flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-1.5 border-b border-slate-800 text-xs font-mono">
+              <div className="shrink-0 flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-0.5 px-2 sm:px-3 py-1 sm:py-1.5 border-b border-slate-800 text-[10px] sm:text-xs font-mono">
                 {currentStock && (
-                  <span className="text-white font-bold font-sans">{currentStock.name}</span>
+                  <span className="text-white font-bold font-sans mr-1">{currentStock.name}</span>
                 )}
                 <span className={hoverCandle ? 'text-blue-400' : 'text-slate-400'}>{displayCandle.date}</span>
                 <span className={`text-sm font-bold ${isUp ? 'text-red-400' : 'text-green-400'}`}>
@@ -175,16 +183,81 @@ export default function HomePage() {
                 <span className="text-slate-500">高<span className="text-red-400 ml-0.5">{displayCandle.high.toFixed(2)}</span></span>
                 <span className="text-slate-500">低<span className="text-green-400 ml-0.5">{displayCandle.low.toFixed(2)}</span></span>
                 <span className="text-slate-500">量<span className="text-slate-300 ml-0.5">{(displayCandle.volume / 1000).toFixed(0)}K</span></span>
-                {metrics.shares > 0 && (
-                  <span className="ml-auto flex items-center gap-2">
-                    <span className="text-slate-500">
-                      均價<span className="text-yellow-400 font-bold ml-0.5">{metrics.avgCost.toFixed(2)}</span>
+                {/* 工具列：均線開關 + 指標選擇 + 訊號 */}
+                <div className="ml-auto flex items-center gap-1 shrink-0 flex-wrap">
+                  {([
+                    { key: 'ma5' as const, label: 'MA5', color: 'bg-yellow-600' },
+                    { key: 'ma10' as const, label: 'MA10', color: 'bg-pink-600' },
+                    { key: 'ma20' as const, label: 'MA20', color: 'bg-blue-600' },
+                    { key: 'ma60' as const, label: 'MA60', color: 'bg-purple-600' },
+                  ]).map(({ key, label, color }) => (
+                    <button key={key}
+                      onClick={() => setMaToggles(p => ({ ...p, [key]: !p[key] }))}
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-medium transition ${
+                        maToggles[key] ? `${color}/70 text-white` : 'bg-slate-800 text-slate-600'
+                      }`}
+                      title={`顯示/隱藏 ${label}`}
+                    >{label}</button>
+                  ))}
+                  <span className="w-px h-3 bg-slate-700 mx-0.5" />
+                  <button
+                    onClick={() => setShowBollinger(v => !v)}
+                    className={`px-1.5 py-0.5 rounded text-[9px] font-medium transition ${
+                      showBollinger ? 'bg-emerald-700/60 text-emerald-200' : 'bg-slate-800 text-slate-600'
+                    }`}
+                    title="布林通道 (20, 2)"
+                  >BB</button>
+                  <span className="w-px h-3 bg-slate-700 mx-0.5" />
+                  {([
+                    { key: 'macd' as const, label: 'MACD' },
+                    { key: 'kd' as const, label: 'KD' },
+                    { key: 'rsi' as const, label: 'RSI' },
+                    { key: 'volume' as const, label: '量' },
+                  ]).map(({ key, label }) => (
+                    <button key={key}
+                      onClick={() => setIndicators(p => ({ ...p, [key]: !p[key] }))}
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-medium transition ${
+                        indicators[key] ? 'bg-sky-700/60 text-sky-200' : 'bg-slate-800 text-slate-600'
+                      }`}
+                    >{label}</button>
+                  ))}
+                  <span className="w-px h-3 bg-slate-700 mx-0.5" />
+                  <button
+                    onClick={() => setShowMarkers(v => !v)}
+                    className={`px-1.5 py-0.5 rounded text-[9px] font-medium transition ${
+                      showMarkers ? 'bg-blue-600/60 text-blue-200' : 'bg-slate-800 text-slate-600'
+                    }`}
+                    title="顯示/隱藏買賣訊號標記"
+                  >訊號</button>
+                  {showMarkers && (
+                    <select
+                      value={signalStrengthMin}
+                      onChange={e => setSignalStrengthMin(Number(e.target.value))}
+                      className="px-1 py-0.5 rounded text-[9px] font-medium bg-slate-800 text-slate-300 border border-slate-700 outline-none"
+                      title="信號共振強度過濾"
+                    >
+                      <option value={1}>全部</option>
+                      <option value={2}>共振≥2</option>
+                      <option value={3}>強≥3</option>
+                    </select>
+                  )}
+                </div>
+                {metrics.shares > 0 && displayCandle && (() => {
+                  const unrealizedPct = metrics.avgCost > 0
+                    ? ((displayCandle.close - metrics.avgCost) / metrics.avgCost) * 100
+                    : 0;
+                  const pnlPos = unrealizedPct >= 0;
+                  return (
+                    <span className="ml-auto flex items-center gap-2">
+                      <span className="text-slate-500">
+                        均價<span className="text-yellow-400 font-bold ml-0.5">{metrics.avgCost.toFixed(2)}</span>
+                      </span>
+                      <span className={`font-bold text-xs ${pnlPos ? 'text-red-400' : 'text-green-400'}`}>
+                        {pnlPos ? '+' : ''}{unrealizedPct.toFixed(2)}%
+                      </span>
                     </span>
-                    <span className={`font-bold ${metrics.avgCost > 0 && displayCandle.close >= metrics.avgCost ? 'text-red-400' : 'text-green-400'}`}>
-                      {metrics.avgCost > 0 ? `${((displayCandle.close - metrics.avgCost) / metrics.avgCost * 100).toFixed(2)}%` : ''}
-                    </span>
-                  </span>
-                )}
+                  );
+                })()}
               </div>
             )}
 
@@ -194,13 +267,17 @@ export default function HomePage() {
                 <CandleChart
                   candles={visibleCandles}
                   signals={currentSignals}
-                  chartMarkers={chartMarkers}
+                  chartMarkers={showMarkers ? chartMarkers : []}
                   avgCost={metrics.shares > 0 ? metrics.avgCost : undefined}
                   stopLossPrice={stopLossPrice}
                   onCrosshairMove={setHoverCandle}
+                  onDoubleClick={(candle) => {
+                    const idx = allCandles.findIndex(c => c.date === candle.date);
+                    if (idx >= 0) useReplayStore.getState().jumpToIndex(idx);
+                  }}
                   fillContainer
-                  maToggles={{ ma5: true, ma10: true, ma20: true, ma60: true }}
-                  showBollinger={false}
+                  maToggles={maToggles}
+                  showBollinger={showBollinger}
                 />
               </ErrorBoundary>
             </div>
@@ -208,13 +285,16 @@ export default function HomePage() {
             {/* 副圖指標 */}
             <div className="flex-1 min-h-0 overflow-hidden">
               <ErrorBoundary>
-                <IndicatorCharts candles={visibleCandles} hoverCandle={hoverCandle} indicators={{ macd: true, kd: true, volume: true, rsi: false }} />
+                <IndicatorCharts candles={visibleCandles} hoverCandle={hoverCandle} indicators={indicators} />
               </ErrorBoundary>
             </div>
           </div>
 
-          {/* 播放控制 */}
-          <div className="shrink-0">
+          {/* 趨勢狀態 + 播放控制 */}
+          <div className="shrink-0 space-y-1">
+            <div className="bg-slate-800/60 rounded-lg border border-slate-700 px-2 py-1">
+              <TrendStateBar />
+            </div>
             <ReplayControls />
           </div>
         </div>
@@ -247,30 +327,32 @@ export default function HomePage() {
                   </button>
                 ))}
               </div>
-              <Link href="/v1" className="text-[10px] text-slate-600 hover:text-slate-400 px-1" title="舊版走圖">
-                舊版
-              </Link>
             </div>
 
             {/* Tab content */}
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-0.5">
-              {sideTab === 'conditions' && <SixConditionsPanel />}
-              {sideTab === 'trade' && (
-                <>
-                  <AccountInfo />
-                  <TradePanel />
-                </>
-              )}
-              {sideTab === 'signals' && (
-                <div className="space-y-2">
-                  <ProhibitionAlerts />
-                  <WinnerPatternAlerts />
-                  <RuleAlerts />
-                  <TradeHistory />
-                </div>
-              )}
-            </div>
+            {sideTab === 'chat' ? (
+              <div className="flex-1 min-h-0">
+                <AnalysisChat sidebar />
+              </div>
+            ) : (
+              <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-0.5">
+                {sideTab === 'conditions' && <SixConditionsPanel />}
+                {sideTab === 'signals' && (
+                  <div className="space-y-2">
+                    <ProhibitionAlerts />
+                    <WinnerPatternAlerts />
+                    <RuleAlerts />
+                  </div>
+                )}
+                {sideTab === 'chip' && currentStock && (
+                  <ChipDetailPanel symbol={currentStock.ticker} date={currentDate} />
+                )}
+              </div>
+            )}
           </div>
+
+          {/* Bottom: 自選股 / 持倉 摺疊面板 */}
+          <BottomPanel />
         </div>
       </div>
     </PageShell>
