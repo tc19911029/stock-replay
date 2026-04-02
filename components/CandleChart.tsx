@@ -15,8 +15,7 @@ import {
 } from 'lightweight-charts';
 import { CandleWithIndicators, RuleSignal, ChartSignalMarker } from '@/types';
 
-const TW_RED   = '#ef4444';
-const TW_GREEN = '#22c55e';
+import { getBullBearColors } from '@/lib/chart/colors';
 
 const MA_COLORS = {
   ma5:  '#facc15', // 黃（短線）
@@ -27,55 +26,40 @@ const MA_COLORS = {
 
 function toTime(date: string): Time { return date as Time; }
 
-// ── Module-level time range sync ─────────────────────────────────────────────
-let _syncing = false;
-let _lastRange: { from: number; to: number } | null = null;
+// ── Chart sync — imported from store, re-exported for backwards compatibility ─
+import {
+  broadcastRange,
+  broadcastCrosshairTime,
+  subscribeRangeSync,
+  subscribeCrosshairSync,
+  getLastRange,
+} from '@/store/chartSyncStore';
+import type { LogicalRange, RangeSyncCallback } from '@/store/chartSyncStore';
 
-export type LogicalRange = { from: number; to: number };
-export type RangeSyncCallback = (range: LogicalRange | null) => void;
-const syncListeners = new Set<RangeSyncCallback>();
-
-export function subscribeRangeSync(cb: RangeSyncCallback) {
-  syncListeners.add(cb);
-  return () => syncListeners.delete(cb);
-}
-export function getLastRange() { return _lastRange; }
-export function broadcastRange(range: LogicalRange | null) {
-  if (_syncing) return;
-  _syncing = true;
-  if (range) _lastRange = range;
-  syncListeners.forEach(cb => cb(range));
-  _syncing = false;
-}
-
-// ── Module-level crosshair time sync ─────────────────────────────────────────
-type CrosshairSyncCallback = (time: string | null) => void;
-const crosshairListeners = new Set<CrosshairSyncCallback>();
-let _crosshairSyncing = false;
-
-export function subscribeCrosshairSync(cb: CrosshairSyncCallback) {
-  crosshairListeners.add(cb);
-  return () => crosshairListeners.delete(cb);
-}
-export function broadcastCrosshairTime(time: string | null) {
-  if (_crosshairSyncing) return;
-  _crosshairSyncing = true;
-  crosshairListeners.forEach(cb => cb(time));
-  _crosshairSyncing = false;
-}
+export {
+  broadcastRange,
+  broadcastCrosshairTime,
+  subscribeRangeSync,
+  subscribeCrosshairSync,
+  getLastRange,
+};
+export type { LogicalRange, RangeSyncCallback };
 
 // ── Signal marker config ───────────────────────────────────────────────────────
-const MARKER_CONFIG: Record<ChartSignalMarker['type'], {
+function getMarkerConfig(): Record<ChartSignalMarker['type'], {
   position: 'aboveBar' | 'belowBar';
   shape: 'arrowUp' | 'arrowDown';
   color: string;
-}> = {
-  BUY:    { position: 'belowBar', shape: 'arrowUp',   color: '#ef4444' },
-  ADD:    { position: 'belowBar', shape: 'arrowUp',   color: '#f97316' },
-  REDUCE: { position: 'aboveBar', shape: 'arrowDown', color: '#14b8a6' },
-  SELL:   { position: 'aboveBar', shape: 'arrowDown', color: '#22c55e' },
-  WATCH:  { position: 'aboveBar', shape: 'arrowDown', color: '#eab308' },
-};
+}> {
+  const { bull, bear } = getBullBearColors();
+  return {
+    BUY:    { position: 'belowBar', shape: 'arrowUp',   color: bull },
+    ADD:    { position: 'belowBar', shape: 'arrowUp',   color: '#f97316' },
+    REDUCE: { position: 'aboveBar', shape: 'arrowDown', color: '#14b8a6' },
+    SELL:   { position: 'aboveBar', shape: 'arrowDown', color: bear },
+    WATCH:  { position: 'aboveBar', shape: 'arrowDown', color: '#eab308' },
+  };
+}
 
 interface CandleChartProps {
   candles: CandleWithIndicators[];
@@ -137,10 +121,11 @@ export default function CandleChart({
       height: chartHeight,
     });
 
+    const { bull, bear } = getBullBearColors();
     const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: TW_RED, downColor: TW_GREEN,
-      borderUpColor: TW_RED, borderDownColor: TW_GREEN,
-      wickUpColor: TW_RED, wickDownColor: TW_GREEN,
+      upColor: bull, downColor: bear,
+      borderUpColor: bull, borderDownColor: bear,
+      wickUpColor: bull, wickDownColor: bear,
     });
 
     const maKeys = ['ma5', 'ma10', 'ma20', 'ma60'] as const;
@@ -186,16 +171,17 @@ export default function CandleChart({
 
     // ── Double-click → jump to candle ─────────────────────────────────
     let _lastHoverCandle: CandleWithIndicators | null = null;
-    const origCrosshairCb = chart.subscribeCrosshairMove;
-    // Patch: track hover for dblclick (crosshair already subscribed above,
-    // so we piggyback via the existing setHoverCandle flow using a local var)
-    const patchedCrosshair = chart.subscribeCrosshairMove(param => {
+    // Track hover candle for dblclick (crosshair already subscribed above,
+    // so we piggyback via a second subscription using a local var)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dblClickCrosshairHandler = (param: any) => {
       if (param.time) {
         _lastHoverCandle = candlesRef.current.find(c => c.date === (param.time as string)) ?? null;
       } else {
         _lastHoverCandle = null;
       }
-    });
+    };
+    chart.subscribeCrosshairMove(dblClickCrosshairHandler);
     const handleDblClick = () => {
       if (onDoubleClickRef.current && _lastHoverCandle) {
         onDoubleClickRef.current(_lastHoverCandle);
@@ -212,7 +198,7 @@ export default function CandleChart({
 
     return () => {
       containerRef.current?.removeEventListener('dblclick', handleDblClick);
-      patchedCrosshair?.();
+      chart.unsubscribeCrosshairMove(dblClickCrosshairHandler);
       ro.disconnect();
       chart.remove();
       chartRef.current = null;
@@ -297,7 +283,7 @@ export default function CandleChart({
     }
     if (stopLossPrice && stopLossPrice > 0) {
       stopLossLineRef.current = candleRef.current.createPriceLine({
-        price: stopLossPrice, color: '#ef4444', lineWidth: 1,
+        price: stopLossPrice, color: '#f87171', lineWidth: 1,
         lineStyle: 1, axisLabelVisible: true, title: '停損',
       });
     }
@@ -306,8 +292,9 @@ export default function CandleChart({
   // ── Chart markers ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!markersPlugRef.current) return;
+    const markerCfg = getMarkerConfig();
     const converted: SeriesMarker<Time>[] = chartMarkers.map(m => {
-      const cfg = MARKER_CONFIG[m.type];
+      const cfg = markerCfg[m.type];
       return { time: m.date as Time, position: cfg.position, shape: cfg.shape, color: cfg.color, text: m.label, size: 1 };
     });
     markersPlugRef.current.setMarkers(converted);
@@ -345,11 +332,11 @@ export default function CandleChart({
         const best = filtered.reduce((a, b) => (PRIORITY[b.type] ?? 0) > (PRIORITY[a.type] ?? 0) ? b : a);
         return (
           <div className="absolute top-2 right-3 z-10 pointer-events-none">
-            <span className={`px-2.5 py-1 rounded text-xs font-bold shadow-lg ${
-              best.type === 'BUY'    ? 'bg-red-600 text-white'    :
-              best.type === 'ADD'    ? 'bg-orange-500 text-white' :
-              best.type === 'SELL'   ? 'bg-green-700 text-white'  :
-                                       'bg-teal-500 text-white'
+            <span className={`px-2.5 py-1 rounded text-xs font-bold shadow-lg text-white ${
+              best.type === 'BUY'    ? 'bg-bull/20 text-bull border border-bull'  :
+              best.type === 'ADD'    ? 'bg-orange-500'  :
+              best.type === 'SELL'   ? 'bg-bear/20 text-bear border border-bear'  :
+                                       'bg-teal-500'
             }`}>{best.label}</span>
           </div>
         );

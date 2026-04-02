@@ -41,6 +41,8 @@ let _cachedMarkers: ChartSignalMarker[] = [];
 let _activeEngine: RuleEngine = ruleEngine;
 /** 信號共振強度最低門檻（多少個群組同意才顯示 marker） */
 let _signalStrengthMin = 2;
+/** 上次構建引擎使用的策略 ID，用於偵測策略切換 */
+let _lastStrategyId = '';
 
 /**
  * 根據當前策略建立篩選後的 RuleEngine。
@@ -48,10 +50,22 @@ let _signalStrengthMin = 2;
  */
 function buildFilteredEngine(): RuleEngine {
   const strategy = useSettingsStore.getState().getActiveStrategy();
+  _lastStrategyId = strategy.id;
   if (strategy.ruleGroups && strategy.ruleGroups.length > 0) {
     return new RuleEngine(undefined, strategy.ruleGroups);
   }
   return ruleEngine; // 全開（向後相容）
+}
+
+/**
+ * 檢查策略是否已切換，若是則自動重新計算信號快取。
+ * 在 buildState 和 loadStock 中呼叫，確保信號始終對應當前策略。
+ */
+function ensureEngineUpToDate(allCandles: CandleWithIndicators[]): void {
+  const currentId = useSettingsStore.getState().getActiveStrategy().id;
+  if (currentId !== _lastStrategyId && allCandles.length > 0) {
+    precomputeMarkers(allCandles);
+  }
 }
 
 function precomputeMarkers(allCandles: CandleWithIndicators[]): void {
@@ -180,13 +194,26 @@ function buildState(
   index: number,
   account: AccountState
 ) {
+  // P0-1: 若策略已切換，自動重新計算信號快取
+  ensureEngineUpToDate(allCandles);
   const currentPrice = allCandles[index]?.close ?? 0;
   const metrics = computeMetrics(account, currentPrice);
   const stats = computeStats(account, allCandles, index);
   const signals = _activeEngine.evaluate(allCandles, index);
   const visibleCandles = allCandles.slice(0, index + 1);
   const currentDate = allCandles[index]?.date ?? '';
-  const chartMarkers = _cachedMarkers.filter(m => m.date <= currentDate);
+  // Binary search for visible markers (markers are sorted by date asc)
+  let markerEnd = _cachedMarkers.length;
+  if (_cachedMarkers.length > 0 && currentDate) {
+    let lo = 0, hi = _cachedMarkers.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (_cachedMarkers[mid].date <= currentDate) lo = mid + 1;
+      else hi = mid;
+    }
+    markerEnd = lo;
+  }
+  const chartMarkers = _cachedMarkers.slice(0, markerEnd);
   const trendState    = detectTrend(allCandles, index);
   const trendPosition = detectTrendPosition(allCandles, index);
   const activeThresholds = useSettingsStore.getState().getActiveStrategy().thresholds;

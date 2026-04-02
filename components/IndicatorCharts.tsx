@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { getBullBearColors } from '@/lib/chart/colors';
 import {
   createChart,
   IChartApi,
@@ -73,10 +74,10 @@ function VolumeChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]
 
   useEffect(() => {
     if (!volRef.current || !mv5Ref.current || !mv20Ref.current || candles.length === 0) return;
-    const TW_RED = '#ef4444'; const TW_GREEN = '#22c55e';
+    const { bull, bear } = getBullBearColors();
     volRef.current.setData(candles.map(c => ({
       time: toTime(c.date), value: c.volume,
-      color: c.close >= c.open ? `${TW_RED}99` : `${TW_GREEN}99`,
+      color: c.close >= c.open ? `${bull}99` : `${bear}99`,
     })));
     const mv5Data = candles.map((c, i) => {
       if (i < 4) return null;
@@ -102,12 +103,12 @@ function VolumeChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]
   const displayIdx = hoverCandle ? candles.findIndex(c => c.date === hoverCandle.date) : candles.length - 1;
   const prevDisp = candles[displayIdx - 1];
   const volArrow = display && prevDisp ? (display.volume >= prevDisp.volume ? '↑' : '↓') : '';
-  const volColor = display && prevDisp ? (display.volume >= prevDisp.volume ? 'text-red-400' : 'text-green-400') : 'text-slate-400';
+  const volColor = display && prevDisp ? (display.volume >= prevDisp.volume ? 'text-bull' : 'text-bear') : 'text-muted-foreground';
 
   return (
     <div className="relative h-full">
       <div className="absolute top-1 left-2 z-10 flex gap-3 text-xs font-mono pointer-events-none">
-        <span className="text-slate-400">成交量</span>
+        <span className="text-muted-foreground">成交量</span>
         <span className="text-blue-400">MV5 {display?.avgVol5 ? (display.avgVol5 / 1000).toFixed(0) + 'K' : '—'}</span>
         <span className={`font-bold ${volColor}`}>量 {display ? (display.volume / 1000).toFixed(0) + 'K' : '—'} {volArrow}</span>
       </div>
@@ -158,12 +159,13 @@ function MACDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; 
 
   useEffect(() => {
     if (!difRef.current || !signalRef.current || !histRef.current || candles.length === 0) return;
+    const { bull: macdBull, bear: macdBear } = getBullBearColors();
     // Include all bars (pad warmup with 0) so bar count matches main chart → logical range sync works
     difRef.current.setData(candles.map(c => ({ time: toTime(c.date), value: c.macdDIF ?? 0 })));
     signalRef.current.setData(candles.map(c => ({ time: toTime(c.date), value: c.macdSignal ?? 0 })));
     histRef.current.setData(candles.map(c => ({
       time: toTime(c.date), value: c.macdOSC ?? 0,
-      color: (c.macdOSC ?? 0) >= 0 ? '#ef444499' : '#22c55e99',
+      color: (c.macdOSC ?? 0) >= 0 ? `${macdBull}99` : `${macdBear}99`,
     })));
     const chart = chartRef.current;
     requestAnimationFrame(() => {
@@ -181,10 +183,10 @@ function MACDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; 
   return (
     <div className="relative h-full">
       <div className="absolute top-1 left-2 z-10 flex gap-3 text-xs font-mono pointer-events-none">
-        <span className="text-slate-400">MACD</span>
+        <span className="text-muted-foreground">MACD</span>
         <span className="text-amber-400">MACD9 {display?.macdSignal?.toFixed(2) ?? '—'}</span>
         <span className="text-blue-400">DIF {display?.macdDIF?.toFixed(2) ?? '—'}</span>
-        <span className={display?.macdOSC != null && display.macdOSC >= 0 ? 'text-red-400' : 'text-green-400'}>
+        <span className={display?.macdOSC != null && display.macdOSC >= 0 ? 'text-bull' : 'text-bear'}>
           OSC {display?.macdOSC?.toFixed(2) ?? '—'} {oscArrow}
         </span>
       </div>
@@ -238,6 +240,7 @@ function KDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; ho
 
   useEffect(() => {
     if (!kRef.current || !dRef.current || candles.length === 0) return;
+    const { bull: kdBull, bear: kdBear } = getBullBearColors();
     // Pad warmup bars with 50 (neutral KD) so bar count matches main chart
     kRef.current.setData(candles.map(c => ({ time: toTime(c.date), value: c.kdK ?? 50 })));
     dRef.current.setData(candles.map(c => ({ time: toTime(c.date), value: c.kdD ?? 50 })));
@@ -246,7 +249,7 @@ function KDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; ho
         .filter(c => c.kdK != null && (c.kdK >= 80 || c.kdK <= 20))
         .map(c => ({
           time: toTime(c.date), position: 'inBar' as const, shape: 'circle' as const,
-          color: c.kdK! >= 80 ? '#ef4444' : '#22c55e', size: 0.5,
+          color: c.kdK! >= 80 ? kdBull : kdBear, size: 0.5,
         }));
       kMarkRef.current.setMarkers(dots);
     }
@@ -267,7 +270,7 @@ function KDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; ho
   return (
     <div className="relative h-full">
       <div className="absolute top-1 left-2 z-10 flex gap-3 text-xs font-mono pointer-events-none">
-        <span className="text-slate-400">KD</span>
+        <span className="text-muted-foreground">KD</span>
         <span className="text-blue-400">K9 {display?.kdK?.toFixed(2) ?? '—'} {kArrow}</span>
         <span className="text-orange-400">D9 {display?.kdD?.toFixed(2) ?? '—'} {dArrow}</span>
       </div>
@@ -317,13 +320,14 @@ function RSIChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; h
 
   useEffect(() => {
     if (!rsiRef.current || candles.length === 0) return;
+    const { bull: rsiBull, bear: rsiBear } = getBullBearColors();
     rsiRef.current.setData(candles.map(c => ({ time: toTime(c.date), value: c.rsi14 ?? 50 })));
     if (markRef.current) {
       const dots: SeriesMarker<Time>[] = candles
         .filter(c => c.rsi14 != null && (c.rsi14 >= 70 || c.rsi14 <= 30))
         .map(c => ({
           time: toTime(c.date), position: 'inBar' as const, shape: 'circle' as const,
-          color: c.rsi14! >= 70 ? '#ef4444' : '#22c55e', size: 0.5,
+          color: c.rsi14! >= 70 ? rsiBull : rsiBear, size: 0.5,
         }));
       markRef.current.setMarkers(dots);
     }
@@ -337,13 +341,13 @@ function RSIChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; h
   const last = candles[candles.length - 1];
   const display = hoverCandle ?? last;
   const rsiVal = display?.rsi14;
-  const rsiColor = rsiVal != null ? (rsiVal >= 70 ? 'text-red-400' : rsiVal <= 30 ? 'text-green-400' : 'text-purple-400') : 'text-slate-500';
+  const rsiColor = rsiVal != null ? (rsiVal >= 70 ? 'text-bull' : rsiVal <= 30 ? 'text-bear' : 'text-purple-400') : 'text-muted-foreground';
   const rsiZone = rsiVal != null ? (rsiVal >= 70 ? '超買' : rsiVal <= 30 ? '超賣' : '') : '';
 
   return (
     <div className="relative h-full">
       <div className="absolute top-1 left-2 z-10 flex gap-3 text-xs font-mono pointer-events-none">
-        <span className="text-slate-400">RSI(14)</span>
+        <span className="text-muted-foreground">RSI(14)</span>
         <span className={rsiColor}>{rsiVal?.toFixed(2) ?? '—'} {rsiZone && <span className="text-[10px]">{rsiZone}</span>}</span>
       </div>
       <div ref={containerRef} className="w-full h-full" />
@@ -360,16 +364,16 @@ export default function IndicatorCharts({ candles, hoverCandle, indicators }: {
   if (candles.length === 0) return null;
   const show = indicators ?? { macd: true, kd: true, volume: true, rsi: false };
   const panels = [
-    show.volume && <div key="vol" className="flex-1 min-h-0 bg-slate-900"><VolumeChart candles={candles} hoverCandle={hoverCandle} /></div>,
-    show.kd && <div key="kd" className="flex-1 min-h-0 bg-slate-900"><KDChart candles={candles} hoverCandle={hoverCandle} /></div>,
-    show.rsi && <div key="rsi" className="flex-1 min-h-0 bg-slate-900"><RSIChart candles={candles} hoverCandle={hoverCandle} /></div>,
-    show.macd && <div key="macd" className="flex-[1.4] min-h-0 bg-slate-900"><MACDChart candles={candles} hoverCandle={hoverCandle} /></div>,
+    show.volume && <div key="vol" className="flex-1 min-h-0 bg-card"><VolumeChart candles={candles} hoverCandle={hoverCandle} /></div>,
+    show.kd && <div key="kd" className="flex-1 min-h-0 bg-card"><KDChart candles={candles} hoverCandle={hoverCandle} /></div>,
+    show.rsi && <div key="rsi" className="flex-1 min-h-0 bg-card"><RSIChart candles={candles} hoverCandle={hoverCandle} /></div>,
+    show.macd && <div key="macd" className="flex-[1.4] min-h-0 bg-card"><MACDChart candles={candles} hoverCandle={hoverCandle} /></div>,
   ].filter(Boolean);
 
-  if (panels.length === 0) return <div className="h-full bg-slate-900 flex items-center justify-center text-xs text-slate-600">請開啟至少一個指標面板</div>;
+  if (panels.length === 0) return <div className="h-full bg-card flex items-center justify-center text-xs text-muted-foreground/60">請開啟至少一個指標面板</div>;
 
   return (
-    <div className="h-full flex flex-col divide-y divide-slate-700 overflow-hidden">
+    <div className="h-full flex flex-col divide-y divide-border overflow-hidden">
       {panels}
     </div>
   );

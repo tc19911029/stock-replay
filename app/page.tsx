@@ -27,14 +27,15 @@ import SixConditionsPanel from '@/components/SixConditionsPanel';
 import ChipDetailPanel from '@/components/ChipDetailPanel';
 import AnalysisChat from '@/components/AnalysisChat';
 import TrendStateBar from '@/components/TrendStateBar';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ErrorBoundary, SectionBoundary } from '@/components/ErrorBoundary';
 import BottomPanel from '@/components/BottomPanel';
+import { useSettingsStore } from '@/store/settingsStore';
 
 const CandleChart = dynamic(() => import('@/components/CandleChart'), {
   ssr: false,
   loading: () => (
-    <div className="w-full bg-slate-900 flex items-center justify-center" style={{ height: 460 }}>
-      <span className="text-slate-500 text-sm animate-pulse">載入K線圖中...</span>
+    <div className="w-full bg-card flex items-center justify-center" style={{ height: 460 }}>
+      <span className="text-muted-foreground text-sm animate-pulse">載入K線圖中...</span>
     </div>
   ),
 });
@@ -89,12 +90,24 @@ export default function HomePage() {
     return unsub;
   }, []);
 
-  // Keyboard: ← → Space
+  // Keyboard: ← → Space B S Q
   const handleKey = useCallback((e: KeyboardEvent) => {
-    if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement).tagName)) return;
     if (e.key === 'ArrowRight') { e.preventDefault(); nextCandle(); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); prevCandle(); }
     else if (e.key === ' ') { e.preventDefault(); if (isPlaying) stopPlay(); else startPlay(); }
+    // P2-6: 買賣快捷鍵
+    else if (e.key === 'b' || e.key === 'B') {
+      e.preventDefault();
+      useReplayStore.getState().buyPercent(100); // 全倉買入
+    } else if (e.key === 's' || e.key === 'S') {
+      e.preventDefault();
+      useReplayStore.getState().sellPercent(50); // 賣出半倉
+    } else if (e.key === 'q' || e.key === 'Q') {
+      e.preventDefault();
+      const { metrics } = useReplayStore.getState();
+      if (metrics.shares > 0) useReplayStore.getState().sell(metrics.shares); // 全出
+    }
   }, [nextCandle, prevCandle, isPlaying, startPlay, stopPlay]);
 
   useEffect(() => {
@@ -110,6 +123,38 @@ export default function HomePage() {
   const [showBollinger, setShowBollinger] = useState(false);
   const [indicators, setIndicators] = useState({ macd: true, kd: true, volume: true, rsi: false });
 
+  // P1-5: 可拖拽分隔條 — K 線圖 vs 副圖指標
+  // 預設 0.48，mount 後再從 localStorage 讀取，避免 SSR hydration mismatch
+  const [chartSplit, setChartSplit] = useState(0.48);
+  useEffect(() => {
+    const saved = localStorage.getItem('chartSplit');
+    if (saved) setChartSplit(parseFloat(saved));
+  }, []);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const splitDraggingRef = useRef(false);
+
+  const startSplitDrag = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    splitDraggingRef.current = true;
+
+    const handleMove = (me: MouseEvent) => {
+      if (!splitDraggingRef.current || !chartContainerRef.current) return;
+      const rect = chartContainerRef.current.getBoundingClientRect();
+      const newSplit = Math.min(Math.max((me.clientY - rect.top) / rect.height, 0.2), 0.8);
+      setChartSplit(newSplit);
+      localStorage.setItem('chartSplit', String(newSplit));
+    };
+
+    const handleUp = () => {
+      splitDraggingRef.current = false;
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+  }, []);
+
   const displayCandle = hoverCandle ?? allCandles[currentIndex];
   const prev = hoverCandle
     ? allCandles[allCandles.findIndex(c => c.date === hoverCandle.date) - 1]
@@ -118,6 +163,7 @@ export default function HomePage() {
   const chgPct = displayCandle && prev ? (chg / prev.close) * 100 : 0;
   const isUp = chg >= 0;
 
+  const stopLossPct = useSettingsStore(s => s.stopLossPercent);
   const condScore = sixConditions?.totalScore ?? 0;
   const condAlert = condScore >= 5;
   const prohibAlert = longProhibitions?.prohibited === true;
@@ -125,7 +171,7 @@ export default function HomePage() {
   // Stop-loss line
   const currentCandle = allCandles[currentIndex];
   const ma5StopLoss = metrics.shares > 0 ? (currentCandle?.ma5 ?? null) : null;
-  const costStopLoss = metrics.shares > 0 && metrics.avgCost > 0 ? metrics.avgCost * 0.93 : null;
+  const costStopLoss = metrics.shares > 0 && metrics.avgCost > 0 ? metrics.avgCost * (1 - stopLossPct / 100) : null;
   const stopLossPrice = ma5StopLoss != null && costStopLoss != null
     ? Math.max(ma5StopLoss, costStopLoss)
     : (ma5StopLoss ?? costStopLoss ?? undefined);
@@ -146,14 +192,24 @@ export default function HomePage() {
         {/* Left: Chart */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0 gap-1.5">
           <div
-            className={`relative flex flex-col rounded-xl border border-slate-700 overflow-hidden bg-slate-900 transition-opacity ${isLoadingStock ? 'opacity-40 pointer-events-none' : ''}`}
+            ref={chartContainerRef}
+            className={`relative flex flex-col rounded-xl border border-border overflow-hidden bg-card transition-opacity ${isLoadingStock ? 'opacity-40 pointer-events-none' : ''}`}
             style={{ height: 'min(calc(100vh - 100px), 800px)' }}
           >
             {isLoadingStock && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-900/80">
-                <div className="text-center">
-                  <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                  <p className="text-sm text-slate-300">載入資料中...</p>
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-card/90">
+                <div className="w-3/4 max-w-md space-y-2 mb-4">
+                  {/* Skeleton chart lines */}
+                  <div className="flex items-end gap-[2px] h-24 justify-center">
+                    {Array.from({ length: 30 }).map((_, i) => (
+                      <div key={i} className="w-1.5 bg-muted/60 rounded-sm animate-pulse"
+                        style={{ height: `${20 + Math.sin(i * 0.4) * 40 + Math.random() * 20}%`, animationDelay: `${i * 30}ms` }} />
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-sm text-muted-foreground">載入資料中...</p>
                 </div>
               </div>
             )}
@@ -168,21 +224,21 @@ export default function HomePage() {
 
             {/* OHLCV bar + 指標切換列 */}
             {displayCandle && (
-              <div className="shrink-0 flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-0.5 px-2 sm:px-3 py-1 sm:py-1.5 border-b border-slate-800 text-[10px] sm:text-xs font-mono">
+              <div className="shrink-0 flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-0.5 px-2 sm:px-3 py-1 sm:py-1.5 border-b border-border text-[10px] sm:text-xs font-mono">
                 {currentStock && (
-                  <span className="text-white font-bold font-sans mr-1">{currentStock.name}</span>
+                  <span className="text-foreground font-bold font-sans mr-1">{currentStock.name}</span>
                 )}
-                <span className={hoverCandle ? 'text-blue-400' : 'text-slate-400'}>{displayCandle.date}</span>
-                <span className={`text-sm font-bold ${isUp ? 'text-red-400' : 'text-green-400'}`}>
+                <span className={hoverCandle ? 'text-blue-400' : 'text-muted-foreground'}>{displayCandle.date}</span>
+                <span className={`text-sm font-bold ${isUp ? 'text-bull' : 'text-bear'}`}>
                   {displayCandle.close.toFixed(2)}
                 </span>
-                <span className={`font-bold ${isUp ? 'text-red-400' : 'text-green-400'}`}>
+                <span className={`font-bold ${isUp ? 'text-bull' : 'text-bear'}`}>
                   {isUp ? '▲' : '▼'}{Math.abs(chg).toFixed(2)} ({Math.abs(chgPct).toFixed(2)}%)
                 </span>
-                <span className="text-slate-500">開<span className="text-white ml-0.5">{displayCandle.open.toFixed(2)}</span></span>
-                <span className="text-slate-500">高<span className="text-red-400 ml-0.5">{displayCandle.high.toFixed(2)}</span></span>
-                <span className="text-slate-500">低<span className="text-green-400 ml-0.5">{displayCandle.low.toFixed(2)}</span></span>
-                <span className="text-slate-500">量<span className="text-slate-300 ml-0.5">{(displayCandle.volume / 1000).toFixed(0)}K</span></span>
+                <span className="text-muted-foreground">開<span className="text-foreground ml-0.5">{displayCandle.open.toFixed(2)}</span></span>
+                <span className="text-muted-foreground">高<span className="text-bull ml-0.5">{displayCandle.high.toFixed(2)}</span></span>
+                <span className="text-muted-foreground">低<span className="text-bear ml-0.5">{displayCandle.low.toFixed(2)}</span></span>
+                <span className="text-muted-foreground">量<span className="text-foreground/80 ml-0.5">{(displayCandle.volume / 1000).toFixed(0)}K</span></span>
                 {/* 工具列：均線開關 + 指標選擇 + 訊號 */}
                 <div className="ml-auto flex items-center gap-1 shrink-0 flex-wrap">
                   {([
@@ -194,20 +250,20 @@ export default function HomePage() {
                     <button key={key}
                       onClick={() => setMaToggles(p => ({ ...p, [key]: !p[key] }))}
                       className={`px-1.5 py-0.5 rounded text-[9px] font-medium transition ${
-                        maToggles[key] ? `${color}/70 text-white` : 'bg-slate-800 text-slate-600'
+                        maToggles[key] ? `${color}/70 text-foreground` : 'bg-secondary text-muted-foreground/60'
                       }`}
                       title={`顯示/隱藏 ${label}`}
                     >{label}</button>
                   ))}
-                  <span className="w-px h-3 bg-slate-700 mx-0.5" />
+                  <span className="w-px h-3 bg-border mx-0.5" />
                   <button
                     onClick={() => setShowBollinger(v => !v)}
                     className={`px-1.5 py-0.5 rounded text-[9px] font-medium transition ${
-                      showBollinger ? 'bg-emerald-700/60 text-emerald-200' : 'bg-slate-800 text-slate-600'
+                      showBollinger ? 'bg-emerald-700/60 text-emerald-200' : 'bg-secondary text-muted-foreground/60'
                     }`}
                     title="布林通道 (20, 2)"
                   >BB</button>
-                  <span className="w-px h-3 bg-slate-700 mx-0.5" />
+                  <span className="w-px h-3 bg-border mx-0.5" />
                   {([
                     { key: 'macd' as const, label: 'MACD' },
                     { key: 'kd' as const, label: 'KD' },
@@ -217,15 +273,15 @@ export default function HomePage() {
                     <button key={key}
                       onClick={() => setIndicators(p => ({ ...p, [key]: !p[key] }))}
                       className={`px-1.5 py-0.5 rounded text-[9px] font-medium transition ${
-                        indicators[key] ? 'bg-sky-700/60 text-sky-200' : 'bg-slate-800 text-slate-600'
+                        indicators[key] ? 'bg-sky-700/60 text-sky-200' : 'bg-secondary text-muted-foreground/60'
                       }`}
                     >{label}</button>
                   ))}
-                  <span className="w-px h-3 bg-slate-700 mx-0.5" />
+                  <span className="w-px h-3 bg-border mx-0.5" />
                   <button
                     onClick={() => setShowMarkers(v => !v)}
                     className={`px-1.5 py-0.5 rounded text-[9px] font-medium transition ${
-                      showMarkers ? 'bg-blue-600/60 text-blue-200' : 'bg-slate-800 text-slate-600'
+                      showMarkers ? 'bg-blue-600/60 text-blue-200' : 'bg-secondary text-muted-foreground/60'
                     }`}
                     title="顯示/隱藏買賣訊號標記"
                   >訊號</button>
@@ -233,7 +289,7 @@ export default function HomePage() {
                     <select
                       value={signalStrengthMin}
                       onChange={e => setSignalStrengthMin(Number(e.target.value))}
-                      className="px-1 py-0.5 rounded text-[9px] font-medium bg-slate-800 text-slate-300 border border-slate-700 outline-none"
+                      className="px-1 py-0.5 rounded text-[9px] font-medium bg-secondary text-foreground/80 border border-border outline-none"
                       title="信號共振強度過濾"
                     >
                       <option value={1}>全部</option>
@@ -249,10 +305,10 @@ export default function HomePage() {
                   const pnlPos = unrealizedPct >= 0;
                   return (
                     <span className="ml-auto flex items-center gap-2">
-                      <span className="text-slate-500">
+                      <span className="text-muted-foreground">
                         均價<span className="text-yellow-400 font-bold ml-0.5">{metrics.avgCost.toFixed(2)}</span>
                       </span>
-                      <span className={`font-bold text-xs ${pnlPos ? 'text-red-400' : 'text-green-400'}`}>
+                      <span className={`font-bold text-xs ${pnlPos ? 'text-bull' : 'text-bear'}`}>
                         {pnlPos ? '+' : ''}{unrealizedPct.toFixed(2)}%
                       </span>
                     </span>
@@ -262,7 +318,7 @@ export default function HomePage() {
             )}
 
             {/* K 線圖 */}
-            <div className="shrink-0 border-b border-slate-800" style={{ height: '48%' }}>
+            <div className="shrink-0" style={{ height: `${chartSplit * 100}%` }}>
               <ErrorBoundary>
                 <CandleChart
                   candles={visibleCandles}
@@ -282,6 +338,15 @@ export default function HomePage() {
               </ErrorBoundary>
             </div>
 
+            {/* 拖拽分隔條 */}
+            <div
+              className="shrink-0 h-1.5 bg-secondary hover:bg-blue-500/60 cursor-row-resize flex items-center justify-center group select-none"
+              onMouseDown={startSplitDrag}
+              title="拖拽調整 K 線 / 副圖比例"
+            >
+              <div className="w-8 h-px bg-muted-foreground/40 group-hover:bg-blue-400 rounded-full transition-colors" />
+            </div>
+
             {/* 副圖指標 */}
             <div className="flex-1 min-h-0 overflow-hidden">
               <ErrorBoundary>
@@ -292,7 +357,7 @@ export default function HomePage() {
 
           {/* 趨勢狀態 + 播放控制 */}
           <div className="shrink-0 space-y-1">
-            <div className="bg-slate-800/60 rounded-lg border border-slate-700 px-2 py-1">
+            <div className="bg-secondary/60 rounded-lg border border-border px-2 py-1">
               <TrendStateBar />
             </div>
             <ReplayControls />
@@ -304,20 +369,23 @@ export default function HomePage() {
           {/* Mobile toggle */}
           <button
             onClick={() => setSidebarOpen(o => !o)}
-            className="md:hidden flex items-center justify-between w-full px-3 py-2 bg-slate-800 rounded-lg text-xs text-slate-300 border border-slate-700"
+            aria-expanded={sidebarOpen}
+            aria-controls="analysis-sidebar"
+            className="md:hidden flex items-center justify-between w-full px-3 py-2 bg-secondary rounded-lg text-xs text-foreground/80 border border-border"
           >
             <span>分析面板</span>
             <span className={`transition-transform ${sidebarOpen ? 'rotate-180' : ''}`}>&#9660;</span>
           </button>
 
-          <div className={`flex flex-col min-h-0 gap-2 ${sidebarOpen ? 'max-h-[60vh] md:max-h-none' : 'max-h-0 overflow-hidden md:max-h-none'} transition-all duration-300`}>
+          <div id="analysis-sidebar" className={`flex flex-col min-h-0 gap-2 ${sidebarOpen ? 'max-h-[60vh] md:max-h-none' : 'max-h-0 overflow-hidden md:max-h-none'} transition-all duration-300`}>
             {/* Tab header + 舊版連結 */}
             <div className="shrink-0 flex items-center gap-1">
-              <div className="flex flex-1 rounded-lg overflow-hidden border border-slate-700 text-xs">
+              <div role="tablist" aria-label="分析面板" className="flex flex-1 rounded-lg overflow-hidden border border-border text-xs">
                 {SIDE_TABS.map(t => (
-                  <button key={t.key} onClick={() => setSideTab(t.key)}
+                  <button key={t.key} role="tab" aria-selected={sideTab === t.key} aria-controls={`panel-${t.key}`}
+                    onClick={() => setSideTab(t.key)}
                     className={`flex-1 py-1.5 font-medium transition-colors relative ${
-                      sideTab === t.key ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                      sideTab === t.key ? 'bg-blue-600 text-foreground' : 'bg-secondary text-muted-foreground hover:bg-muted'
                     } ${t.alert && sideTab !== t.key ? 'bg-green-900/40 text-green-300' : ''}`}
                   >
                     {t.label}
@@ -331,21 +399,33 @@ export default function HomePage() {
 
             {/* Tab content */}
             {sideTab === 'chat' ? (
-              <div className="flex-1 min-h-0">
+              <div id="panel-chat" role="tabpanel" className="flex-1 min-h-0">
                 <AnalysisChat sidebar />
               </div>
             ) : (
-              <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-0.5">
-                {sideTab === 'conditions' && <SixConditionsPanel />}
+              <div
+                id={`panel-${sideTab}`}
+                role="tabpanel"
+                className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-0.5"
+              >
+                {sideTab === 'conditions' && (
+                  <SectionBoundary section="六大條件">
+                    <SixConditionsPanel />
+                  </SectionBoundary>
+                )}
                 {sideTab === 'signals' && (
-                  <div className="space-y-2">
-                    <ProhibitionAlerts />
-                    <WinnerPatternAlerts />
-                    <RuleAlerts />
-                  </div>
+                  <SectionBoundary section="訊號分析">
+                    <div className="space-y-2">
+                      <ProhibitionAlerts />
+                      <WinnerPatternAlerts />
+                      <RuleAlerts />
+                    </div>
+                  </SectionBoundary>
                 )}
                 {sideTab === 'chip' && currentStock && (
-                  <ChipDetailPanel symbol={currentStock.ticker} date={currentDate} />
+                  <SectionBoundary section="籌碼分析">
+                    <ChipDetailPanel symbol={currentStock.ticker} date={currentDate} />
+                  </SectionBoundary>
                 )}
               </div>
             )}
