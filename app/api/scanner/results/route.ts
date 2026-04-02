@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { MarketId } from '@/lib/scanner/types';
 import { listScanDates, loadScanSession } from '@/lib/storage/scanStorage';
+import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 
 export const runtime = 'nodejs';
 
@@ -12,7 +13,7 @@ const querySchema = z.object({
 
 export async function GET(req: NextRequest) {
   const parsed = querySchema.safeParse(Object.fromEntries(new URL(req.url).searchParams));
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+  if (!parsed.success) return apiValidationError(parsed.error);
   const market: MarketId = parsed.data.market;
   const dateParam = parsed.data.date;
 
@@ -20,8 +21,8 @@ export async function GET(req: NextRequest) {
     if (dateParam) {
       // Return the specific date session (full data)
       const session = await loadScanSession(market, dateParam);
-      if (!session) return NextResponse.json({ sessions: [] });
-      return NextResponse.json({ sessions: [session] });
+      if (!session) return apiOk({ sessions: [] });
+      return apiOk({ sessions: [session] });
     }
 
     // Return all available dates (summary only)
@@ -34,9 +35,9 @@ export async function GET(req: NextRequest) {
       resultCount: d.resultCount,
     }));
 
-    return NextResponse.json({ sessions });
+    return apiOk({ sessions });
   } catch (err: unknown) {
     console.error('[scanner/results] error:', err);
-    return NextResponse.json({ error: '掃描服務暫時無法使用' }, { status: 500 });
+    return apiError('掃描服務暫時無法使用');
   }
 }

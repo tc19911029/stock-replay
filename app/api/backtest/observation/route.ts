@@ -20,10 +20,11 @@
  * - 此端點只做純計算（runObservationBacktest）
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { runObservationBacktest, type ForwardEntry } from '@/lib/backtest/ObservationBacktest';
 import type { MarketId } from '@/lib/scanner/types';
+import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 
 export const runtime     = 'nodejs';
 export const maxDuration = 30;
@@ -59,10 +60,7 @@ export async function POST(req: NextRequest) {
   const parsed = bodySchema.safeParse(body);
 
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? 'Invalid input' },
-      { status: 400 },
-    );
+    return apiValidationError(parsed.error);
   }
 
   const { scanResultsByDate, forwardDataByDate, factor, market } = parsed.data;
@@ -75,9 +73,9 @@ export async function POST(req: NextRequest) {
       market as MarketId,
     );
 
-    return NextResponse.json(result);
+    return apiOk(result);
   } catch (err) {
     console.error('[backtest/observation] error:', err);
-    return NextResponse.json({ error: '觀察型回測計算失敗' }, { status: 500 });
+    return apiError('觀察型回測計算失敗');
   }
 }

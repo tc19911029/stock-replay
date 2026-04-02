@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
+import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TWSE 即時報價 API — 延遲約 5-15 秒（盤中）
@@ -33,13 +34,13 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const parsed = realtimeQuerySchema.safeParse(Object.fromEntries(searchParams));
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+    return apiValidationError(parsed.error);
   }
   const { symbols } = parsed.data;
 
   const codes = symbols.split(',').map(s => s.trim()).filter(Boolean).slice(0, 50); // 最多 50 支
   if (codes.length === 0) {
-    return NextResponse.json({ error: 'no valid symbols' }, { status: 400 });
+    return apiError('no valid symbols', 400);
   }
 
   // TWSE 格式：tse_2330.tw|tse_2317.tw|otc_6770.tw
@@ -116,8 +117,8 @@ export async function GET(req: NextRequest) {
       } catch { /* OTC retry failed, skip */ }
     }
 
-    return NextResponse.json({ count: quotes.length, quotes });
+    return apiOk({ count: quotes.length, quotes });
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return apiError(String(e));
   }
 }

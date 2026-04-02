@@ -8,8 +8,9 @@
  * GET  /api/daytrade/optimize?action=iterate&symbol=2330&days=30&rounds=3
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
+import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 import {
   getAllVersions, getVersion, initBaselineVersion,
   getExperiments, getDiagnostics, compareVersions,
@@ -29,7 +30,7 @@ const querySchema = z.object({
 
 export async function GET(req: NextRequest) {
   const parsed = querySchema.safeParse(Object.fromEntries(req.nextUrl.searchParams));
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+  if (!parsed.success) return apiValidationError(parsed.error);
   const { action } = parsed.data;
   // Build base URL for server-side fetch
   const baseUrl = `${req.nextUrl.protocol}//${req.nextUrl.host}`;
@@ -38,7 +39,7 @@ export async function GET(req: NextRequest) {
     switch (action) {
       case 'versions': {
         initBaselineVersion();
-        return NextResponse.json({
+        return apiOk({
           versions: getAllVersions(),
           experiments: getExperiments(),
         });
@@ -52,7 +53,7 @@ export async function GET(req: NextRequest) {
 
         const result = await runIteration(symbol, days, timeframe, versionId, baseUrl);
 
-        return NextResponse.json({
+        return apiOk({
           version: result.version,
           experiment: result.experiment,
           diagnostics: result.diagnostics,
@@ -62,20 +63,20 @@ export async function GET(req: NextRequest) {
       case 'diagnostics': {
         const vId = parsed.data.version || 'v1.0';
         const diag = getDiagnostics(vId);
-        if (!diag) return NextResponse.json({ error: '尚未有診斷報告，請先跑 action=run' }, { status: 404 });
-        return NextResponse.json(diag);
+        if (!diag) return apiError('尚未有診斷報告，請先跑 action=run', 404);
+        return apiOk(diag);
       }
 
       case 'apply': {
         const vId = parsed.data.version || 'v1.0';
         const diag = getDiagnostics(vId);
         const version = getVersion(vId);
-        if (!diag || !version) return NextResponse.json({ error: '找不到版本或診斷' }, { status: 404 });
+        if (!diag || !version) return apiError('找不到版本或診斷', 404);
 
         const newVersion = applyTopSuggestion(diag, version);
-        if (!newVersion) return NextResponse.json({ error: '沒有可用的優化建議' }, { status: 400 });
+        if (!newVersion) return apiError('沒有可用的優化建議', 400);
 
-        return NextResponse.json({ newVersion, appliedSuggestion: diag.suggestions[0] });
+        return apiOk({ newVersion, appliedSuggestion: diag.suggestions[0] });
       }
 
       case 'iterate': {
@@ -118,7 +119,7 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        return NextResponse.json({
+        return apiOk({
           symbol,
           timeframe,
           days,
@@ -133,12 +134,12 @@ export async function GET(req: NextRequest) {
         const v1 = parsed.data.v1 || '';
         const v2 = parsed.data.v2 || '';
         const comparison = compareVersions(v1, v2);
-        if (!comparison) return NextResponse.json({ error: '版本不存在' }, { status: 404 });
+        if (!comparison) return apiError('版本不存在', 404);
 
         const exp1 = getExperiments(v1).find(e => e.status === 'completed');
         const exp2 = getExperiments(v2).find(e => e.status === 'completed');
 
-        return NextResponse.json({
+        return apiOk({
           ...comparison,
           metrics1: exp1?.metrics ?? null,
           metrics2: exp2?.metrics ?? null,
@@ -146,10 +147,10 @@ export async function GET(req: NextRequest) {
       }
 
       default:
-        return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
+        return apiError(`Unknown action: ${action}`, 400);
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return apiError(msg);
   }
 }

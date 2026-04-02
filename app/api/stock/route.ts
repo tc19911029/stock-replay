@@ -4,6 +4,7 @@ import { getTWChineseName, getCNChineseName } from '@/lib/datasource/TWSENames';
 import { unixToTW } from '@/lib/timezone';
 import { getTWSEQuote } from '@/lib/datasource/TWSERealtime';
 import { getEastMoneyQuote, getUSStockQuote } from '@/lib/datasource/EastMoneyRealtime';
+import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 
 /**
  * API Route: /api/stock?symbol=2330&interval=1d&period=2y
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const parsed = stockQuerySchema.safeParse(Object.fromEntries(searchParams));
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+    return apiValidationError(parsed.error);
   }
   const { symbol, interval, period } = parsed.data;
 
@@ -92,9 +93,9 @@ export async function GET(req: NextRequest) {
     }
 
     if (!res.ok) {
-      return NextResponse.json(
-        { error: `找不到股票代號 ${symbol}。台股格式：2330（上市）/8299（上櫃）、陸股：603986（上海）/000858（深圳）、美股：AAPL` },
-        { status: 502 }
+      return apiError(
+        `找不到股票代號 ${symbol}。台股格式：2330（上市）/8299（上櫃）、陸股：603986（上海）/000858（深圳）、美股：AAPL`,
+        502,
       );
     }
 
@@ -102,10 +103,7 @@ export async function GET(req: NextRequest) {
     const result = json?.chart?.result?.[0];
 
     if (!result) {
-      return NextResponse.json(
-        { error: '找不到該股票資料，請確認代號。台股格式：2330（上市）/8299（上櫃）、陸股：603986（上海）/000858（深圳）、美股：AAPL' },
-        { status: 404 }
-      );
+      return apiError('找不到該股票資料，請確認代號。台股格式：2330（上市）/8299（上櫃）、陸股：603986（上海）/000858（深圳）、美股：AAPL', 404);
     }
 
     const timestamps: number[] = result.timestamp ?? [];
@@ -137,7 +135,7 @@ export async function GET(req: NextRequest) {
     const candles: typeof rawCandles = Array.from(dateMap.values());
 
     if (candles.length === 0) {
-      return NextResponse.json({ error: '資料為空，請嘗試其他期間' }, { status: 404 });
+      return apiError('資料為空，請嘗試其他期間', 404);
     }
 
     // 即時報價覆蓋：用交易所 API 取代 Yahoo 延遲數據（台股 + A 股 + 美股）
@@ -212,16 +210,9 @@ export async function GET(req: NextRequest) {
       if (cnName) name = cnName;
     }
 
-    return NextResponse.json({
-      ticker,
-      name,
-      currency,
-      interval,
-      candles,
-      totalBars: candles.length,
-    });
+    return apiOk({ ticker, name, currency, interval, candles, totalBars: candles.length });
   } catch (err: unknown) {
     console.error('[stock] error:', err);
-    return NextResponse.json({ error: '股票資料暫時無法取得' }, { status: 500 });
+    return apiError('股票資料暫時無法取得');
   }
 }

@@ -1,19 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { aggregateNews } from '@/lib/news/aggregator';
 import { analyzeNewsSentiment } from '@/lib/news/sentiment';
 import { getTWChineseName } from '@/lib/datasource/TWSENames';
+import { apiOk, apiError } from '@/lib/api/response';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ ticker: string }> }
-): Promise<NextResponse> {
+) {
   const { ticker } = await params;
 
   if (!ticker || !/^\d{4,6}$/.test(ticker)) {
-    return NextResponse.json(
-      { error: 'Invalid ticker format. Expected 4–6 digit Taiwan stock code.' },
-      { status: 400 }
-    );
+    return apiError('Invalid ticker format. Expected 4–6 digit Taiwan stock code.', 400);
   }
 
   // Optional company name from query, or auto-lookup from TWSE name table
@@ -25,9 +23,9 @@ export async function GET(
   try {
     const items = await aggregateNews(ticker, companyName);
     const result = await analyzeNewsSentiment(ticker, items);
-    return NextResponse.json(result);
+    return apiOk(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 503 });
+    return apiError(message, 503);
   }
 }

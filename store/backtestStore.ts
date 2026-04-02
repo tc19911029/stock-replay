@@ -58,6 +58,8 @@ interface BacktestState {
   // ── 掃描階段 ──
   isScanning:    boolean;
   scanProgress:  number;
+  scanningStock: string;       // 目前正在掃描的股票名稱
+  scanningCount: string;       // 進度文字，如 "123/600"
   scanError:     string | null;
   scanResults:   StockScanResult[];
   marketTrend:   TrendState | null;   // 大盤趨勢（掃描時取得）
@@ -165,6 +167,8 @@ export const useBacktestStore = create<BacktestState>()(
 
       isScanning:   false,
       scanProgress: 0,
+      scanningStock: '',
+      scanningCount: '',
       scanError:    null,
       scanResults:  [],
       marketTrend:  null,
@@ -189,6 +193,33 @@ export const useBacktestStore = create<BacktestState>()(
       isLoadingCronSession: false,
       isBackfilling: false,
       backfillProgress: { done: 0, total: 0 },
+      scanPresets: [],
+
+      saveScanPreset: (name) => {
+        const { market, scanMode, scanDirection, useCapitalMode, capitalConstraints, strategy, scanPresets } = get();
+        const preset: ScanPreset = {
+          id: `preset-${Date.now()}`,
+          name,
+          market, scanMode, scanDirection, useCapitalMode, capitalConstraints, strategy,
+          createdAt: new Date().toISOString(),
+        };
+        set({ scanPresets: [...scanPresets, preset] });
+      },
+      loadScanPreset: (id) => {
+        const preset = get().scanPresets.find(p => p.id === id);
+        if (!preset) return;
+        set({
+          market: preset.market,
+          scanMode: preset.scanMode,
+          scanDirection: preset.scanDirection,
+          useCapitalMode: preset.useCapitalMode,
+          capitalConstraints: preset.capitalConstraints,
+          strategy: preset.strategy,
+        });
+      },
+      deleteScanPreset: (id) => {
+        set(s => ({ scanPresets: s.scanPresets.filter(p => p.id !== id) }));
+      },
 
       setMarket:             (market)   => set({ market }),
       setScanDate:           (scanDate) => set({ scanDate }),
@@ -292,7 +323,7 @@ export const useBacktestStore = create<BacktestState>()(
           scanAbortController.abort();
           scanAbortController = null;
         }
-        set({ isScanning: false, isFetchingForward: false, scanProgress: 0, scanError: '已取消掃描' });
+        set({ isScanning: false, isFetchingForward: false, scanProgress: 0, scanningStock: '', scanningCount: '', scanError: '已取消掃描' });
       },
 
       // ── 統一掃描入口（掃描 + 可選回測） ──
@@ -305,7 +336,7 @@ export const useBacktestStore = create<BacktestState>()(
         const { market, scanDate, strategy, useCapitalMode, capitalConstraints, scanOnly } = get();
 
         // ── Phase 1: Get stock list ──────────────────────────────────────────
-        set({ isScanning: true, scanProgress: 5, scanError: null,
+        set({ isScanning: true, scanProgress: 5, scanningStock: '取得股票清單...', scanningCount: '', scanError: null,
               scanResults: [], performance: [], trades: [], stats: null });
 
         let stocks: Array<{ symbol: string; name: string }>;
@@ -320,7 +351,7 @@ export const useBacktestStore = create<BacktestState>()(
           return;
         }
 
-        set({ scanProgress: 15 });
+        set({ scanProgress: 15, scanningStock: `準備分析 ${stocks.length} 檔股票...`, scanningCount: `0/${stocks.length}` });
 
         // ── Phase 2: Split into 2 chunks, scan in parallel ───────────────────
         const half   = Math.ceil(stocks.length / 2);
@@ -355,7 +386,7 @@ export const useBacktestStore = create<BacktestState>()(
           return { results: (json.results ?? []).map(sanitizeScanResult), marketTrend: json.marketTrend ?? null };
         };
 
-        set({ scanProgress: 30 });
+        set({ scanProgress: 30, scanningStock: `分析中（${stocks.length} 檔，雙線程並行）...`, scanningCount: `0/${stocks.length}` });
 
         const [r1, r2] = await Promise.allSettled([scanChunk(chunk1), scanChunk(chunk2)]);
 
@@ -377,7 +408,7 @@ export const useBacktestStore = create<BacktestState>()(
         const mt = r1.status === 'fulfilled' ? r1.value.marketTrend : null;
         const marketTrend = mt ? (mt as unknown as TrendState) : null;
 
-        set({ scanResults: combined, isScanning: false, scanProgress: 100, marketTrend });
+        set({ scanResults: combined, isScanning: false, scanProgress: 100, scanningStock: '', scanningCount: `${combined.length} 檔符合`, marketTrend });
 
         if (combined.length === 0) return;
 

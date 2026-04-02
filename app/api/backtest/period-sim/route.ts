@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { runPeriodSimulation, type PeriodSimConfig, type RankFactor, type DirectionStrategy } from '@/lib/backtest/PeriodSimulator';
 import { fetchCandlesRange } from '@/lib/datasource/YahooFinanceDS';
 import type { StockScanResult, ForwardCandle } from '@/lib/scanner/types';
+import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minutes for multi-day sim
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+    return apiValidationError(parsed.error);
   }
 
   const {
@@ -114,12 +115,9 @@ export async function POST(req: NextRequest) {
       forwardMap,
     );
 
-    return NextResponse.json({ ok: true, result });
+    return apiOk({ result });
   } catch (err) {
     console.error('[period-sim] error:', err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : '模擬服務暫時無法使用' },
-      { status: 500 },
-    );
+    return apiError(err instanceof Error ? err.message : '模擬服務暫時無法使用');
   }
 }

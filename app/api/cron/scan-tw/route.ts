@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { TaiwanScanner } from '@/lib/scanner/TaiwanScanner';
 import { ScanSession } from '@/lib/scanner/types';
 import { saveScanSession } from '@/lib/storage/scanStorage';
+import { apiOk, apiError } from '@/lib/api/response';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -10,7 +11,7 @@ export async function GET(req: NextRequest) {
   // Verify Vercel cron secret to prevent unauthorized triggers
   const authHeader = req.headers.get('authorization');
   if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return apiError('Unauthorized', 401);
   }
 
   try {
@@ -48,8 +49,8 @@ export async function GET(req: NextRequest) {
       } catch { /* notification failure is non-fatal */ }
     }
 
-    return NextResponse.json({ ok: true, count: results.length, date, partial, marketTrend });
+    return apiOk({ count: results.length, date, partial, marketTrend });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return apiError(String(err));
   }
 }

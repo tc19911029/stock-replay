@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
+import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 台股籌碼面完整 API
@@ -259,7 +260,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const parsed = chipQuerySchema.safeParse(Object.fromEntries(searchParams));
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+    return apiValidationError(parsed.error);
   }
   const rawDate = parsed.data.date ?? new Date().toISOString().slice(0, 10);
   const symbol = parsed.data.symbol ?? null;
@@ -268,9 +269,10 @@ export async function GET(req: NextRequest) {
   if (cache && Date.now() - cache.ts < CACHE_TTL) {
     if (symbol) {
       const d = cache.data.get(symbol.replace(/\.(TW|TWO)$/i, ''));
-      return NextResponse.json(d || { error: 'not found' });
+      if (!d) return apiError('not found', 404);
+      return apiOk(d);
     }
-    return NextResponse.json({ date: cache.date, count: cache.data.size, data: Array.from(cache.data.values()) });
+    return apiOk({ date: cache.date, count: cache.data.size, data: Array.from(cache.data.values()) });
   }
 
   // Find the most recent trading day with available data
@@ -326,8 +328,9 @@ export async function GET(req: NextRequest) {
 
   if (symbol) {
     const d = result.get(symbol.replace(/\.(TW|TWO)$/i, ''));
-    return NextResponse.json(d || { error: 'not found' });
+    if (!d) return apiError('not found', 404);
+    return apiOk(d);
   }
 
-  return NextResponse.json({ date, count: result.size, data: Array.from(result.values()) });
+  return apiOk({ date, count: result.size, data: Array.from(result.values()) });
 }

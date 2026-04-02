@@ -5,8 +5,9 @@
  * GET /api/daytrade/signal-backtest?symbol=2330&days=10&timeframe=5m&capital=1000000
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
+import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 import { computeIntradayIndicators } from '@/lib/daytrade/IntradayIndicators';
 import { IntradaySignalEngine } from '@/lib/daytrade/IntradaySignalEngine';
 import type { IntradayCandle, IntradayCandleWithIndicators, IntradayTimeframe, IntradaySignal } from '@/lib/daytrade/types';
@@ -250,7 +251,7 @@ const signalBtSchema = z.object({
 
 export async function GET(req: NextRequest) {
   const parsed = signalBtSchema.safeParse(Object.fromEntries(req.nextUrl.searchParams));
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+  if (!parsed.success) return apiValidationError(parsed.error);
   const symbol = parsed.data.symbol;
   const days = Math.min(parseInt(parsed.data.days), 60);
   const timeframe = parsed.data.timeframe as IntradayTimeframe;
@@ -262,7 +263,7 @@ export async function GET(req: NextRequest) {
     // Fetch historical intraday data
     const { candles: rawCandles, name: stockName } = await fetchYahooIntraday(symbol, timeframe, days);
     if (rawCandles.length === 0) {
-      return NextResponse.json({ error: '無歷史分鐘數據' }, { status: 400 });
+      return apiError('無歷史分鐘數據', 400);
     }
 
     // Group by date
@@ -338,9 +339,9 @@ export async function GET(req: NextRequest) {
       allTrades,
     };
 
-    return NextResponse.json(result);
+    return apiOk(result);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return apiError(msg);
   }
 }

@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { TaiwanScanner } from '@/lib/scanner/TaiwanScanner';
 import { ChinaScanner }  from '@/lib/scanner/ChinaScanner';
 import { MarketId }      from '@/lib/scanner/types';
+import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 
 const backtestScanSchema = z.object({
   market: z.enum(['TW', 'CN']).default('TW'),
@@ -27,17 +28,17 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const parsed = backtestScanSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+    return apiValidationError(parsed.error);
   }
   const { market, date, stocks, mode } = parsed.data;
   const marketId = market as MarketId;
 
   if (!date || stocks.length === 0) {
-    return NextResponse.json({ results: [] });
+    return apiOk({ results: [] });
   }
 
   if (date > new Date().toISOString().split('T')[0]) {
-    return NextResponse.json({ error: '不能選未來日期' }, { status: 400 });
+    return apiError('不能選未來日期', 400);
   }
 
   try {
@@ -69,7 +70,7 @@ export async function POST(req: NextRequest) {
           .map(r => ({ symbol: r.symbol, name: r.name })),
       };
 
-      return NextResponse.json({
+      return apiOk({
         full: { results: fullResult.results, marketTrend: fullResult.marketTrend },
         pure: { results: pureResult.results, marketTrend: pureResult.marketTrend },
         comparison,
@@ -78,14 +79,14 @@ export async function POST(req: NextRequest) {
 
     if (mode === 'pure') {
       const { results, marketTrend } = await scanner.scanListAtDatePure(stocks, date);
-      return NextResponse.json({ results, marketTrend, mode: 'pure' });
+      return apiOk({ results, marketTrend, mode: 'pure' });
     }
 
     // Default: full
     const { results, marketTrend } = await scanner.scanListAtDate(stocks, date);
-    return NextResponse.json({ results, marketTrend });
+    return apiOk({ results, marketTrend });
   } catch (err) {
     console.error('[backtest/scan] error:', err);
-    return NextResponse.json({ error: '回測服務暫時無法使用' }, { status: 500 });
+    return apiError('回測服務暫時無法使用');
   }
 }

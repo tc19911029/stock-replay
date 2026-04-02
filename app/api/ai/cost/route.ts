@@ -1,10 +1,10 @@
-import { NextResponse } from 'next/server';
 import { getSessionCost } from '@/lib/ai/costTracker';
+import { apiOk } from '@/lib/api/response';
 
 /** GET /api/ai/cost — return current session cost summary */
-export async function GET(): Promise<NextResponse> {
+export async function GET() {
   const cost = getSessionCost();
-  return NextResponse.json({
+  return apiOk({
     totalCostUsd: cost.totalCostUsd,
     totalInputTokens: cost.totalInputTokens,
     totalOutputTokens: cost.totalOutputTokens,

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
+import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 import { evaluateSixConditions, detectTrend, detectTrendPosition } from '@/lib/analysis/trendAnalysis';
 import { computeSurgeScore } from '@/lib/analysis/surgeScore';
 import { RuleEngine, ruleEngine } from '@/lib/rules/ruleEngine';
@@ -33,17 +34,17 @@ async function fetchCandles(symbol: string): Promise<{ candles: CandleWithIndica
 
 export async function GET(req: NextRequest) {
   const parsed = querySchema.safeParse(Object.fromEntries(req.nextUrl.searchParams));
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+  if (!parsed.success) return apiValidationError(parsed.error);
   const { symbol, strategyId } = parsed.data;
 
   const thresholds = resolveThresholds({ strategyId });
 
   try {
     const data = await fetchCandles(symbol);
-    if (!data) return NextResponse.json({ error: '找不到股票資料' }, { status: 404 });
+    if (!data) return apiError('找不到股票資料', 404);
 
     const allCandles = data.candles;
-    if (allCandles.length < 30) return NextResponse.json({ error: '資料不足' }, { status: 400 });
+    if (allCandles.length < 30) return apiError('資料不足', 400);
 
     const lastIdx = allCandles.length - 1;
     const last = allCandles[lastIdx];
@@ -67,7 +68,7 @@ export async function GET(req: NextRequest) {
     const cnName = await getCNChineseName(code) ?? await getTWChineseName(code);
     const displayName = cnName ?? data.name;
 
-    return NextResponse.json({
+    return apiOk({
       symbol: data.ticker,
       name: displayName,
       price: last.close,
@@ -82,6 +83,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error('[watchlist/conditions] error:', err);
-    return NextResponse.json({ error: '條件查詢暫時無法使用' }, { status: 500 });
+    return apiError('條件查詢暫時無法使用');
   }
 }

@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
+import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -27,18 +28,18 @@ interface StockForAI {
 export async function POST(req: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: '未設定 ANTHROPIC_API_KEY' }, { status: 500 });
+    return apiError('未設定 ANTHROPIC_API_KEY');
   }
 
   const body = await req.json().catch(() => ({}));
   const parsed = aiRankSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+    return apiValidationError(parsed.error);
   }
   const stocks = (parsed.data.stocks ?? []) as StockForAI[];
   const market = parsed.data.market;
   if (stocks.length === 0) {
-    return NextResponse.json({ rankings: [], marketComment: '' });
+    return apiOk({ rankings: [], marketComment: '' });
   }
 
   const stockSummary = stocks.map((s, i) => {
@@ -80,7 +81,7 @@ export async function POST(req: NextRequest) {
     // Extract JSON from response
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      return NextResponse.json({ rankings: [], marketComment: 'AI 回應格式異常' });
+      return apiOk({ rankings: [], marketComment: 'AI 回應格式異常' });
     }
 
     const parsed = JSON.parse(jsonMatch[0]) as {
@@ -88,9 +89,9 @@ export async function POST(req: NextRequest) {
       marketComment: string;
     };
 
-    return NextResponse.json(parsed);
+    return apiOk(parsed);
   } catch (err) {
     console.error('[ai-rank] error:', err);
-    return NextResponse.json({ error: 'AI 排名服務暫時無法使用' }, { status: 500 });
+    return apiError('AI 排名服務暫時無法使用');
   }
 }

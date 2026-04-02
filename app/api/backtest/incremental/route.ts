@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { TaiwanScanner } from '@/lib/scanner/TaiwanScanner';
 import { ChinaScanner }  from '@/lib/scanner/ChinaScanner';
 import type { MarketId, ForwardCandle } from '@/lib/scanner/types';
+import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 import {
   runIncrementalFilterTest,
   TESTABLE_FILTERS,
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+    return apiValidationError(parsed.error);
   }
   const { market, dates, stocks, mode } = parsed.data;
   const marketId = market as MarketId;
@@ -89,11 +90,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (allBaselineResults.length === 0) {
-      return NextResponse.json({
-        error: '所有日期都沒有掃描結果',
-        dates,
-        market: marketId,
-      });
+      return apiError('所有日期都沒有掃描結果', 400);
     }
 
     const result: Record<string, unknown> = {
@@ -122,9 +119,9 @@ export async function POST(req: NextRequest) {
       result.rankingTest = rankingResult;
     }
 
-    return NextResponse.json(result);
+    return apiOk(result);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return apiError(msg);
   }
 }

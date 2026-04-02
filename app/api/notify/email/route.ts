@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { StockScanResult } from '@/lib/scanner/types';
+import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 
 const emailBodySchema = z.object({
   to: z.string().email().optional(),
@@ -97,18 +98,18 @@ export async function POST(req: NextRequest) {
   try {
     const raw = await req.json().catch(() => ({}));
     const parsed = emailBodySchema.safeParse(raw);
-    if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+    if (!parsed.success) return apiValidationError(parsed.error);
     const { to, subject, market } = parsed.data;
     const results = parsed.data.results as StockScanResult[];
 
     const apiKey = process.env.RESEND_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ error: 'RESEND_API_KEY not configured' }, { status: 500 });
+      return apiError('RESEND_API_KEY not configured');
     }
 
     const recipient = to ?? process.env.NOTIFY_EMAIL;
     if (!recipient) {
-      return NextResponse.json({ error: 'No recipient email configured' }, { status: 400 });
+      return apiError('No recipient email configured', 400);
     }
 
     const marketName = market === 'TW' ? '台灣股市' : '中國A股';
@@ -132,12 +133,12 @@ export async function POST(req: NextRequest) {
     const json = await res.json() as { id?: string; error?: string };
 
     if (!res.ok) {
-      return NextResponse.json({ error: json.error ?? 'Resend API error' }, { status: res.status });
+      return apiError(json.error ?? 'Resend API error', res.status);
     }
 
-    return NextResponse.json({ ok: true, id: json.id });
+    return apiOk({ id: json.id });
   } catch (err) {
     console.error('[notify/email] error:', err);
-    return NextResponse.json({ error: '通知發送失敗' }, { status: 500 });
+    return apiError('通知發送失敗');
   }
 }

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
+import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 import { fetchCandlesYahoo } from '@/lib/datasource/YahooFinanceDS';
 import { evaluateSixConditions, detectTrendPosition } from '@/lib/analysis/trendAnalysis';
 import { computeSurgeScore } from '@/lib/analysis/surgeScore';
@@ -36,7 +37,7 @@ export interface SignalDate {
 
 export async function GET(req: NextRequest) {
   const parsed = querySchema.safeParse(Object.fromEntries(new URL(req.url).searchParams));
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+  if (!parsed.success) return apiValidationError(parsed.error);
   const { symbol, period, strategyId } = parsed.data;
   const thresholds = resolveThresholds({ strategyId });
   const minScore = parseInt(parsed.data.minScore ?? String(thresholds.minScore));
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest) {
   try {
     const candles = await fetchCandlesYahoo(symbol, period, 30000);
     if (!candles || candles.length < 30) {
-      return NextResponse.json({ error: '資料不足' }, { status: 404 });
+      return apiError('資料不足', 404);
     }
 
     const signals: SignalDate[] = [];
@@ -120,7 +121,7 @@ export async function GET(req: NextRequest) {
     const avg5  = total > 0 ? signals.reduce((s, x) => s + (x.d5Return ?? 0), 0) / total : 0;
     const avg20 = total > 0 ? signals.reduce((s, x) => s + (x.d20Return ?? 0), 0) / total : 0;
 
-    return NextResponse.json({
+    return apiOk({
       symbol,
       signals: signals.reverse(),
       stats: { total, win5, win20, avg5, avg20 },
@@ -128,6 +129,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (err: unknown) {
     console.error('[stock-signals] error:', err);
-    return NextResponse.json({ error: '訊號分析暫時無法使用' }, { status: 500 });
+    return apiError('訊號分析暫時無法使用');
   }
 }

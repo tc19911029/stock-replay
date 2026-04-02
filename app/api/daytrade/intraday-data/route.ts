@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import type { IntradayTimeframe } from '@/lib/daytrade/types';
 import { getTWChineseName } from '@/lib/datasource/TWSENames';
 import { unixToTW } from '@/lib/timezone';
 import { getTWSEQuote } from '@/lib/datasource/TWSERealtime';
 import { getEastMoneyQuote, getUSStockQuote } from '@/lib/datasource/EastMoneyRealtime';
+import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 
 /**
  * API Route: /api/daytrade/intraday-data?symbol=6770&timeframe=5m&todayOnly=1
@@ -34,14 +35,14 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const parsedQuery = intradayQuerySchema.safeParse(Object.fromEntries(searchParams));
   if (!parsedQuery.success) {
-    return NextResponse.json({ error: parsedQuery.error.issues[0].message }, { status: 400 });
+    return apiValidationError(parsedQuery.error);
   }
   const symbol    = parsedQuery.data.symbol;
   const timeframe = parsedQuery.data.timeframe as IntradayTimeframe;
   const todayOnly = parsedQuery.data.todayOnly === '1';
 
   if (!TF_TO_YAHOO[timeframe]) {
-    return NextResponse.json({ error: 'Invalid timeframe' }, { status: 400 });
+    return apiError('Invalid timeframe', 400);
   }
 
   const isTwDigits = /^\d{4,5}$/.test(symbol);
@@ -77,13 +78,13 @@ export async function GET(req: NextRequest) {
     }
 
     if (!res.ok) {
-      return NextResponse.json({ error: `找不到 ${symbol} 的分鐘數據` }, { status: 502 });
+      return apiError(`找不到 ${symbol} 的分鐘數據`, 502);
     }
 
     const json = await res.json();
     const result = json?.chart?.result?.[0];
     if (!result) {
-      return NextResponse.json({ error: '無分鐘數據' }, { status: 404 });
+      return apiError('無分鐘數據', 404);
     }
 
     const timestamps: number[] = result.timestamp ?? [];
@@ -160,7 +161,7 @@ export async function GET(req: NextRequest) {
       if (twName) name = twName;
     }
 
-    return NextResponse.json({
+    return apiOk({
       symbol,
       ticker,
       name,
@@ -171,6 +172,6 @@ export async function GET(req: NextRequest) {
       lastDate: availableDates[availableDates.length - 1] ?? null,
     });
   } catch (e) {
-    return NextResponse.json({ error: `取得數據失敗: ${String(e)}` }, { status: 500 });
+    return apiError(`取得數據失敗: ${String(e)}`);
   }
 }

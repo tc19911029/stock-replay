@@ -17,118 +17,31 @@ import {
   computeMetrics,
   sharesFromPercent,
 } from '@/lib/engines/tradeEngine';
-import { computeStats } from '@/lib/engines/statsEngine';
-import { RuleEngine, ruleEngine } from '@/lib/rules/ruleEngine';
 import {
-  detectTrend,
-  detectTrendPosition,
-  evaluateSixConditions,
   TrendState,
   TrendPosition,
   SixConditionsResult,
 } from '@/lib/analysis/trendAnalysis';
-import { computeSurgeScore, SurgeScoreResult } from '@/lib/analysis/surgeScore';
-import { checkLongProhibitions, checkShortProhibitions, type ProhibitionResult } from '@/lib/rules/entryProhibitions';
-import { evaluateShortSixConditions, type ShortSixConditionsResult } from '@/lib/analysis/shortAnalysis';
-import { evaluateWinnerPatterns, type WinnerPatternResult } from '@/lib/rules/winnerPatternRules';
-import { useSettingsStore } from './settingsStore';
+import { SurgeScoreResult } from '@/lib/analysis/surgeScore';
+import { type ProhibitionResult } from '@/lib/rules/entryProhibitions';
+import { type ShortSixConditionsResult } from '@/lib/analysis/shortAnalysis';
+import { type WinnerPatternResult } from '@/lib/rules/winnerPatternRules';
+
+// ── Extracted modules ──────────────────────────────────────────────────────────
+import { buildState } from './replay/buildState';
+import {
+  precomputeMarkers,
+  clearCachedMarkers,
+  getCachedMarkers,
+  setSignalStrengthMin as _setStrengthMin,
+} from './replay/signalCache';
 
 const INITIAL_CAPITAL = 1_000_000;
 
-// ── Module-level signal marker cache (recomputed on data load) ────────────────
-let _cachedMarkers: ChartSignalMarker[] = [];
-/** 當前策略篩選後的引擎（precomputeMarkers 和 buildState 共用） */
-let _activeEngine: RuleEngine = ruleEngine;
-/** 信號共振強度最低門檻（多少個群組同意才顯示 marker） */
-let _signalStrengthMin = 2;
-/** 上次構建引擎使用的策略 ID，用於偵測策略切換 */
-let _lastStrategyId = '';
-
-/**
- * 根據當前策略建立篩選後的 RuleEngine。
- * 如果策略沒有指定 ruleGroups，就用預設的全規則引擎。
- */
-function buildFilteredEngine(): RuleEngine {
-  const strategy = useSettingsStore.getState().getActiveStrategy();
-  _lastStrategyId = strategy.id;
-  if (strategy.ruleGroups && strategy.ruleGroups.length > 0) {
-    return new RuleEngine(undefined, strategy.ruleGroups);
-  }
-  return ruleEngine; // 全開（向後相容）
-}
-
-/**
- * 檢查策略是否已切換，若是則自動重新計算信號快取。
- * 在 buildState 和 loadStock 中呼叫，確保信號始終對應當前策略。
- */
-function ensureEngineUpToDate(allCandles: CandleWithIndicators[]): void {
-  const currentId = useSettingsStore.getState().getActiveStrategy().id;
-  if (currentId !== _lastStrategyId && allCandles.length > 0) {
-    precomputeMarkers(allCandles);
-  }
-}
-
-function precomputeMarkers(allCandles: CandleWithIndicators[]): void {
-  _activeEngine = buildFilteredEngine();
-  const strategy = useSettingsStore.getState().getActiveStrategy();
-  const minScore = strategy.thresholds.minScore ?? 4;
-  const result: ChartSignalMarker[] = [];
-
-  for (let i = 0; i < allCandles.length; i++) {
-    const c = allCandles[i];
-
-    // ── Trend filter (朱家泓：順勢操作，多頭才買，空頭才賣) ──────────────
-    const isBullish = c.ma5 != null && c.ma20 != null && c.ma5 > c.ma20;
-    const isBearish = c.ma5 != null && c.ma20 != null && c.ma5 < c.ma20;
-
-    // 用 evaluateDetailed 拿到每個 signal 的 groupId
-    const { allSignals } = _activeEngine.evaluateDetailed(allCandles, i);
-
-    // 按方向統計來自幾個不同群組
-    const buyGroups = new Set(
-      allSignals
-        .filter(s => (s.type === 'BUY' || s.type === 'ADD') && isBullish)
-        .map(s => s.groupId),
-    );
-    const sellGroups = new Set(
-      allSignals
-        .filter(s => (s.type === 'SELL' || s.type === 'REDUCE') && isBearish)
-        .map(s => s.groupId),
-    );
-
-    const buyStrength = buyGroups.size;
-    const sellStrength = sellGroups.size;
-
-    // ── 六大條件過濾（買進方向需過門檻，賣出不限） ──
-    if (buyStrength >= _signalStrengthMin) {
-      const score = minScore > 1 ? evaluateSixConditions(allCandles, i, strategy.thresholds).totalScore : 6;
-      if (score >= minScore) {
-        result.push({
-          date: c.date,
-          type: 'BUY',
-          label: `買 ×${buyStrength} (${score}/6)`,
-          strength: buyStrength,
-        });
-      }
-    }
-    if (sellStrength >= _signalStrengthMin) {
-      result.push({
-        date: c.date,
-        type: 'SELL',
-        label: sellStrength >= 3 ? `強賣 ×${sellStrength}` : `賣 ×${sellStrength}`,
-        strength: sellStrength,
-      });
-    }
-  }
-
-  _cachedMarkers = result;
-}
-
-/**
- * How many bars to show when replay begins.
- * For daily: 120 bars (~6 months visible at start), so user practices from mid-history.
- * For weekly: 60 bars (~15 months). For monthly: 36 bars (3 years).
- */
+const EMPTY_STATS: PerformanceStats = {
+  totalTrades: 0, winCount: 0, lossCount: 0, winRate: 0,
+  totalRealizedPnL: 0, totalReturnRate: 0, equityCurve: [],
+};
 
 interface ReplayStore {
   // ── Data ──────────────────────────────────────────────────
@@ -150,19 +63,17 @@ interface ReplayStore {
 
   // ── Signals ───────────────────────────────────────────────
   currentSignals: RuleSignal[];
-  chartMarkers: ChartSignalMarker[];  // all past signal markers up to currentIndex
-  signalStrengthMin: number;          // 共振門檻（幾個群組同意才顯示）
+  chartMarkers: ChartSignalMarker[];
+  signalStrengthMin: number;
 
   // ── Analysis ──────────────────────────────────────────────
   trendState: TrendState;
   trendPosition: TrendPosition;
   sixConditions: SixConditionsResult | null;
   surgeScore: SurgeScoreResult | null;
-  // ── Phase 7: 10大戒律 + 做空六條件 ───────────────────────
   longProhibitions: ProhibitionResult | null;
   shortProhibitions: ProhibitionResult | null;
   shortConditions: ShortSixConditionsResult | null;
-  // ── Phase 8: 33 種贏家圖像 ───────────────────────────────
   winnerPatterns: WinnerPatternResult | null;
 
   // ── Actions ───────────────────────────────────────────────
@@ -182,48 +93,6 @@ interface ReplayStore {
   buyPercent: (percent: number) => void;
   sellPercent: (percent: number) => void;
   setSignalStrengthMin: (min: number) => void;
-}
-
-const EMPTY_STATS: PerformanceStats = {
-  totalTrades: 0, winCount: 0, lossCount: 0, winRate: 0,
-  totalRealizedPnL: 0, totalReturnRate: 0, equityCurve: [],
-};
-
-function buildState(
-  allCandles: CandleWithIndicators[],
-  index: number,
-  account: AccountState
-) {
-  // P0-1: 若策略已切換，自動重新計算信號快取
-  ensureEngineUpToDate(allCandles);
-  const currentPrice = allCandles[index]?.close ?? 0;
-  const metrics = computeMetrics(account, currentPrice);
-  const stats = computeStats(account, allCandles, index);
-  const signals = _activeEngine.evaluate(allCandles, index);
-  const visibleCandles = allCandles.slice(0, index + 1);
-  const currentDate = allCandles[index]?.date ?? '';
-  // Binary search for visible markers (markers are sorted by date asc)
-  let markerEnd = _cachedMarkers.length;
-  if (_cachedMarkers.length > 0 && currentDate) {
-    let lo = 0, hi = _cachedMarkers.length;
-    while (lo < hi) {
-      const mid = (lo + hi) >>> 1;
-      if (_cachedMarkers[mid].date <= currentDate) lo = mid + 1;
-      else hi = mid;
-    }
-    markerEnd = lo;
-  }
-  const chartMarkers = _cachedMarkers.slice(0, markerEnd);
-  const trendState    = detectTrend(allCandles, index);
-  const trendPosition = detectTrendPosition(allCandles, index);
-  const activeThresholds = useSettingsStore.getState().getActiveStrategy().thresholds;
-  const sixConditions = evaluateSixConditions(allCandles, index, activeThresholds);
-  const surgeScore = computeSurgeScore(allCandles, index);
-  const longProhibitions  = index >= 5 ? checkLongProhibitions(allCandles, index)  : null;
-  const shortProhibitions = index >= 5 ? checkShortProhibitions(allCandles, index) : null;
-  const shortConditions   = index >= 5 ? evaluateShortSixConditions(allCandles, index) : null;
-  const winnerPatterns    = index >= 5 ? evaluateWinnerPatterns(allCandles, index)    : null;
-  return { visibleCandles, metrics, stats, currentSignals: signals, chartMarkers, trendState, trendPosition, sixConditions, surgeScore, longProhibitions, shortProhibitions, shortConditions, winnerPatterns };
 }
 
 /** Always start replay at the latest (rightmost) candle */
@@ -272,21 +141,20 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
     });
   },
 
-  // ── Load real stock from Yahoo Finance ────────────────────
+  // ── Load real stock ──────────────────────────────────────
   loadStock: async (symbol: string, interval = '1d', period?: string) => {
     if (symbol === 'mock') {
       get().initData();
       return;
     }
 
-    // Auto pick period based on interval if not specified
     const defaultPeriod: Record<string, string> = {
       '1d': '2y', '1wk': '5y', '1mo': '10y',
     };
     const p = period ?? defaultPeriod[interval] ?? '2y';
 
     set({ isLoadingStock: true, isPlaying: false });
-    _cachedMarkers = []; // clear stale markers while loading
+    clearCachedMarkers();
     try {
       const res = await fetch(
         `/api/stock?symbol=${encodeURIComponent(symbol)}&interval=${interval}&period=${p}`
@@ -339,7 +207,8 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
   jumpToNextBuySignal: () => {
     const { allCandles, currentIndex } = get();
     const currentDate = allCandles[currentIndex]?.date ?? '';
-    const next = _cachedMarkers.find(m =>
+    const markers = getCachedMarkers();
+    const next = markers.find(m =>
       m.date > currentDate && (m.type === 'BUY' || m.type === 'ADD')
     );
     if (next) {
@@ -351,7 +220,8 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
   jumpToPrevBuySignal: () => {
     const { allCandles, currentIndex } = get();
     const currentDate = allCandles[currentIndex]?.date ?? '';
-    const prev = [..._cachedMarkers].reverse().find(m =>
+    const markers = getCachedMarkers();
+    const prev = [...markers].reverse().find(m =>
       m.date < currentDate && (m.type === 'BUY' || m.type === 'ADD')
     );
     if (prev) {
@@ -410,7 +280,7 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
   },
 
   setSignalStrengthMin: (min) => {
-    _signalStrengthMin = min;
+    _setStrengthMin(min);
     const { allCandles, currentIndex, account } = get();
     if (allCandles.length > 0) {
       precomputeMarkers(allCandles);

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getEastMoneyQuote } from '@/lib/datasource/EastMoneyRealtime';
+import { apiOk, apiError } from '@/lib/api/response';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // 輕量即時報價 API — 只回傳 price + changePercent，用於持倉 polling
@@ -149,12 +150,12 @@ export async function GET(req: NextRequest) {
   const symbolsParam = searchParams.get('symbols');
 
   if (!symbolsParam) {
-    return NextResponse.json({ error: 'symbols required' }, { status: 400 });
+    return apiError('symbols required', 400);
   }
 
   const symbols = symbolsParam.split(',').map(s => s.trim()).filter(Boolean).slice(0, 50);
   if (symbols.length === 0) {
-    return NextResponse.json({ error: 'no valid symbols' }, { status: 400 });
+    return apiError('no valid symbols', 400);
   }
 
   // 分類台股 / 陸股
@@ -169,7 +170,7 @@ export async function GET(req: NextRequest) {
 
   const quotes = [...twQuotes, ...cnQuotes];
 
-  return NextResponse.json(
+  return apiOk(
     { quotes },
     { headers: { 'Cache-Control': 'max-age=15, stale-while-revalidate=30' } },
   );

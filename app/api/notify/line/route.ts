@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
+import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 
 export const runtime = 'nodejs';
 
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest) {
   try {
     const raw = await req.json().catch(() => ({}));
     const parsed = bodySchema.safeParse(raw);
-    if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+    if (!parsed.success) return apiValidationError(parsed.error);
     const { token, message } = parsed.data;
 
     const res = await fetch('https://notify-api.line.me/api/notify', {
@@ -27,10 +28,10 @@ export async function POST(req: NextRequest) {
 
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      return NextResponse.json({ error: data.message ?? '傳送失敗', code: res.status }, { status: 400 });
+      return apiError(data.message ?? '傳送失敗', 400);
     }
-    return NextResponse.json({ ok: true });
+    return apiOk({ sent: true });
   } catch {
-    return NextResponse.json({ error: '伺服器錯誤' }, { status: 500 });
+    return apiError('伺服器錯誤');
   }
 }

@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { TaiwanScanner } from '@/lib/scanner/TaiwanScanner';
 import { ChinaScanner } from '@/lib/scanner/ChinaScanner';
 import { ScanSession, MarketId } from '@/lib/scanner/types';
 import { saveScanSession, loadScanSession } from '@/lib/storage/scanStorage';
+import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+    return apiValidationError(parsed.error);
   }
 
   const { market, date, force } = parsed.data;
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
   if (!force) {
     const existing = await loadScanSession(marketId, date);
     if (existing) {
-      return NextResponse.json({ ok: true, skipped: true, count: existing.resultCount, date });
+      return apiOk({ skipped: true, count: existing.resultCount, date });
     }
   }
 
@@ -48,9 +49,9 @@ export async function POST(req: NextRequest) {
     };
 
     await saveScanSession(session);
-    return NextResponse.json({ ok: true, count: results.length, date, marketTrend });
+    return apiOk({ count: results.length, date, marketTrend });
   } catch (err) {
     console.error('[scanner/backfill] error:', err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return apiError(String(err));
   }
 }
