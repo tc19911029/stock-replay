@@ -87,6 +87,7 @@ export function scanResultToSignal(scanResult: StockScanResult): TradeSignal {
     winnerBearishPatterns: scanResult.winnerBearishPatterns,
     eliminationPenalty: scanResult.eliminationPenalty,
     direction: scanResult.direction,
+    signalPrice: scanResult.price,
   };
 }
 
@@ -340,12 +341,21 @@ export function runSingleBacktest(
     const rangeRatio = entryCandle.low > 0 ? range / entryCandle.low : 0;
     // 漲停鎖死特徵：開盤=最高價 且 振幅極小（<0.5%）
     const isLockUp = entryCandle.open === entryCandle.high && rangeRatio < 0.005;
-    // 大幅跳空高開（>9%）且收在最高價附近 — 可能漲停
-    const _gapUpPct = forwardCandles.length >= 2
-      ? 0 // 無前日資料時不判斷
-      : 0;
     if (isLockUp) {
       return null; // 漲停鎖死，買不到
+    }
+  }
+
+  // ── P2-4: 跳空缺口進場標記 ───────────────────────────────────────────────
+  // 以訊號日收盤價為基準，計算隔日開盤的跳空幅度
+  // 跳空 > 5% 時標記，讓用戶知道此筆回測的進場成本比預期高
+  let isGapUp = false;
+  let gapUpPct: number | undefined;
+  if (signal.signalPrice && signal.signalPrice > 0) {
+    const gap = (rawEntryPrice - signal.signalPrice) / signal.signalPrice * 100;
+    if (gap >= 5) {
+      isGapUp = true;
+      gapUpPct = +gap.toFixed(2);
     }
   }
 
