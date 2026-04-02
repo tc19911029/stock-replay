@@ -405,3 +405,65 @@ export const BUILT_IN_STRATEGIES: StrategyConfig[] = [
   ZHU_V3_MULTIFACTOR, ZHU_V3_TW, ZHU_V3_CN,
   MASTER_CONSENSUS, ZHU_5STEPS, CHART_WALKING_SOP,
 ];
+
+// ── P0-3: 策略參數邊界驗證 ──────────────────────────────────────────────────────
+
+/** 策略閾值合理範圍定義 */
+export const THRESHOLD_BOUNDS: Record<keyof StrategyThresholds, { min: number; max: number; label: string }> = {
+  maShortPeriod:     { min: 2,    max: 30,   label: '短期均線' },
+  maMidPeriod:       { min: 5,    max: 60,   label: '中期均線' },
+  maLongPeriod:      { min: 10,   max: 120,  label: '長期均線' },
+  kbarMinBodyPct:    { min: 0,    max: 0.10, label: 'K棒實體最小比例' },
+  upperShadowMax:    { min: 0.05, max: 1.0,  label: '上影線最大比例' },
+  volumeRatioMin:    { min: 0.5,  max: 5.0,  label: '量比門檻' },
+  kdMaxEntry:        { min: 20,   max: 100,  label: 'KD 進場上限' },
+  deviationMax:      { min: 0.02, max: 1.0,  label: 'MA20 乖離上限' },
+  minScore:          { min: 0,    max: 6,    label: '最低條件分數' },
+  marketTrendFilter: { min: 0,    max: 1,    label: '大盤過濾開關' },
+  bullMinScore:      { min: 0,    max: 6,    label: '多頭最低分數' },
+  sidewaysMinScore:  { min: 0,    max: 6,    label: '盤整最低分數' },
+  bearMinScore:      { min: 0,    max: 6,    label: '空頭最低分數' },
+};
+
+export interface ThresholdValidationError {
+  field: keyof StrategyThresholds;
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+}
+
+/**
+ * 驗證策略閾值是否在合理範圍內。
+ * 回傳空陣列表示全部通過。
+ */
+export function validateThresholds(
+  thresholds: StrategyThresholds,
+): ThresholdValidationError[] {
+  const errors: ThresholdValidationError[] = [];
+  for (const [key, bounds] of Object.entries(THRESHOLD_BOUNDS)) {
+    const field = key as keyof StrategyThresholds;
+    const value = Number(thresholds[field]);
+    if (isNaN(value) || value < bounds.min || value > bounds.max) {
+      errors.push({ field, label: bounds.label, value, min: bounds.min, max: bounds.max });
+    }
+  }
+  return errors;
+}
+
+/**
+ * 將閾值鉗制（clamp）到合理範圍。
+ * 用於自動修正不合理的值。
+ */
+export function clampThresholds(
+  thresholds: StrategyThresholds,
+): StrategyThresholds {
+  const result = { ...thresholds };
+  for (const [key, bounds] of Object.entries(THRESHOLD_BOUNDS)) {
+    const field = key as keyof StrategyThresholds;
+    const value = Number(result[field]);
+    if (typeof result[field] === 'boolean') continue;
+    (result as Record<string, number | boolean>)[field] = Math.max(bounds.min, Math.min(bounds.max, isNaN(value) ? bounds.min : value));
+  }
+  return result;
+}

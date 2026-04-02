@@ -25,7 +25,7 @@ function ScoreDots({ score, total = 6 }: { score: number; total?: number }) {
         <span
           key={i}
           className={`inline-block w-2 h-2 rounded-full ${
-            i < score ? 'bg-green-400' : 'bg-gray-600'
+            i < score ? 'bg-green-400' : 'bg-muted-foreground/60'
           }`}
         />
       ))}
@@ -51,23 +51,23 @@ function ConditionRow({
     : <span className="text-red-400 text-sm">●</span>;
 
   return (
-    <div className="border-b border-gray-700 last:border-0">
+    <div className="border-b border-border last:border-0">
       <button
-        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-gray-700/40 transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/40 transition-colors"
         onClick={onToggle}
       >
         {dot}
-        <span className="text-gray-400 text-xs w-4">{label.icon}</span>
-        <span className={`text-xs font-medium w-14 ${label.required ? 'text-gray-200' : 'text-gray-400 italic'}`} title={label.tip}>
+        <span className="text-muted-foreground text-xs w-4">{label.icon}</span>
+        <span className={`text-xs font-medium w-14 ${label.required ? 'text-foreground' : 'text-muted-foreground italic'}`} title={label.tip}>
           {label.name}
         </span>
-        <span className="text-xs text-gray-400 flex-1 truncate" title={label.tip}>{detail}</span>
-        <span className="text-gray-600 text-xs">{expanded ? '▲' : '▼'}</span>
+        <span className="text-xs text-muted-foreground flex-1 truncate" title={label.tip}>{detail}</span>
+        <span className="text-muted-foreground/60 text-xs">{expanded ? '▲' : '▼'}</span>
       </button>
       {expanded && (
-        <div className="px-4 pb-2 text-xs text-gray-400 leading-relaxed bg-gray-800/40 space-y-1">
+        <div className="px-4 pb-2 text-xs text-muted-foreground leading-relaxed bg-secondary/40 space-y-1">
           <div>{detail}</div>
-          <div className="text-[10px] text-slate-500 border-t border-slate-700 pt-1">{label.tip}</div>
+          <div className="text-[10px] text-muted-foreground border-t border-border pt-1">{label.tip}</div>
         </div>
       )}
     </div>
@@ -89,8 +89,10 @@ export default function SixConditionsPanel() {
 
   if (!sixConditions) {
     return (
-      <div className="bg-gray-800 rounded-lg p-3 text-xs text-gray-500">
-        載入資料後顯示六大條件…
+      <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
+        <p className="text-2xl mb-2">📊</p>
+        <p className="text-sm font-medium text-muted-foreground">尚未載入股票</p>
+        <p className="text-xs text-muted-foreground mt-1">請先在上方選擇一檔股票，即可查看六大條件評分</p>
       </div>
     );
   }
@@ -118,10 +120,10 @@ export default function SixConditionsPanel() {
   ];
 
   return (
-    <div className="bg-gray-800 rounded-lg overflow-hidden">
+    <div className="bg-secondary rounded-lg overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 bg-gray-750 border-b border-gray-700">
-        <span className="text-xs font-semibold text-gray-200">六大進場條件 ({strategyName})</span>
+      <div className="flex items-center justify-between px-3 py-2 bg-secondary border-b border-border">
+        <span className="text-xs font-semibold text-foreground">六大進場條件 ({strategyName})</span>
         <div className="flex items-center gap-2">
           <ScoreDots score={coreScore} total={5} />
           {sc.indicator.pass && <span className="text-green-400 text-[10px]">+⑥</span>}
@@ -147,11 +149,11 @@ export default function SixConditionsPanel() {
       </div>
 
       {/* Summary */}
-      <div className={`px-3 py-2.5 border-t border-gray-700 ${
-        isCoreReady ? 'bg-green-900/40' : coreScore >= 3 ? 'bg-yellow-900/30' : 'bg-slate-800/60'
+      <div className={`px-3 py-2.5 border-t border-border ${
+        isCoreReady ? 'bg-green-900/40' : coreScore >= 3 ? 'bg-yellow-900/30' : 'bg-secondary/60'
       }`}>
         <p className={`text-xs font-bold ${
-          isCoreReady ? 'text-green-300' : coreScore >= 3 ? 'text-yellow-300' : 'text-slate-400'
+          isCoreReady ? 'text-green-300' : coreScore >= 3 ? 'text-yellow-300' : 'text-muted-foreground'
         }`}>
           {isCoreReady
             ? sc.indicator.pass
@@ -168,24 +170,24 @@ export default function SixConditionsPanel() {
 
       {/* Surge Score */}
       {surgeScore && (
-        <div className="px-3 py-2.5 border-t border-gray-700">
+        <div className="px-3 py-2.5 border-t border-border">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[10px] font-bold text-violet-400">飆股潛力分</span>
             <div className="flex items-center gap-1.5">
               <span className={`text-xs font-black px-1.5 py-0.5 rounded ${
-                surgeScore.grade === 'S' ? 'bg-red-600 text-white' :
-                surgeScore.grade === 'A' ? 'bg-orange-500 text-white' :
+                surgeScore.grade === 'S' ? 'bg-red-600 text-foreground' :
+                surgeScore.grade === 'A' ? 'bg-orange-500 text-foreground' :
                 surgeScore.grade === 'B' ? 'bg-yellow-500 text-black' :
-                'bg-slate-600 text-slate-300'
+                'bg-secondary text-foreground/80'
               }`}>{surgeScore.grade}</span>
-              <span className="text-xs font-bold text-white">{surgeScore.totalScore}</span>
+              <span className="text-xs font-bold text-foreground">{surgeScore.totalScore}</span>
             </div>
           </div>
-          <div className="w-full bg-gray-700 rounded-full h-1.5 overflow-hidden mb-2">
+          <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden mb-2">
             <div className={`h-full rounded-full transition-all ${
               surgeScore.totalScore >= 65 ? 'bg-red-500' :
               surgeScore.totalScore >= 50 ? 'bg-orange-500' :
-              surgeScore.totalScore >= 35 ? 'bg-yellow-500' : 'bg-slate-600'
+              surgeScore.totalScore >= 35 ? 'bg-yellow-500' : 'bg-muted-foreground/60'
             }`} style={{ width: `${surgeScore.totalScore}%` }} />
           </div>
           {surgeScore.flags.length > 0 && (
@@ -206,18 +208,18 @@ export default function SixConditionsPanel() {
           <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
             {Object.entries(surgeScore.components).map(([key, comp]) => (
               <div key={key} className="flex items-center gap-1 text-[9px]">
-                <div className="w-10 bg-gray-700 rounded-full h-1 overflow-hidden">
+                <div className="w-10 bg-muted rounded-full h-1 overflow-hidden">
                   <div className={`h-full rounded-full ${
-                    comp.score >= 70 ? 'bg-red-500' : comp.score >= 50 ? 'bg-orange-500' : comp.score >= 30 ? 'bg-yellow-500' : 'bg-slate-600'
+                    comp.score >= 70 ? 'bg-red-500' : comp.score >= 50 ? 'bg-orange-500' : comp.score >= 30 ? 'bg-yellow-500' : 'bg-muted-foreground/60'
                   }`} style={{ width: `${comp.score}%` }} />
                 </div>
-                <span className="text-slate-500 truncate">
+                <span className="text-muted-foreground truncate">
                   {key === 'momentum' ? '動能' : key === 'volatility' ? '波動' :
                    key === 'volume' ? '量能' : key === 'breakout' ? '突破' :
                    key === 'trendQuality' ? '趨勢' : key === 'pricePosition' ? '位置' :
                    key === 'kbarStrength' ? 'K棒' : key === 'longTermQuality' ? '長期' : '指標'}
                 </span>
-                <span className="text-slate-400 font-mono">{comp.score}</span>
+                <span className="text-muted-foreground font-mono">{comp.score}</span>
               </div>
             ))}
           </div>
@@ -226,8 +228,8 @@ export default function SixConditionsPanel() {
 
       {/* Sell Signals */}
       {sellSignals.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-slate-700">
-          <div className="text-[10px] font-bold text-slate-400 mb-1.5">⚠ 出場警示</div>
+        <div className="mt-3 pt-3 border-t border-border">
+          <div className="text-[10px] font-bold text-muted-foreground mb-1.5">⚠ 出場警示</div>
           <div className="space-y-1">
             {sellSignals.map(sig => (
               <div key={sig.type} className={`text-[10px] px-2 py-1 rounded flex items-start gap-1.5 ${

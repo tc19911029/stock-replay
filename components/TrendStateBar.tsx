@@ -9,7 +9,7 @@ export default function TrendStateBar() {
   const trendColor =
     trendState === '多頭' ? 'bg-green-600/80 text-green-100' :
     trendState === '空頭' ? 'bg-red-600/80 text-red-100' :
-    'bg-gray-600/80 text-gray-200';
+    'bg-muted/80 text-foreground';
 
   const trendArrow =
     trendState === '多頭' ? '▲' :
@@ -20,7 +20,7 @@ export default function TrendStateBar() {
     trendPosition === '主升段' ? 'bg-green-500/70 text-green-100' :
     trendPosition === '起漲段' ? 'bg-emerald-600/70 text-emerald-100' :
     trendPosition === '末跌段(低檔)' ? 'bg-blue-600/70 text-blue-100' :
-    'bg-gray-600/70 text-gray-200';
+    'bg-muted/70 text-foreground';
 
   const sc = sixConditions;
 
@@ -38,28 +38,28 @@ export default function TrendStateBar() {
 
       {/* MA alignment */}
       {sc && (
-        <span className={`px-2 py-0.5 rounded ${sc.ma.pass ? 'bg-green-700/60 text-green-200' : 'bg-gray-700/60 text-gray-400'}`}>
+        <span className={`px-2 py-0.5 rounded ${sc.ma.pass ? 'bg-green-700/60 text-green-200' : 'bg-muted/60 text-muted-foreground'}`}>
           MA {sc.ma.pass ? '多排 ✓' : '未多排'}
         </span>
       )}
 
       {/* MACD */}
       {sc && (
-        <span className={`px-2 py-0.5 rounded ${sc.indicator.macd ? 'bg-green-700/60 text-green-200' : 'bg-gray-700/60 text-gray-400'}`}>
+        <span className={`px-2 py-0.5 rounded ${sc.indicator.macd ? 'bg-green-700/60 text-green-200' : 'bg-muted/60 text-muted-foreground'}`}>
           MACD {sc.indicator.macd ? '紅柱 ✓' : '綠柱'}
         </span>
       )}
 
       {/* KD */}
       {sc && (
-        <span className={`px-2 py-0.5 rounded ${sc.indicator.kd ? 'bg-green-700/60 text-green-200' : 'bg-gray-700/60 text-gray-400'}`}>
+        <span className={`px-2 py-0.5 rounded ${sc.indicator.kd ? 'bg-green-700/60 text-green-200' : 'bg-muted/60 text-muted-foreground'}`}>
           KD {sc.indicator.kd ? '多排 ✓' : '未多排'}
         </span>
       )}
 
       {/* Volume */}
       {sc && (
-        <span className={`px-2 py-0.5 rounded ${sc.volume.pass ? 'bg-green-700/60 text-green-200' : 'bg-gray-700/60 text-gray-400'}`}>
+        <span className={`px-2 py-0.5 rounded ${sc.volume.pass ? 'bg-green-700/60 text-green-200' : 'bg-muted/60 text-muted-foreground'}`}>
           量 {sc.volume.ratio != null ? `${sc.volume.ratio}x` : '—'}
           {sc.volume.pass ? ' ✓' : ''}
         </span>
@@ -68,9 +68,9 @@ export default function TrendStateBar() {
       {/* Score badge */}
       {sc && (
         <span className={`ml-auto px-2 py-0.5 rounded font-bold ${
-          sc.totalScore >= 5 ? 'bg-green-500/80 text-white' :
+          sc.totalScore >= 5 ? 'bg-green-500/80 text-foreground' :
           sc.totalScore >= 3 ? 'bg-yellow-500/80 text-black' :
-          'bg-red-500/80 text-white'
+          'bg-red-500/80 text-foreground'
         }`}>
           {sc.totalScore}/6
         </span>

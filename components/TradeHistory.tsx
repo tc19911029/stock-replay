@@ -26,8 +26,8 @@ function EquityCurveChart({ curve }: { curve: Array<{ date: string; totalAssets:
 
   return (
     <div className="mb-3">
-      <div className="text-[10px] text-slate-500 mb-1">資金曲線</div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-14 rounded bg-slate-900/50">
+      <div className="text-[10px] text-muted-foreground mb-1">資金曲線</div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-14 rounded bg-card/50">
         {/* baseline */}
         <line x1="0" y1={H / 2} x2={W} y2={H / 2} stroke="#334155" strokeWidth="1" strokeDasharray="3,3" />
         <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" />
@@ -43,19 +43,19 @@ function TradeRow({ trade }: { trade: Trade }) {
   const pnl = trade.realizedPnL;
 
   return (
-    <tr className="border-b border-slate-700 hover:bg-slate-700/30 text-xs">
-      <td className="py-1.5 px-2 text-slate-400">{trade.date}</td>
-      <td className={`py-1.5 px-2 font-bold ${isBuy ? 'text-red-400' : 'text-green-400'}`}>
+    <tr className="border-b border-border hover:bg-muted/30 text-xs">
+      <td className="py-1.5 px-2 text-muted-foreground">{trade.date}</td>
+      <td className={`py-1.5 px-2 font-bold ${isBuy ? 'text-bull' : 'text-bear'}`}>
         {isBuy ? '買' : '賣'}
       </td>
       <td className="py-1.5 px-2 text-right font-mono">{trade.price.toFixed(2)}</td>
       <td className="py-1.5 px-2 text-right font-mono">{trade.shares.toLocaleString()}</td>
-      <td className="py-1.5 px-2 text-right font-mono text-slate-300">
+      <td className="py-1.5 px-2 text-right font-mono text-foreground/80">
         {formatCurrency(trade.amount)}
       </td>
       <td className={`py-1.5 px-2 text-right font-mono ${
-        pnl == null ? 'text-slate-500' :
-        pnl > 0 ? 'text-red-400' : pnl < 0 ? 'text-green-400' : 'text-slate-400'
+        pnl == null ? 'text-muted-foreground' :
+        pnl > 0 ? 'text-bull' : pnl < 0 ? 'text-bear' : 'text-muted-foreground'
       }`}>
         {pnl == null ? '—' : (pnl >= 0 ? '+' : '') + formatCurrency(pnl)}
       </td>
@@ -68,21 +68,21 @@ export default function TradeHistory() {
   const trades = [...account.trades].reverse(); // newest first
 
   return (
-    <div className="bg-slate-800 rounded-lg p-4">
+    <div className="bg-secondary rounded-lg p-4">
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-sm font-semibold text-slate-300">交易紀錄</h2>
-        <span className="text-xs text-slate-500">{account.trades.length} 筆</span>
+        <h2 className="text-sm font-semibold text-foreground/80">交易紀錄</h2>
+        <span className="text-xs text-muted-foreground">{account.trades.length} 筆</span>
       </div>
 
       <EquityCurveChart curve={stats.equityCurve} />
 
       {trades.length === 0 ? (
-        <p className="text-xs text-slate-500 text-center py-4">尚無交易紀錄</p>
+        <p className="text-xs text-muted-foreground text-center py-4">尚無交易紀錄</p>
       ) : (
         <div className="overflow-auto max-h-64">
           <table className="w-full text-left">
             <thead>
-              <tr className="text-xs text-slate-500 border-b border-slate-600">
+              <tr className="text-xs text-muted-foreground border-b border-border">
                 <th className="pb-1.5 px-2">日期</th>
                 <th className="pb-1.5 px-2">方向</th>
                 <th className="pb-1.5 px-2 text-right">價格</th>

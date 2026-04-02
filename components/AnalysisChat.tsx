@@ -148,7 +148,7 @@ export default function AnalysisChat({ sidebar = false }: Props) {
       <div className={`overflow-y-auto p-3 space-y-3 ${sidebar ? 'flex-1 min-h-0' : 'h-72'}`}>
         {messages.length === 0 && (
           <div className="py-4">
-            <p className="text-slate-500 text-xs mb-2 text-center">點擊快速提問，或自行輸入問題</p>
+            <p className="text-muted-foreground text-xs mb-2 text-center">點擊快速提問，或自行輸入問題</p>
             <div className="flex flex-wrap gap-1.5 text-xs">
               {QUICK_QUESTIONS.map(q => (
                 <button key={q} onClick={() => sendMessage(`${q}\n\n[當前走圖資訊]\n${buildContext()}`)}
@@ -162,10 +162,10 @@ export default function AnalysisChat({ sidebar = false }: Props) {
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] rounded-lg px-3 py-2 text-xs leading-relaxed ${
-              m.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-200'
+              m.role === 'user' ? 'bg-blue-600 text-foreground' : 'bg-muted text-foreground'
             }`}>
               {m.role === 'assistant' && m.content === '' && loading
-                ? <span className="text-slate-400 animate-pulse">思考中...</span>
+                ? <span className="text-muted-foreground animate-pulse">思考中...</span>
                 : <MarkdownText text={m.content} />}
             </div>
           </div>
@@ -174,15 +174,15 @@ export default function AnalysisChat({ sidebar = false }: Props) {
       </div>
 
       {/* Input */}
-      <div className="border-t border-slate-700 p-2 space-y-1.5 shrink-0">
+      <div className="border-t border-border p-2 space-y-1.5 shrink-0">
         <div className="flex gap-1.5">
           <button onClick={insertContext}
-            className="text-xs px-2 py-1 bg-slate-700 text-slate-400 rounded hover:bg-slate-600 hover:text-slate-200 transition-colors whitespace-nowrap"
+            className="text-xs px-2 py-1 bg-muted text-muted-foreground rounded hover:bg-muted hover:text-foreground transition-colors whitespace-nowrap"
             title="自動插入當前K棒資訊">
             📊 附上當前資訊
           </button>
           <button onClick={() => setMessages([])}
-            className="text-xs px-2 py-1 bg-slate-700 text-slate-400 rounded hover:bg-red-900/60 hover:text-red-400 transition-colors">
+            className="text-xs px-2 py-1 bg-muted text-muted-foreground rounded hover:bg-red-900/60 hover:text-red-400 transition-colors">
             🗑 清除
           </button>
         </div>
@@ -190,10 +190,10 @@ export default function AnalysisChat({ sidebar = false }: Props) {
           <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="輸入問題（Enter 發送）..."
-            className="flex-1 bg-slate-900 text-slate-200 text-xs rounded px-2 py-1.5 resize-none outline-none border border-slate-600 focus:border-blue-500 placeholder-slate-500 min-h-[36px] max-h-20"
+            className="flex-1 bg-card text-foreground text-xs rounded px-2 py-1.5 resize-none outline-none border border-border focus:border-blue-500 placeholder-muted-foreground min-h-[36px] max-h-20"
             rows={2} disabled={loading} />
           <button onClick={() => sendMessage(input)} disabled={!input.trim() || loading}
-            className="px-2.5 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium self-end">
+            className="px-2.5 py-1.5 bg-blue-600 text-foreground text-xs rounded hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium self-end">
             送出
           </button>
         </div>
@@ -204,11 +204,11 @@ export default function AnalysisChat({ sidebar = false }: Props) {
   // Sidebar mode: always expanded, no collapse header
   if (sidebar) {
     return (
-      <div className="h-full flex flex-col bg-slate-800/80 border border-slate-700 rounded-xl overflow-hidden">
-        <div className="shrink-0 px-3 py-2 border-b border-slate-700 flex items-center justify-between">
-          <span className="text-xs font-bold text-slate-200">🤖 朱老師理論問答</span>
+      <div className="h-full flex flex-col bg-secondary/80 border border-border rounded-xl overflow-hidden">
+        <div className="shrink-0 px-3 py-2 border-b border-border flex items-center justify-between">
+          <span className="text-xs font-bold text-foreground">🤖 朱老師理論問答</span>
           {messages.length > 0 && (
-            <span className="text-[10px] text-slate-500">{Math.floor(messages.length / 2)} 則對話</span>
+            <span className="text-[10px] text-muted-foreground">{Math.floor(messages.length / 2)} 則對話</span>
           )}
         </div>
         <div className="flex-1 min-h-0 flex flex-col">
@@ -220,16 +220,16 @@ export default function AnalysisChat({ sidebar = false }: Props) {
 
   // Bottom panel mode: collapsible
   return (
-    <div className="bg-slate-800 rounded-lg overflow-hidden">
+    <div className="bg-secondary rounded-lg overflow-hidden">
       <button onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-700/50 transition-colors">
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-slate-300">🤖 朱老師理論問答</span>
-          {messages.length > 0 && <span className="text-xs text-slate-500">{Math.floor(messages.length / 2)} 則對話</span>}
+          <span className="text-sm font-semibold text-foreground/80">🤖 朱老師理論問答</span>
+          {messages.length > 0 && <span className="text-xs text-muted-foreground">{Math.floor(messages.length / 2)} 則對話</span>}
         </div>
-        <span className="text-slate-500 text-xs">{open ? '▲' : '▼'}</span>
+        <span className="text-muted-foreground text-xs">{open ? '▲' : '▼'}</span>
       </button>
-      {open && <div className="border-t border-slate-700">{chatBody}</div>}
+      {open && <div className="border-t border-border">{chatBody}</div>}
     </div>
   );
 }

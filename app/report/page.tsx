@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
+import { PageShell } from '@/components/shared';
 import { useBacktestStore } from '@/store/backtestStore';
 import { BacktestTrade } from '@/lib/backtest/BacktestEngine';
 import { BacktestSession } from '@/lib/scanner/types';
@@ -107,21 +108,21 @@ function ReturnHistogram({ trades }: { trades: BacktestTrade[] }) {
   const maxCount = Math.max(...counts, 1);
 
   return (
-    <div className="bg-slate-900 rounded-xl border border-slate-700 p-4">
-      <h3 className="text-sm font-semibold text-slate-300 mb-3">報酬分布</h3>
+    <div className="bg-card rounded-xl border border-border p-4">
+      <h3 className="text-sm font-semibold text-foreground/80 mb-3">報酬分布</h3>
       <div className="flex items-end gap-1 h-32">
         {buckets.map((b, i) => {
           const pct = (counts[i] / maxCount) * 100;
           return (
             <div key={b.label} className="flex-1 flex flex-col items-center gap-1">
-              <span className="text-[9px] text-slate-500">{counts[i] > 0 ? counts[i] : ''}</span>
+              <span className="text-[9px] text-muted-foreground">{counts[i] > 0 ? counts[i] : ''}</span>
               <div className="w-full flex flex-col justify-end" style={{ height: '80px' }}>
                 <div
-                  className={`w-full rounded-t transition-all ${b.isWin ? 'bg-red-500/70' : 'bg-green-600/70'}`}
+                  className={`w-full rounded-t transition-all ${b.isWin ? 'bg-bull/70' : 'bg-bear/70'}`}
                   style={{ height: `${pct}%`, minHeight: counts[i] > 0 ? '2px' : '0' }}
                 />
               </div>
-              <span className="text-[9px] text-slate-500 text-center leading-tight">{b.label}</span>
+              <span className="text-[9px] text-muted-foreground text-center leading-tight">{b.label}</span>
             </div>
           );
         })}
@@ -161,7 +162,7 @@ function SortableHeader({
   const active = currentKey === sortKey;
   return (
     <th
-      className="px-2 py-1.5 text-left text-xs font-semibold text-slate-400 cursor-pointer select-none hover:text-white whitespace-nowrap"
+      className="px-2 py-1.5 text-left text-xs font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground whitespace-nowrap"
       onClick={() => onClick(sortKey)}
     >
       {label}
@@ -274,41 +275,36 @@ export default function ReportPage() {
   const hasData = allTrades.length > 0;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-
-      {/* ── Header ── */}
-      <header className="border-b border-slate-800 px-4 py-3 flex items-center gap-3">
-        <Link href="/" className="text-xs px-2.5 py-1 bg-slate-700 hover:bg-slate-600 rounded text-slate-300 transition">
-          ← 主頁
-        </Link>
-        <h1 className="text-sm font-bold text-white">研究報表</h1>
-        <span className="text-xs text-slate-500 ml-1">
+    <PageShell headerSlot={
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-bold text-foreground">研究報表</span>
+        <span className="text-xs text-muted-foreground">
           {sessionCount} 次回測 · {allTrades.length} 筆交易
         </span>
-        <Link href="/v1/report" className="ml-auto text-[10px] text-slate-600 hover:text-slate-400">舊版</Link>
-        <div className="ml-auto flex items-center gap-2">
-          <Link href="/backtest" className="text-xs px-2.5 py-1 bg-violet-700/80 hover:bg-violet-600 rounded text-white font-medium transition">
-            📅 回測
+      </div>
+    }>
+      <main className="max-w-7xl mx-auto px-4 py-5 space-y-5">
+        {/* Action buttons */}
+        <div className="flex items-center gap-2">
+          <Link href="/backtest" className="text-xs px-2.5 py-1 bg-violet-700/80 hover:bg-violet-600 rounded text-foreground font-medium transition">
+            回測
           </Link>
           {hasData && (
             <button
               onClick={() => exportCSV(filteredTrades)}
-              className="text-xs px-3 py-1 bg-emerald-700 hover:bg-emerald-600 rounded text-white font-medium transition"
+              className="text-xs px-3 py-1 bg-emerald-700 hover:bg-emerald-600 rounded text-foreground font-medium transition"
             >
-              ↓ 匯出 CSV
+              匯出 CSV
             </button>
           )}
         </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 py-5 space-y-5">
 
         {/* ── No data state ── */}
         {!hasData && (
-          <div className="text-center py-20 text-slate-500">
+          <div className="text-center py-20 text-muted-foreground">
             <p className="text-lg mb-2">尚無回測資料</p>
             <p className="text-sm mb-4">請先前往回測頁面執行至少一次回測</p>
-            <Link href="/backtest" className="text-xs px-4 py-2 bg-violet-700 hover:bg-violet-600 rounded text-white transition">
+            <Link href="/backtest" className="text-xs px-4 py-2 bg-violet-700 hover:bg-violet-600 rounded text-foreground transition">
               前往回測
             </Link>
           </div>
@@ -319,15 +315,15 @@ export default function ReportPage() {
             {/* ── Filters ── */}
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-1.5 text-xs">
-                <span className="text-slate-400">市場：</span>
+                <span className="text-muted-foreground">市場：</span>
                 {(['ALL', 'TW', 'CN'] as MarketFilter[]).map(m => (
                   <button
                     key={m}
                     onClick={() => setMarketFilter(m)}
                     className={`px-2.5 py-1 rounded font-medium transition ${
                       marketFilter === m
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                        ? 'bg-blue-600 text-foreground'
+                        : 'bg-secondary text-muted-foreground hover:bg-muted'
                     }`}
                   >
                     {m === 'ALL' ? '全部' : m === 'TW' ? '台股' : '陸股'}
@@ -335,15 +331,15 @@ export default function ReportPage() {
                 ))}
               </div>
               <div className="flex items-center gap-1.5 text-xs">
-                <span className="text-slate-400">分組：</span>
+                <span className="text-muted-foreground">分組：</span>
                 {(['none', 'month', 'score'] as GroupBy[]).map(g => (
                   <button
                     key={g}
                     onClick={() => setGroupBy(g)}
                     className={`px-2.5 py-1 rounded font-medium transition ${
                       groupBy === g
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                        ? 'bg-blue-600 text-foreground'
+                        : 'bg-secondary text-muted-foreground hover:bg-muted'
                     }`}
                   >
                     {g === 'none' ? '全部' : g === 'month' ? '月份' : '六大條件分數'}
@@ -356,14 +352,14 @@ export default function ReportPage() {
             {summary && (
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 {[
-                  { label: '總樣本數',   value: String(summary.count),              color: 'text-white' },
-                  { label: '整體勝率',   value: summary.winRate.toFixed(1) + '%',   color: summary.winRate >= 50 ? 'text-red-400' : 'text-green-400' },
-                  { label: '平均淨報酬', value: fmt(summary.avgNet) + '%',          color: summary.avgNet >= 0 ? 'text-red-400' : 'text-green-400' },
-                  { label: '期望值',     value: fmt(summary.expectancy) + '%',      color: summary.expectancy >= 0 ? 'text-red-400' : 'text-green-400' },
+                  { label: '總樣本數',   value: String(summary.count),              color: 'text-foreground' },
+                  { label: '整體勝率',   value: summary.winRate.toFixed(1) + '%',   color: summary.winRate >= 50 ? 'text-bull' : 'text-bear' },
+                  { label: '平均淨報酬', value: fmt(summary.avgNet) + '%',          color: summary.avgNet >= 0 ? 'text-bull' : 'text-bear' },
+                  { label: '期望值',     value: fmt(summary.expectancy) + '%',      color: summary.expectancy >= 0 ? 'text-bull' : 'text-bear' },
                   { label: '最大連虧',   value: fmt(summary.maxDrawdown) + '%',     color: 'text-orange-400' },
                 ].map(item => (
-                  <div key={item.label} className="bg-slate-900 rounded-xl border border-slate-700 px-4 py-3 text-center">
-                    <p className="text-[11px] text-slate-500 mb-1">{item.label}</p>
+                  <div key={item.label} className="bg-card rounded-xl border border-border px-4 py-3 text-center">
+                    <p className="text-[11px] text-muted-foreground mb-1">{item.label}</p>
                     <p className={`text-xl font-bold font-mono ${item.color}`}>{item.value}</p>
                   </div>
                 ))}
@@ -396,35 +392,35 @@ export default function ReportPage() {
               return (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {/* Equity Curve */}
-                  <div className="bg-slate-900 rounded-xl border border-slate-700 p-4">
-                    <h3 className="text-sm font-semibold text-slate-300 mb-2">累積報酬曲線</h3>
+                  <div className="bg-card rounded-xl border border-border p-4">
+                    <h3 className="text-sm font-semibold text-foreground/80 mb-2">累積報酬曲線</h3>
                     <div className="relative h-32 flex items-end gap-[1px]">
                       {/* Zero line */}
-                      <div className="absolute left-0 right-0 border-t border-dashed border-slate-600" style={{ top: `${eqY(0)}%` }} />
+                      <div className="absolute left-0 right-0 border-t border-dashed border-border" style={{ top: `${eqY(0)}%` }} />
                       {equityData.map((d, i) => {
                         const h = Math.abs(d.equity) / eqRange * 100;
                         const isPos = d.equity >= 0;
                         return (
                           <div key={i} className="flex-1 flex flex-col justify-end items-center min-w-[2px]" title={`${d.date}: ${fmt(d.equity)}%`}>
                             {isPos ? (
-                              <div className="w-full bg-red-500/80 rounded-t-sm" style={{ height: `${h}%` }} />
+                              <div className="w-full bg-bull/80 rounded-t-sm" style={{ height: `${h}%` }} />
                             ) : (
-                              <div className="w-full bg-green-500/80 rounded-b-sm" style={{ height: `${h}%` }} />
+                              <div className="w-full bg-bear/80 rounded-b-sm" style={{ height: `${h}%` }} />
                             )}
                           </div>
                         );
                       })}
                     </div>
-                    <div className="flex justify-between text-[9px] text-slate-500 mt-1">
+                    <div className="flex justify-between text-[9px] text-muted-foreground mt-1">
                       <span>{equityData[0]?.date}</span>
-                      <span className={`font-bold ${cum >= 0 ? 'text-red-400' : 'text-green-400'}`}>{fmt(cum)}%</span>
+                      <span className={`font-bold ${cum >= 0 ? 'text-bull' : 'text-bear'}`}>{fmt(cum)}%</span>
                       <span>{equityData[equityData.length - 1]?.date}</span>
                     </div>
                   </div>
 
                   {/* Drawdown */}
-                  <div className="bg-slate-900 rounded-xl border border-slate-700 p-4">
-                    <h3 className="text-sm font-semibold text-slate-300 mb-2">回撤分佈</h3>
+                  <div className="bg-card rounded-xl border border-border p-4">
+                    <h3 className="text-sm font-semibold text-foreground/80 mb-2">回撤分佈</h3>
                     <div className="relative h-32 flex items-start gap-[1px]">
                       {ddData.map((d, i) => {
                         const h = ddY(d.dd);
@@ -435,7 +431,7 @@ export default function ReportPage() {
                         );
                       })}
                     </div>
-                    <div className="flex justify-between text-[9px] text-slate-500 mt-1">
+                    <div className="flex justify-between text-[9px] text-muted-foreground mt-1">
                       <span>{ddData[0]?.date}</span>
                       <span className="font-bold text-orange-400">最大回撤 {fmt(maxDD)}%</span>
                       <span>{ddData[ddData.length - 1]?.date}</span>
@@ -447,44 +443,44 @@ export default function ReportPage() {
 
             {/* ── Group Stats ── */}
             {groupStats.length > 0 && (
-              <div className="bg-slate-900 rounded-xl border border-slate-700 p-4 space-y-3">
-                <h3 className="text-sm font-semibold text-slate-300">
+              <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+                <h3 className="text-sm font-semibold text-foreground/80">
                   {groupBy === 'month' ? '月份分組統計' : '六大條件分數分組統計'}
                 </h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs min-w-[540px]">
                     <thead>
-                      <tr className="border-b border-slate-800">
-                        <th className="px-2 py-1.5 text-left text-slate-400">分組</th>
-                        <th className="px-2 py-1.5 text-right text-slate-400">樣本數</th>
-                        <th className="px-2 py-1.5 text-right text-slate-400">勝率</th>
-                        <th className="px-2 py-1.5 text-right text-slate-400">平均淨報酬</th>
-                        <th className="px-2 py-1.5 text-right text-slate-400">期望值</th>
-                        <th className="px-2 py-1.5 text-right text-slate-400">最大虧損</th>
-                        <th className="px-2 py-1.5 text-left text-slate-400 w-32">勝率視覺化</th>
+                      <tr className="border-b border-border">
+                        <th className="px-2 py-1.5 text-left text-muted-foreground">分組</th>
+                        <th className="px-2 py-1.5 text-right text-muted-foreground">樣本數</th>
+                        <th className="px-2 py-1.5 text-right text-muted-foreground">勝率</th>
+                        <th className="px-2 py-1.5 text-right text-muted-foreground">平均淨報酬</th>
+                        <th className="px-2 py-1.5 text-right text-muted-foreground">期望值</th>
+                        <th className="px-2 py-1.5 text-right text-muted-foreground">最大虧損</th>
+                        <th className="px-2 py-1.5 text-left text-muted-foreground w-32">勝率視覺化</th>
                       </tr>
                     </thead>
                     <tbody>
                       {groupStats.map(g => (
-                        <tr key={g.label} className="border-b border-slate-800/50 hover:bg-slate-800/40 transition">
-                          <td className="px-2 py-2 text-slate-200 font-medium">{g.label}</td>
-                          <td className="px-2 py-2 text-right text-slate-300">{g.count}</td>
-                          <td className={`px-2 py-2 text-right font-mono font-semibold ${g.winRate >= 50 ? 'text-red-400' : 'text-green-400'}`}>
+                        <tr key={g.label} className="border-b border-border/50 hover:bg-secondary/40 transition">
+                          <td className="px-2 py-2 text-foreground/90 font-medium">{g.label}</td>
+                          <td className="px-2 py-2 text-right text-foreground/80">{g.count}</td>
+                          <td className={`px-2 py-2 text-right font-mono font-semibold ${g.winRate >= 50 ? 'text-bull' : 'text-bear'}`}>
                             {g.winRate.toFixed(1)}%
                           </td>
-                          <td className={`px-2 py-2 text-right font-mono ${g.avgNet >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                          <td className={`px-2 py-2 text-right font-mono ${g.avgNet >= 0 ? 'text-bull' : 'text-bear'}`}>
                             {fmt(g.avgNet)}%
                           </td>
-                          <td className={`px-2 py-2 text-right font-mono ${g.expectancy >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                          <td className={`px-2 py-2 text-right font-mono ${g.expectancy >= 0 ? 'text-bull' : 'text-bear'}`}>
                             {fmt(g.expectancy)}%
                           </td>
                           <td className="px-2 py-2 text-right font-mono text-orange-400">
                             {fmt(g.maxLoss)}%
                           </td>
                           <td className="px-2 py-2">
-                            <div className="flex h-4 rounded overflow-hidden bg-slate-800">
+                            <div className="flex h-4 rounded overflow-hidden bg-secondary">
                               <div
-                                className="bg-red-500/70 transition-all"
+                                className="bg-bull/70 transition-all"
                                 style={{ width: `${Math.min(g.winRate, 100)}%` }}
                               />
                             </div>
@@ -501,32 +497,32 @@ export default function ReportPage() {
             <ReturnHistogram trades={filteredTrades} />
 
             {/* ── Trade Table ── */}
-            <div className="bg-slate-900 rounded-xl border border-slate-700 p-4 space-y-3">
+            <div className="bg-card rounded-xl border border-border p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-slate-300">
+                <h3 className="text-sm font-semibold text-foreground/80">
                   詳細交易紀錄
-                  <span className="ml-2 text-xs text-slate-500 font-normal">（點欄位標題排序）</span>
+                  <span className="ml-2 text-xs text-muted-foreground font-normal">（點欄位標題排序）</span>
                 </h3>
-                <span className="text-xs text-slate-500">{filteredTrades.length} 筆</span>
+                <span className="text-xs text-muted-foreground">{filteredTrades.length} 筆</span>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs min-w-[900px]">
-                  <thead className="border-b border-slate-700">
+                  <thead className="border-b border-border">
                     <tr>
                       <SortableHeader label="股票"    sortKey="symbol"     currentKey={sortKey} dir={sortDir} onClick={handleSort} />
                       <SortableHeader label="名稱"    sortKey="name"       currentKey={sortKey} dir={sortDir} onClick={handleSort} />
-                      <th className="px-2 py-1.5 text-left text-xs font-semibold text-slate-400">市場</th>
+                      <th className="px-2 py-1.5 text-left text-xs font-semibold text-muted-foreground">市場</th>
                       <SortableHeader label="訊號日"  sortKey="signalDate" currentKey={sortKey} dir={sortDir} onClick={handleSort} />
                       <SortableHeader label="進場日"  sortKey="entryDate"  currentKey={sortKey} dir={sortDir} onClick={handleSort} />
                       <SortableHeader label="進場價"  sortKey="entryPrice" currentKey={sortKey} dir={sortDir} onClick={handleSort} />
                       <SortableHeader label="出場日"  sortKey="exitDate"   currentKey={sortKey} dir={sortDir} onClick={handleSort} />
                       <SortableHeader label="出場價"  sortKey="exitPrice"  currentKey={sortKey} dir={sortDir} onClick={handleSort} />
-                      <th className="px-2 py-1.5 text-left text-xs font-semibold text-slate-400">出場原因</th>
+                      <th className="px-2 py-1.5 text-left text-xs font-semibold text-muted-foreground">出場原因</th>
                       <SortableHeader label="持有天"  sortKey="holdDays"   currentKey={sortKey} dir={sortDir} onClick={handleSort} />
                       <SortableHeader label="毛報酬"  sortKey="grossReturn" currentKey={sortKey} dir={sortDir} onClick={handleSort} />
                       <SortableHeader label="淨報酬"  sortKey="netReturn"  currentKey={sortKey} dir={sortDir} onClick={handleSort} />
                       <SortableHeader label="分數"    sortKey="signalScore" currentKey={sortKey} dir={sortDir} onClick={handleSort} />
-                      <th className="px-2 py-1.5 text-left text-xs font-semibold text-slate-400">命中原因</th>
+                      <th className="px-2 py-1.5 text-left text-xs font-semibold text-muted-foreground">命中原因</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -535,10 +531,10 @@ export default function ReportPage() {
                       return (
                         <tr
                           key={`${t.symbol}-${t.signalDate}-${i}`}
-                          className="border-b border-slate-800/50 hover:bg-slate-800/40 transition"
+                          className="border-b border-border/50 hover:bg-secondary/40 transition"
                         >
                           <td className="px-2 py-1.5 font-mono text-blue-400">{t.symbol}</td>
-                          <td className="px-2 py-1.5 text-slate-300 max-w-[80px] truncate">{t.name}</td>
+                          <td className="px-2 py-1.5 text-foreground/80 max-w-[80px] truncate">{t.name}</td>
                           <td className="px-2 py-1.5">
                             <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
                               t.market === 'TW' ? 'bg-blue-900/60 text-blue-300' : 'bg-red-900/60 text-red-300'
@@ -546,38 +542,38 @@ export default function ReportPage() {
                               {t.market}
                             </span>
                           </td>
-                          <td className="px-2 py-1.5 font-mono text-slate-400">{t.signalDate}</td>
-                          <td className="px-2 py-1.5 font-mono text-slate-400">{t.entryDate}</td>
-                          <td className="px-2 py-1.5 font-mono text-slate-300">{t.entryPrice}</td>
-                          <td className="px-2 py-1.5 font-mono text-slate-400">{t.exitDate}</td>
-                          <td className="px-2 py-1.5 font-mono text-slate-300">{t.exitPrice}</td>
+                          <td className="px-2 py-1.5 font-mono text-muted-foreground">{t.signalDate}</td>
+                          <td className="px-2 py-1.5 font-mono text-muted-foreground">{t.entryDate}</td>
+                          <td className="px-2 py-1.5 font-mono text-foreground/80">{t.entryPrice}</td>
+                          <td className="px-2 py-1.5 font-mono text-muted-foreground">{t.exitDate}</td>
+                          <td className="px-2 py-1.5 font-mono text-foreground/80">{t.exitPrice}</td>
                           <td className="px-2 py-1.5">
                             <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
                               t.exitReason === 'stopLoss'   ? 'bg-green-900/60 text-green-300' :
                               t.exitReason === 'takeProfit' ? 'bg-red-900/60 text-red-300'    :
                               t.exitReason === 'dataEnd'    ? 'bg-yellow-900/60 text-yellow-300' :
-                              'bg-slate-700/60 text-slate-300'
+                              'bg-muted/60 text-foreground/80'
                             }`}>
                               {exitReasonLabel(t.exitReason)}
                             </span>
                           </td>
-                          <td className="px-2 py-1.5 text-center text-slate-400">{t.holdDays}</td>
-                          <td className={`px-2 py-1.5 font-mono font-semibold text-right ${t.grossReturn >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                          <td className="px-2 py-1.5 text-center text-muted-foreground">{t.holdDays}</td>
+                          <td className={`px-2 py-1.5 font-mono font-semibold text-right ${t.grossReturn >= 0 ? 'text-bull' : 'text-bear'}`}>
                             {fmt(t.grossReturn)}%
                           </td>
-                          <td className={`px-2 py-1.5 font-mono font-bold text-right ${isWin ? 'text-red-400' : 'text-green-500'}`}>
+                          <td className={`px-2 py-1.5 font-mono font-bold text-right ${isWin ? 'text-bull' : 'text-bear'}`}>
                             {fmt(t.netReturn)}%
                           </td>
                           <td className="px-2 py-1.5 text-center">
                             <span className={`px-1.5 py-0.5 rounded font-bold text-[11px] ${
                               t.signalScore >= 5 ? 'bg-yellow-600/40 text-yellow-300' :
                               t.signalScore >= 4 ? 'bg-blue-700/40 text-blue-300'    :
-                              'bg-slate-700/40 text-slate-400'
+                              'bg-muted/40 text-muted-foreground'
                             }`}>
                               {t.signalScore}
                             </span>
                           </td>
-                          <td className="px-2 py-1.5 text-slate-500 max-w-[140px] truncate" title={t.signalReasons.join('、')}>
+                          <td className="px-2 py-1.5 text-muted-foreground max-w-[140px] truncate" title={t.signalReasons.join('、')}>
                             {t.signalReasons.join('、')}
                           </td>
                         </tr>
@@ -585,7 +581,7 @@ export default function ReportPage() {
                     })}
                     {sortedTrades.length === 0 && (
                       <tr>
-                        <td colSpan={14} className="text-center py-8 text-slate-600">
+                        <td colSpan={14} className="text-center py-8 text-muted-foreground/60">
                           此條件下無交易紀錄
                         </td>
                       </tr>
@@ -596,28 +592,28 @@ export default function ReportPage() {
             </div>
 
             {/* ── Session list (sidebar info) ── */}
-            <div className="bg-slate-900 rounded-xl border border-slate-700 p-4 space-y-2">
-              <h3 className="text-sm font-semibold text-slate-300">回測 Session 清單 ({sessions.length})</h3>
+            <div className="bg-card rounded-xl border border-border p-4 space-y-2">
+              <h3 className="text-sm font-semibold text-foreground/80">回測 Session 清單 ({sessions.length})</h3>
               <div className="space-y-1.5 max-h-60 overflow-y-auto">
                 {(sessions as BacktestSession[]).map(s => (
-                  <div key={s.id} className="flex items-center justify-between text-xs px-3 py-2 bg-slate-800/50 rounded-lg border border-slate-700/50">
+                  <div key={s.id} className="flex items-center justify-between text-xs px-3 py-2 bg-secondary/50 rounded-lg border border-border/50">
                     <div className="flex items-center gap-3">
                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
                         s.market === 'TW' ? 'bg-blue-900/60 text-blue-300' : 'bg-red-900/60 text-red-300'
                       }`}>{s.market}</span>
-                      <span className="text-slate-300 font-mono">{s.scanDate}</span>
+                      <span className="text-foreground/80 font-mono">{s.scanDate}</span>
                       {s.strategyVersion && (
-                        <span className="text-slate-600 hidden sm:inline">{s.strategyVersion}</span>
+                        <span className="text-muted-foreground/60 hidden sm:inline">{s.strategyVersion}</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 text-slate-500">
+                    <div className="flex items-center gap-3 text-muted-foreground">
                       <span>{s.trades?.length ?? 0} 筆</span>
                       {s.stats && (
-                        <span className={s.stats.winRate >= 50 ? 'text-red-400' : 'text-green-400'}>
+                        <span className={s.stats.winRate >= 50 ? 'text-bull' : 'text-bear'}>
                           勝率 {s.stats.winRate.toFixed(1)}%
                         </span>
                       )}
-                      <span className="text-slate-700">{new Date(s.createdAt).toLocaleDateString('zh-TW')}</span>
+                      <span className="text-muted-foreground/60">{new Date(s.createdAt).toLocaleDateString('zh-TW')}</span>
                     </div>
                   </div>
                 ))}
@@ -627,6 +623,6 @@ export default function ReportPage() {
           </>
         )}
       </main>
-    </div>
+    </PageShell>
   );
 }

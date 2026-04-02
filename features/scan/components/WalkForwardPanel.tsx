@@ -8,9 +8,9 @@ function Kpi({ label, value, color, subtext }: {
 }) {
   return (
     <div className="flex flex-col gap-0.5 p-4">
-      <div className="text-[10px] text-slate-500 uppercase tracking-wide">{label}</div>
+      <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</div>
       <div className={`text-lg font-bold leading-tight ${color}`}>{value}</div>
-      {subtext && <div className="text-[10px] text-slate-600 mt-0.5">{subtext}</div>}
+      {subtext && <div className="text-[10px] text-muted-foreground/60 mt-0.5">{subtext}</div>}
     </div>
   );
 }
@@ -39,25 +39,25 @@ export function WalkForwardPanel({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl px-5 py-4 space-y-2">
+      <div className="bg-secondary/40 border border-border rounded-xl px-5 py-4 space-y-2">
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-4 rounded-full bg-violet-500" />
-          <h3 className="text-sm font-semibold text-slate-100">步進式向前回測 (Walk-Forward)</h3>
-          <span className="ml-auto text-xs text-slate-500">防止過度擬合的標準方法</span>
+          <h3 className="text-sm font-semibold text-foreground">步進式向前回測 (Walk-Forward)</h3>
+          <span className="ml-auto text-xs text-muted-foreground">防止過度擬合的標準方法</span>
         </div>
-        <p className="text-xs text-slate-400 leading-relaxed">
+        <p className="text-xs text-muted-foreground leading-relaxed">
           將歷史 session 切分為滾動的訓練/測試窗口。穩健性分數越高、效率比越接近 1，代表策略在未見過的資料上仍然有效。
         </p>
-        <div className="text-xs text-slate-500">
-          目前 <span className={enough ? 'text-slate-200 font-medium' : 'text-amber-400 font-medium'}>{sessionCount}</span> 個歷史 session
+        <div className="text-xs text-muted-foreground">
+          目前 <span className={enough ? 'text-foreground font-medium' : 'text-amber-400 font-medium'}>{sessionCount}</span> 個歷史 session
           {!enough && <span className="text-amber-400">（需至少 {minRequired} 個才能執行）</span>}
         </div>
       </div>
 
       {/* Config + Run */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-        <div className="px-5 py-3 border-b border-slate-800 bg-slate-800/30">
-          <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">窗口參數</h4>
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="px-5 py-3 border-b border-border bg-secondary/30">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">窗口參數</h4>
         </div>
         <div className="p-5 flex flex-wrap items-end gap-4">
           {[
@@ -66,23 +66,23 @@ export function WalkForwardPanel({
             { label: '步進大小', value: stepSize,  min: 1, max: 5,  onChange: onStepSize,  hint: '每次向前幾個 session' },
           ].map(({ label, value, min, max, onChange, hint }) => (
             <div key={label} className="space-y-1">
-              <label className="text-xs text-slate-500 font-medium">{label}</label>
+              <label className="text-xs text-muted-foreground font-medium">{label}</label>
               <select
                 value={value}
                 onChange={e => onChange(+e.target.value)}
-                className="bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                className="bg-secondary border border-border text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
               >
                 {Array.from({ length: max - min + 1 }, (_, i) => i + min).map(n => (
                   <option key={n} value={n}>{n}</option>
                 ))}
               </select>
-              <div className="text-[10px] text-slate-600">{hint}</div>
+              <div className="text-[10px] text-muted-foreground/60">{hint}</div>
             </div>
           ))}
           <button
             onClick={onRun}
             disabled={!enough || isRunning}
-            className="ml-auto px-5 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-lg text-sm font-semibold transition-colors"
+            className="ml-auto px-5 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:bg-muted disabled:text-muted-foreground text-white rounded-lg text-sm font-semibold transition-colors"
           >
             {isRunning ? '計算中…' : '執行 Walk-Forward'}
           </button>
@@ -92,30 +92,30 @@ export function WalkForwardPanel({
       {/* Results */}
       {result && (
         <div className="space-y-4">
-          <div className="bg-slate-900 border border-slate-700/60 rounded-xl overflow-hidden">
-            <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-800 bg-slate-800/40">
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <div className="flex items-center gap-3 px-5 py-3 border-b border-border bg-secondary/40">
               <div className="w-1.5 h-4 rounded-full bg-violet-500" />
-              <h3 className="text-sm font-semibold text-slate-100">跨窗口聚合（Out-of-Sample）</h3>
-              <div className="ml-auto flex items-center gap-4 text-xs text-slate-400">
+              <h3 className="text-sm font-semibold text-foreground">跨窗口聚合（Out-of-Sample）</h3>
+              <div className="ml-auto flex items-center gap-4 text-xs text-muted-foreground">
                 <span>{result.windows.length} 個窗口</span>
-                <span className={`font-bold text-sm ${result.robustnessScore >= 60 ? 'text-red-400' : 'text-amber-400'}`}>
+                <span className={`font-bold text-sm ${result.robustnessScore >= 60 ? 'text-bull' : 'text-amber-400'}`}>
                   穩健性 {result.robustnessScore}%
                 </span>
                 {result.efficiencyRatio !== null && (
-                  <span className={`font-bold text-sm ${result.efficiencyRatio >= 0.7 ? 'text-slate-200' : 'text-amber-400'}`}>
+                  <span className={`font-bold text-sm ${result.efficiencyRatio >= 0.7 ? 'text-foreground' : 'text-amber-400'}`}>
                     效率比 {result.efficiencyRatio.toFixed(2)}
                   </span>
                 )}
               </div>
             </div>
             {result.aggregateTestStats && (
-              <div className="grid grid-cols-3 sm:grid-cols-6 divide-x divide-y divide-slate-800/60">
-                <Kpi label="勝率"     value={`${result.aggregateTestStats.winRate}%`}     color={result.aggregateTestStats.winRate >= 50 ? 'text-red-400' : 'text-green-500'} />
+              <div className="grid grid-cols-3 sm:grid-cols-6 divide-x divide-y divide-border/60">
+                <Kpi label="勝率"     value={`${result.aggregateTestStats.winRate}%`}     color={result.aggregateTestStats.winRate >= 50 ? 'text-bull' : 'text-bear'} />
                 <Kpi label="均值報酬" value={fmtRet(result.aggregateTestStats.avgNetReturn)}  color={retColor(result.aggregateTestStats.avgNetReturn)} />
                 <Kpi label="中位報酬" value={fmtRet(result.aggregateTestStats.medianReturn)}  color={retColor(result.aggregateTestStats.medianReturn)} />
-                <Kpi label="MDD"      value={fmtRet(result.aggregateTestStats.maxDrawdown)}   color="text-green-500" subtext="峰谷最大回撤" />
+                <Kpi label="MDD"      value={fmtRet(result.aggregateTestStats.maxDrawdown)}   color="text-bear" subtext="峰谷最大回撤" />
                 <Kpi label="Sharpe"   value={result.aggregateTestStats.sharpeRatio?.toFixed(2) ?? '–'} color={retColor(result.aggregateTestStats.sharpeRatio)} />
-                <Kpi label="筆數"     value={String(result.aggregateTestStats.count)} color="text-slate-300" />
+                <Kpi label="筆數"     value={String(result.aggregateTestStats.count)} color="text-foreground/80" />
               </div>
             )}
             {result.robustnessScore < 70 && (
@@ -126,38 +126,38 @@ export function WalkForwardPanel({
                 </span>
               </div>
             )}
-            <div className="px-5 py-3 border-t border-slate-800 space-y-1.5">
-              <div className="flex items-center justify-between text-xs text-slate-500">
+            <div className="px-5 py-3 border-t border-border space-y-1.5">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>穩健性分數（測試窗口勝率 &gt; 50% 的比例）</span>
-                <span className="font-bold text-slate-200">{result.robustnessScore}%</span>
+                <span className="font-bold text-foreground">{result.robustnessScore}%</span>
               </div>
-              <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-2 bg-secondary rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all duration-700 ${
-                    result.robustnessScore >= 70 ? 'bg-red-500' :
+                    result.robustnessScore >= 70 ? 'bg-bull' :
                     result.robustnessScore >= 50 ? 'bg-amber-500' : 'bg-green-600'
                   }`}
                   style={{ width: `${result.robustnessScore}%` }}
                 />
               </div>
               {result.efficiencyRatio !== null && (
-                <div className="text-[11px] text-slate-500 mt-1">
+                <div className="text-[11px] text-muted-foreground mt-1">
                   效率比 {result.efficiencyRatio.toFixed(2)}
-                  <span className="ml-1.5 text-slate-600">（= 測試集平均報酬 ÷ 訓練集平均報酬）</span>
+                  <span className="ml-1.5 text-muted-foreground/60">（= 測試集平均報酬 ÷ 訓練集平均報酬）</span>
                 </div>
               )}
             </div>
           </div>
 
           {/* Per-window table */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-            <div className="px-5 py-3 border-b border-slate-800 bg-slate-800/30">
-              <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">各窗口詳情</h4>
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <div className="px-5 py-3 border-b border-border bg-secondary/30">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">各窗口詳情</h4>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-[10px] text-slate-500 uppercase tracking-wide border-b border-slate-700/80 bg-slate-800/60">
+                  <tr className="text-[10px] text-muted-foreground uppercase tracking-wide border-b border-border/80 bg-secondary/60">
                     <th className="py-2.5 px-4 text-left">窗口</th>
                     <th className="py-2.5 px-3 text-left">訓練期</th>
                     <th className="py-2.5 px-3 text-center">訓練勝率</th>
@@ -176,37 +176,37 @@ export function WalkForwardPanel({
                     const robust  = testWR !== null && testWR > 50;
                     return (
                       <tr key={w.windowIndex}
-                        className={`border-t border-slate-700/40 hover:bg-slate-800/60 transition-colors ${robust ? '' : 'opacity-60'}`}>
-                        <td className="py-2.5 px-4 text-slate-400 font-mono text-xs">#{w.windowIndex + 1}</td>
-                        <td className="py-2.5 px-3 text-xs text-slate-400">
+                        className={`border-t border-border/40 hover:bg-muted/60 transition-colors ${robust ? '' : 'opacity-60'}`}>
+                        <td className="py-2.5 px-4 text-muted-foreground font-mono text-xs">#{w.windowIndex + 1}</td>
+                        <td className="py-2.5 px-3 text-xs text-muted-foreground">
                           {w.trainSessions[0]} ~ {w.trainSessions[w.trainSessions.length - 1]}
-                          <div className="text-slate-600">{w.trainSessions.length} 個 session</div>
+                          <div className="text-muted-foreground/60">{w.trainSessions.length} 個 session</div>
                         </td>
                         <td className="py-2.5 px-3 text-center">
                           {trainWR !== null
-                            ? <span className={trainWR >= 50 ? 'text-red-400 font-bold' : 'text-green-500'}>{trainWR}%</span>
-                            : <span className="text-slate-600">–</span>}
+                            ? <span className={trainWR >= 50 ? 'text-bull font-bold' : 'text-bear'}>{trainWR}%</span>
+                            : <span className="text-muted-foreground/60">–</span>}
                         </td>
                         <td className="py-2.5 px-3 text-center">
                           <span className={retColor(w.trainStats?.avgNetReturn)}>{fmtRet(w.trainStats?.avgNetReturn)}</span>
                         </td>
-                        <td className="py-2.5 px-3 text-xs text-slate-300">
+                        <td className="py-2.5 px-3 text-xs text-foreground/80">
                           {w.testSessions[0]} ~ {w.testSessions[w.testSessions.length - 1]}
-                          <div className="text-slate-600">{w.testSessions.length} 個 session</div>
+                          <div className="text-muted-foreground/60">{w.testSessions.length} 個 session</div>
                         </td>
                         <td className="py-2.5 px-3 text-center">
                           {testWR !== null
-                            ? <span className={`font-bold ${testWR >= 50 ? 'text-red-400' : 'text-green-500'}`}>{testWR}%</span>
-                            : <span className="text-slate-600">–</span>}
+                            ? <span className={`font-bold ${testWR >= 50 ? 'text-bull' : 'text-bear'}`}>{testWR}%</span>
+                            : <span className="text-muted-foreground/60">–</span>}
                         </td>
                         <td className="py-2.5 px-3 text-center">
                           <span className={retColor(w.testStats?.avgNetReturn)}>{fmtRet(w.testStats?.avgNetReturn)}</span>
                         </td>
                         <td className="py-2.5 px-3 text-center">
-                          <span className="text-green-500">{fmtRet(w.testStats?.maxDrawdown)}</span>
+                          <span className="text-bear">{fmtRet(w.testStats?.maxDrawdown)}</span>
                         </td>
                         <td className="py-2.5 px-3 text-center">
-                          <span className={robust ? 'text-red-400' : 'text-slate-500'}>{robust ? '✓' : '✗'}</span>
+                          <span className={robust ? 'text-bull' : 'text-muted-foreground'}>{robust ? '✓' : '✗'}</span>
                         </td>
                       </tr>
                     );
@@ -219,9 +219,9 @@ export function WalkForwardPanel({
       )}
 
       {!result && !isRunning && (
-        <div className="text-center py-16 text-slate-500 space-y-2">
+        <div className="text-center py-16 text-muted-foreground space-y-2">
           <div className="text-4xl">📈</div>
-          <div className="text-sm font-medium text-slate-400">
+          <div className="text-sm font-medium text-muted-foreground">
             {enough
               ? '設定窗口參數後，點擊「執行 Walk-Forward」'
               : `需要至少 ${minRequired} 個歷史回測 session（目前 ${sessionCount} 個）`}

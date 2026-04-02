@@ -51,7 +51,7 @@ export function BacktestSection() {
     const params = new URLSearchParams(searchParams.toString());
     if (t === 'strict') { params.delete('tab'); } else { params.set('tab', t); }
     const qs = params.toString();
-    router.replace(qs ? `?${qs}` : '/scan', { scroll: false });
+    router.replace(qs ? `?${qs}` : '/scanner', { scroll: false });
   }, [searchParams, router]);
   const [activeHorizon, setHorizon] = useState<BacktestHorizon>('d5');
   const [sortBy, setSortBy] = useState<'composite' | 'netReturn' | 'signalScore' | 'surgeScore' | 'histWinRate' | 'holdDays'>('composite');
@@ -100,7 +100,7 @@ export function BacktestSection() {
 
   return (
     <>
-      <div className="flex items-center gap-1 border-b border-slate-800">
+      <div className="flex items-center gap-1 border-b border-border">
         {([
           { key: 'strict',      label: '嚴謹回測',    icon: '🔬' },
           { key: 'horizon',     label: '時間視角',    icon: '📊' },
@@ -113,7 +113,7 @@ export function BacktestSection() {
             className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               tab === key
                 ? 'border-sky-500 text-sky-300'
-                : 'border-transparent text-slate-500 hover:text-slate-300'
+                : 'border-transparent text-muted-foreground hover:text-foreground/80'
             }`}>
             <span>{icon}</span>
             <span>{label}</span>
@@ -122,7 +122,7 @@ export function BacktestSection() {
       </div>
 
       {/* Tab descriptions */}
-      <div className="bg-slate-900/40 border border-slate-800 rounded-lg px-4 py-2.5 text-xs text-slate-500">
+      <div className="bg-card/40 border border-border rounded-lg px-4 py-2.5 text-xs text-muted-foreground">
         {tab === 'strict' && '🔬 嚴謹回測：模擬真實交易（含手續費0.1425%、證交稅0.3%、滑點），計算每筆交易的淨報酬。可設定止損/止盈/持有天數。'}
         {tab === 'horizon' && '📊 時間視角：檢視信號發出後 1/5/10/20 天的報酬率分佈，了解不同持有期間的表現差異。'}
         {tab === 'observation' && '👁️ 觀察型回測（模式A）：選出候選股後追蹤 1/2/3/5/10/20 日表現，驗證選股效果和排序因子有效性（Spearman IC）。'}
@@ -149,7 +149,7 @@ export function BacktestSection() {
             <button
               onClick={() => exportToCsv(sortedTrades, scanDate)}
               disabled={sortedTrades.length === 0}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 disabled:opacity-40 rounded-lg text-[11px] text-slate-300 hover:text-white transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-muted hover:bg-muted disabled:opacity-40 rounded-lg text-[11px] text-foreground/80 hover:text-foreground transition-colors"
             >
               匯出 CSV
             </button>
@@ -157,7 +157,7 @@ export function BacktestSection() {
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="text-slate-400 border-b border-slate-700">
+                <tr className="text-muted-foreground border-b border-border">
                   <th className="text-left py-1.5 px-2">代號</th>
                   <th className="text-left py-1.5 px-2">名稱</th>
                   <th className="text-left py-1.5 px-2">概念</th>
@@ -170,12 +170,12 @@ export function BacktestSection() {
                   ]).map(({ key, label, tooltip }) => (
                     <th key={label}
                       title={tooltip || undefined}
-                      className="text-center py-1.5 px-1 cursor-pointer hover:text-white select-none"
+                      className="text-center py-1.5 px-1 cursor-pointer hover:text-foreground select-none"
                       onClick={() => {
                         if (sortBy === key) setSortDir(d => d === 'desc' ? 'asc' : 'desc');
                         else { setSortBy(key); setSortDir('desc'); }
                       }}>
-                      {label}{tooltip && <span className="text-[8px] text-slate-600 ml-0.5">ⓘ</span>}
+                      {label}{tooltip && <span className="text-[8px] text-muted-foreground/60 ml-0.5">ⓘ</span>}
                       {sortBy === key && <span className="ml-0.5 text-sky-400">{sortDir === 'desc' ? '▼' : '▲'}</span>}
                     </th>
                   ))}
@@ -184,14 +184,14 @@ export function BacktestSection() {
                   <th className="text-left py-1.5 px-2 whitespace-nowrap">位置</th>
                   <th className="text-center py-1.5 px-2 whitespace-nowrap" title="籌碼面評分 (0-100)\nS(80+)=主力強力買超\nA(65-79)=法人偏多\nB(50-64)=中性\nC(35-49)=法人偏空\nD(<35)=主力出貨\n\n依據：三大法人買賣超+融資融券+大額交易人+當沖比例">籌碼ⓘ</th>
                   <th className="text-right py-1.5 px-2 whitespace-nowrap">出場價</th>
-                  <th className="text-center py-1.5 px-2 whitespace-nowrap cursor-pointer hover:text-white select-none"
+                  <th className="text-center py-1.5 px-2 whitespace-nowrap cursor-pointer hover:text-foreground select-none"
                     onClick={() => {
                       if (sortBy === 'holdDays') setSortDir(d => d === 'desc' ? 'asc' : 'desc');
                       else { setSortBy('holdDays'); setSortDir('desc'); }
                     }}>
                     持有{sortBy === 'holdDays' && <span className="ml-0.5 text-sky-400">{sortDir === 'desc' ? '▼' : '▲'}</span>}
                   </th>
-                  <th className="text-right py-1.5 px-2 whitespace-nowrap cursor-pointer hover:text-white select-none"
+                  <th className="text-right py-1.5 px-2 whitespace-nowrap cursor-pointer hover:text-foreground select-none"
                     onClick={() => {
                       if (sortBy === 'netReturn') setSortDir(d => d === 'desc' ? 'asc' : 'desc');
                       else { setSortBy('netReturn'); setSortDir('desc'); }
@@ -205,10 +205,10 @@ export function BacktestSection() {
               <tbody>
                 {sortedTrades.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="text-center py-10 text-slate-500">
+                    <td colSpan={11} className="text-center py-10 text-muted-foreground">
                       <div className="text-2xl mb-2">📭</div>
                       <div className="text-sm">目前無回測交易紀錄</div>
-                      <div className="text-xs mt-1 text-slate-600">
+                      <div className="text-xs mt-1 text-muted-foreground/60">
                         若掃描日期為今日或近期，需等待後續交易日的開盤資料才能回測。
                         建議改用過去日期重新掃描。
                       </div>
@@ -240,7 +240,7 @@ export function BacktestSection() {
               {horizonLabels.map(({ key, label }) => (
                 <button key={key} onClick={() => setHorizon(key)}
                   className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                    activeHorizon === key ? 'bg-sky-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                    activeHorizon === key ? 'bg-sky-700 text-foreground' : 'bg-secondary text-muted-foreground hover:bg-muted'
                   }`}>
                   {label}
                 </button>
@@ -248,7 +248,7 @@ export function BacktestSection() {
             </div>
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-slate-700 text-slate-400">
+                <tr className="border-b border-border text-muted-foreground">
                   <th className="text-left py-1.5 px-2">代號</th>
                   <th className="text-left py-1.5 px-2">名稱</th>
                   <th className="text-left py-1.5 px-2">概念</th>
@@ -263,12 +263,12 @@ export function BacktestSection() {
                   ]).map(({ key, label, tooltip }) => (
                     <th key={key}
                       title={tooltip || undefined}
-                      className={`${key === 'price' || key === 'change' ? 'text-right' : 'text-center'} py-1.5 px-1 cursor-pointer hover:text-white select-none`}
+                      className={`${key === 'price' || key === 'change' ? 'text-right' : 'text-center'} py-1.5 px-1 cursor-pointer hover:text-foreground select-none`}
                       onClick={() => {
                         if (scanSort === key) setScanSortDir(d => d === 'desc' ? 'asc' : 'desc');
                         else { setScanSort(key); setScanSortDir('desc'); }
                       }}>
-                      {label}{tooltip && <span className="text-[8px] text-slate-600 ml-0.5">ⓘ</span>}
+                      {label}{tooltip && <span className="text-[8px] text-muted-foreground/60 ml-0.5">ⓘ</span>}
                       {scanSort === key && <span className="ml-0.5 text-sky-400">{scanSortDir === 'desc' ? '▼' : '▲'}</span>}
                     </th>
                   ))}
@@ -292,10 +292,10 @@ export function BacktestSection() {
                   const p = perfMap.get(r.symbol);
                   const sym = r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
                   return (
-                    <tr key={r.symbol} className="border-b border-slate-800/50 hover:bg-slate-800/40">
-                      <td className="py-1.5 px-2 font-mono font-bold text-white">{sym}</td>
+                    <tr key={r.symbol} className="border-b border-border/50 hover:bg-secondary/40">
+                      <td className="py-1.5 px-2 font-mono font-bold text-foreground">{sym}</td>
                       <td className="py-1.5 px-2">
-                        <div className="text-slate-300">{r.name}</div>
+                        <div className="text-foreground/80">{r.name}</div>
                         <div className="flex gap-0.5 mt-0.5">
                           {[
                             { pass: r.sixConditionsBreakdown.trend, label: '趨' },
@@ -305,13 +305,13 @@ export function BacktestSection() {
                             { pass: r.sixConditionsBreakdown.volume, label: '量' },
                             { pass: r.sixConditionsBreakdown.indicator, label: '指' },
                           ].map(({ pass, label }) => (
-                            <span key={label} className={`text-[8px] w-3.5 h-3.5 flex items-center justify-center rounded-sm ${pass ? 'bg-sky-800/80 text-sky-300' : 'bg-slate-800/50 text-slate-600'}`}>{label}</span>
+                            <span key={label} className={`text-[8px] w-3.5 h-3.5 flex items-center justify-center rounded-sm ${pass ? 'bg-sky-800/80 text-sky-300' : 'bg-secondary/50 text-muted-foreground/60'}`}>{label}</span>
                           ))}
                         </div>
                       </td>
-                      <td className="py-1.5 px-1 text-[10px] text-slate-500 max-w-[60px] truncate" title={r.industry}>{r.industry ?? '—'}</td>
+                      <td className="py-1.5 px-1 text-[10px] text-muted-foreground max-w-[60px] truncate" title={r.industry}>{r.industry ?? '—'}</td>
                       <td className="py-1.5 px-1 text-center">
-                        {(() => { const cs = calcComposite(r); return <span className={`font-bold text-[11px] ${cs >= 70 ? 'text-sky-400' : cs >= 55 ? 'text-slate-200' : 'text-slate-500'}`}>{cs.toFixed(1)}</span>; })()}
+                        {(() => { const cs = calcComposite(r); return <span className={`font-bold text-[11px] ${cs >= 70 ? 'text-sky-400' : cs >= 55 ? 'text-foreground' : 'text-muted-foreground'}`}>{cs.toFixed(1)}</span>; })()}
                       </td>
                       <td className="py-1.5 px-1 text-center">
                         <span className={`font-bold ${r.sixConditionsScore >= 5 ? 'text-red-400' : r.sixConditionsScore >= 4 ? 'text-orange-400' : 'text-yellow-400'}`}>
@@ -321,14 +321,14 @@ export function BacktestSection() {
                       <td className="py-1.5 px-1 text-center">
                         {r.surgeGrade && (
                           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                            r.surgeGrade === 'S' ? 'bg-red-600 text-white' :
-                            r.surgeGrade === 'A' ? 'bg-orange-500 text-white' :
+                            r.surgeGrade === 'S' ? 'bg-red-600 text-foreground' :
+                            r.surgeGrade === 'A' ? 'bg-orange-500 text-foreground' :
                             r.surgeGrade === 'B' ? 'bg-yellow-500 text-black' :
-                            'bg-slate-600 text-slate-300'
+                            'bg-muted text-foreground/80'
                           }`}>{r.surgeGrade}</span>
                         )}
                       </td>
-                      <td className="py-1.5 px-1 text-center font-mono text-slate-300">{r.surgeScore ?? '—'}</td>
+                      <td className="py-1.5 px-1 text-center font-mono text-foreground/80">{r.surgeScore ?? '—'}</td>
                       <td className="py-1.5 px-1 text-center">
                         {r.histWinRate != null && (
                           <span className={`text-[10px] px-1 rounded ${r.histWinRate >= 60 ? 'bg-green-900/60 text-green-300' : r.histWinRate >= 50 ? 'bg-yellow-900/60 text-yellow-300' : 'bg-red-900/60 text-red-300'}`}>
@@ -336,12 +336,12 @@ export function BacktestSection() {
                           </span>
                         )}
                       </td>
-                      <td className="py-1.5 px-2 text-right font-mono text-white">{r.price.toFixed(2)}</td>
+                      <td className="py-1.5 px-2 text-right font-mono text-foreground">{r.price.toFixed(2)}</td>
                       <td className={`py-1.5 px-2 text-right font-mono font-bold ${r.changePercent >= 0 ? 'text-red-400' : 'text-green-400'}`}>
                         {r.changePercent >= 0 ? '+' : ''}{r.changePercent.toFixed(2)}%
                       </td>
-                      <td className="py-1.5 px-2 text-[10px] text-slate-400 whitespace-nowrap">{r.trendState}</td>
-                      <td className="py-1.5 px-2 text-[10px] text-slate-400 whitespace-nowrap">{r.trendPosition}</td>
+                      <td className="py-1.5 px-2 text-[10px] text-muted-foreground whitespace-nowrap">{r.trendState}</td>
+                      <td className="py-1.5 px-2 text-[10px] text-muted-foreground whitespace-nowrap">{r.trendPosition}</td>
                       <td className="py-1.5 px-2 text-center whitespace-nowrap">
                         {chipBadge(r.chipScore, r.chipGrade, r.chipSignal, chipTooltip(r))}
                       </td>
@@ -352,12 +352,12 @@ export function BacktestSection() {
                           ))}
                           <td className="py-1.5 px-1 text-right whitespace-nowrap">
                             <span className="text-red-400">+{p.maxGain.toFixed(1)}%</span>
-                            <span className="text-slate-600">/</span>
+                            <span className="text-muted-foreground/60">/</span>
                             <span className="text-green-500">{p.maxLoss.toFixed(1)}%</span>
                           </td>
                         </>
                       ) : (
-                        <td colSpan={9} className="py-1.5 text-center text-slate-600">—</td>
+                        <td colSpan={9} className="py-1.5 text-center text-muted-foreground/60">—</td>
                       )}
                       <td className="py-1.5 px-2 text-center whitespace-nowrap">
                         <Link href={`/?load=${sym}&date=${scanDate}`}

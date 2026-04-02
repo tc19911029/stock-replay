@@ -5,39 +5,13 @@ import type { StockScanResult } from '@/lib/scanner/types';
 
 // ── Color helpers ─────────────────────────────────────────────────────────────
 
-// ── Cached color theme (avoids parsing localStorage on every render) ────────
-let _cachedColorTheme: string | null = null;
-let _cacheTimestamp = 0;
-const THEME_CACHE_TTL = 5000; // 5 seconds
 
-function getColorTheme(): string {
-  const now = Date.now();
-  if (_cachedColorTheme && now - _cacheTimestamp < THEME_CACHE_TTL) return _cachedColorTheme;
-  try {
-    if (typeof window !== 'undefined') {
-      _cachedColorTheme = JSON.parse(localStorage.getItem('settings-v4') || '{}')?.state?.colorTheme ?? 'asia';
-    } else {
-      _cachedColorTheme = 'asia';
-    }
-  } catch {
-    _cachedColorTheme = 'asia';
-  }
-  _cacheTimestamp = now;
-  return _cachedColorTheme!;
-}
-
-/** Return/PnL color based on color theme (亞洲: 紅漲綠跌) */
+/** Return/PnL color based on semantic bull/bear classes (CSS handles theme) */
 export function retColor(v: number | null | undefined): string {
-  if (v == null) return 'text-slate-500';
-  const theme = getColorTheme();
-  if (theme === 'western') {
-    if (v > 0) return 'text-green-400';
-    if (v < 0) return 'text-red-500';
-  } else {
-    if (v > 0) return 'text-red-400';
-    if (v < 0) return 'text-green-500';
-  }
-  return 'text-slate-400';
+  if (v == null) return 'text-muted-foreground';
+  if (v > 0) return 'text-bull';
+  if (v < 0) return 'text-bear';
+  return 'text-muted-foreground';
 }
 
 /** Format return percentage with sign */

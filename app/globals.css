@@ -161,6 +161,17 @@ body {
   }
 }
 
+/* ── Western color theme: swap bull/bear ── */
+[data-color-theme="western"] {
+  --bull: oklch(0.52 0.18 145);
+  --bear: oklch(0.57 0.22 27);
+}
+.dark[data-color-theme="western"],
+.dark [data-color-theme="western"] {
+  --bull: oklch(0.68 0.18 145);
+  --bear: oklch(0.68 0.22 27);
+}
+
 /* ── Stock-specific utilities ── */
 @layer utilities {
   .text-bull { color: var(--bull); }
@@ -168,6 +179,8 @@ body {
   .text-neutral-price { color: var(--neutral-price); }
   .bg-bull\/10 { background: color-mix(in oklch, var(--bull) 10%, transparent); }
   .bg-bear\/10 { background: color-mix(in oklch, var(--bear) 10%, transparent); }
+  .bg-bull\/20 { background: color-mix(in oklch, var(--bull) 20%, transparent); }
+  .bg-bear\/20 { background: color-mix(in oklch, var(--bear) 20%, transparent); }
   .border-bull { border-color: var(--bull); }
   .border-bear { border-color: var(--bear); }
   /* Number display */

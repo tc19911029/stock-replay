@@ -6,6 +6,7 @@ import { useBacktestStore } from '@/store/backtestStore';
 import { useWatchlistStore } from '@/store/watchlistStore';
 import { calcComposite, chipTooltip } from '../utils';
 import { chipBadge } from './TradeRow';
+import { POLLING } from '@/lib/config';
 import { fetchInstitutionalBatch, type InstitutionalSummary } from '@/lib/datasource/useInstitutionalSummary';
 
 export function ScanResultsTable() {
@@ -50,7 +51,7 @@ export function ScanResultsTable() {
     };
 
     fetchRealtime();
-    const timer = setInterval(fetchRealtime, 30_000);
+    const timer = setInterval(fetchRealtime, POLLING.QUOTE_INTERVAL);
     return () => clearInterval(timer);
   }, [market, scanResults.length, scanOnly]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -115,8 +116,8 @@ export function ScanResultsTable() {
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2 text-sm">
-        <span className="font-bold text-white">掃描結果</span>
-        <span className="text-slate-400">{scanResults.length} 檔符合條件</span>
+        <span className="font-bold text-foreground">掃描結果</span>
+        <span className="text-muted-foreground">{scanResults.length} 檔符合條件</span>
         {marketTrend && (
           <span title={`大盤趨勢：${marketTrend}｜多頭＝大盤上漲，選股勝率較高｜盤整＝方向不明，需謹慎｜空頭＝大盤下跌，風險較大`}
             className={`px-1.5 py-0.5 rounded text-[10px] font-bold cursor-help ${
@@ -150,16 +151,16 @@ export function ScanResultsTable() {
       {/* 概念篩選器 */}
       {availableConcepts.length > 1 && (
         <div className="flex flex-wrap gap-1 items-center">
-          <span className="text-[10px] text-slate-500 mr-1">篩選：</span>
+          <span className="text-[10px] text-muted-foreground mr-1">篩選：</span>
           <button onClick={() => setConceptFilter('all')}
-            className={`text-[10px] px-2 py-0.5 rounded-full transition ${conceptFilter === 'all' ? 'bg-sky-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
+            className={`text-[10px] px-2 py-0.5 rounded-full transition ${conceptFilter === 'all' ? 'bg-sky-700 text-foreground' : 'bg-secondary text-muted-foreground hover:bg-muted'}`}>
             全部 ({scanResults.length})
           </button>
           {availableConcepts.sort().slice(0, 20).map(c => {
             const count = scanResults.filter(r => r.industry === c).length;
             return (
               <button key={c} onClick={() => setConceptFilter(c)}
-                className={`text-[10px] px-2 py-0.5 rounded-full transition ${conceptFilter === c ? 'bg-sky-700 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
+                className={`text-[10px] px-2 py-0.5 rounded-full transition ${conceptFilter === c ? 'bg-sky-700 text-foreground' : 'bg-secondary text-muted-foreground hover:bg-muted'}`}>
                 {c} ({count})
               </button>
             );
@@ -169,7 +170,7 @@ export function ScanResultsTable() {
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
-            <tr className="text-slate-400 border-b border-slate-700">
+            <tr className="text-muted-foreground border-b border-border">
               <th className="text-left py-1.5 px-2">代號</th>
               <th className="text-left py-1.5 px-2">名稱</th>
               <th className="text-left py-1.5 px-2">概念</th>
@@ -184,12 +185,12 @@ export function ScanResultsTable() {
               ]).map(({ key, label, align, tooltip }) => (
                 <th key={key}
                   title={tooltip || undefined}
-                  className={`${align} py-1.5 px-1 cursor-pointer hover:text-white select-none`}
+                  className={`${align} py-1.5 px-1 cursor-pointer hover:text-foreground select-none`}
                   onClick={() => {
                     if (scanSort === key) setScanSortDir(d => d === 'desc' ? 'asc' : 'desc');
                     else { setScanSort(key); setScanSortDir('desc'); }
                   }}>
-                  {label}{tooltip && <span className="text-[8px] text-slate-600 ml-0.5">ⓘ</span>}
+                  {label}{tooltip && <span className="text-[8px] text-muted-foreground/60 ml-0.5">ⓘ</span>}
                   {scanSort === key && <span className="ml-0.5 text-sky-400">{scanSortDir === 'desc' ? '▼' : '▲'}</span>}
                 </th>
               ))}
@@ -204,11 +205,11 @@ export function ScanResultsTable() {
           </thead>
           <tbody>
             {sortedScanResults.slice(0, 50).map((r) => (<Fragment key={r.symbol}>
-              <tr className={`border-b border-slate-800/50 hover:bg-slate-800/40 cursor-pointer ${expandedStock === r.symbol ? 'bg-slate-800/60' : ''}`}
+              <tr className={`border-b border-border/50 hover:bg-secondary/40 cursor-pointer ${expandedStock === r.symbol ? 'bg-secondary/60' : ''}`}
                 onClick={() => setExpandedStock(expandedStock === r.symbol ? null : r.symbol)}>
-                <td className="py-1.5 px-2 font-mono font-bold text-white">{r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</td>
+                <td className="py-1.5 px-2 font-mono font-bold text-foreground">{r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</td>
                 <td className="py-1.5 px-2">
-                  <div className="text-slate-300">{r.name}</div>
+                  <div className="text-foreground/80">{r.name}</div>
                   <div className="flex gap-0.5 mt-0.5">
                     {[
                       { pass: r.sixConditionsBreakdown.trend, label: '趨' },
@@ -218,33 +219,33 @@ export function ScanResultsTable() {
                       { pass: r.sixConditionsBreakdown.volume, label: '量' },
                       { pass: r.sixConditionsBreakdown.indicator, label: '指' },
                     ].map(({ pass, label }) => (
-                      <span key={label} className={`text-[8px] w-3.5 h-3.5 flex items-center justify-center rounded-sm ${pass ? 'bg-sky-800/80 text-sky-300' : 'bg-slate-800/50 text-slate-600'}`}>{label}</span>
+                      <span key={label} className={`text-[8px] w-3.5 h-3.5 flex items-center justify-center rounded-sm ${pass ? 'bg-sky-800/80 text-sky-300' : 'bg-secondary/50 text-muted-foreground/60'}`}>{label}</span>
                     ))}
                   </div>
                 </td>
-                <td className="py-1.5 px-1 text-[10px] text-slate-500 max-w-[60px] truncate" title={r.industry}>{r.industry ?? '—'}</td>
+                <td className="py-1.5 px-1 text-[10px] text-muted-foreground max-w-[60px] truncate" title={r.industry}>{r.industry ?? '—'}</td>
                 <td className="py-1.5 px-1 text-center">
                   {(() => {
                     const cs = calcComposite(r);
-                    return <span className={`font-bold text-[11px] ${cs >= 70 ? 'text-sky-400' : cs >= 55 ? 'text-slate-200' : 'text-slate-500'}`}>{cs.toFixed(1)}</span>;
+                    return <span className={`font-bold text-[11px] ${cs >= 70 ? 'text-sky-400' : cs >= 55 ? 'text-foreground' : 'text-muted-foreground'}`}>{cs.toFixed(1)}</span>;
                   })()}
                 </td>
                 <td className="py-1.5 px-1 text-center">
-                  <span className={`font-bold ${r.sixConditionsScore >= 5 ? 'text-red-400' : r.sixConditionsScore >= 4 ? 'text-orange-400' : 'text-yellow-400'}`}>
+                  <span className={`font-bold ${r.sixConditionsScore >= 5 ? 'text-bull' : r.sixConditionsScore >= 4 ? 'text-orange-400' : 'text-yellow-400'}`}>
                     {r.sixConditionsScore}/6
                   </span>
                 </td>
                 <td className="py-1.5 px-1 text-center">
                   {r.surgeGrade && (
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                      r.surgeGrade === 'S' ? 'bg-red-600 text-white' :
-                      r.surgeGrade === 'A' ? 'bg-orange-500 text-white' :
+                      r.surgeGrade === 'S' ? 'bg-red-600 text-foreground' :
+                      r.surgeGrade === 'A' ? 'bg-orange-500 text-foreground' :
                       r.surgeGrade === 'B' ? 'bg-yellow-500 text-black' :
-                      'bg-slate-600 text-slate-300'
+                      'bg-muted text-foreground/80'
                     }`}>{r.surgeGrade}</span>
                   )}
                 </td>
-                <td className="py-1.5 px-1 text-center font-mono text-slate-300">{r.surgeScore ?? '—'}</td>
+                <td className="py-1.5 px-1 text-center font-mono text-foreground/80">{r.surgeScore ?? '—'}</td>
                 <td className="py-1.5 px-1 text-center">
                   {r.histWinRate != null && (
                     <span className={`text-[10px] px-1 rounded ${r.histWinRate >= 60 ? 'bg-green-900/60 text-green-300' : r.histWinRate >= 50 ? 'bg-yellow-900/60 text-yellow-300' : 'bg-red-900/60 text-red-300'}`}
@@ -259,26 +260,26 @@ export function ScanResultsTable() {
                   const price = rt?.price ?? r.price;
                   const chgPct = rt?.changePct ?? r.changePercent;
                   return (<>
-                    <td className="py-1.5 px-2 text-right font-mono text-white" title={rt ? `即時 ${rt.time}` : '掃描時價格'}>
+                    <td className="py-1.5 px-2 text-right font-mono text-foreground" title={rt ? `即時 ${rt.time}` : '掃描時價格'}>
                       {price.toFixed(2)}
                       {rt && <span className="text-[8px] text-sky-500 ml-0.5">⚡</span>}
                     </td>
-                    <td className={`py-1.5 px-2 text-right font-mono font-bold ${chgPct >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                    <td className={`py-1.5 px-2 text-right font-mono font-bold ${chgPct >= 0 ? 'text-bull' : 'text-bear'}`}>
                       {chgPct >= 0 ? '+' : ''}{chgPct.toFixed(2)}%
                     </td>
                   </>);
                 })()}
-                <td className="py-1.5 px-2 text-[10px] text-slate-400 whitespace-nowrap">{r.trendState}</td>
-                <td className="py-1.5 px-2 text-[10px] text-slate-400 whitespace-nowrap">{r.trendPosition}</td>
+                <td className="py-1.5 px-2 text-[10px] text-muted-foreground whitespace-nowrap">{r.trendState}</td>
+                <td className="py-1.5 px-2 text-[10px] text-muted-foreground whitespace-nowrap">{r.trendPosition}</td>
                 <td className="py-1.5 px-2 text-center whitespace-nowrap">
                   {chipBadge(r.chipScore, r.chipGrade, r.chipSignal, chipTooltip(r))}
                 </td>
                 <td className="py-1.5 px-2 text-center whitespace-nowrap font-mono text-xs">
                   {(() => {
                     const inst = instData.get(r.symbol.replace(/\.(TW|TWO)$/i, ''));
-                    if (!inst) return <span className="text-slate-600">—</span>;
+                    if (!inst) return <span className="text-muted-foreground/60">—</span>;
                     const v = inst.foreignNet5d;
-                    return <span className={v > 0 ? 'text-red-400' : v < 0 ? 'text-green-400' : 'text-slate-500'}>
+                    return <span className={v > 0 ? 'text-bull' : v < 0 ? 'text-bear' : 'text-muted-foreground'}>
                       {v > 0 ? '+' : ''}{v.toLocaleString()}
                     </span>;
                   })()}
@@ -286,8 +287,8 @@ export function ScanResultsTable() {
                 <td className="py-1.5 px-2 text-center whitespace-nowrap text-xs">
                   {(() => {
                     const inst = instData.get(r.symbol.replace(/\.(TW|TWO)$/i, ''));
-                    if (!inst || inst.consecutiveForeignBuy === 0) return <span className="text-slate-600">—</span>;
-                    return <span className={`font-bold ${inst.consecutiveForeignBuy >= 3 ? 'text-red-400' : 'text-slate-300'}`}>
+                    if (!inst || inst.consecutiveForeignBuy === 0) return <span className="text-muted-foreground/60">—</span>;
+                    return <span className={`font-bold ${inst.consecutiveForeignBuy >= 3 ? 'text-bull' : 'text-foreground/80'}`}>
                       {inst.consecutiveForeignBuy}日
                     </span>;
                   })()}
@@ -314,13 +315,13 @@ export function ScanResultsTable() {
                 </td>
               </tr>
               {expandedStock === r.symbol && (
-                <tr className="bg-slate-900/80">
+                <tr className="bg-card/80">
                   <td colSpan={13} className="px-4 py-3">
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-[11px]">
                       {/* 飆股組件分數 */}
                       {r.surgeComponents && (
                         <div className="space-y-1.5">
-                          <div className="text-slate-400 font-medium">飆股潛力分解</div>
+                          <div className="text-muted-foreground font-medium">飆股潛力分解</div>
                           {([
                             { key: 'momentum', label: '動能', w: '18%' },
                             { key: 'volatility', label: '波動', w: '12%' },
@@ -335,13 +336,13 @@ export function ScanResultsTable() {
                             const comp = r.surgeComponents![key];
                             return (
                               <div key={key} className="flex items-center gap-2">
-                                <span className="w-8 text-slate-500">{label}</span>
-                                <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                                  <div className={`h-full rounded-full ${comp.score >= 70 ? 'bg-red-500' : comp.score >= 40 ? 'bg-amber-500' : 'bg-slate-600'}`}
+                                <span className="w-8 text-muted-foreground">{label}</span>
+                                <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
+                                  <div className={`h-full rounded-full ${comp.score >= 70 ? 'bg-red-500' : comp.score >= 40 ? 'bg-amber-500' : 'bg-muted'}`}
                                     style={{ width: `${comp.score}%` }} />
                                 </div>
-                                <span className="w-6 text-right text-slate-400">{comp.score}</span>
-                                <span className="text-[9px] text-slate-600">({w})</span>
+                                <span className="w-6 text-right text-muted-foreground">{comp.score}</span>
+                                <span className="text-[9px] text-muted-foreground/60">({w})</span>
                               </div>
                             );
                           })}
@@ -349,15 +350,15 @@ export function ScanResultsTable() {
                       )}
                       {/* 飆股特徵標籤 */}
                       <div className="space-y-1.5">
-                        <div className="text-slate-400 font-medium">技術特徵</div>
+                        <div className="text-muted-foreground font-medium">技術特徵</div>
                         <div className="flex flex-wrap gap-1">
                           {(r.surgeFlags ?? []).map(f => (
                             <span key={f} className="px-1.5 py-0.5 bg-sky-900/40 text-sky-300 rounded text-[10px]">{f}</span>
                           ))}
-                          {(r.surgeFlags ?? []).length === 0 && <span className="text-slate-600">無明顯飆股特徵</span>}
+                          {(r.surgeFlags ?? []).length === 0 && <span className="text-muted-foreground/60">無明顯飆股特徵</span>}
                         </div>
-                        <div className="text-slate-400 font-medium mt-2">趨勢摘要</div>
-                        <div className="text-slate-300 text-[10px] space-y-0.5">
+                        <div className="text-muted-foreground font-medium mt-2">趨勢摘要</div>
+                        <div className="text-foreground/80 text-[10px] space-y-0.5">
                           <div>趨勢：{r.trendState} · {r.trendPosition}</div>
                           <div>價格：{r.price.toFixed(2)} · 漲跌：{r.changePercent >= 0 ? '+' : ''}{r.changePercent.toFixed(2)}%</div>
                           <div>成交量：{(r.volume / 1000).toFixed(0)}K</div>
@@ -365,15 +366,15 @@ export function ScanResultsTable() {
                       </div>
                       {/* 觸發規則 */}
                       <div className="space-y-1.5">
-                        <div className="text-slate-400 font-medium">觸發的交易規則</div>
+                        <div className="text-muted-foreground font-medium">觸發的交易規則</div>
                         <div className="space-y-0.5 max-h-32 overflow-y-auto">
                           {r.triggeredRules.slice(0, 8).map((rule, i) => (
                             <div key={i} className="flex items-start gap-1.5 text-[10px]">
-                              <span className={`mt-0.5 w-1.5 h-1.5 rounded-full shrink-0 ${rule.signalType === 'BUY' ? 'bg-red-400' : 'bg-green-400'}`} />
-                              <span className="text-slate-400">{rule.reason}</span>
+                              <span className={`mt-0.5 w-1.5 h-1.5 rounded-full shrink-0 ${rule.signalType === 'BUY' ? 'bg-bull' : 'bg-bear'}`} />
+                              <span className="text-muted-foreground">{rule.reason}</span>
                             </div>
                           ))}
-                          {r.triggeredRules.length === 0 && <span className="text-slate-600 text-[10px]">無觸發規則</span>}
+                          {r.triggeredRules.length === 0 && <span className="text-muted-foreground/60 text-[10px]">無觸發規則</span>}
                         </div>
                         {/* 高勝率進場位置 */}
                         {(r.highWinRateDetails ?? []).length > 0 && (
@@ -387,7 +388,7 @@ export function ScanResultsTable() {
                         {/* 贏家圖像 */}
                         {((r.winnerBullishPatterns ?? []).length > 0 || (r.winnerBearishPatterns ?? []).length > 0) && (
                           <div className="mt-2">
-                            <div className="text-slate-400 font-medium text-[10px] mb-0.5">贏家圖像</div>
+                            <div className="text-muted-foreground font-medium text-[10px] mb-0.5">贏家圖像</div>
                             {(r.winnerBullishPatterns ?? []).map((p, i) => (
                               <div key={`b${i}`} className="text-[10px] text-red-300">+ {p}</div>
                             ))}
@@ -408,7 +409,7 @@ export function ScanResultsTable() {
                         {/* 切線突破 */}
                         {(r.trendlineBreakAbove || r.trendlineBreakBelow) && (
                           <div className="mt-2">
-                            <div className="text-slate-400 font-medium text-[10px] mb-0.5">切線分析</div>
+                            <div className="text-muted-foreground font-medium text-[10px] mb-0.5">切線分析</div>
                             {r.trendlineBreakAbove && <div className="text-[10px] text-red-300">突破下降切線（多方轉強）</div>}
                             {r.trendlineBreakBelow && <div className="text-[10px] text-green-300">跌破上升切線（多頭轉弱）</div>}
                           </div>
@@ -421,25 +422,25 @@ export function ScanResultsTable() {
                         if (!nd) return null;
                         return (
                           <div className="space-y-1.5">
-                            <div className="text-slate-400 font-medium">新聞情緒</div>
+                            <div className="text-muted-foreground font-medium">新聞情緒</div>
                             {nd.loading ? (
-                              <span className="text-[10px] text-slate-500 animate-pulse">載入中…</span>
+                              <span className="text-[10px] text-muted-foreground animate-pulse">載入中…</span>
                             ) : nd.hasNews ? (
                               <>
                                 <div className="flex items-center gap-2">
                                   <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
                                     nd.sentiment > 0.1  ? 'bg-red-900/50 text-red-300' :
                                     nd.sentiment < -0.1 ? 'bg-green-900/50 text-green-300' :
-                                                           'bg-slate-700/50 text-slate-400'
+                                                           'bg-muted/50 text-muted-foreground'
                                   }`}>
                                     {nd.sentiment > 0.1 ? '偏多' : nd.sentiment < -0.1 ? '偏空' : '中性'}
                                     <span className="ml-1 opacity-60 font-normal">({nd.sentiment.toFixed(2)})</span>
                                   </span>
                                 </div>
-                                <p className="text-[10px] text-slate-400 leading-relaxed">{nd.summary}</p>
+                                <p className="text-[10px] text-muted-foreground leading-relaxed">{nd.summary}</p>
                               </>
                             ) : (
-                              <span className="text-[10px] text-slate-600">近期無相關新聞</span>
+                              <span className="text-[10px] text-muted-foreground/60">近期無相關新聞</span>
                             )}
                           </div>
                         );
@@ -454,9 +455,9 @@ export function ScanResultsTable() {
         </table>
       </div>
       {scanResults.length > 50 && (
-        <div className="text-xs text-slate-500 text-center space-y-0.5">
+        <div className="text-xs text-muted-foreground text-center space-y-0.5">
           <div>顯示前 50 檔（共 {filteredScanResults.length}{conceptFilter !== 'all' ? `/${scanResults.length}` : ''} 檔）</div>
-          <div className="text-[10px] text-slate-600">數據來源：Yahoo Finance · TWSE/TPEx/東方財富 · 掃描日期 {scanDate}</div>
+          <div className="text-[10px] text-muted-foreground/60">數據來源：Yahoo Finance · TWSE/TPEx/東方財富 · 掃描日期 {scanDate}</div>
         </div>
       )}
     </div>

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePortfolioStore, PortfolioHolding } from '@/store/portfolioStore';
 import { useSettingsStore } from '@/store/settingsStore';
+import { PageShell } from '@/components/shared';
 
 interface PriceData {
   price: number;
@@ -92,25 +93,34 @@ export default function PortfolioPage() {
 
   const totalReturn = summary.totalCost > 0 ? (summary.totalPnL / summary.totalCost) * 100 : 0;
 
-  return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <header className="border-b border-slate-800 bg-slate-950 px-3 sm:px-4 py-2 sm:py-2.5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="text-slate-400 hover:text-white text-sm transition">← 主頁</Link>
-          <span className="text-base font-bold">💼 持倉追蹤</span>
-          <span className="relative group cursor-help">
-            <span className="text-[10px] w-4 h-4 flex items-center justify-center rounded-full bg-slate-700 text-slate-400">?</span>
-            <div className="absolute z-50 left-0 top-full mt-1 hidden group-hover:block w-56 p-2.5 rounded-lg bg-slate-800 border border-slate-600 text-[11px] text-slate-300 shadow-lg">
-              記錄持股，即時追蹤損益。系統會自動提供停損/停利建議和持有天數提醒。
-            </div>
-          </span>
-        </div>
-        <button onClick={() => { cancelForm(); setShowForm(v => !v); }}
-          className="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold transition">
-          + 新增持倉
-        </button>
-      </header>
+  const portfolioHeader = (
+    <div className="flex items-center gap-2 text-xs">
+      <span className="font-bold text-sm whitespace-nowrap">💼 持倉</span>
+      <button onClick={() => usePortfolioStore.getState().exportJSON()}
+        className="px-2 py-1 bg-muted hover:bg-muted/80 rounded transition" title="匯出備份">匯出</button>
+      <label className="px-2 py-1 bg-muted hover:bg-muted/80 rounded transition cursor-pointer" title="匯入備份">
+        匯入
+        <input type="file" accept=".json" className="hidden" onChange={e => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            const ok = usePortfolioStore.getState().importJSON(reader.result as string);
+            if (!ok) alert('匯入失敗：檔案格式不正確');
+          };
+          reader.readAsText(file);
+          e.target.value = '';
+        }} />
+      </label>
+      <button onClick={() => { cancelForm(); setShowForm(v => !v); }}
+        className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded font-bold transition text-white">
+        + 新增
+      </button>
+    </div>
+  );
 
+  return (
+    <PageShell headerSlot={portfolioHeader}>
       <div className="p-4 max-w-3xl mx-auto space-y-4">
 
         {/* Summary */}
@@ -118,11 +128,11 @@ export default function PortfolioPage() {
           <div className="grid grid-cols-3 gap-3">
             {[
               { label: '總持倉市值', value: `$${summary.totalValue.toLocaleString('zh-TW', { maximumFractionDigits: 0 })}`, color: 'text-yellow-400' },
-              { label: '總損益', value: `${summary.totalPnL >= 0 ? '+' : ''}$${Math.abs(summary.totalPnL).toLocaleString('zh-TW', { maximumFractionDigits: 0 })}`, color: summary.totalPnL >= 0 ? 'text-red-400' : 'text-green-400' },
-              { label: '總報酬率', value: `${totalReturn >= 0 ? '+' : ''}${totalReturn.toFixed(2)}%`, color: totalReturn >= 0 ? 'text-red-400' : 'text-green-400' },
+              { label: '總損益', value: `${summary.totalPnL >= 0 ? '+' : ''}$${Math.abs(summary.totalPnL).toLocaleString('zh-TW', { maximumFractionDigits: 0 })}`, color: summary.totalPnL >= 0 ? 'text-bull' : 'text-bear' },
+              { label: '總報酬率', value: `${totalReturn >= 0 ? '+' : ''}${totalReturn.toFixed(2)}%`, color: totalReturn >= 0 ? 'text-bull' : 'text-bear' },
             ].map(({ label, value, color }) => (
-              <div key={label} className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-center">
-                <p className="text-[10px] text-slate-500 mb-1">{label}</p>
+              <div key={label} className="bg-secondary border border-border rounded-xl p-3 text-center">
+                <p className="text-[10px] text-muted-foreground mb-1">{label}</p>
                 <p className={`text-base font-bold font-mono ${color}`}>{value}</p>
               </div>
             ))}
@@ -131,32 +141,32 @@ export default function PortfolioPage() {
 
         {/* Add / Edit form */}
         {showForm && (
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3">
-            <h3 className="text-sm font-bold text-slate-200">{editId ? '編輯持倉' : '新增持倉'}</h3>
+          <div className="bg-secondary border border-border rounded-xl p-4 space-y-3">
+            <h3 className="text-sm font-bold text-foreground/90">{editId ? '編輯持倉' : '新增持倉'}</h3>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-xs text-slate-400 mb-1 block">股票代號</label>
+                <label className="text-xs text-muted-foreground mb-1 block">股票代號</label>
                 <input value={form.symbol} onChange={e => setForm(f => ({ ...f, symbol: e.target.value }))}
                   placeholder="2330 / AAPL"
                   disabled={!!editId}
-                  className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500 disabled:opacity-60" />
+                  className="w-full bg-muted border border-border rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-blue-500 disabled:opacity-60" />
               </div>
               <div>
-                <label className="text-xs text-slate-400 mb-1 block">加入日期</label>
+                <label className="text-xs text-muted-foreground mb-1 block">加入日期</label>
                 <input type="date" value={form.buyDate} onChange={e => setForm(f => ({ ...f, buyDate: e.target.value }))}
-                  className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500" />
+                  className="w-full bg-muted border border-border rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-blue-500" />
               </div>
               <div>
-                <label className="text-xs text-slate-400 mb-1 block">持股數</label>
+                <label className="text-xs text-muted-foreground mb-1 block">持股數</label>
                 <input type="number" value={form.shares} onChange={e => setForm(f => ({ ...f, shares: e.target.value }))}
                   placeholder="1000"
-                  className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500" />
+                  className="w-full bg-muted border border-border rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-blue-500" />
               </div>
               <div>
-                <label className="text-xs text-slate-400 mb-1 block">成本價（買進均價）</label>
+                <label className="text-xs text-muted-foreground mb-1 block">成本價（買進均價）</label>
                 <input type="number" value={form.costPrice} onChange={e => setForm(f => ({ ...f, costPrice: e.target.value }))}
                   placeholder="150.00"
-                  className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500" />
+                  className="w-full bg-muted border border-border rounded px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-blue-500" />
               </div>
             </div>
             <div className="flex gap-2">
@@ -165,27 +175,27 @@ export default function PortfolioPage() {
                 {formLoading ? '載入中...' : editId ? '儲存變更' : '確認新增'}
               </button>
               <button onClick={cancelForm}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">取消</button>
+                className="px-4 py-2 bg-muted hover:bg-muted/80 rounded-lg text-sm transition">取消</button>
             </div>
           </div>
         )}
 
         {holdings.length === 0 && !showForm && (
-          <div className="text-center py-12 text-slate-500 space-y-4">
+          <div className="text-center py-12 text-muted-foreground space-y-4">
             <p className="text-4xl">💼</p>
-            <p className="text-sm font-medium text-slate-400">尚未新增任何持倉</p>
-            <p className="text-xs text-slate-600">追蹤你的持股，即時查看損益、停損/停利提醒</p>
+            <p className="text-sm font-medium text-muted-foreground">尚未新增任何持倉</p>
+            <p className="text-xs text-muted-foreground/60">追蹤你的持股，即時查看損益、停損/停利提醒</p>
             <div className="flex justify-center gap-3 mt-2">
               <button onClick={() => setShowForm(true)}
                 className="text-xs px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg transition font-medium">
                 + 新增第一筆持倉
               </button>
-              <Link href="/scan"
-                className="text-xs px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition border border-slate-700">
+              <Link href="/scanner"
+                className="text-xs px-4 py-2 bg-secondary hover:bg-muted text-foreground/80 rounded-lg transition border border-border">
                 去掃描選股
               </Link>
             </div>
-            <p className="text-[10px] text-slate-700">* 資料存於本機瀏覽器，僅供學習參考</p>
+            <p className="text-[10px] text-muted-foreground/60">* 資料存於本機瀏覽器，僅供學習參考</p>
           </div>
         )}
 
@@ -203,14 +213,14 @@ export default function PortfolioPage() {
             const stopLoss = Math.min(Math.max(ma5StopLoss, costStopLoss), currentPrice * 0.999);
 
             return (
-              <div key={h.id} className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+              <div key={h.id} className="bg-secondary border border-border rounded-xl overflow-hidden">
                 <div className="flex items-center gap-3 px-4 py-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-white">{h.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</span>
-                      <span className="text-xs text-slate-400 truncate">{h.name}</span>
+                      <span className="font-bold text-foreground">{h.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</span>
+                      <span className="text-xs text-muted-foreground truncate">{h.name}</span>
                     </div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
                       {h.shares.toLocaleString()} 股 · 均價 <span className="text-yellow-400 font-mono">${h.costPrice.toFixed(2)}</span>
                       · 買進 {h.buyDate}
                     </div>
@@ -219,13 +229,13 @@ export default function PortfolioPage() {
                   {/* Current price */}
                   <div className="text-right shrink-0">
                     {p?.loading ? (
-                      <span className="text-xs text-slate-500 animate-pulse">載入中</span>
+                      <span className="text-xs text-muted-foreground animate-pulse">載入中</span>
                     ) : p?.error ? (
                       <span className="text-xs text-red-400">{p.error}</span>
                     ) : currentPrice > 0 ? (
                       <>
-                        <div className="font-mono font-bold text-white">${currentPrice.toFixed(2)}</div>
-                        <div className={`text-xs font-mono ${p?.changePercent >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                        <div className="font-mono font-bold text-foreground">${currentPrice.toFixed(2)}</div>
+                        <div className={`text-xs font-mono ${p?.changePercent >= 0 ? 'text-bull' : 'text-bear'}`}>
                           {(p?.changePercent ?? 0) >= 0 ? '+' : ''}{(p?.changePercent ?? 0).toFixed(2)}%
                         </div>
                       </>
@@ -234,7 +244,7 @@ export default function PortfolioPage() {
 
                   {/* P&L */}
                   {currentPrice > 0 && (
-                    <div className={`text-right shrink-0 text-xs font-bold font-mono ${pnlPos ? 'text-red-400' : 'text-green-400'}`}>
+                    <div className={`text-right shrink-0 text-xs font-bold font-mono ${pnlPos ? 'text-bull' : 'text-bear'}`}>
                       <div>{pnlPos ? '+' : ''}${Math.abs(pnl).toLocaleString('zh-TW', { maximumFractionDigits: 0 })}</div>
                       <div>{pnlPos ? '+' : ''}{pnlPct.toFixed(2)}%</div>
                     </div>
@@ -244,9 +254,9 @@ export default function PortfolioPage() {
                     <Link href={`/?load=${h.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}`}
                       className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs font-bold transition">走圖</Link>
                     <button onClick={() => openEdit(h)}
-                      className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs text-slate-400 hover:text-slate-200 transition">編輯</button>
+                      className="px-2 py-1 bg-muted hover:bg-muted/80 rounded text-xs text-muted-foreground hover:text-foreground/90 transition">編輯</button>
                     <button onClick={() => remove(h.id)}
-                      className="px-2 py-1 bg-slate-700 hover:bg-red-900/60 hover:text-red-300 rounded text-xs text-slate-400 transition">刪除</button>
+                      className="px-2 py-1 bg-muted hover:bg-red-900/60 hover:text-red-300 rounded text-xs text-muted-foreground transition">刪除</button>
                   </div>
                 </div>
 
@@ -288,7 +298,7 @@ export default function PortfolioPage() {
                           {a.text}
                         </div>
                       ))}
-                      <div className="flex items-center gap-4 text-[10px] text-slate-500 pt-1">
+                      <div className="flex items-center gap-4 text-[10px] text-muted-foreground pt-1">
                         <span>建議停損 <span className="text-red-400 font-mono font-bold">${stopLoss.toFixed(2)}</span></span>
                         <span>成本 -7% <span className="font-mono">${costStopLoss.toFixed(2)}</span></span>
                         <span>持有 {holdDays} 天</span>
@@ -304,8 +314,8 @@ export default function PortfolioPage() {
           })}
         </div>
 
-        <p className="text-[10px] text-slate-600 text-center">* 僅供學習參考，停損計算為簡化版本，非投資建議</p>
+        <p className="text-[10px] text-muted-foreground/60 text-center">* 僅供學習參考，停損計算為簡化版本，非投資建議</p>
       </div>
-    </div>
+    </PageShell>
   );
 }

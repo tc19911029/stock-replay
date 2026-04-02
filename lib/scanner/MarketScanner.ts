@@ -189,25 +189,25 @@ export abstract class MarketScanner {
         reason:     s.description,
       }));
 
-      // ── 歷史信號勝率（模擬真實交易：隔日開盤買→持有5天收盤賣）──────────
+      // ── 歷史信號勝率 + IC 因子權重（單次遍歷，P1-6 效能優化）────────────
+      // 合併原本兩個 for-loop：一次計算勝率統計 + 收集 IC 特徵向量
       let histWinRate: number | undefined;
       let histSignalCount = 0;
       let histWinCount = 0;
-      let histGrossProfit = 0;   // 正報酬總和
-      let histGrossLoss = 0;     // 負報酬總和（絕對值）
-      let histMaxLoss = 0;       // 最大單筆虧損（負值）
-      // 回測最近 120 天的信號（需預留 6 天 forward data）
+      let histGrossProfit = 0;
+      let histGrossLoss = 0;
+      let histMaxLoss = 0;
       const histEnd = lastIdx - 6;
       const histStart = Math.max(60, lastIdx - 120);
+      const icSignals: HistoricalSignalForIC[] = [];
+
       for (let h = histStart; h < histEnd; h++) {
         const hSix = evaluateSixConditions(candles, h, thresholds);
-        if (hSix.totalScore < minScore) continue;  // 用實際門檻
-        // 隔日開盤買入
+        if (hSix.totalScore < minScore) continue;
         const entryIdx = h + 1;
         if (entryIdx >= candles.length) continue;
         const entryPrice = candles[entryIdx].open;
         if (!entryPrice || entryPrice <= 0) continue;
-        // 5 天後收盤賣出
         const exitIdx = Math.min(entryIdx + 5, candles.length - 1);
         const exitPrice = candles[exitIdx].close;
         const returnPct = ((exitPrice - entryPrice) / entryPrice) * 100;
@@ -219,9 +219,23 @@ export abstract class MarketScanner {
           histGrossLoss += Math.abs(returnPct);
           if (returnPct < histMaxLoss) histMaxLoss = returnPct;
         }
+        // 同步收集 IC 特徵（histWinRate 在迴圈後填入）
+        const hSurge = computeSurgeScore(candles, h);
+        const hSmart = computeSmartMoneyScore(candles, h);
+        icSignals.push({
+          techScore: (hSix.totalScore / 6) * 100,
+          surgeScore: hSurge.totalScore,
+          smartMoneyScore: hSmart.totalScore,
+          histWinRate: 42, // placeholder，迴圈後更新
+          forwardReturn: returnPct,
+        });
       }
+
       if (histSignalCount >= 8) {
         histWinRate = Math.round((histWinCount / histSignalCount) * 100);
+        // 回填真實勝率（原本第二個迴圈才拿得到）
+        const wr = histWinRate;
+        for (const sig of icSignals) sig.histWinRate = wr;
       }
       const histProfitFactor = histGrossLoss > 0 ? histGrossProfit / histGrossLoss : (histGrossProfit > 0 ? 3.0 : 0);
 
@@ -240,35 +254,10 @@ export abstract class MarketScanner {
         : undefined;
 
       // ── IC-based dynamic factor weighting ─────────────────────────────
-      // Build historical signal records for IC computation from the same
-      // backtest loop we already ran above (reuse histSignalCount data)
       let icWeights: { tech: number; surge: number; smart: number; winRate: number } | undefined;
-      if (histSignalCount >= 15) {
-        const icSignals: HistoricalSignalForIC[] = [];
-        for (let h = histStart; h < histEnd; h++) {
-          const hSix = evaluateSixConditions(candles, h, thresholds);
-          if (hSix.totalScore < minScore) continue;
-          const entryIdx = h + 1;
-          if (entryIdx >= candles.length) continue;
-          const entryP = candles[entryIdx].open;
-          if (!entryP || entryP <= 0) continue;
-          const exitIdx = Math.min(entryIdx + 5, candles.length - 1);
-          const exitP = candles[exitIdx].close;
-          const fwdReturn = ((exitP - entryP) / entryP) * 100;
-          const hSurge = computeSurgeScore(candles, h);
-          const hSmart = computeSmartMoneyScore(candles, h);
-          icSignals.push({
-            techScore: (hSix.totalScore / 6) * 100,
-            surgeScore: hSurge.totalScore,
-            smartMoneyScore: hSmart.totalScore,
-            histWinRate: histWinRate ?? 42,
-            forwardReturn: fwdReturn,
-          });
-        }
-        if (icSignals.length >= 10) {
-          const icResult = computeFactorIC(icSignals);
-          icWeights = blendWeights(icResult.weights, config.marketId);
-        }
+      if (histSignalCount >= 15 && icSignals.length >= 10) {
+        const icResult = computeFactorIC(icSignals);
+        icWeights = blendWeights(icResult.weights, config.marketId);
       }
 
       const composite = computeCompositeScore(

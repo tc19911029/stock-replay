@@ -16,7 +16,7 @@ const GRADE_COLORS: Record<string, string> = {
   S: 'text-yellow-400 bg-yellow-400/10',
   A: 'text-green-400 bg-green-400/10',
   B: 'text-blue-400 bg-blue-400/10',
-  C: 'text-slate-400 bg-slate-400/10',
+  C: 'text-muted-foreground bg-muted-foreground/10',
   D: 'text-orange-400 bg-orange-400/10',
   F: 'text-red-400 bg-red-400/10',
 };
@@ -35,11 +35,11 @@ function ProgressSection({ logs, progress }: {
     <div className="space-y-3">
       {progress && (
         <div>
-          <div className="flex justify-between text-xs text-slate-400 mb-1">
+          <div className="flex justify-between text-xs text-muted-foreground mb-1">
             <span>{progress.phase}</span>
             <span>{progress.done}/{progress.total} ({pct}%)</span>
           </div>
-          <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+          <div className="h-2 bg-secondary rounded-full overflow-hidden">
             <div
               className="h-full bg-blue-500 rounded-full transition-all duration-300"
               style={{ width: `${pct}%` }}
@@ -47,7 +47,7 @@ function ProgressSection({ logs, progress }: {
           </div>
         </div>
       )}
-      <div className="max-h-32 overflow-y-auto text-xs text-slate-500 space-y-0.5">
+      <div className="max-h-32 overflow-y-auto text-xs text-muted-foreground space-y-0.5">
         {logs.map((log, i) => (
           <div key={i}>{log}</div>
         ))}
@@ -87,7 +87,7 @@ function GroupStatsTable({ stats, title }: { stats: RuleGroupStats[]; title: str
       <h3 className="text-lg font-semibold mb-3">{title}</h3>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="text-slate-400 border-b border-slate-700">
+          <thead className="text-muted-foreground border-b border-border">
             <tr>
               <th className="px-2 py-2 text-left text-xs">#</th>
               <th className="px-2 py-2 text-left text-xs">群組</th>
@@ -104,10 +104,10 @@ function GroupStatsTable({ stats, title }: { stats: RuleGroupStats[]; title: str
           </thead>
           <tbody>
             {sorted.map((g, i) => (
-              <tr key={g.groupId} className="border-b border-slate-800 hover:bg-slate-800/50">
-                <td className="px-2 py-2 text-slate-500">{i + 1}</td>
+              <tr key={g.groupId} className="border-b border-border hover:bg-secondary/50">
+                <td className="px-2 py-2 text-muted-foreground">{i + 1}</td>
                 <td className="px-2 py-2 font-medium">{g.groupName}</td>
-                <td className="px-2 py-2 text-slate-400">{g.author}</td>
+                <td className="px-2 py-2 text-muted-foreground">{g.author}</td>
                 <td className="px-2 py-2">{g.compositeScore}</td>
                 <td className="px-2 py-2">
                   <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${GRADE_COLORS[g.grade] ?? ''}`}>
@@ -117,7 +117,7 @@ function GroupStatsTable({ stats, title }: { stats: RuleGroupStats[]; title: str
                 <td className="px-2 py-2">{g.signalCount}</td>
                 <td className="px-2 py-2">{g.winRate5d}%</td>
                 <td className="px-2 py-2">{g.winRate10d}%</td>
-                <td className={`px-2 py-2 ${Number(g.avgReturn10d) > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                <td className={`px-2 py-2 ${Number(g.avgReturn10d) > 0 ? 'text-bull' : 'text-bear'}`}>
                   {Number(g.avgReturn10d) > 0 ? '+' : ''}{g.avgReturn10d}%
                 </td>
                 <td className="px-2 py-2">{g.sharpeRatio}</td>
@@ -140,10 +140,10 @@ function RecommendationCard({ result }: { result: MarketAnalysisResult }) {
   const label = result.market === 'TW' ? '台股' : '陸股';
 
   return (
-    <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
+    <div className="bg-secondary/50 border border-border rounded-lg p-4">
       <h3 className="text-base font-semibold mb-2">
         {label}推薦組合
-        <span className="ml-2 text-xs text-slate-400">
+        <span className="ml-2 text-xs text-muted-foreground">
           ({result.stockCount} 支股票 / {result.dateRange.from} ~ {result.dateRange.to})
         </span>
       </h3>
@@ -156,7 +156,7 @@ function RecommendationCard({ result }: { result: MarketAnalysisResult }) {
       </div>
       <div className="grid grid-cols-3 gap-3 text-sm">
         <div>
-          <div className="text-slate-400 text-xs">平均 10D 勝率</div>
+          <div className="text-muted-foreground text-xs">平均 10D 勝率</div>
           <div className="font-semibold">
             {recommended.length > 0
               ? (recommended.reduce((s, g) => s + g.winRate10d, 0) / recommended.length).toFixed(1)
@@ -164,7 +164,7 @@ function RecommendationCard({ result }: { result: MarketAnalysisResult }) {
           </div>
         </div>
         <div>
-          <div className="text-slate-400 text-xs">平均 10D 報酬</div>
+          <div className="text-muted-foreground text-xs">平均 10D 報酬</div>
           <div className="font-semibold">
             {recommended.length > 0
               ? (recommended.reduce((s, g) => s + Number(g.avgReturn10d), 0) / recommended.length).toFixed(2)
@@ -172,7 +172,7 @@ function RecommendationCard({ result }: { result: MarketAnalysisResult }) {
           </div>
         </div>
         <div>
-          <div className="text-slate-400 text-xs">總訊號數</div>
+          <div className="text-muted-foreground text-xs">總訊號數</div>
           <div className="font-semibold">
             {recommended.reduce((s, g) => s + g.signalCount, 0)}
           </div>
@@ -191,7 +191,7 @@ function ComparisonSection({ comparison }: { comparison: CrossMarketComparison }
         <div className={`text-xs font-medium mb-1 ${color}`}>{title}</div>
         <div className="flex flex-wrap gap-1">
           {ids.map(id => (
-            <span key={id} className="px-2 py-0.5 rounded bg-slate-800 text-xs">{id}</span>
+            <span key={id} className="px-2 py-0.5 rounded bg-secondary text-xs">{id}</span>
           ))}
         </div>
       </div>
@@ -199,7 +199,7 @@ function ComparisonSection({ comparison }: { comparison: CrossMarketComparison }
   );
 
   return (
-    <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 space-y-3">
+    <div className="bg-secondary/50 border border-border rounded-lg p-4 space-y-3">
       <h3 className="text-base font-semibold">交叉比較</h3>
       <Section title="兩邊都好" ids={comparison.strongBoth} color="text-green-400" />
       <Section title="台股專用" ids={comparison.twOnly} color="text-blue-400" />
@@ -291,7 +291,7 @@ export default function RuleGroupAnalysisPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold">規則群組回測分析</h1>
-            <p className="text-sm text-slate-400 mt-1">
+            <p className="text-sm text-muted-foreground mt-1">
               對 18 個規則群組分別回測台股/陸股前 100 大，找出最有效的組合
             </p>
           </div>
@@ -300,8 +300,8 @@ export default function RuleGroupAnalysisPage() {
             disabled={isRunning}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               isRunning
-                ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-500 text-white'
+                ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-500 text-foreground'
             }`}
           >
             {isRunning ? '分析中...' : '開始分析'}
@@ -310,7 +310,7 @@ export default function RuleGroupAnalysisPage() {
 
         {/* Progress */}
         {(isRunning || logs.length > 0) && !result && (
-          <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
+          <div className="bg-card border border-border rounded-lg p-4">
             <ProgressSection logs={logs} progress={progress} />
           </div>
         )}
@@ -328,15 +328,15 @@ export default function RuleGroupAnalysisPage() {
             <ComparisonSection comparison={result.comparison} />
 
             {/* Tab switch */}
-            <div className="flex gap-2 border-b border-slate-800 pb-1">
+            <div className="flex gap-2 border-b border-border pb-1">
               {(['TW', 'CN'] as const).map(m => (
                 <button
                   key={m}
                   onClick={() => setActiveTab(m)}
                   className={`px-4 py-1.5 text-sm rounded-t-lg transition-colors ${
                     activeTab === m
-                      ? 'bg-slate-800 text-white border-b-2 border-blue-500'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-secondary text-foreground border-b-2 border-blue-500'
+                      : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   {m === 'TW' ? '台股' : '陸股'} 詳細排名

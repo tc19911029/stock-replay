@@ -11,7 +11,7 @@ function Kpi({ label, value, color, winner }: {
 }) {
   return (
     <div className={`flex flex-col gap-0.5 p-3 rounded-lg ${winner ? 'bg-amber-500/10 ring-1 ring-amber-500/30' : ''}`}>
-      <div className="text-[10px] text-slate-500 uppercase tracking-wide">{label}</div>
+      <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</div>
       <div className={`text-lg font-bold leading-tight ${color}`}>
         {value}
         {winner && <span className="ml-1 text-[10px] text-amber-400">★</span>}
@@ -30,38 +30,38 @@ function StatsCard({ title, accent, stats, winnerMetrics }: {
 }) {
   if (!stats) {
     return (
-      <div className="flex-1 bg-slate-900 border border-slate-800 rounded-xl p-5">
+      <div className="flex-1 bg-card border border-border rounded-xl p-5">
         <div className="flex items-center gap-2 mb-3">
           <div className={`w-1.5 h-4 rounded-full ${accent}`} />
-          <h4 className="text-sm font-semibold text-slate-100">{title}</h4>
+          <h4 className="text-sm font-semibold text-foreground">{title}</h4>
         </div>
-        <div className="text-sm text-slate-500">無交易數據</div>
+        <div className="text-sm text-muted-foreground">無交易數據</div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-      <div className="px-5 py-3 border-b border-slate-800 bg-slate-800/30 flex items-center gap-2">
+    <div className="flex-1 bg-card border border-border rounded-xl overflow-hidden">
+      <div className="px-5 py-3 border-b border-border bg-secondary/30 flex items-center gap-2">
         <div className={`w-1.5 h-4 rounded-full ${accent}`} />
-        <h4 className="text-sm font-semibold text-slate-100">{title}</h4>
-        <span className="ml-auto text-xs text-slate-500">{stats.count} 筆交易</span>
+        <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+        <span className="ml-auto text-xs text-muted-foreground">{stats.count} 筆交易</span>
       </div>
       <div className="grid grid-cols-3 gap-1 p-2">
         <Kpi label="勝率" value={`${stats.winRate}%`}
-          color={stats.winRate >= 50 ? 'text-red-400' : 'text-green-500'}
+          color={stats.winRate >= 50 ? 'text-bull' : 'text-bear'}
           winner={winnerMetrics.has('winRate')} />
         <Kpi label="平均報酬" value={fmtRet(stats.avgNetReturn)}
           color={retColor(stats.avgNetReturn)}
           winner={winnerMetrics.has('avgNetReturn')} />
         <Kpi label="最大回撤" value={`${stats.maxDrawdown.toFixed(1)}%`}
-          color={stats.maxDrawdown >= -5 ? 'text-slate-300' : 'text-green-500'}
+          color={stats.maxDrawdown >= -5 ? 'text-foreground/80' : 'text-bear'}
           winner={winnerMetrics.has('maxDrawdown')} />
         <Kpi label="Sharpe" value={stats.sharpeRatio?.toFixed(2) ?? '–'}
-          color={stats.sharpeRatio != null && stats.sharpeRatio > 0.5 ? 'text-red-400' : 'text-slate-300'}
+          color={stats.sharpeRatio != null && stats.sharpeRatio > 0.5 ? 'text-bull' : 'text-foreground/80'}
           winner={winnerMetrics.has('sharpeRatio')} />
         <Kpi label="獲利因子" value={stats.profitFactor?.toFixed(2) ?? '–'}
-          color={stats.profitFactor != null && stats.profitFactor > 1.5 ? 'text-red-400' : 'text-slate-300'}
+          color={stats.profitFactor != null && stats.profitFactor > 1.5 ? 'text-bull' : 'text-foreground/80'}
           winner={winnerMetrics.has('profitFactor')} />
         <Kpi label="期望值" value={stats.expectancy.toFixed(2)}
           color={retColor(stats.expectancy)}
@@ -114,21 +114,21 @@ function DualEquityCurve({ perDateStats }: {
   const zeroY = toY(0);
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-      <div className="px-5 py-3 border-b border-slate-800 bg-slate-800/30 flex items-center justify-between">
-        <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">累積報酬曲線</h4>
+    <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <div className="px-5 py-3 border-b border-border bg-secondary/30 flex items-center justify-between">
+        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">累積報酬曲線</h4>
         <div className="flex items-center gap-4 text-xs">
           <span className="flex items-center gap-1">
             <span className="inline-block w-3 h-0.5 rounded bg-orange-400" />
-            <span className="text-slate-500">A: 最大量</span>
-            <span className={finalA >= 0 ? 'text-red-400' : 'text-green-500'}>
+            <span className="text-muted-foreground">A: 最大量</span>
+            <span className={finalA >= 0 ? 'text-bull' : 'text-bear'}>
               {finalA >= 0 ? '+' : ''}{finalA.toFixed(1)}%
             </span>
           </span>
           <span className="flex items-center gap-1">
             <span className="inline-block w-3 h-0.5 rounded bg-sky-400" />
-            <span className="text-slate-500">B: 系統#1</span>
-            <span className={finalB >= 0 ? 'text-red-400' : 'text-green-500'}>
+            <span className="text-muted-foreground">B: 系統#1</span>
+            <span className={finalB >= 0 ? 'text-bull' : 'text-bear'}>
               {finalB >= 0 ? '+' : ''}{finalB.toFixed(1)}%
             </span>
           </span>
@@ -160,14 +160,14 @@ function PerDateTable({ perDateStats }: {
   }>;
 }) {
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-      <div className="px-5 py-3 border-b border-slate-800 bg-slate-800/30">
-        <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">逐日明細</h4>
+    <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <div className="px-5 py-3 border-b border-border bg-secondary/30">
+        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">逐日明細</h4>
       </div>
       <div className="max-h-[400px] overflow-y-auto">
         <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-slate-800/90 backdrop-blur">
-            <tr className="text-slate-500 uppercase tracking-wide">
+          <thead className="sticky top-0 bg-secondary/90 backdrop-blur">
+            <tr className="text-muted-foreground uppercase tracking-wide">
               <th className="text-left px-4 py-2">日期</th>
               <th className="text-right px-3 py-2">A 訊號數</th>
               <th className="text-right px-3 py-2">A 報酬</th>
@@ -190,13 +190,13 @@ function PerDateTable({ perDateStats }: {
               }
 
               return (
-                <tr key={d.date} className="border-t border-slate-800/50 hover:bg-slate-800/30">
-                  <td className="px-4 py-2 text-slate-300 font-mono">{d.date}</td>
-                  <td className="text-right px-3 py-2 text-slate-400">{d.groupASignals}</td>
+                <tr key={d.date} className="border-t border-border/50 hover:bg-secondary/30">
+                  <td className="px-4 py-2 text-foreground/80 font-mono">{d.date}</td>
+                  <td className="text-right px-3 py-2 text-muted-foreground">{d.groupASignals}</td>
                   <td className={`text-right px-3 py-2 font-mono ${retColor(aRet)}`}>
                     {aRet != null ? fmtRet(aRet) : '無訊號'}
                   </td>
-                  <td className="text-right px-3 py-2 text-slate-400">{d.groupBSignals}</td>
+                  <td className="text-right px-3 py-2 text-muted-foreground">{d.groupBSignals}</td>
                   <td className={`text-right px-3 py-2 font-mono ${retColor(bRet)}`}>
                     {bRet != null ? fmtRet(bRet) : '無訊號'}
                   </td>
@@ -204,7 +204,7 @@ function PerDateTable({ perDateStats }: {
                     <span className={`text-xs font-bold ${
                       winner === 'A' ? 'text-orange-400'
                         : winner === 'B' ? 'text-sky-400'
-                          : 'text-slate-600'
+                          : 'text-muted-foreground/60'
                     }`}>{winner}</span>
                   </td>
                 </tr>
@@ -258,13 +258,13 @@ export function ABTestPanel() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="bg-slate-800/40 border border-slate-700/60 rounded-xl px-5 py-4 space-y-2">
+      <div className="bg-secondary/40 border border-border/60 rounded-xl px-5 py-4 space-y-2">
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-4 rounded-full bg-amber-500" />
-          <h3 className="text-sm font-semibold text-slate-100">A/B 策略比較回測</h3>
-          <span className="ml-auto text-xs text-slate-500">朱SOP+最大量 vs 系統第一名</span>
+          <h3 className="text-sm font-semibold text-foreground">A/B 策略比較回測</h3>
+          <span className="ml-auto text-xs text-muted-foreground">朱SOP+最大量 vs 系統第一名</span>
         </div>
-        <p className="text-xs text-slate-400 leading-relaxed">
+        <p className="text-xs text-muted-foreground leading-relaxed">
           策略A：朱老師六條件篩選 → 選成交量最大的1檔。
           策略B：完整多因子系統 → 選 compositeScore 最高的1檔。
           兩者都用朱老師獲利方程式出場，差異只在選股邏輯。
@@ -272,16 +272,16 @@ export function ABTestPanel() {
       </div>
 
       {/* Config */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-        <div className="px-5 py-3 border-b border-slate-800 bg-slate-800/30">
-          <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">回測參數</h4>
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="px-5 py-3 border-b border-border bg-secondary/30">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">回測參數</h4>
         </div>
         <div className="p-5 flex flex-wrap items-end gap-4">
           {/* Market */}
           <div className="space-y-1">
-            <label className="text-xs text-slate-500 font-medium">市場</label>
+            <label className="text-xs text-muted-foreground font-medium">市場</label>
             <select value={market} onChange={e => setMarket(e.target.value as 'TW' | 'CN')}
-              className="bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+              className="bg-secondary border border-border text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
               disabled={isRunning}>
               <option value="TW">台股</option>
               <option value="CN">陸股</option>
@@ -290,42 +290,42 @@ export function ABTestPanel() {
 
           {/* Date range */}
           <div className="space-y-1">
-            <label className="text-xs text-slate-500 font-medium">開始日期</label>
+            <label className="text-xs text-muted-foreground font-medium">開始日期</label>
             <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
-              className="bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+              className="bg-secondary border border-border text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
               disabled={isRunning} />
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-slate-500 font-medium">結束日期</label>
+            <label className="text-xs text-muted-foreground font-medium">結束日期</label>
             <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
-              className="bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+              className="bg-secondary border border-border text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
               disabled={isRunning} />
           </div>
 
           {/* Sample interval */}
           <div className="space-y-1">
-            <label className="text-xs text-slate-500 font-medium">取樣間隔</label>
+            <label className="text-xs text-muted-foreground font-medium">取樣間隔</label>
             <select value={sampleInterval} onChange={e => setSampleInterval(+e.target.value)}
-              className="bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
+              className="bg-secondary border border-border text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
               disabled={isRunning}>
               <option value={1}>每日</option>
               <option value={5}>每週</option>
               <option value={10}>每兩週</option>
             </select>
-            <div className="text-[10px] text-slate-600">每 N 個交易日取樣</div>
+            <div className="text-[10px] text-muted-foreground/60">每 N 個交易日取樣</div>
           </div>
 
           {/* Run button */}
           <div className="ml-auto flex items-center gap-2">
             {result && (
               <button onClick={clearResult}
-                className="px-3 py-2 text-xs text-slate-400 hover:text-white rounded-lg border border-slate-700 hover:border-slate-600 transition"
+                className="px-3 py-2 text-xs text-muted-foreground hover:text-foreground rounded-lg border border-border hover:border-border transition"
                 disabled={isRunning}>
                 清除
               </button>
             )}
             <button onClick={runTest} disabled={isRunning}
-              className="px-5 py-2 text-sm font-medium bg-amber-600 hover:bg-amber-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-lg transition">
+              className="px-5 py-2 text-sm font-medium bg-amber-600 hover:bg-amber-500 disabled:bg-muted disabled:text-muted-foreground text-white rounded-lg transition">
               {isRunning ? '執行中...' : '開始比較'}
             </button>
           </div>
@@ -334,11 +334,11 @@ export function ABTestPanel() {
         {/* Progress */}
         {isRunning && (
           <div className="px-5 pb-4 space-y-1">
-            <div className="flex items-center justify-between text-xs text-slate-500">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>{statusMessage}</span>
               <span>{progress}%</span>
             </div>
-            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+            <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
               <div className="h-full bg-amber-500 rounded-full transition-all duration-300"
                 style={{ width: `${progress}%` }} />
             </div>
@@ -358,7 +358,7 @@ export function ABTestPanel() {
         <>
           {/* Winner summary */}
           <div className="text-center py-2">
-            <span className="text-sm text-slate-400">
+            <span className="text-sm text-muted-foreground">
               {aWinCount > bWinCount ? (
                 <><span className="text-orange-400 font-bold">策略A（最大量）</span>在 {aWinCount}/6 項指標勝出</>
               ) : bWinCount > aWinCount ? (
@@ -367,7 +367,7 @@ export function ABTestPanel() {
                 <>兩策略平手（各 {aWinCount}/6 項）</>
               )}
             </span>
-            <span className="text-xs text-slate-600 ml-2">
+            <span className="text-xs text-muted-foreground/60 ml-2">
               共分析 {result.datesAnalyzed} 個交易日
             </span>
           </div>

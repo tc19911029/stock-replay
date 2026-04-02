@@ -46,6 +46,7 @@ export interface TradeSignal {
   winnerBearishPatterns?: string[]; // 多轉空圖像
   eliminationPenalty?: number;      // 淘汰法扣分
   direction?: 'long' | 'short';    // 做多/做空方向（預設做多）
+  signalPrice?: number;             // 訊號日收盤價（用於計算跳空幅度）
 }
 
 /**
@@ -218,6 +219,8 @@ export interface BacktestTrade {
   surgeScore?:  number;     // 飆股潛力分數 0-100
   surgeGrade?:  string;     // 飆股等級 S/A/B/C/D
   histWinRate?: number;     // 歷史勝率 %
+  isGapUp?:     boolean;    // 隔日高開跳空 > 5%（實際難以開盤價買入）
+  gapUpPct?:    number;     // 跳空幅度（%）
 
   // ── 績效 ──
   grossReturn: number;      // 毛報酬率 % (不含成本)
@@ -248,6 +251,15 @@ export interface BacktestStats {
   // ── 存活偏差 ──
   skippedCount: number;         // 因資料不足被跳過的筆數
   coverageRate: number;         // 有效覆蓋率 % = count / (count + skippedCount)
+  // ── 跳過原因分類（P0-2: 透明化倖存者偏差來源）──
+  skipReasons?: SkipReasons;
+}
+
+/** 回測跳過原因分類 */
+export interface SkipReasons {
+  noForwardData:      number;   // forwardCandles 為空（資料源無回傳）
+  limitUpLockout:     number;   // 漲停鎖定無法進場
+  insufficientCandles: number;  // candles 不足以計算指標
 }
 
 // ── Default Params ──────────────────────────────────────────────────────────────
@@ -1258,12 +1270,21 @@ export function runBatchBacktest(
   useSOPExit = false,
   /** 朱老師出場參數（僅 useSOPExit=true 時有效） */
   zhuExit:           ZhuExitParams = DEFAULT_ZHU_EXIT,
-): { trades: BacktestTrade[]; skippedCount: number } {
+): { trades: BacktestTrade[]; skippedCount: number; skipReasons: SkipReasons } {
   const trades: BacktestTrade[] = [];
   let skippedCount = 0;
+  const skipReasons: SkipReasons = { noForwardData: 0, limitUpLockout: 0, insufficientCandles: 0 };
 
   for (const result of scanResults) {
     const candles = forwardCandlesMap[result.symbol] ?? [];
+
+    // P0-2: 分類跳過原因
+    if (candles.length === 0) {
+      skippedCount++;
+      skipReasons.noForwardData++;
+      continue;
+    }
+
     const signal = scanResultToSignal(result);
     const adaptiveStrategy = resolveAdaptiveParams(signal, strategy);
 
@@ -1276,11 +1297,21 @@ export function runBatchBacktest(
       trade = runSingleBacktest(signal, candles, adaptiveStrategy);
     }
 
-    if (trade) trades.push(trade);
-    else skippedCount++;
+    if (trade) {
+      trades.push(trade);
+    } else {
+      skippedCount++;
+      // 判斷是漲停鎖死還是數據不足
+      const entry = candles[0];
+      const range = entry.high - entry.low;
+      const rangeRatio = entry.low > 0 ? range / entry.low : 0;
+      const isLockUp = entry.open === entry.high && rangeRatio < 0.005;
+      if (isLockUp) skipReasons.limitUpLockout++;
+      else skipReasons.insufficientCandles++;
+    }
   }
 
-  return { trades, skippedCount };
+  return { trades, skippedCount, skipReasons };
 }
 
 /**
@@ -1289,20 +1320,36 @@ export function runBatchBacktest(
 export function runBatchBacktestPure(
   scanResults:       StockScanResult[],
   forwardCandlesMap: Record<string, ForwardCandle[]>,
-): { trades: BacktestTrade[]; skippedCount: number } {
+): { trades: BacktestTrade[]; skippedCount: number; skipReasons: SkipReasons } {
   const trades: BacktestTrade[] = [];
   let skippedCount = 0;
+  const skipReasons: SkipReasons = { noForwardData: 0, limitUpLockout: 0, insufficientCandles: 0 };
 
   for (const result of scanResults) {
     const candles = forwardCandlesMap[result.symbol] ?? [];
+
+    if (candles.length === 0) {
+      skippedCount++;
+      skipReasons.noForwardData++;
+      continue;
+    }
+
     const signal = scanResultToSignal(result);
-    // 不用 resolveAdaptiveParams，直接用固定參數
     const trade = runSingleBacktest(signal, candles, PURE_ZHU_STRATEGY);
-    if (trade) trades.push(trade);
-    else skippedCount++;
+    if (trade) {
+      trades.push(trade);
+    } else {
+      skippedCount++;
+      const entry = candles[0];
+      const range = entry.high - entry.low;
+      const rangeRatio = entry.low > 0 ? range / entry.low : 0;
+      const isLockUp = entry.open === entry.high && rangeRatio < 0.005;
+      if (isLockUp) skipReasons.limitUpLockout++;
+      else skipReasons.insufficientCandles++;
+    }
   }
 
-  return { trades, skippedCount };
+  return { trades, skippedCount, skipReasons };
 }
 
 /**
@@ -1313,6 +1360,7 @@ export function runBatchBacktestPure(
 export function calcBacktestStats(
   trades:       BacktestTrade[],
   skippedCount = 0,
+  skipReasons?: SkipReasons,
 ): BacktestStats | null {
   if (trades.length === 0) return null;
 
@@ -1385,6 +1433,7 @@ export function calcBacktestStats(
     payoffRatio,
     skippedCount,
     coverageRate,
+    skipReasons,
   };
 }
 

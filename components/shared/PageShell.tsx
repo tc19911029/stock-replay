@@ -5,7 +5,8 @@ import { usePathname } from 'next/navigation';
 import {
   Moon, Sun, TrendingUp,
   BarChart2, ScanSearch, Activity, FileBarChart, Settings2,
-  Star, Briefcase, Settings, Menu, BookOpen, FlaskConical, GitCompare,
+  Star, Briefcase, Settings, Menu, BookOpen, ChevronDown,
+  History, FlaskConical, GitCompare, Scale,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
@@ -13,7 +14,7 @@ import {
   Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle,
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 // ── Navigation Items ──────────────────────────────────────────────────────────
 
@@ -26,22 +27,99 @@ const PRIMARY_NAV = [
   { href: '/learn',      label: '教學',   icon: BookOpen },
 ] as const;
 
+// Sub-items shown under "掃描" dropdown
+const SCAN_SUB = [
+  { href: '/scanner',          label: 'SOP 掃描',  icon: ScanSearch },
+  { href: '/scanner?mode=full', label: '完整掃描',  icon: ScanSearch },
+  { href: '/history',          label: '掃描歷史',  icon: History },
+  { href: '/rule-group-analysis', label: '規則回測', icon: FlaskConical },
+  { href: '/ab-test',          label: 'A/B 測試',  icon: GitCompare },
+] as const;
+
+// Items under the settings (gear) dropdown
+const SETTINGS_SUB = [
+  { href: '/watchlist',  label: '自選股', icon: Star },
+  { href: '/portfolio',  label: '持倉',   icon: Briefcase },
+  { href: '/settings',   label: '設定',   icon: Settings },
+  { href: '/disclaimer', label: '免責聲明', icon: Scale },
+] as const;
+
 /** Page-specific brand title shown in the logo area */
 function getBrandTitle(pathname: string): string {
-  if (pathname.startsWith('/scanner')) return '選股神器';
-  if (pathname.startsWith('/scan')) return '選股神器';
+  if (pathname.startsWith('/scanner') || pathname.startsWith('/scan')) return '選股神器';
   if (pathname.startsWith('/live-daytrade')) return '當沖神器';
   if (pathname.startsWith('/rule-group-analysis')) return '規則回測';
   return '走圖神器';
 }
 
-const SECONDARY_NAV = [
-  { href: '/watchlist',  label: '自選股', icon: Star },
-  { href: '/portfolio',  label: '持倉',   icon: Briefcase },
-  { href: '/rule-group-analysis', label: '規則回測', icon: FlaskConical },
-  { href: '/ab-test',    label: 'A/B測試', icon: GitCompare },
-  { href: '/settings',   label: '設定',   icon: Settings },
-] as const;
+// ── Dropdown component ────────────────────────────────────────────────────────
+
+interface DropdownItem {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+function NavDropdown({
+  trigger,
+  items,
+  isActive,
+}: {
+  trigger: React.ReactNode;
+  items: readonly DropdownItem[];
+  isActive: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className={cn(
+          'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+          isActive
+            ? 'bg-sky-500/15 text-sky-400'
+            : 'text-muted-foreground hover:text-foreground hover:bg-secondary',
+        )}
+      >
+        {trigger}
+        <ChevronDown className={cn('w-3 h-3 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute left-0 top-full mt-1 w-40 bg-popover border border-border rounded-lg shadow-lg z-[60] py-1 overflow-hidden"
+        >
+          {items.map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            >
+              <Icon className="w-3.5 h-3.5 shrink-0" />
+              {label}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -62,15 +140,27 @@ export function PageShell({ children, headerSlot, fullViewport, className }: Pag
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const isActive = (href: string) =>
-    href === '/' ? pathname === '/' : pathname.startsWith(href);
+    href === '/' ? pathname === '/' : pathname.startsWith(href.split('?')[0]);
+
+  const isScanActive = pathname.startsWith('/scanner') || pathname.startsWith('/scan')
+    || pathname.startsWith('/history') || pathname.startsWith('/rule-group-analysis')
+    || pathname.startsWith('/ab-test');
+
+  const isSettingsActive = pathname.startsWith('/watchlist') || pathname.startsWith('/portfolio')
+    || pathname.startsWith('/settings') || pathname.startsWith('/disclaimer');
 
   return (
     <div className={cn(
-      'flex flex-col bg-[#0b1120] text-white',
+      'flex flex-col bg-background text-foreground',
       fullViewport ? 'h-screen overflow-hidden' : 'min-h-screen',
     )}>
+      {/* Skip to content */}
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:bg-sky-600 focus:text-white focus:rounded-lg focus:text-sm">
+        跳到主要內容
+      </a>
+
       {/* ── Top Navigation ── */}
-      <header className="shrink-0 border-b border-slate-800 bg-slate-950 px-3 sticky top-0 z-50">
+      <header role="banner" className="shrink-0 border-b border-border bg-background px-3 sticky top-0 z-50">
         <div className="h-12 flex items-center gap-2">
 
           {/* Logo */}
@@ -87,30 +177,47 @@ export function PageShell({ children, headerSlot, fullViewport, className }: Pag
           )}
 
           {/* Primary Nav — desktop */}
-          <nav className="hidden md:flex items-center gap-0.5 ml-1">
-            {PRIMARY_NAV.map(({ href, label, icon: Icon }) => (
-              <Link
-                key={href}
-                href={href}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
-                  isActive(href)
-                    ? 'bg-sky-500/15 text-sky-400'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800',
-                )}
-              >
-                <Icon className="w-4 h-4" />
-                {label}
-              </Link>
-            ))}
+          <nav aria-label="主要導覽" className="hidden md:flex items-center gap-0.5 ml-1">
+            {PRIMARY_NAV.map(({ href, label, icon: Icon }) => {
+              // 掃描 gets a dropdown
+              if (href === '/scanner') {
+                return (
+                  <NavDropdown
+                    key={href}
+                    isActive={isScanActive}
+                    trigger={<><Icon className="w-4 h-4" />{label}</>}
+                    items={SCAN_SUB}
+                  />
+                );
+              }
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+                    isActive(href)
+                      ? 'bg-sky-500/15 text-sky-400'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary',
+                  )}
+                >
+                  <Icon className="w-4 h-4" />
+                  {label}
+                </Link>
+              );
+            })}
           </nav>
 
           {/* Spacer */}
           <div className="flex-1" />
 
-          {/* Secondary Nav — desktop icon-only */}
-          <div className="hidden md:flex items-center gap-0.5">
-            {SECONDARY_NAV.map(({ href, label, icon: Icon }) => (
+          {/* Secondary Nav — desktop icon-only + settings dropdown */}
+          <nav aria-label="輔助導覽" className="hidden md:flex items-center gap-0.5">
+            {/* Watchlist & Portfolio direct links */}
+            {([
+              { href: '/watchlist', label: '自選股', icon: Star },
+              { href: '/portfolio', label: '持倉',   icon: Briefcase },
+            ] as const).map(({ href, label, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}
@@ -119,15 +226,22 @@ export function PageShell({ children, headerSlot, fullViewport, className }: Pag
                   'p-2 rounded-md transition-colors',
                   isActive(href)
                     ? 'text-sky-400 bg-sky-500/10'
-                    : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800',
+                    : 'text-muted-foreground hover:text-foreground/80 hover:bg-secondary',
                 )}
               >
                 <Icon className="w-4 h-4" />
               </Link>
             ))}
 
+            {/* Settings dropdown */}
+            <NavDropdown
+              isActive={isSettingsActive}
+              trigger={<Settings className="w-4 h-4" />}
+              items={SETTINGS_SUB}
+            />
+
             {/* Divider */}
-            <span className="w-px h-5 bg-slate-800 mx-1" />
+            <span className="w-px h-5 bg-border mx-1" />
 
             {/* Theme Toggle */}
             <Button
@@ -135,29 +249,29 @@ export function PageShell({ children, headerSlot, fullViewport, className }: Pag
               size="icon"
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
               aria-label="切換主題"
-              className="text-slate-500 hover:text-slate-300 w-8 h-8"
+              className="text-muted-foreground hover:text-foreground/80 w-8 h-8"
             >
               <Sun className="w-4 h-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
               <Moon className="absolute w-4 h-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
             </Button>
-          </div>
+          </nav>
 
           {/* Mobile Menu */}
           <div className="md:hidden">
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger
-                render={<Button variant="ghost" size="icon" className="text-slate-400 w-8 h-8" />}
+                render={<Button variant="ghost" size="icon" aria-label="開啟選單" className="text-muted-foreground w-8 h-8" />}
               >
                 <Menu className="w-5 h-5" />
               </SheetTrigger>
-              <SheetContent side="right" className="w-64 bg-slate-950 border-slate-800">
+              <SheetContent side="right" className="w-64 bg-background border-border">
                 <SheetHeader>
                   <SheetTitle className="flex items-center gap-2 text-sky-400">
                     <TrendingUp className="w-5 h-5" />
                     選股神器
                   </SheetTitle>
                 </SheetHeader>
-                <nav className="flex flex-col gap-1 mt-4 px-2">
+                <nav aria-label="行動版導覽" className="flex flex-col gap-1 mt-4 px-2">
                   {PRIMARY_NAV.map(({ href, label, icon: Icon }) => (
                     <Link
                       key={href}
@@ -167,7 +281,7 @@ export function PageShell({ children, headerSlot, fullViewport, className }: Pag
                         'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
                         isActive(href)
                           ? 'bg-sky-500/15 text-sky-400'
-                          : 'text-slate-400 hover:text-white hover:bg-slate-800',
+                          : 'text-muted-foreground hover:text-foreground hover:bg-secondary',
                       )}
                     >
                       <Icon className="w-4 h-4" />
@@ -175,9 +289,18 @@ export function PageShell({ children, headerSlot, fullViewport, className }: Pag
                     </Link>
                   ))}
 
-                  <div className="h-px bg-slate-800 my-2" />
+                  <div className="h-px bg-border my-2" />
 
-                  {SECONDARY_NAV.map(({ href, label, icon: Icon }) => (
+                  {/* Mobile: flat list of sub-pages */}
+                  {[
+                    { href: '/history',             label: '掃描歷史',  icon: History },
+                    { href: '/rule-group-analysis', label: '規則回測',  icon: FlaskConical },
+                    { href: '/ab-test',             label: 'A/B 測試',  icon: GitCompare },
+                    { href: '/watchlist',            label: '自選股',    icon: Star },
+                    { href: '/portfolio',            label: '持倉',      icon: Briefcase },
+                    { href: '/settings',             label: '設定',      icon: Settings },
+                    { href: '/disclaimer',           label: '免責聲明',  icon: Scale },
+                  ].map(({ href, label, icon: Icon }) => (
                     <Link
                       key={href}
                       href={href}
@@ -186,7 +309,7 @@ export function PageShell({ children, headerSlot, fullViewport, className }: Pag
                         'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
                         isActive(href)
                           ? 'bg-sky-500/15 text-sky-400'
-                          : 'text-slate-400 hover:text-white hover:bg-slate-800',
+                          : 'text-muted-foreground hover:text-foreground hover:bg-secondary',
                       )}
                     >
                       <Icon className="w-4 h-4" />
@@ -201,7 +324,7 @@ export function PageShell({ children, headerSlot, fullViewport, className }: Pag
       </header>
 
       {/* ── Page Content ── */}
-      <main className={cn('flex-1', fullViewport && 'overflow-hidden', className)}>
+      <main id="main-content" role="main" className={cn('flex-1', fullViewport && 'overflow-hidden', className)}>
         {children}
       </main>
     </div>

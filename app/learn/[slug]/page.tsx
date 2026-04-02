@@ -50,18 +50,18 @@ export default async function LearnArticlePage({ params }: Props) {
   const nextSlug = currentIdx < CHAPTERS.length - 1 ? CHAPTERS[currentIdx + 1] : null;
 
   return (
-    <div className="min-h-screen bg-[#0b1120] text-white">
+    <div className="min-h-screen bg-background text-foreground">
       {/* Top bar */}
-      <div className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950 px-4">
+      <div className="sticky top-0 z-50 border-b border-border bg-background px-4">
         <div className="max-w-4xl mx-auto h-12 flex items-center gap-3">
           <Link
             href="/learn"
-            className="text-sm text-slate-400 hover:text-white transition-colors"
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             &larr; 目錄
           </Link>
-          <span className="text-slate-600">|</span>
-          <span className="text-sm text-slate-300 truncate">
+          <span className="text-muted-foreground/60">|</span>
+          <span className="text-sm text-foreground/80 truncate">
             技術分析學習手冊
           </span>
         </div>
@@ -72,7 +72,7 @@ export default async function LearnArticlePage({ params }: Props) {
         <LearnContent content={content} />
 
         {/* Prev / Next navigation */}
-        <nav className="mt-12 pt-6 border-t border-slate-800 flex justify-between">
+        <nav className="mt-12 pt-6 border-t border-border flex justify-between">
           {prevSlug ? (
             <Link
               href={`/learn/${prevSlug}`}

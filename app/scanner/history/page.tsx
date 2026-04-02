@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { PageShell } from '@/components/shared';
 import { useScannerStore } from '@/store/scannerStore';
 import { ScanSession, MarketId } from '@/lib/scanner/types';
 import ScanResultCard from '@/components/scanner/ScanResultCard';
@@ -31,12 +32,9 @@ function ScanHistoryContent() {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   return (
-    <div className="min-h-screen bg-[#0b1120] text-white">
-      <header className="border-b border-slate-800 px-4 py-2.5 flex items-center gap-3">
-        <Link href="/scanner" className="text-slate-400 hover:text-white text-sm transition">← 返回掃描</Link>
-        <span className="text-base font-bold">📅 掃描歷史記錄</span>
-      </header>
-
+    <PageShell headerSlot={
+      <span className="text-sm font-bold text-foreground">掃描歷史記錄</span>
+    }>
       <div className="p-4 max-w-3xl mx-auto space-y-4">
 
         {/* Market toggle */}
@@ -46,11 +44,11 @@ function ScanHistoryContent() {
             return (
               <button key={m} onClick={() => { setMarket(m); setSelected(null); }}
                 className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2 ${
-                  market === m ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                  market === m ? 'bg-blue-600 text-foreground' : 'bg-muted text-muted-foreground hover:bg-muted'
                 }`}>
                 {m === 'TW' ? '台股' : 'A股'}
                 {hist.length > 0 && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${market === m ? 'bg-blue-500' : 'bg-slate-600'}`}>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${market === m ? 'bg-blue-500' : 'bg-muted'}`}>
                     {hist.length}
                   </span>
                 )}
@@ -60,7 +58,7 @@ function ScanHistoryContent() {
         </div>
 
         {sessions.length === 0 && (
-          <div className="text-center py-12 text-slate-500">
+          <div className="text-center py-12 text-muted-foreground">
             <p className="text-3xl mb-3">📭</p>
             <p className="text-sm">尚無掃描記錄</p>
             <Link href="/scanner" className="mt-2 inline-block text-xs text-blue-400 hover:text-blue-300 transition">
@@ -72,16 +70,16 @@ function ScanHistoryContent() {
         {/* Session list */}
         {!selected && sessions.map(s => (
           <button key={s.id} onClick={() => setSelected(s)}
-            className="w-full flex items-center justify-between bg-slate-800/80 border border-slate-700 hover:border-blue-500 rounded-xl px-4 py-3 text-left transition">
+            className="w-full flex items-center justify-between bg-secondary/80 border border-border hover:border-blue-500 rounded-xl px-4 py-3 text-left transition">
             <div>
-              <div className="text-sm font-bold text-white">{s.date}</div>
-              <div className="text-xs text-slate-500 mt-0.5">
+              <div className="text-sm font-bold text-foreground">{s.date}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">
                 {new Date(s.scanTime).toLocaleString('zh-TW')}
               </div>
             </div>
             <div className="text-right">
               <div className="text-lg font-bold text-blue-400">{s.resultCount}</div>
-              <div className="text-xs text-slate-400">檔符合</div>
+              <div className="text-xs text-muted-foreground">檔符合</div>
             </div>
           </button>
         ))}
@@ -94,12 +92,12 @@ function ScanHistoryContent() {
                 <h2 className="text-sm font-bold">
                   {selected.date} 掃描結果（{selected.resultCount} 檔）
                 </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   {new Date(selected.scanTime).toLocaleString('zh-TW')}
                 </p>
               </div>
               <button onClick={() => setSelected(null)}
-                className="text-xs text-slate-400 hover:text-white transition">
+                className="text-xs text-muted-foreground hover:text-foreground transition">
                 ← 返回列表
               </button>
             </div>
@@ -109,39 +107,39 @@ function ScanHistoryContent() {
               <div className="bg-gradient-to-r from-violet-900/20 to-blue-900/20 border border-violet-700/50 rounded-xl p-4 mb-4">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-lg">🎯</span>
-                  <span className="text-sm font-bold text-white">當日 Top 3 推薦</span>
-                  <span className="text-[10px] text-slate-500">{selected.date}</span>
+                  <span className="text-sm font-bold text-foreground">當日 Top 3 推薦</span>
+                  <span className="text-[10px] text-muted-foreground">{selected.date}</span>
                 </div>
                 <div className="space-y-2">
                   {selected.topPicks.map((pick, pi) => (
-                    <div key={pick.symbol} className="flex items-center gap-3 bg-slate-800/60 rounded-lg px-3 py-2">
+                    <div key={pick.symbol} className="flex items-center gap-3 bg-secondary/60 rounded-lg px-3 py-2">
                       <span className={`text-xs font-black w-6 h-6 flex items-center justify-center rounded-full ${
-                        pi === 0 ? 'bg-red-600 text-white' : pi === 1 ? 'bg-orange-500 text-white' : 'bg-yellow-500 text-black'
+                        pi === 0 ? 'bg-red-600 text-foreground' : pi === 1 ? 'bg-orange-500 text-foreground' : 'bg-yellow-500 text-black'
                       }`}>{pi + 1}</span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-white">{pick.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</span>
-                          <span className="text-xs text-slate-400">{pick.name}</span>
+                          <span className="text-sm font-bold text-foreground">{pick.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</span>
+                          <span className="text-xs text-muted-foreground">{pick.name}</span>
                           <span className={`text-[10px] font-bold px-1 rounded ${
-                            pick.surgeGrade === 'S' ? 'bg-red-600 text-white' :
-                            pick.surgeGrade === 'A' ? 'bg-orange-500 text-white' :
+                            pick.surgeGrade === 'S' ? 'bg-red-600 text-foreground' :
+                            pick.surgeGrade === 'A' ? 'bg-orange-500 text-foreground' :
                             'bg-yellow-500 text-black'
                           }`}>{pick.surgeGrade}</span>
                         </div>
-                        <div className="text-[10px] text-slate-500 mt-0.5">
+                        <div className="text-[10px] text-muted-foreground mt-0.5">
                           潛力{pick.surgeScore} · {pick.sixConditionsScore}/6
                           {pick.histWinRate != null && ` · 勝率${pick.histWinRate}%`}
                           {pick.aiReason && ` · ${pick.aiReason}`}
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <div className="text-sm font-mono text-white">${pick.price.toFixed(2)}</div>
-                        <div className={`text-xs font-mono ${pick.changePercent >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                        <div className="text-sm font-mono text-foreground">${pick.price.toFixed(2)}</div>
+                        <div className={`text-xs font-mono ${pick.changePercent >= 0 ? 'text-bull' : 'text-bear'}`}>
                           {pick.changePercent >= 0 ? '+' : ''}{pick.changePercent.toFixed(2)}%
                         </div>
                       </div>
                       <Link href={`/?load=${pick.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}`}
-                        className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs font-bold text-white shrink-0">
+                        className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs font-bold text-foreground shrink-0">
                         走圖
                       </Link>
                     </div>
@@ -151,7 +149,7 @@ function ScanHistoryContent() {
             )}
 
             {selected.results.length === 0 && (
-              <p className="text-xs text-slate-500 text-center py-6">此次掃描無符合條件的股票</p>
+              <p className="text-xs text-muted-foreground text-center py-6">此次掃描無符合條件的股票</p>
             )}
 
             {selected.results.map((r, idx) => {
@@ -172,14 +170,14 @@ function ScanHistoryContent() {
                     <button
                       onClick={() => watched ? undefined : addToWatchlist(r.symbol, r.name)}
                       className={`px-2 py-1 rounded text-xs font-bold transition ${
-                        watched ? 'bg-yellow-500/20 text-yellow-400 cursor-default' : 'bg-slate-700 hover:bg-yellow-600/40 hover:text-yellow-300 text-slate-400'
+                        watched ? 'bg-yellow-500/20 text-yellow-400 cursor-default' : 'bg-muted hover:bg-yellow-600/40 hover:text-yellow-300 text-muted-foreground'
                       }`}
                       title={watched ? '已在自選股' : '加入自選股'}>
                       {watched ? '⭐' : '☆'}
                     </button>
                     <Link
                       href={`/?load=${r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}`}
-                      className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs font-bold text-white transition">
+                      className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs font-bold text-foreground transition">
                       走圖 →
                     </Link>
                   </div>
@@ -190,15 +188,15 @@ function ScanHistoryContent() {
         )}
 
       </div>
-    </div>
+    </PageShell>
   );
 }
 
 export default function ScanHistoryPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-[#0b1120] text-white flex items-center justify-center">
-        <p className="text-slate-500 text-sm animate-pulse">載入中...</p>
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
+        <p className="text-muted-foreground text-sm animate-pulse">載入中...</p>
       </div>
     }>
       <ScanHistoryContent />

@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import withSerwistInit from "@serwist/next";
 import fs from "fs";
 import path from "path";
 
@@ -22,8 +23,14 @@ function loadEnvLocal() {
 }
 loadEnvLocal();
 
+const withSerwist = withSerwistInit({
+  swSrc: "app/sw.ts",
+  swDest: "public/sw.js",
+  disable: process.env.NODE_ENV === "development",
+});
+
 const nextConfig: NextConfig = {
-  /* config options here */
+  turbopack: {},
 };
 
-export default nextConfig;
+export default withSerwist(nextConfig);

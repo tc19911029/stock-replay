@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { StockScanResult, ScanSession, MarketId } from '@/lib/scanner/types';
+import { StockScanResult, ScanSession, MarketId, sanitizeScanResult } from '@/lib/scanner/types';
 import { TrendState } from '@/lib/analysis/trendAnalysis';
 import { useSettingsStore } from './settingsStore';
 
@@ -91,6 +91,9 @@ interface AiRankingState {
   error: string | null;
 }
 
+// Module-level abort controllers per market
+const abortControllers: Record<MarketId, AbortController | null> = { TW: null, CN: null };
+
 interface ScannerStore {
   activeMarket: MarketId;
   tw: MarketScanState;
@@ -102,6 +105,7 @@ interface ScannerStore {
   setActiveMarket: (market: MarketId) => void;
   setScanDate: (market: MarketId, date: string) => void;
   runScan: (market: MarketId) => Promise<void>;
+  cancelScan: (market: MarketId) => void;
   runAiRank: (market: MarketId) => Promise<void>;
   getHistory: (market: MarketId) => ScanSession[];
   getMarket: (market: MarketId) => MarketScanState;
@@ -125,7 +129,25 @@ export const useScannerStore = create<ScannerStore>()(
       getHistory: (market) => market === 'TW' ? get().twHistory : get().cnHistory,
       getMarket: (market) => market === 'TW' ? get().tw : get().cn,
 
+      cancelScan: (market) => {
+        const ctrl = abortControllers[market];
+        if (ctrl) {
+          ctrl.abort();
+          abortControllers[market] = null;
+        }
+        const mKey = market === 'TW' ? 'tw' : 'cn';
+        set(s => ({
+          [mKey]: { ...s[mKey], isScanning: false, progress: 0, scanningStock: '', error: '已取消掃描' },
+        }));
+      },
+
       runScan: async (market) => {
+        // Cancel any in-flight scan for this market
+        if (abortControllers[market]) abortControllers[market]!.abort();
+        const abortCtrl = new AbortController();
+        abortControllers[market] = abortCtrl;
+        const signal = abortCtrl.signal;
+
         const mKey  = market === 'TW' ? 'tw' : 'cn';
         const names = market === 'TW' ? TW_STOCK_NAMES : CN_STOCK_NAMES;
         const scanDate = market === 'TW' ? get().tw.scanDate : get().cn.scanDate;
@@ -142,7 +164,7 @@ export const useScannerStore = create<ScannerStore>()(
 
         try {
           // ── Step 1: Fetch complete stock list ──────────────────────────────
-          const listRes = await fetch(`/api/scanner/list?market=${market}`);
+          const listRes = await fetch(`/api/scanner/list?market=${market}`, { signal });
           if (!listRes.ok) throw new Error('無法取得股票清單');
           const listJson = await listRes.json() as { stocks: Array<{ symbol: string; name: string }> };
           const stocks = listJson.stocks ?? [];
@@ -169,13 +191,14 @@ export const useScannerStore = create<ScannerStore>()(
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ market, stocks: chunk, ...strategyPayload, ...(scanDate ? { date: scanDate } : {}) }),
+              signal,
             });
             if (!res.ok) {
               const j = await res.json().catch(() => ({}));
               throw new Error((j as { error?: string }).error ?? '掃描失敗');
             }
             const j = await res.json() as { results?: StockScanResult[]; marketTrend?: TrendState };
-            return { results: j.results ?? [], marketTrend: j.marketTrend ?? null };
+            return { results: (j.results ?? []).map(sanitizeScanResult), marketTrend: j.marketTrend ?? null };
           };
 
           // ── Step 3: Run both chunks in parallel ────────────────────────────
@@ -272,9 +295,13 @@ export const useScannerStore = create<ScannerStore>()(
             })();
           }
         } catch (err) {
+          // Don't show error if user cancelled
+          if (err instanceof DOMException && err.name === 'AbortError') return;
           set(s => ({
             [mKey]: { ...s[mKey], isScanning: false, error: err instanceof Error ? err.message : '未知錯誤' },
           }));
+        } finally {
+          abortControllers[market] = null;
         }
       },
 

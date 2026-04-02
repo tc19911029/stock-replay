@@ -4,6 +4,9 @@ import "./globals.css";
 import { RiskDisclaimerModal, FeatureGuideModal } from "@/components/RiskDisclaimer";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ColorThemeInit } from "@/components/ColorThemeInit";
+import { Toaster } from "sonner";
+import RegisterPWA from "@/components/RegisterPWA";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -57,9 +60,12 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           <TooltipProvider>
+            <ColorThemeInit />
             <RiskDisclaimerModal />
             <FeatureGuideModal />
+            <Toaster position="top-right" richColors closeButton theme="dark" />
             {children}
+            <RegisterPWA />
           </TooltipProvider>
         </ThemeProvider>
       </body>

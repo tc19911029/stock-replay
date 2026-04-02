@@ -66,17 +66,17 @@ function EquityCurve({ data, initial, bah }: { data: EquityPoint[]; initial: num
   const pts = data.map((d, i) => `${toX(i, data.length).toFixed(1)},${toY(d.equity).toFixed(1)}`).join(' ');
   const fillPts = `0,${H} ${pts} ${W},${H}`;
   const baselineY = toY(initial);
-  const lastColor = data[data.length - 1].equity >= initial ? '#ef4444' : '#22c55e';
+  const lastColor = data[data.length - 1].equity >= initial ? 'var(--color-bull, #ef4444)' : 'var(--color-bear, #22c55e)';
   const bahPts = bah && bah.length > 1
     ? bah.map((d, i) => `${toX(i, bah.length).toFixed(1)},${toY(d.equity).toFixed(1)}`).join(' ')
     : null;
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <p className="text-xs text-slate-400">資產曲線</p>
+        <p className="text-xs text-muted-foreground">資產曲線</p>
         <div className="flex items-center gap-3 text-[10px]">
           <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-red-400"></span>策略</span>
-          {bahPts && <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-slate-400" style={{ borderTop: '1px dashed #94a3b8' }}></span>買進持有</span>}
+          {bahPts && <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-muted-foreground" style={{ borderTop: '1px dashed #94a3b8' }}></span>買進持有</span>}
         </div>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-24" preserveAspectRatio="none">
@@ -85,7 +85,7 @@ function EquityCurve({ data, initial, bah }: { data: EquityPoint[]; initial: num
         <polyline points={pts} fill="none" stroke={lastColor} strokeWidth="1.5" />
         {bahPts && <polyline points={bahPts} fill="none" stroke="#94a3b8" strokeWidth="1" strokeDasharray="4,3" />}
       </svg>
-      <div className="flex justify-between text-[10px] text-slate-500 mt-0.5">
+      <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
         <span>{data[0]?.date}</span>
         <span>{data[data.length - 1]?.date}</span>
       </div>
@@ -102,49 +102,49 @@ function TradeCard({ trade: t, index: i, fmt }: { trade: Trade; index: number; f
   const pnlPos = (t.pnl ?? 0) >= 0;
 
   return (
-    <div className="bg-slate-900 rounded-lg overflow-hidden">
+    <div className="bg-card rounded-lg overflow-hidden">
       {/* Summary row — always visible */}
       <button
         onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-800/60 transition text-left"
+        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-secondary/60 transition text-left"
       >
-        <span className="text-slate-600 text-xs w-4 shrink-0">{i + 1}</span>
+        <span className="text-muted-foreground/60 text-xs w-4 shrink-0">{i + 1}</span>
         <div className="flex-1 min-w-0 text-xs font-mono">
-          <span className="text-red-400 font-bold">買 </span>
-          <span className="text-slate-300">{t.buyDate}</span>
-          <span className="text-slate-500 mx-1">@{t.buyPrice.toFixed(2)}</span>
+          <span className="text-bull font-bold">買 </span>
+          <span className="text-foreground/80">{t.buyDate}</span>
+          <span className="text-muted-foreground mx-1">@{t.buyPrice.toFixed(2)}</span>
           {!t.open && (
             <>
-              <span className="text-slate-600 mx-1">→</span>
-              <span className="text-green-400 font-bold">賣 </span>
-              <span className="text-slate-300">{t.sellDate}</span>
-              <span className="text-slate-500 mx-1">@{t.sellPrice?.toFixed(2)}</span>
+              <span className="text-muted-foreground/60 mx-1">→</span>
+              <span className="text-bear font-bold">賣 </span>
+              <span className="text-foreground/80">{t.sellDate}</span>
+              <span className="text-muted-foreground mx-1">@{t.sellPrice?.toFixed(2)}</span>
             </>
           )}
           {t.open && <span className="text-yellow-400 ml-2">持倉中</span>}
         </div>
-        <div className={`text-xs font-bold shrink-0 ${pnlPos ? 'text-red-400' : 'text-green-400'}`}>
+        <div className={`text-xs font-bold shrink-0 ${pnlPos ? 'text-bull' : 'text-bear'}`}>
           {pnlPos ? '+' : ''}{fmt(t.pnl ?? 0)}
           <span className="text-[10px] ml-1 opacity-70">({t.pnlPct?.toFixed(1)}%)</span>
         </div>
-        <span className="text-slate-600 text-[10px] shrink-0">{expanded ? '▲' : '▼'}</span>
+        <span className="text-muted-foreground/60 text-[10px] shrink-0">{expanded ? '▲' : '▼'}</span>
       </button>
 
       {/* Detail — expanded */}
       {expanded && (
-        <div className="px-3 pb-3 space-y-2 border-t border-slate-800 pt-2 text-xs">
+        <div className="px-3 pb-3 space-y-2 border-t border-border pt-2 text-xs">
           {/* Buy detail */}
           <div className="space-y-0.5">
-            <div className="flex flex-wrap gap-x-3 text-slate-400 font-mono">
-              <span className="text-red-400 font-bold">買進</span>
+            <div className="flex flex-wrap gap-x-3 text-muted-foreground font-mono">
+              <span className="text-bull font-bold">買進</span>
               <span>{t.buyDate} @{t.buyPrice.toFixed(2)}</span>
               <span>{t.shares.toLocaleString()} 股</span>
               <span>投入 {fmt(t.invested)} 元</span>
             </div>
             <div className="text-amber-300 font-semibold">▶ {t.buyLabel}</div>
-            <div className="text-slate-400 leading-relaxed">{t.buyDescription}</div>
+            <div className="text-muted-foreground leading-relaxed">{t.buyDescription}</div>
             {t.buyReason && (
-              <div className="text-slate-500 leading-relaxed whitespace-pre-line border-l-2 border-amber-900/50 pl-2 mt-1">
+              <div className="text-muted-foreground leading-relaxed whitespace-pre-line border-l-2 border-amber-900/50 pl-2 mt-1">
                 {t.buyReason}
               </div>
             )}
@@ -152,18 +152,18 @@ function TradeCard({ trade: t, index: i, fmt }: { trade: Trade; index: number; f
 
           {/* Sell detail */}
           {!t.open && (
-            <div className="space-y-0.5 border-t border-slate-800 pt-2">
-              <div className="flex flex-wrap gap-x-3 text-slate-400 font-mono">
-                <span className="text-green-400 font-bold">賣出</span>
+            <div className="space-y-0.5 border-t border-border pt-2">
+              <div className="flex flex-wrap gap-x-3 text-muted-foreground font-mono">
+                <span className="text-bear font-bold">賣出</span>
                 <span>{t.sellDate} @{t.sellPrice?.toFixed(2)}</span>
-                <span className={pnlPos ? 'text-red-400' : 'text-green-400'}>
+                <span className={pnlPos ? 'text-bull' : 'text-bear'}>
                   損益 {pnlPos ? '+' : ''}{fmt(t.pnl ?? 0)} ({t.pnlPct?.toFixed(1)}%)
                 </span>
               </div>
               {t.sellLabel && <div className="text-teal-300 font-semibold">▶ {t.sellLabel}</div>}
-              {t.sellDescription && <div className="text-slate-400 leading-relaxed">{t.sellDescription}</div>}
+              {t.sellDescription && <div className="text-muted-foreground leading-relaxed">{t.sellDescription}</div>}
               {t.sellReason && (
-                <div className="text-slate-500 leading-relaxed whitespace-pre-line border-l-2 border-teal-900/50 pl-2 mt-1">
+                <div className="text-muted-foreground leading-relaxed whitespace-pre-line border-l-2 border-teal-900/50 pl-2 mt-1">
                   {t.sellReason}
                 </div>
               )}
@@ -392,27 +392,27 @@ export default function BacktestPanel() {
   const fmt = (n: number) => n.toLocaleString('zh-TW', { maximumFractionDigits: 0 });
 
   return (
-    <div className="bg-slate-800/80 border border-slate-700 rounded-xl overflow-hidden">
+    <div className="bg-secondary/80 border border-border rounded-xl overflow-hidden">
       <button
         onClick={() => setShow(v => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 text-sm font-bold text-slate-200 hover:bg-slate-700/50 transition"
+        className="w-full flex items-center justify-between px-4 py-3 text-sm font-bold text-foreground hover:bg-muted/50 transition"
       >
         <span>📊 自動走圖分析（回測）</span>
-        <span className="text-slate-400 text-xs">{show ? '▲ 收起' : '▼ 展開'}</span>
+        <span className="text-muted-foreground text-xs">{show ? '▲ 收起' : '▼ 展開'}</span>
       </button>
 
       {show && (
-        <div className="px-4 pb-1 border-b border-slate-700 flex gap-2">
-          <span className="text-xs text-slate-400 self-center">回測模式：</span>
+        <div className="px-4 pb-1 border-b border-border flex gap-2">
+          <span className="text-xs text-muted-foreground self-center">回測模式：</span>
           <button
             onClick={() => setMode('composite')}
-            className={`px-3 py-1 rounded text-xs font-medium transition ${mode === 'composite' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}
+            className={`px-3 py-1 rounded text-xs font-medium transition ${mode === 'composite' ? 'bg-blue-600 text-foreground' : 'bg-muted text-muted-foreground hover:bg-muted'}`}
           >
             朱老師複合條件
           </button>
           <button
             onClick={() => setMode('signal')}
-            className={`px-3 py-1 rounded text-xs font-medium transition ${mode === 'signal' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}
+            className={`px-3 py-1 rounded text-xs font-medium transition ${mode === 'signal' ? 'bg-blue-600 text-foreground' : 'bg-muted text-muted-foreground hover:bg-muted'}`}
           >
             信號驅動
           </button>
@@ -420,42 +420,42 @@ export default function BacktestPanel() {
       )}
 
       {show && (
-        <div className="px-4 pb-4 space-y-4 border-t border-slate-700">
+        <div className="px-4 pb-4 space-y-4 border-t border-border">
 
           {/* ── Settings ── */}
           <div className="flex flex-wrap gap-3 pt-3 items-end">
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-slate-400">起始日期</label>
+              <label className="text-xs text-muted-foreground">起始日期</label>
               <input type="date" value={startDate} min={minDate} max={endDate}
                 onChange={e => setStartDate(e.target.value)}
-                className="bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500" />
+                className="bg-muted border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-blue-500" />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-slate-400">結束日期</label>
+              <label className="text-xs text-muted-foreground">結束日期</label>
               <input type="date" value={endDate} min={startDate} max={maxDate}
                 onChange={e => setEndDate(e.target.value)}
-                className="bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500" />
+                className="bg-muted border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-blue-500" />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-slate-400">初始資金（元）</label>
+              <label className="text-xs text-muted-foreground">初始資金（元）</label>
               <input type="text" value={capitalInput}
                 onChange={e => setCapitalInput(e.target.value)}
                 placeholder="1000000"
-                className="bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white w-32 focus:outline-none focus:border-blue-500" />
+                className="bg-muted border border-border rounded-lg px-2 py-1.5 text-xs text-foreground w-32 focus:outline-none focus:border-blue-500" />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-slate-400">每次倉位</label>
+              <label className="text-xs text-muted-foreground">每次倉位</label>
               <div className="flex gap-1">
                 {POSITION_OPTIONS.map(opt => (
                   <button key={opt.label} onClick={() => setPositionPct(opt.pct)}
-                    className={`px-2 py-1.5 rounded-lg text-xs font-medium transition ${positionPct === opt.pct ? 'bg-blue-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'}`}>
+                    className={`px-2 py-1.5 rounded-lg text-xs font-medium transition ${positionPct === opt.pct ? 'bg-blue-600 text-foreground' : 'bg-muted hover:bg-muted text-muted-foreground'}`}>
                     {opt.label}
                   </button>
                 ))}
               </div>
             </div>
             <button onClick={runBacktest}
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-bold text-white transition">
+              className="px-5 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-bold text-foreground transition">
               開始分析
             </button>
           </div>
@@ -471,13 +471,13 @@ export default function BacktestPanel() {
                     label: '總損益',
                     value: `${result.totalPnL >= 0 ? '+' : ''}${fmt(result.totalPnL)}`,
                     sub: `初始 ${fmt(result.initialCapital)}`,
-                    color: result.totalPnL >= 0 ? 'text-red-400' : 'text-green-400',
+                    color: result.totalPnL >= 0 ? 'text-bull' : 'text-bear',
                   },
                   {
                     label: '報酬率',
                     value: `${result.returnRate >= 0 ? '+' : ''}${result.returnRate.toFixed(2)}%`,
                     sub: `最終 ${fmt(result.finalValue)}`,
-                    color: result.returnRate >= 0 ? 'text-red-400' : 'text-green-400',
+                    color: result.returnRate >= 0 ? 'text-bull' : 'text-bear',
                   },
                   {
                     label: `${result.winCount}勝 ${result.lossCount}敗`,
@@ -492,25 +492,25 @@ export default function BacktestPanel() {
                     color: 'text-orange-400',
                   },
                 ].map(({ label, value, sub, color }) => (
-                  <div key={label} className="bg-slate-900 rounded-lg p-3 text-center">
-                    <div className="text-xs text-slate-400 mb-1">{label}</div>
+                  <div key={label} className="bg-card rounded-lg p-3 text-center">
+                    <div className="text-xs text-muted-foreground mb-1">{label}</div>
                     <div className={`text-sm font-bold ${color}`}>{value}</div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">{sub}</div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>
                   </div>
                 ))}
               </div>
 
               {/* Equity curve */}
               {result.equityCurve.length > 1 && (
-                <div className="bg-slate-900 rounded-lg p-3">
+                <div className="bg-card rounded-lg p-3">
                   <EquityCurve data={result.equityCurve} initial={result.initialCapital} bah={result.bahCurve} />
-                  <div className="flex items-center justify-end gap-2 mt-1 text-[10px] text-slate-500">
+                  <div className="flex items-center justify-end gap-2 mt-1 text-[10px] text-muted-foreground">
                     <span>買進持有報酬：</span>
-                    <span className={result.bahReturn >= 0 ? 'text-red-400 font-mono' : 'text-green-400 font-mono'}>
+                    <span className={result.bahReturn >= 0 ? 'text-bull font-mono' : 'text-bear font-mono'}>
                       {result.bahReturn >= 0 ? '+' : ''}{result.bahReturn.toFixed(2)}%
                     </span>
-                    <span className="text-slate-600">vs 策略</span>
-                    <span className={result.returnRate >= 0 ? 'text-red-400 font-mono' : 'text-green-400 font-mono'}>
+                    <span className="text-muted-foreground/60">vs 策略</span>
+                    <span className={result.returnRate >= 0 ? 'text-bull font-mono' : 'text-bear font-mono'}>
                       {result.returnRate >= 0 ? '+' : ''}{result.returnRate.toFixed(2)}%
                     </span>
                   </div>
@@ -525,10 +525,10 @@ export default function BacktestPanel() {
                   ))}
                 </div>
               ) : (
-                <p className="text-slate-500 text-xs text-center py-6">此區間無符合條件的交易信號</p>
+                <p className="text-muted-foreground text-xs text-center py-6">此區間無符合條件的交易信號</p>
               )}
 
-              <p className="text-[10px] text-slate-600 text-right">
+              <p className="text-[10px] text-muted-foreground/60 text-right">
                 * 以收盤價成交，不含手續費，僅供學習參考
               </p>
             </div>

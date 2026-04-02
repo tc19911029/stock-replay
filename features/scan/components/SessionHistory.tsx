@@ -34,10 +34,10 @@ export function SessionHistory() {
   const isBusy = isLoadingCronSession || isFetchingForward;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-      <div className="px-4 py-2.5 border-b border-slate-800 bg-slate-800/40">
+    <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <div className="px-4 py-2.5 border-b border-border bg-secondary/40">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide">回測歷史</h3>
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">回測歷史</h3>
           {!isBackfilling && allDates.length < 5 && (
             <button
               onClick={() => backfillHistory(market, 20)}
@@ -55,19 +55,19 @@ export function SessionHistory() {
         </div>
         {avgWinRate != null && sessionsWithStats.length >= 2 && (
           <div className="flex items-center gap-2 mt-1 text-[10px]">
-            <span className="text-slate-500">{sessionsWithStats.length} 次掃描</span>
-            <span className="text-slate-500">·</span>
-            <span className={avgWinRate >= 50 ? 'text-red-400' : 'text-green-500'}>
+            <span className="text-muted-foreground">{sessionsWithStats.length} 次掃描</span>
+            <span className="text-muted-foreground">·</span>
+            <span className={avgWinRate >= 50 ? 'text-bull' : 'text-bear'}>
               平均勝率 {avgWinRate}%
             </span>
-            <span className="text-slate-500">·</span>
-            <span className="text-slate-500">{totalTrades} 筆交易</span>
+            <span className="text-muted-foreground">·</span>
+            <span className="text-muted-foreground">{totalTrades} 筆交易</span>
           </div>
         )}
       </div>
       <div className="p-2 space-y-1 max-h-[600px] overflow-y-auto">
         {isFetchingCron && allDates.length === 0 && (
-          <div className="text-[10px] text-slate-600 text-center py-3">載入歷史中…</div>
+          <div className="text-[10px] text-muted-foreground/60 text-center py-3">載入歷史中…</div>
         )}
         {allDates.map(item => {
           const isActive = item.date === scanDate;
@@ -82,18 +82,18 @@ export function SessionHistory() {
                 className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${
                   isActive
                     ? 'bg-sky-900/40 border border-sky-800/60'
-                    : 'hover:bg-slate-800 border border-transparent'
+                    : 'hover:bg-secondary border border-transparent'
                 }`}
               >
-                <div className={`font-mono text-xs font-semibold ${isActive ? 'text-sky-300' : 'text-slate-300'}`}>
+                <div className={`font-mono text-xs font-semibold ${isActive ? 'text-sky-300' : 'text-foreground/80'}`}>
                   {s.scanDate}
                 </div>
-                <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500">
+                <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground">
                   <span>{s.scanResults.length} 檔</span>
                   {wr != null && (
                     <>
                       <span>｜</span>
-                      <span className={wr >= 50 ? 'text-red-400' : 'text-green-500'}>勝率 {wr}%</span>
+                      <span className={wr >= 50 ? 'text-bull' : 'text-bear'}>勝率 {wr}%</span>
                     </>
                   )}
                 </div>
@@ -111,21 +111,21 @@ export function SessionHistory() {
               className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${
                 isActive
                   ? 'bg-amber-900/30 border border-amber-800/50'
-                  : 'hover:bg-slate-800 border border-transparent'
+                  : 'hover:bg-secondary border border-transparent'
               } ${isBusy ? 'opacity-50 cursor-wait' : ''}`}
             >
               <div className="flex items-center gap-1.5">
-                <span className={`font-mono text-xs font-semibold ${isActive ? 'text-amber-300' : 'text-slate-400'}`}>
+                <span className={`font-mono text-xs font-semibold ${isActive ? 'text-amber-300' : 'text-muted-foreground'}`}>
                   {c.date}
                 </span>
-                <span className="text-[9px] px-1 py-0.5 rounded bg-slate-800 text-slate-500" title="自動掃描（尚未回測）">
+                <span className="text-[9px] px-1 py-0.5 rounded bg-secondary text-muted-foreground" title="自動掃描（尚未回測）">
                   自動
                 </span>
               </div>
-              <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-600">
+              <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground/60">
                 {c.resultCount >= 0 ? <span>{c.resultCount} 檔</span> : <span>點擊載入</span>}
                 <span>｜</span>
-                <span className="text-slate-600">點擊回測</span>
+                <span className="text-muted-foreground/60">點擊回測</span>
               </div>
             </button>
           );

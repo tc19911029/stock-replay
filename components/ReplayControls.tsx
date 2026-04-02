@@ -38,7 +38,7 @@ export default function ReplayControls() {
   const kLabel    = INTERVAL_LABEL[currentInterval] ?? '日';
 
   return (
-    <div className="bg-slate-800/80 border border-slate-700 rounded-lg px-2 py-1.5 flex items-center gap-2">
+    <div className="bg-secondary/80 border border-border rounded-lg px-2 py-1.5 flex items-center gap-2">
       {/* Jump to prev/next buy signal */}
       <div className="flex gap-0.5 shrink-0">
         <button onClick={jumpToPrevBuySignal} disabled={isPlaying}
@@ -58,7 +58,7 @@ export default function ReplayControls() {
         <button onClick={prevCandle} disabled={currentIndex <= 0 || isPlaying}
           suppressHydrationWarning
           title="上一根 K 棒 (←)"
-          className="w-8 h-7 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 text-xs transition flex items-center justify-center gap-0.5 font-bold text-slate-300">
+          className="w-8 h-7 rounded bg-muted hover:bg-muted disabled:opacity-30 text-xs transition flex items-center justify-center gap-0.5 font-bold text-foreground/80">
           ◀
         </button>
         {isPlaying ? (
@@ -77,7 +77,7 @@ export default function ReplayControls() {
         <button onClick={nextCandle} disabled={currentIndex >= total - 1 || isPlaying}
           suppressHydrationWarning
           title="下一根 K 棒 (→)"
-          className="w-8 h-7 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-30 text-xs transition flex items-center justify-center font-bold text-slate-300">
+          className="w-8 h-7 rounded bg-muted hover:bg-muted disabled:opacity-30 text-xs transition flex items-center justify-center font-bold text-foreground/80">
           ▶
         </button>
       </div>
@@ -89,9 +89,9 @@ export default function ReplayControls() {
           onChange={e => jumpToIndex(Number(e.target.value))}
           className="w-full accent-blue-500 cursor-pointer h-1"
         />
-        <div className="flex justify-between text-xs text-slate-500 font-mono leading-none">
+        <div className="flex justify-between text-xs text-muted-foreground font-mono leading-none">
           <span className="truncate">{allCandles[0]?.date?.slice(0, 7) ?? ''}</span>
-          <span className={remaining > 0 ? 'text-slate-400' : 'text-green-400'}>
+          <span className={remaining > 0 ? 'text-muted-foreground' : 'text-green-400'}>
             {kLabel} {pos}/{total}
           </span>
           <span className="truncate">{allCandles[total - 1]?.date?.slice(0, 7) ?? ''}</span>
@@ -103,7 +103,7 @@ export default function ReplayControls() {
         {SPEED_OPTIONS.map(opt => (
           <button key={opt.ms} onClick={() => setPlaySpeed(opt.ms)}
             className={`w-8 h-7 rounded text-xs font-medium transition ${
-              playSpeed === opt.ms ? 'bg-blue-600 text-white' : 'bg-slate-700 hover:bg-slate-600 text-slate-400'
+              playSpeed === opt.ms ? 'bg-blue-600 text-foreground' : 'bg-muted hover:bg-muted text-muted-foreground'
             }`}>
             {opt.label}
           </button>
@@ -112,7 +112,7 @@ export default function ReplayControls() {
 
       {/* Reset */}
       <button onClick={resetReplay}
-        className="shrink-0 h-7 px-2 rounded bg-slate-700 hover:bg-red-900/60 text-slate-400 hover:text-red-300 text-xs transition flex items-center justify-center gap-1"
+        className="shrink-0 h-7 px-2 rounded bg-muted hover:bg-red-900/60 text-muted-foreground hover:text-red-300 text-xs transition flex items-center justify-center gap-1"
         title="重置走圖（回到第一根）">
         <span>↺</span><span className="hidden md:inline">重置</span>
       </button>

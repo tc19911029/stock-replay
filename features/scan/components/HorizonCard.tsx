@@ -36,27 +36,27 @@ export function HorizonCard({ label, horizon, performance, scanDate }: {
   if (!stats) {
     const notYet = scanDate && estimateTradingDays(scanDate) < requiredDays(horizon);
     return (
-      <div className="bg-slate-800/50 rounded-lg p-2.5 flex flex-col items-center justify-center gap-1 opacity-40 min-h-[80px]">
-        <div className="text-[10px] text-slate-400">{label}</div>
-        <div className="text-slate-500 text-xs">{notYet ? '尚未到期' : '–'}</div>
+      <div className="bg-secondary/50 rounded-lg p-2.5 flex flex-col items-center justify-center gap-1 opacity-40 min-h-[80px]">
+        <div className="text-[10px] text-muted-foreground">{label}</div>
+        <div className="text-muted-foreground text-xs">{notYet ? '尚未到期' : '–'}</div>
       </div>
     );
   }
   return (
-    <div className="bg-slate-800 rounded-lg p-2.5 flex flex-col gap-1.5">
-      <div className="text-[10px] text-slate-400 font-medium">{label}</div>
+    <div className="bg-secondary rounded-lg p-2.5 flex flex-col gap-1.5">
+      <div className="text-[10px] text-muted-foreground font-medium">{label}</div>
       <div className={`text-lg font-bold leading-tight ${retColor(stats.avgReturn)}`}>
         {fmtRet(stats.avgReturn)}
       </div>
       <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px]">
-        <span className="text-slate-400">勝率</span>
-        <span className={stats.winRate >= 50 ? 'text-red-400' : 'text-green-500'}>{stats.winRate}%</span>
-        <span className="text-slate-400">中位</span>
+        <span className="text-muted-foreground">勝率</span>
+        <span className={stats.winRate >= 50 ? 'text-bull' : 'text-bear'}>{stats.winRate}%</span>
+        <span className="text-muted-foreground">中位</span>
         <span className={retColor(stats.median)}>{fmtRet(stats.median)}</span>
-        <span className="text-slate-400">最高</span>
-        <span className="text-red-400">+{stats.maxGain.toFixed(1)}%</span>
-        <span className="text-slate-400">最低</span>
-        <span className="text-green-500">{stats.maxLoss.toFixed(1)}%</span>
+        <span className="text-muted-foreground">最高</span>
+        <span className="text-bull">+{stats.maxGain.toFixed(1)}%</span>
+        <span className="text-muted-foreground">最低</span>
+        <span className="text-bear">{stats.maxLoss.toFixed(1)}%</span>
       </div>
     </div>
   );

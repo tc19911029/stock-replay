@@ -5,11 +5,11 @@ import { useReplayStore } from '@/store/replayStore';
 import { RuleSignal } from '@/types';
 
 const TYPE_CONFIG: Record<RuleSignal['type'], { bg: string; border: string; dot: string; badge: string }> = {
-  BUY:    { bg: 'bg-red-900/30',     border: 'border-red-600',    dot: 'bg-red-400',    badge: 'bg-red-600 text-white' },
-  ADD:    { bg: 'bg-orange-900/30',  border: 'border-orange-500', dot: 'bg-orange-400', badge: 'bg-orange-500 text-white' },
+  BUY:    { bg: 'bg-red-900/30',     border: 'border-red-600',    dot: 'bg-red-400',    badge: 'bg-red-600 text-foreground' },
+  ADD:    { bg: 'bg-orange-900/30',  border: 'border-orange-500', dot: 'bg-orange-400', badge: 'bg-orange-500 text-foreground' },
   WATCH:  { bg: 'bg-yellow-900/30',  border: 'border-yellow-600', dot: 'bg-yellow-400', badge: 'bg-yellow-600 text-black' },
-  REDUCE: { bg: 'bg-teal-900/30',    border: 'border-teal-500',   dot: 'bg-teal-400',   badge: 'bg-teal-500 text-white' },
-  SELL:   { bg: 'bg-green-900/30',   border: 'border-green-600',  dot: 'bg-green-400',  badge: 'bg-green-700 text-white' },
+  REDUCE: { bg: 'bg-teal-900/30',    border: 'border-teal-500',   dot: 'bg-teal-400',   badge: 'bg-teal-500 text-foreground' },
+  SELL:   { bg: 'bg-green-900/30',   border: 'border-green-600',  dot: 'bg-green-400',  badge: 'bg-green-700 text-foreground' },
 };
 
 function SignalCard({ sig }: { sig: RuleSignal }) {
@@ -25,20 +25,20 @@ function SignalCard({ sig }: { sig: RuleSignal }) {
       >
         <span className={`w-2 h-2 rounded-full ${cfg.dot} shrink-0`} />
         <span className={`px-2 py-0.5 rounded text-xs font-bold ${cfg.badge}`}>{sig.label}</span>
-        <span className="text-xs text-slate-300 flex-1 leading-tight">{sig.description}</span>
-        <span className="text-slate-500 text-xs shrink-0">{expanded ? '▲' : '▼ 分析'}</span>
+        <span className="text-xs text-foreground/80 flex-1 leading-tight">{sig.description}</span>
+        <span className="text-muted-foreground text-xs shrink-0">{expanded ? '▲' : '▼ 分析'}</span>
       </div>
 
       {/* Expandable reason panel */}
       {expanded && (
-        <div className="px-3 pb-3 pt-1 border-t border-slate-700/50">
-          <p className="text-xs font-semibold text-slate-400 mb-1.5">操作建議分析</p>
+        <div className="px-3 pb-3 pt-1 border-t border-border/50">
+          <p className="text-xs font-semibold text-muted-foreground mb-1.5">操作建議分析</p>
           <div className="space-y-1.5">
             {sig.reason.split('\n').filter(Boolean).map((line, i) => {
               const isBold = line.startsWith('【');
               const parts  = isBold ? line.split('】') : null;
               return (
-                <p key={i} className="text-xs text-slate-300 leading-relaxed">
+                <p key={i} className="text-xs text-foreground/80 leading-relaxed">
                   {isBold && parts ? (
                     <>
                       <span className="text-yellow-400 font-semibold">【{parts[0].slice(1)}】</span>
@@ -64,15 +64,15 @@ function ResonanceSummary({ signals }: { signals: RuleSignal[] }) {
   if (buyCount === 0 && sellCount === 0 && watchCount === 0) return null;
 
   return (
-    <div className="flex items-center gap-2 px-2 py-1.5 bg-slate-900 rounded text-xs mb-2">
-      <span className="text-slate-500 font-medium">共振:</span>
+    <div className="flex items-center gap-2 px-2 py-1.5 bg-card rounded text-xs mb-2">
+      <span className="text-muted-foreground font-medium">共振:</span>
       {buyCount > 0 && (
-        <span className={`px-1.5 py-0.5 rounded font-bold ${buyCount >= 3 ? 'bg-red-600 text-white' : buyCount >= 2 ? 'bg-red-800/60 text-red-300' : 'text-red-400'}`}>
+        <span className={`px-1.5 py-0.5 rounded font-bold ${buyCount >= 3 ? 'bg-red-600 text-foreground' : buyCount >= 2 ? 'bg-red-800/60 text-red-300' : 'text-red-400'}`}>
           買 ×{buyCount}
         </span>
       )}
       {sellCount > 0 && (
-        <span className={`px-1.5 py-0.5 rounded font-bold ${sellCount >= 3 ? 'bg-green-700 text-white' : sellCount >= 2 ? 'bg-green-800/60 text-green-300' : 'text-green-400'}`}>
+        <span className={`px-1.5 py-0.5 rounded font-bold ${sellCount >= 3 ? 'bg-green-700 text-foreground' : sellCount >= 2 ? 'bg-green-800/60 text-green-300' : 'text-green-400'}`}>
           賣 ×{sellCount}
         </span>
       )}
@@ -93,11 +93,11 @@ export default function RuleAlerts() {
   const watchSignals = currentSignals.filter(s => s.type === 'WATCH');
 
   return (
-    <div className="bg-slate-800 rounded-lg p-4">
+    <div className="bg-secondary rounded-lg p-4">
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-sm font-semibold text-slate-300">規則提示與操作建議</h2>
+        <h2 className="text-sm font-semibold text-foreground/80">規則提示與操作建議</h2>
         {currentDate && (
-          <span className="text-xs text-slate-500">{currentDate}</span>
+          <span className="text-xs text-muted-foreground">{currentDate}</span>
         )}
       </div>
 
@@ -105,7 +105,7 @@ export default function RuleAlerts() {
       <ResonanceSummary signals={currentSignals} />
 
       {currentSignals.length === 0 ? (
-        <p className="text-xs text-slate-500 text-center py-4">本根K線無觸發規則</p>
+        <p className="text-xs text-muted-foreground text-center py-4">本根K線無觸發規則</p>
       ) : (
         <div className="space-y-2">
           {/* 動作信號（BUY/SELL/ADD/REDUCE） */}
@@ -118,7 +118,7 @@ export default function RuleAlerts() {
             <>
               <button
                 onClick={() => setShowWeak(v => !v)}
-                className="w-full text-xs text-slate-500 hover:text-slate-400 py-1 transition"
+                className="w-full text-xs text-muted-foreground hover:text-muted-foreground py-1 transition"
               >
                 {showWeak ? '▲ 收起觀察信號' : `▼ 觀察信號 (${watchSignals.length})`}
               </button>
@@ -128,11 +128,11 @@ export default function RuleAlerts() {
             </>
           )}
 
-          <p className="text-xs text-slate-600 text-center pt-1">點選卡片展開詳細分析</p>
+          <p className="text-xs text-muted-foreground/60 text-center pt-1">點選卡片展開詳細分析</p>
         </div>
       )}
 
-      <p className="text-xs text-slate-600 mt-3 text-center">
+      <p className="text-xs text-muted-foreground/60 mt-3 text-center">
         提示僅供練習參考，實際交易需自行判斷
       </p>
     </div>

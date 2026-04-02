@@ -32,14 +32,14 @@ function PatternGroup({
   const isBear = type === 'bearish';
   const accentBg   = isBear ? 'bg-red-900/30 border-red-700' : 'bg-green-900/30 border-green-700';
   const accentText = isBear ? 'text-red-300' : 'text-green-300';
-  const badge      = isBear ? 'bg-red-600 text-white' : 'bg-green-700 text-white';
+  const badge      = isBear ? 'bg-red-600 text-foreground' : 'bg-green-700 text-foreground';
   const icon       = isBear ? '⚠️' : '✨';
 
   if (patterns.length === 0) {
     return (
       <div className="flex items-center gap-2 py-1">
-        <span className="text-xs text-slate-600">—</span>
-        <span className="text-xs text-slate-600">{title} — 無圖像觸發</span>
+        <span className="text-xs text-muted-foreground/60">—</span>
+        <span className="text-xs text-muted-foreground/60">{title} — 無圖像觸發</span>
       </div>
     );
   }
@@ -58,17 +58,17 @@ function PatternGroup({
           {patterns.length} 圖
         </span>
         <span className={`text-xs flex-1 ${accentText}`}>{title}</span>
-        <span className="text-slate-500 text-xs">{expanded ? '▲' : '▼'}</span>
+        <span className="text-muted-foreground text-xs">{expanded ? '▲' : '▼'}</span>
       </div>
       {expanded && (
-        <div className="px-3 pb-2 border-t border-slate-700/40 space-y-2">
+        <div className="px-3 pb-2 border-t border-border/40 space-y-2">
           {sorted.map(p => (
             <div key={p.id} className="pt-1">
               <div className="flex items-center gap-2">
                 <span className={`text-xs font-semibold ${accentText}`}>{p.name}</span>
-                <span className="text-xs text-slate-500">信心 {p.confidence}%</span>
+                <span className="text-xs text-muted-foreground">信心 {p.confidence}%</span>
               </div>
-              <p className="text-xs text-slate-500 leading-relaxed">{p.description}</p>
+              <p className="text-xs text-muted-foreground leading-relaxed">{p.description}</p>
             </div>
           ))}
         </div>
@@ -89,16 +89,16 @@ export default function WinnerPatternAlerts() {
   const hasAny = bearishPatterns.length > 0 || bullishPatterns.length > 0;
 
   return (
-    <div className="bg-slate-800 rounded-lg p-4 space-y-3">
+    <div className="bg-secondary rounded-lg p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-slate-300">33 種贏家圖像</h2>
+        <h2 className="text-sm font-semibold text-foreground/80">33 種贏家圖像</h2>
         {hasAny && (
           <span className={`text-xs font-bold px-2 py-0.5 rounded ${
             compositeAdjust > 0
               ? 'bg-green-700/60 text-green-300'
               : compositeAdjust < 0
               ? 'bg-red-800/60 text-red-300'
-              : 'bg-slate-700 text-slate-400'
+              : 'bg-muted text-muted-foreground'
           }`}>
             調整 {compositeAdjust > 0 ? '+' : ''}{compositeAdjust}
           </span>
@@ -121,7 +121,7 @@ export default function WinnerPatternAlerts() {
 
       {/* 無觸發時的提示 */}
       {!hasAny && (
-        <p className="text-xs text-slate-600 text-center py-1">
+        <p className="text-xs text-muted-foreground/60 text-center py-1">
           當前 K 棒未觸發任何贏家圖像
         </p>
       )}

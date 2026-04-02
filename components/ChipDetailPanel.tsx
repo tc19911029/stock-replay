@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { fetchWithRetry } from '@/lib/fetchWithRetry';
 
 interface ChipInfo {
   symbol: string;
@@ -31,18 +32,18 @@ interface ChipInfo {
 
 // ── Signal label + color ────────────────────────────────────────────────────
 function getSignal(v: number, big: number, small: number) {
-  if (v >=  big)   return { label: '大增', cls: 'text-red-400' };
-  if (v >=  small) return { label: '增',   cls: 'text-red-300' };
-  if (v <= -big)   return { label: '大減', cls: 'text-green-400' };
-  if (v <= -small) return { label: '小賣', cls: 'text-green-300' };
+  if (v >=  big)   return { label: '大增', cls: 'text-bull' };
+  if (v >=  small) return { label: '增',   cls: 'text-bull-light' };
+  if (v <= -big)   return { label: '大減', cls: 'text-bear' };
+  if (v <= -small) return { label: '小賣', cls: 'text-bear-light' };
   return             { label: '中立', cls: 'text-yellow-400' };
 }
 
 function getPctSignal(v: number) {
-  if (v >=  1)  return { label: '大增', cls: 'text-red-400' };
-  if (v >=  0.2) return { label: '增',  cls: 'text-red-300' };
-  if (v <= -1)  return { label: '大減', cls: 'text-green-400' };
-  if (v <= -0.2) return { label: '小賣', cls: 'text-green-300' };
+  if (v >=  1)  return { label: '大增', cls: 'text-bull' };
+  if (v >=  0.2) return { label: '增',  cls: 'text-bull-light' };
+  if (v <= -1)  return { label: '大減', cls: 'text-bear' };
+  if (v <= -0.2) return { label: '小賣', cls: 'text-bear-light' };
   return { label: '中立', cls: 'text-yellow-400' };
 }
 
@@ -54,8 +55,8 @@ function GaugeBar({ value, range }: { value: number; range: number }) {
   const positive = clamped >= 0;
 
   return (
-    <div className="relative w-full h-[3px] bg-slate-700 rounded-full mt-2">
-      <div className="absolute left-1/2 top-0 h-full w-px bg-slate-500" />
+    <div className="relative w-full h-[3px] bg-muted rounded-full mt-2">
+      <div className="absolute left-1/2 top-0 h-full w-px bg-muted-foreground" />
       {positive ? (
         <div
           className="absolute top-0 h-full bg-red-500 rounded-full"
@@ -93,12 +94,12 @@ function ChipTile({
 }) {
   const noData = value == null;
   const valColor = noData
-    ? 'text-slate-600'
+    ? 'text-muted-foreground/60'
     : value > 0
-    ? 'text-red-400'
+    ? 'text-bull'
     : value < 0
-    ? 'text-green-400'
-    : 'text-slate-400';
+    ? 'text-bear'
+    : 'text-muted-foreground';
 
   let displayVal = '—';
   if (!noData) {
@@ -115,10 +116,10 @@ function ChipTile({
   }
 
   return (
-    <div className="bg-slate-800/70 rounded-lg p-2 border border-slate-700/40 flex flex-col gap-0.5">
+    <div className="bg-secondary/70 rounded-lg p-2 border border-border/40 flex flex-col gap-0.5">
       {/* Header: label + signal */}
       <div className="flex justify-between items-center">
-        <span className="text-[9px] text-slate-500 font-medium">{label}</span>
+        <span className="text-[9px] text-muted-foreground font-medium">{label}</span>
         {!noData && (
           <span className={`text-[9px] font-bold ${signal.cls}`}>{signal.label}</span>
         )}
@@ -127,7 +128,7 @@ function ChipTile({
       <div className={`text-sm font-mono font-bold leading-snug ${valColor}`}>
         {displayVal}
         {!noData && !isPct && (
-          <span className="text-[8px] text-slate-600 ml-0.5">{unit}</span>
+          <span className="text-[8px] text-muted-foreground/60 ml-0.5">{unit}</span>
         )}
       </div>
       {/* Gauge */}
@@ -138,11 +139,11 @@ function ChipTile({
 
 // ── Grade badge ─────────────────────────────────────────────────────────────
 const GRADE_CLS: Record<string, string> = {
-  S: 'text-red-400 border-red-600',
+  S: 'text-bull border-red-600',
   A: 'text-orange-400 border-orange-600',
   B: 'text-yellow-400 border-yellow-600',
-  C: 'text-slate-400 border-slate-600',
-  D: 'text-slate-500 border-slate-700',
+  C: 'text-muted-foreground border-border',
+  D: 'text-muted-foreground border-border',
 };
 
 // ── Main component ──────────────────────────────────────────────────────────
@@ -150,6 +151,7 @@ export default function ChipDetailPanel({ symbol, date }: { symbol: string; date
   const [data, setData] = useState<ChipInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   const cleanSym = symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
 
@@ -161,7 +163,7 @@ export default function ChipDetailPanel({ symbol, date }: { symbol: string; date
 
     const chipDate = date || new Date().toISOString().slice(0, 10);
 
-    fetch(`/api/chip?date=${chipDate}&symbol=${cleanSym}`)
+    fetchWithRetry(`/api/chip?date=${chipDate}&symbol=${cleanSym}`, { maxRetries: 2 })
       .then(r => r.json())
       .then(j => {
         if (j.error) { setError('查無籌碼資料'); setData(null); }
@@ -169,14 +171,32 @@ export default function ChipDetailPanel({ symbol, date }: { symbol: string; date
       })
       .catch(() => setError('載入失敗'))
       .finally(() => setLoading(false));
-  }, [cleanSym, date]);
+  }, [cleanSym, date, retryCount]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   if (loading) return (
-    <div className="text-xs text-slate-500 py-6 text-center animate-pulse">載入籌碼資料中...</div>
+    <div className="space-y-3 p-3">
+      <div className="flex items-center gap-2">
+        <div className="animate-pulse bg-muted/50 rounded h-8 w-20" />
+        <div className="animate-pulse bg-muted/50 rounded h-4 flex-1" />
+      </div>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3">
+          <div className="animate-pulse bg-muted/50 rounded h-4 w-16" />
+          <div className="animate-pulse bg-muted/50 rounded h-4 flex-1" />
+        </div>
+      ))}
+      <p className="text-[10px] text-muted-foreground/60 text-center">載入籌碼資料中...</p>
+    </div>
   );
-  if (error || !data) return (
-    <div className="text-xs text-slate-600 py-6 text-center">{error || '無資料'}</div>
+  if (error) return (
+    <div className="text-xs text-red-400/80 py-6 text-center">
+      <p>{error}</p>
+      <button onClick={() => setRetryCount(c => c + 1)} className="mt-2 text-sky-400 hover:text-sky-300 transition-colors">重試</button>
+    </div>
+  );
+  if (!data) return (
+    <div className="text-xs text-muted-foreground/60 py-6 text-center">無資料</div>
   );
 
   // ── Tile definitions ──────────────────────────────────────────────────────
@@ -239,7 +259,7 @@ export default function ChipDetailPanel({ symbol, date }: { symbol: string; date
     {
       label: '董監',
       value: null as number | null,
-      signal: { label: '—', cls: 'text-slate-600' },
+      signal: { label: '—', cls: 'text-muted-foreground/60' },
       range: 1,
       isPct: true,
     },
@@ -267,18 +287,18 @@ export default function ChipDetailPanel({ symbol, date }: { symbol: string; date
     data.chipSignal === '主力出貨' ? 'bg-green-900/50 text-green-300' :
     data.chipSignal === '散戶追高' ? 'bg-amber-900/50 text-amber-300' :
     data.chipSignal === '法人偏空' ? 'bg-blue-900/50 text-blue-300' :
-    'bg-slate-800 text-slate-400';
+    'bg-secondary text-muted-foreground';
 
   return (
     <div className="space-y-2.5">
       {/* ── Score header ── */}
       <div className="flex items-center justify-between px-0.5">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-slate-500">籌碼面評分</span>
+          <span className="text-[10px] text-muted-foreground">籌碼面評分</span>
           <span className={`text-base font-bold border-2 rounded px-1.5 py-0.5 leading-none ${gradeCls}`}>
             {data.chipGrade}
           </span>
-          <span className="text-sm font-mono text-slate-300">{data.chipScore}</span>
+          <span className="text-sm font-mono text-foreground/80">{data.chipScore}</span>
         </div>
         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${signalBg}`}>
           {data.chipSignal}
@@ -301,26 +321,26 @@ export default function ChipDetailPanel({ symbol, date }: { symbol: string; date
 
       {/* ── Summary ── */}
       {data.chipDetail && data.chipDetail !== '中性' && (
-        <div className="text-[9px] text-slate-500 bg-slate-800/40 rounded px-2 py-1.5 border border-slate-700/30 leading-relaxed">
+        <div className="text-[9px] text-muted-foreground bg-secondary/40 rounded px-2 py-1.5 border border-border/30 leading-relaxed">
           {data.chipDetail}
         </div>
       )}
 
       {/* ── Margin detail ── */}
-      <div className="grid grid-cols-2 gap-1.5 text-[9px] text-slate-500">
-        <div className="bg-slate-800/40 rounded px-2 py-1 border border-slate-700/30">
+      <div className="grid grid-cols-2 gap-1.5 text-[9px] text-muted-foreground">
+        <div className="bg-secondary/40 rounded px-2 py-1 border border-border/30">
           <span>融資餘額</span>
-          <span className="float-right text-slate-400 font-mono">{data.marginBalance.toLocaleString()}張</span>
+          <span className="float-right text-muted-foreground font-mono">{data.marginBalance.toLocaleString()}張</span>
           <div className="clear-both" />
           <span>使用率</span>
-          <span className="float-right text-slate-400 font-mono">{data.marginUtilRate}%</span>
+          <span className="float-right text-muted-foreground font-mono">{data.marginUtilRate}%</span>
         </div>
-        <div className="bg-slate-800/40 rounded px-2 py-1 border border-slate-700/30">
+        <div className="bg-secondary/40 rounded px-2 py-1 border border-border/30">
           <span>融券餘額</span>
-          <span className="float-right text-slate-400 font-mono">{data.shortBalance.toLocaleString()}張</span>
+          <span className="float-right text-muted-foreground font-mono">{data.shortBalance.toLocaleString()}張</span>
           <div className="clear-both" />
           <span>當沖比例</span>
-          <span className={`float-right font-mono ${data.dayTradeRatio > 40 ? 'text-red-400' : data.dayTradeRatio > 25 ? 'text-yellow-400' : 'text-slate-400'}`}>
+          <span className={`float-right font-mono ${data.dayTradeRatio > 40 ? 'text-bull' : data.dayTradeRatio > 25 ? 'text-yellow-400' : 'text-muted-foreground'}`}>
             {data.dayTradeRatio}%
           </span>
         </div>

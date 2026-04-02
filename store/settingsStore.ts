@@ -6,6 +6,7 @@ import {
   BUILT_IN_STRATEGIES,
   ZHU_V1,
   ZHU_OPTIMIZED,
+  clampThresholds,
 } from '@/lib/strategy/StrategyConfig';
 
 /** @deprecated Use StrategyThresholds from StrategyConfig instead */
@@ -29,6 +30,7 @@ interface SettingsStore {
   notifyEmail: string;
   notifyMinScore: number;
   colorTheme: ColorTheme;
+  stopLossPercent: number;
   strategy: StrategyParams;
   // 策略版本管理
   activeStrategyId: string;
@@ -36,6 +38,7 @@ interface SettingsStore {
   setNotifyEmail: (email: string) => void;
   setNotifyMinScore: (score: number) => void;
   setColorTheme: (theme: ColorTheme) => void;
+  setStopLossPercent: (pct: number) => void;
   /** @deprecated Use getActiveStrategy().thresholds instead */
   setStrategy: (params: Partial<StrategyParams>) => void;
   /** @deprecated Use getActiveStrategy().thresholds instead */
@@ -54,21 +57,45 @@ export const useSettingsStore = create<SettingsStore>()(
       notifyEmail: '',
       notifyMinScore: 5,
       colorTheme: 'asia' as ColorTheme,
+      stopLossPercent: 7,
       strategy: DEFAULT_STRATEGY,
       activeStrategyId: 'zhu-optimized',
       customStrategies: [],
       setNotifyEmail: (email) => set({ notifyEmail: email }),
       setNotifyMinScore: (score) => set({ notifyMinScore: score }),
-      setColorTheme: (theme) => set({ colorTheme: theme }),
+      setColorTheme: (theme) => {
+        set({ colorTheme: theme });
+        if (typeof document !== 'undefined') {
+          if (theme === 'western') {
+            document.documentElement.setAttribute('data-color-theme', 'western');
+          } else {
+            document.documentElement.removeAttribute('data-color-theme');
+          }
+        }
+      },
+      setStopLossPercent: (pct) => set({ stopLossPercent: Math.max(1, Math.min(20, pct)) }),
       setStrategy: (params) => set(s => ({ strategy: { ...s.strategy, ...params } })),
       resetStrategy: () => set({ strategy: DEFAULT_STRATEGY }),
       setActiveStrategy: (id) => set({ activeStrategyId: id }),
       addCustomStrategy: (s) =>
-        set(state => ({ customStrategies: [...state.customStrategies, s] })),
+        set(state => ({
+          customStrategies: [...state.customStrategies, {
+            ...s,
+            thresholds: clampThresholds(s.thresholds),
+          }],
+        })),
       updateCustomStrategy: (id, updates) =>
         set(state => ({
           customStrategies: state.customStrategies.map(s =>
-            s.id === id ? { ...s, ...updates } : s
+            s.id === id
+              ? {
+                  ...s,
+                  ...updates,
+                  thresholds: updates.thresholds
+                    ? clampThresholds(updates.thresholds)
+                    : s.thresholds,
+                }
+              : s
           ),
         })),
       deleteCustomStrategy: (id) =>

@@ -17,11 +17,11 @@ const COND_LABELS: Array<{ key: keyof StockScanResult['sixConditionsBreakdown'];
 ];
 
 const GRADE_STYLE: Record<string, string> = {
-  S: 'bg-red-600 text-white',
-  A: 'bg-orange-500 text-white',
+  S: 'bg-red-600 text-foreground',
+  A: 'bg-orange-500 text-foreground',
   B: 'bg-yellow-500 text-black',
-  C: 'bg-slate-600 text-slate-200',
-  D: 'bg-slate-700 text-slate-400',
+  C: 'bg-muted text-foreground',
+  D: 'bg-muted text-muted-foreground',
 };
 
 const FLAG_LABELS: Record<string, string> = {
@@ -47,14 +47,14 @@ const COMPONENT_LABELS: Record<string, string> = {
 };
 
 function ScoreBar({ score, label }: { score: number; label: string }) {
-  const color = score >= 70 ? 'bg-red-500' : score >= 50 ? 'bg-orange-500' : score >= 30 ? 'bg-yellow-500' : 'bg-slate-600';
+  const color = score >= 70 ? 'bg-red-500' : score >= 50 ? 'bg-orange-500' : score >= 30 ? 'bg-yellow-500' : 'bg-muted';
   return (
     <div className="flex items-center gap-2 text-xs">
-      <span className="text-slate-400 w-16 shrink-0 text-right">{label}</span>
-      <div className="flex-1 bg-slate-700 rounded-full h-1.5 overflow-hidden">
+      <span className="text-muted-foreground w-16 shrink-0 text-right">{label}</span>
+      <div className="flex-1 bg-muted rounded-full h-1.5 overflow-hidden">
         <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${score}%` }} />
       </div>
-      <span className="text-slate-400 font-mono w-7 text-right">{score}</span>
+      <span className="text-muted-foreground font-mono w-7 text-right">{score}</span>
     </div>
   );
 }
@@ -68,7 +68,7 @@ export default function ScanResultCard({ result: r, actions }: { result: StockSc
   const watchRules = r.triggeredRules.filter(t => t.signalType === 'WATCH');
 
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+    <div className="bg-secondary border border-border rounded-xl overflow-hidden">
       {/* Top row */}
       <div className="flex items-center gap-2 px-4 pt-3 pb-1">
         {/* Surge grade badge */}
@@ -80,8 +80,8 @@ export default function ScanResultCard({ result: r, actions }: { result: StockSc
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-white font-mono">{r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</span>
-            <span className="text-xs text-slate-400 truncate">{r.name}</span>
+            <span className="text-sm font-bold text-foreground font-mono">{r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</span>
+            <span className="text-xs text-muted-foreground truncate">{r.name}</span>
             {buyRules.length > 0 && (
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
                 buyRules[0].signalType === 'BUY' ? 'border-red-500/50 text-red-400' : 'border-orange-500/50 text-orange-400'
@@ -94,23 +94,23 @@ export default function ScanResultCard({ result: r, actions }: { result: StockSc
           <div className="flex items-center gap-2 mt-0.5">
             {r.surgeScore != null && (
               <div className="flex items-center gap-1">
-                <span className="text-[10px] text-slate-500">飆股潛力</span>
-                <div className="w-20 bg-slate-700 rounded-full h-1.5 overflow-hidden">
+                <span className="text-[10px] text-muted-foreground">飆股潛力</span>
+                <div className="w-20 bg-muted rounded-full h-1.5 overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${
-                      r.surgeScore >= 65 ? 'bg-red-500' : r.surgeScore >= 50 ? 'bg-orange-500' : r.surgeScore >= 35 ? 'bg-yellow-500' : 'bg-slate-600'
+                      r.surgeScore >= 65 ? 'bg-red-500' : r.surgeScore >= 50 ? 'bg-orange-500' : r.surgeScore >= 35 ? 'bg-yellow-500' : 'bg-muted'
                     }`}
                     style={{ width: `${r.surgeScore}%` }}
                   />
                 </div>
-                <span className="text-[10px] font-mono text-slate-400">{r.surgeScore}</span>
+                <span className="text-[10px] font-mono text-muted-foreground">{r.surgeScore}</span>
               </div>
             )}
             {r.aiRank && (
               <span className={`text-[10px] px-1.5 py-0.5 rounded ${
                 r.aiConfidence === 'high' ? 'bg-red-900/60 text-red-300' :
                 r.aiConfidence === 'medium' ? 'bg-orange-900/60 text-orange-300' :
-                'bg-slate-700 text-slate-400'
+                'bg-muted text-muted-foreground'
               }`}>
                 AI #{r.aiRank}
               </span>
@@ -120,15 +120,15 @@ export default function ScanResultCard({ result: r, actions }: { result: StockSc
 
         {/* Price + change */}
         <div className="text-right shrink-0">
-          <div className="text-sm font-mono font-bold text-white">{r.price.toFixed(2)}</div>
-          <div className={`text-xs font-mono ${changePos ? 'text-red-400' : 'text-green-400'}`}>
+          <div className="text-sm font-mono font-bold text-foreground">{r.price.toFixed(2)}</div>
+          <div className={`text-xs font-mono ${changePos ? 'text-bull' : 'text-bear'}`}>
             {changePos ? '+' : ''}{r.changePercent.toFixed(2)}%
           </div>
         </div>
 
         {/* Six conditions score */}
         <span className={`text-xs font-bold px-2 py-1 rounded shrink-0 ${
-          r.sixConditionsScore >= 5 ? 'bg-red-600/80 text-white' :
+          r.sixConditionsScore >= 5 ? 'bg-red-600/80 text-foreground' :
           r.sixConditionsScore >= 3 ? 'bg-yellow-500/80 text-black' :
           'bg-gray-600 text-gray-200'
         }`}>
@@ -142,7 +142,7 @@ export default function ScanResultCard({ result: r, actions }: { result: StockSc
       <div className="flex gap-1 px-4 pb-2 flex-wrap">
         {bd && COND_LABELS.map(({ key, name }) => (
           <span key={key} className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-            bd[key] ? 'bg-red-900/60 text-red-300' : 'bg-slate-700 text-slate-500 line-through'
+            bd[key] ? 'bg-red-900/60 text-red-300' : 'bg-muted text-muted-foreground line-through'
           }`}>
             {name}
           </span>
@@ -172,15 +172,15 @@ export default function ScanResultCard({ result: r, actions }: { result: StockSc
 
       {/* Expand toggle */}
       <button
-        className="w-full flex items-center justify-between px-4 py-1.5 hover:bg-slate-700/40 transition text-left border-t border-slate-700/50"
+        className="w-full flex items-center justify-between px-4 py-1.5 hover:bg-muted/40 transition text-left border-t border-border/50"
         onClick={() => setExpanded(v => !v)}
       >
-        <span className="text-[10px] text-slate-500">{r.trendState} · {r.trendPosition}</span>
-        <span className="text-slate-600 text-xs">{expanded ? '▲' : '▼'}</span>
+        <span className="text-[10px] text-muted-foreground">{r.trendState} · {r.trendPosition}</span>
+        <span className="text-muted-foreground/60 text-xs">{expanded ? '▲' : '▼'}</span>
       </button>
 
       {expanded && (
-        <div className="border-t border-slate-700 px-4 pb-4 pt-3 space-y-3">
+        <div className="border-t border-border px-4 pb-4 pt-3 space-y-3">
           {/* Surge score breakdown */}
           {r.surgeComponents && (
             <div>
@@ -190,7 +190,7 @@ export default function ScanResultCard({ result: r, actions }: { result: StockSc
                   <div key={key}>
                     <ScoreBar score={comp.score} label={COMPONENT_LABELS[key] ?? key} />
                     {comp.detail && (
-                      <p className="text-[10px] text-slate-500 ml-[72px] mt-0.5">{comp.detail}</p>
+                      <p className="text-[10px] text-muted-foreground ml-[72px] mt-0.5">{comp.detail}</p>
                     )}
                   </div>
                 ))}
@@ -203,9 +203,9 @@ export default function ScanResultCard({ result: r, actions }: { result: StockSc
               <p className="text-xs font-semibold text-red-400 mb-1">觸發買入規則</p>
               <div className="space-y-1">
                 {buyRules.map((rule, i) => (
-                  <div key={i} className="text-xs text-slate-300">
+                  <div key={i} className="text-xs text-foreground/80">
                     <span className="text-yellow-400 font-medium">▶ {rule.ruleName}</span>
-                    <p className="text-slate-500 mt-0.5 ml-3">{rule.reason}</p>
+                    <p className="text-muted-foreground mt-0.5 ml-3">{rule.reason}</p>
                   </div>
                 ))}
               </div>
@@ -214,16 +214,16 @@ export default function ScanResultCard({ result: r, actions }: { result: StockSc
 
           {watchRules.length > 0 && (
             <div>
-              <p className="text-xs font-semibold text-slate-400 mb-1">觀察信號</p>
+              <p className="text-xs font-semibold text-muted-foreground mb-1">觀察信號</p>
               <div className="flex flex-wrap gap-1">
                 {watchRules.map((rule, i) => (
-                  <span key={i} className="text-[10px] bg-slate-700 text-slate-400 px-2 py-0.5 rounded">{rule.ruleName}</span>
+                  <span key={i} className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded">{rule.ruleName}</span>
                 ))}
               </div>
             </div>
           )}
 
-          <div className="text-xs text-slate-500">
+          <div className="text-xs text-muted-foreground">
             量 {(r.volume / 1000).toFixed(0)}K · 掃描 {new Date(r.scanTime).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
           </div>
         </div>

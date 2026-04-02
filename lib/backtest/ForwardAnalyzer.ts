@@ -27,8 +27,31 @@ async function analyzeOne(
     const todayStr = utc8.toISOString().split('T')[0];
     const safeEndStr = endStr > todayStr ? todayStr : endStr;
 
-    const candles = await fetchCandlesRange(symbol, startStr, safeEndStr, 8000);
-    if (candles.length === 0) return null;
+    let candles = await fetchCandlesRange(symbol, startStr, safeEndStr, 8000);
+    // retry 一次：資料源可能暫時性失敗（rate limit、網路）
+    if (candles.length === 0) {
+      await new Promise(r => setTimeout(r, 2000));
+      candles = await fetchCandlesRange(symbol, startStr, safeEndStr, 8000);
+    }
+
+    // P0-4: 若 scanDate 距今不超過 3 個曆天（週五掃描、長假前），
+    // 數據可能尚未產生，回傳「待定」空結果而非 null（避免被計為倖存者偏差）
+    if (candles.length === 0) {
+      const daysSinceScan = (Date.now() - Date.parse(scanDate)) / 86400_000;
+      if (daysSinceScan <= 3) {
+        // 近期掃描：回傳帶空 forwardCandles 的結構，讓 UI 顯示「等待數據」
+        return {
+          symbol, name, scanDate, scanPrice,
+          openReturn: null, d1Return: null, d2Return: null, d3Return: null,
+          d4Return: null, d5Return: null, d10Return: null, d20Return: null,
+          maxGain: 0, maxLoss: 0, forwardCandles: [],
+          nextOpenPrice: null,
+          d1ReturnFromOpen: null, d5ReturnFromOpen: null,
+          d10ReturnFromOpen: null, d20ReturnFromOpen: null,
+        };
+      }
+      return null; // 確實無數據（歷史數據源問題）
+    }
 
     // 嚴格過濾：
     // 1. 必須 > scanDate（排除信號日當天被 Yahoo 回傳的情況）

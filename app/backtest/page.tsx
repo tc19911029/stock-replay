@@ -1,4 +1,4 @@
 import { redirect } from 'next/navigation';
 export default function BacktestRedirect() {
-  redirect('/scan');
+  redirect('/scanner?mode=full');
 }

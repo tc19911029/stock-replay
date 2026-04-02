@@ -39,14 +39,14 @@ const CAPITAL_PRESETS = [100_000, 500_000, 1_000_000, 3_000_000];
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-function Kpi({ label, value, sub, color = 'text-white' }: {
+function Kpi({ label, value, sub, color = 'text-foreground' }: {
   label: string; value: string; sub?: string; color?: string;
 }) {
   return (
-    <div className="flex flex-col gap-0.5 p-4 bg-slate-800/60 rounded-lg border border-slate-700/40">
-      <div className="text-[10px] text-slate-500 uppercase tracking-wide">{label}</div>
+    <div className="flex flex-col gap-0.5 p-4 bg-secondary/60 rounded-lg border border-border/40">
+      <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</div>
       <div className={`text-lg font-bold leading-tight ${color}`}>{value}</div>
-      {sub && <div className="text-[10px] text-slate-600 mt-0.5">{sub}</div>}
+      {sub && <div className="text-[10px] text-muted-foreground/60 mt-0.5">{sub}</div>}
     </div>
   );
 }
@@ -68,13 +68,13 @@ function EquityCurve({ curve }: { curve: CapitalSimResult['equityCurve'] }) {
   const color  = final >= (curve[0]?.equity ?? 0) ? '#f87171' : '#4ade80';
 
   return (
-    <div className="px-4 py-3 bg-slate-900/40 rounded-lg border border-slate-700/30">
-      <div className="text-[10px] text-slate-500 uppercase tracking-wide mb-2">權益曲線</div>
+    <div className="px-4 py-3 bg-card/40 rounded-lg border border-border/30">
+      <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2">權益曲線</div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-16" preserveAspectRatio="none">
         <path d={areaD} fill={color} fillOpacity="0.08" />
         <path d={pathD} stroke={color} strokeWidth="1.5" fill="none" />
       </svg>
-      <div className="flex justify-between text-[9px] text-slate-600 mt-1">
+      <div className="flex justify-between text-[9px] text-muted-foreground/60 mt-1">
         <span>{curve[0]?.date}</span>
         <span>{curve[curve.length - 1]?.date}</span>
       </div>
@@ -84,13 +84,13 @@ function EquityCurve({ curve }: { curve: CapitalSimResult['equityCurve'] }) {
 
 function TradeTable({ trades }: { trades: CapitalSimTrade[] }) {
   const shown = trades.slice(0, 30);
-  if (shown.length === 0) return <p className="text-slate-600 text-sm py-4">無交易紀錄</p>;
+  if (shown.length === 0) return <p className="text-muted-foreground/60 text-sm py-4">無交易紀錄</p>;
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-xs text-slate-300">
+      <table className="w-full text-xs text-foreground/80">
         <thead>
-          <tr className="border-b border-slate-700 text-slate-500">
+          <tr className="border-b border-border text-muted-foreground">
             <th className="py-2 pr-3 text-left">進場日</th>
             <th className="py-2 pr-3 text-left">代號</th>
             <th className="py-2 pr-3 text-right">進場價</th>
@@ -103,9 +103,9 @@ function TradeTable({ trades }: { trades: CapitalSimTrade[] }) {
         </thead>
         <tbody>
           {shown.map((t, i) => (
-            <tr key={i} className="border-b border-slate-800/60 hover:bg-slate-800/30">
-              <td className="py-1.5 pr-3 font-mono text-slate-500">{t.entryDate}</td>
-              <td className="py-1.5 pr-3 font-medium">{t.symbol} <span className="text-slate-500">{t.name}</span></td>
+            <tr key={i} className="border-b border-border/60 hover:bg-secondary/30">
+              <td className="py-1.5 pr-3 font-mono text-muted-foreground">{t.entryDate}</td>
+              <td className="py-1.5 pr-3 font-medium">{t.symbol} <span className="text-muted-foreground">{t.name}</span></td>
               <td className="py-1.5 pr-3 text-right">{t.entryPrice.toFixed(2)}</td>
               <td className="py-1.5 pr-3 text-right">{t.exitPrice.toFixed(2)}</td>
               <td className="py-1.5 pr-3 text-center">{t.holdDays}</td>
@@ -113,13 +113,13 @@ function TradeTable({ trades }: { trades: CapitalSimTrade[] }) {
               <td className={`py-1.5 pr-3 text-right ${retColor(t.pnlAmount)}`}>
                 {t.pnlAmount >= 0 ? '+' : ''}{t.pnlAmount.toLocaleString()}
               </td>
-              <td className="py-1.5 text-slate-500 text-[10px]">{t.exitReason}</td>
+              <td className="py-1.5 text-muted-foreground text-[10px]">{t.exitReason}</td>
             </tr>
           ))}
         </tbody>
       </table>
       {trades.length > 30 && (
-        <p className="text-[10px] text-slate-600 py-2 text-center">顯示前30筆，共{trades.length}筆</p>
+        <p className="text-[10px] text-muted-foreground/60 py-2 text-center">顯示前30筆，共{trades.length}筆</p>
       )}
     </div>
   );
@@ -217,11 +217,11 @@ export function CapitalBacktestPanel({ sessions }: CapitalBacktestPanelProps) {
       {/* Config */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] text-slate-500 uppercase tracking-wide">初始資金</label>
+          <label className="text-[10px] text-muted-foreground uppercase tracking-wide">初始資金</label>
           <select
             value={capital}
             onChange={e => setCapital(Number(e.target.value))}
-            className="bg-slate-800 border border-slate-600 text-slate-200 text-sm rounded px-3 py-1.5"
+            className="bg-secondary border border-border text-foreground text-sm rounded px-3 py-1.5"
           >
             {CAPITAL_PRESETS.map(c => (
               <option key={c} value={c}>
@@ -231,22 +231,22 @@ export function CapitalBacktestPanel({ sessions }: CapitalBacktestPanelProps) {
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] text-slate-500 uppercase tracking-wide">方向</label>
+          <label className="text-[10px] text-muted-foreground uppercase tracking-wide">方向</label>
           <select
             value={direction}
             onChange={e => setDirection(e.target.value as 'long' | 'short')}
-            className="bg-slate-800 border border-slate-600 text-slate-200 text-sm rounded px-3 py-1.5"
+            className="bg-secondary border border-border text-foreground text-sm rounded px-3 py-1.5"
           >
             <option value="long">做多</option>
             <option value="short">做空</option>
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] text-slate-500 uppercase tracking-wide">部位模式</label>
+          <label className="text-[10px] text-muted-foreground uppercase tracking-wide">部位模式</label>
           <select
             value={posMode}
             onChange={e => setPosMode(e.target.value as PositionMode)}
-            className="bg-slate-800 border border-slate-600 text-slate-200 text-sm rounded px-3 py-1.5"
+            className="bg-secondary border border-border text-foreground text-sm rounded px-3 py-1.5"
           >
             {(Object.entries(POS_MODE_LABELS) as [PositionMode, string][]).map(([k, v]) => (
               <option key={k} value={k}>{v}</option>
@@ -255,11 +255,11 @@ export function CapitalBacktestPanel({ sessions }: CapitalBacktestPanelProps) {
         </div>
         {posMode === 'fixed_pct' && (
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-slate-500 uppercase tracking-wide">倉位比例</label>
+            <label className="text-[10px] text-muted-foreground uppercase tracking-wide">倉位比例</label>
             <select
               value={positionPct}
               onChange={e => setPositionPct(Number(e.target.value))}
-              className="bg-slate-800 border border-slate-600 text-slate-200 text-sm rounded px-3 py-1.5"
+              className="bg-secondary border border-border text-foreground text-sm rounded px-3 py-1.5"
             >
               {[0.25, 0.5, 0.75, 1.0].map(v => (
                 <option key={v} value={v}>{(v * 100).toFixed(0)}%</option>
@@ -268,11 +268,11 @@ export function CapitalBacktestPanel({ sessions }: CapitalBacktestPanelProps) {
           </div>
         )}
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] text-slate-500 uppercase tracking-wide">排序因子</label>
+          <label className="text-[10px] text-muted-foreground uppercase tracking-wide">排序因子</label>
           <select
             value={factor}
             onChange={e => setFactor(e.target.value as RankingFactor)}
-            className="bg-slate-800 border border-slate-600 text-slate-200 text-sm rounded px-3 py-1.5"
+            className="bg-secondary border border-border text-foreground text-sm rounded px-3 py-1.5"
           >
             {(Object.entries(FACTOR_LABELS) as [RankingFactor, string][]).map(([k, v]) => (
               <option key={k} value={k}>{v}</option>
@@ -280,11 +280,11 @@ export function CapitalBacktestPanel({ sessions }: CapitalBacktestPanelProps) {
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] text-slate-500 uppercase tracking-wide">最大持倉數</label>
+          <label className="text-[10px] text-muted-foreground uppercase tracking-wide">最大持倉數</label>
           <select
             value={maxPositions}
             onChange={e => setMaxPositions(Number(e.target.value))}
-            className="bg-slate-800 border border-slate-600 text-slate-200 text-sm rounded px-3 py-1.5"
+            className="bg-secondary border border-border text-foreground text-sm rounded px-3 py-1.5"
           >
             {[1, 2, 3, 5].map(n => <option key={n} value={n}>{n} 檔</option>)}
           </select>
@@ -294,7 +294,7 @@ export function CapitalBacktestPanel({ sessions }: CapitalBacktestPanelProps) {
       <button
         onClick={run}
         disabled={loading || validSessions.length === 0}
-        className="px-6 py-2 text-sm font-medium rounded bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors"
+        className="px-6 py-2 text-sm font-medium rounded bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-foreground transition-colors"
       >
         {loading ? '模擬中…' : '執行資金模擬回測'}
       </button>
@@ -334,12 +334,12 @@ export function CapitalBacktestPanel({ sessions }: CapitalBacktestPanelProps) {
             <Kpi
               label="Sharpe"
               value={result.sharpeRatio != null ? result.sharpeRatio.toFixed(2) : '—'}
-              color={result.sharpeRatio != null ? retColor(result.sharpeRatio) : 'text-slate-400'}
+              color={result.sharpeRatio != null ? retColor(result.sharpeRatio) : 'text-muted-foreground'}
             />
             <Kpi
               label="Profit Factor"
               value={result.profitFactor != null ? result.profitFactor.toFixed(2) : '—'}
-              color={result.profitFactor != null ? retColor(result.profitFactor - 1) : 'text-slate-400'}
+              color={result.profitFactor != null ? retColor(result.profitFactor - 1) : 'text-muted-foreground'}
             />
           </div>
 
@@ -348,7 +348,7 @@ export function CapitalBacktestPanel({ sessions }: CapitalBacktestPanelProps) {
 
           {/* Trades */}
           <div className="space-y-2">
-            <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide border-b border-slate-700 pb-2">
+            <div className="text-xs text-muted-foreground font-semibold uppercase tracking-wide border-b border-border pb-2">
               交易明細
             </div>
             <TradeTable trades={result.trades} />
@@ -357,7 +357,7 @@ export function CapitalBacktestPanel({ sessions }: CapitalBacktestPanelProps) {
       )}
 
       {!loading && validSessions.length === 0 && (
-        <p className="text-slate-600 text-sm">請先執行選股掃描以取得歷史會話</p>
+        <p className="text-muted-foreground/60 text-sm">請先執行選股掃描以取得歷史會話</p>
       )}
     </div>
   );

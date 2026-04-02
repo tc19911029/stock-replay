@@ -10,9 +10,9 @@ function Kpi({ label, value, color, subtext }: {
 }) {
   return (
     <div className="flex flex-col gap-0.5 p-4">
-      <div className="text-[10px] text-slate-500 uppercase tracking-wide">{label}</div>
+      <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</div>
       <div className={`text-lg font-bold leading-tight ${color}`}>{value}</div>
-      {subtext && <div className="text-[10px] text-slate-600 mt-0.5">{subtext}</div>}
+      {subtext && <div className="text-[10px] text-muted-foreground/60 mt-0.5">{subtext}</div>}
     </div>
   );
 }
@@ -45,10 +45,10 @@ export function EquityCurveMini({ trades }: { trades: BacktestTrade[] }) {
   const zeroY = toY(0);
 
   return (
-    <div className="px-5 py-3 border-t border-slate-800 bg-slate-900/40">
+    <div className="px-5 py-3 border-t border-border bg-card/40">
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[10px] text-slate-500 uppercase tracking-wide">累積淨報酬曲線</span>
-        <span className={`text-xs font-bold tabular-nums ${final >= 0 ? 'text-red-400' : 'text-green-500'}`}>
+        <span className="text-[10px] text-muted-foreground uppercase tracking-wide">累積淨報酬曲線</span>
+        <span className={`text-xs font-bold tabular-nums ${final >= 0 ? 'text-bull' : 'text-bear'}`}>
           {final >= 0 ? '+' : ''}{final.toFixed(1)}% 累積
         </span>
       </div>
@@ -81,14 +81,14 @@ interface BacktestStatsPanelProps {
 }
 
 export function BacktestStatsPanel({ stats, tradesCount, trades }: BacktestStatsPanelProps) {
-  const winColor = stats.winRate >= 50 ? 'text-red-400' : 'text-green-500';
+  const winColor = stats.winRate >= 50 ? 'text-bull' : 'text-bear';
   return (
-    <div className="bg-slate-900 border border-slate-700/60 rounded-xl overflow-hidden">
+    <div className="bg-card border border-border/60 rounded-xl overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-800 bg-slate-800/40">
+      <div className="flex items-center gap-3 px-5 py-3 border-b border-border bg-secondary/40">
         <div className="w-1.5 h-4 rounded-full bg-sky-500" />
-        <h3 className="text-sm font-semibold text-slate-100">嚴謹回測統計（含成本）</h3>
-        <div className="ml-auto flex items-center gap-3 text-xs text-slate-400">
+        <h3 className="text-sm font-semibold text-foreground">嚴謹回測統計（含成本）</h3>
+        <div className="ml-auto flex items-center gap-3 text-xs text-muted-foreground">
           <span>{tradesCount} 筆</span>
           <span className={`font-bold text-sm ${winColor}`}>勝率 {stats.winRate}%</span>
           <span className={`font-bold text-sm ${retColor(stats.avgNetReturn)}`}>均值 {fmtRet(stats.avgNetReturn)}</span>
@@ -114,51 +114,51 @@ export function BacktestStatsPanel({ stats, tradesCount, trades }: BacktestStats
       )}
 
       {/* KPI grid */}
-      <div className="grid grid-cols-3 sm:grid-cols-5 divide-x divide-y divide-slate-800/60">
+      <div className="grid grid-cols-3 sm:grid-cols-5 divide-x divide-y divide-border">
         <Kpi label="淨報酬均值"   value={fmtRet(stats.avgNetReturn)}   color={retColor(stats.avgNetReturn)} />
         <Kpi label="毛報酬均值"   value={fmtRet(stats.avgGrossReturn)} color={retColor(stats.avgGrossReturn)} />
         <Kpi label="中位數報酬"   value={fmtRet(stats.medianReturn)}   color={retColor(stats.medianReturn)} />
-        <Kpi label="最大單筆獲利" value={fmtRet(stats.maxGain)}        color="text-red-400" />
-        <Kpi label="最大單筆虧損" value={fmtRet(stats.maxLoss)}        color="text-green-500" />
+        <Kpi label="最大單筆獲利" value={fmtRet(stats.maxGain)}        color="text-bull" />
+        <Kpi label="最大單筆虧損" value={fmtRet(stats.maxLoss)}        color="text-bear" />
         <Kpi label="期望值"       value={fmtRet(stats.expectancy)}     color={retColor(stats.expectancy)} subtext="每筆平均" />
-        <Kpi label="最大回撤 MDD" value={fmtRet(stats.maxDrawdown)}    color="text-green-500" subtext="峰值到谷值" />
-        <Kpi label="勝 / 負筆數"  value={`${stats.wins} / ${stats.losses}`} color="text-slate-200" />
+        <Kpi label="最大回撤 MDD" value={fmtRet(stats.maxDrawdown)}    color="text-bear" subtext="峰值到谷值" />
+        <Kpi label="勝 / 負筆數"  value={`${stats.wins} / ${stats.losses}`} color="text-foreground" />
         <Kpi label="淨報酬加總"   value={fmtRet(stats.totalNetReturn)} color={retColor(stats.totalNetReturn)} subtext="非複利" />
         <Kpi label="勝率"         value={`${stats.winRate}%`}           color={winColor} />
       </div>
 
       {/* Risk metrics footer */}
-      <div className="border-t border-slate-800 px-5 py-3 flex flex-wrap gap-6 bg-slate-800/20">
+      <div className="border-t border-border px-5 py-3 flex flex-wrap gap-6 bg-secondary/20">
         {[
           { label: 'Sharpe Ratio',  val: stats.sharpeRatio?.toFixed(2), color: retColor(stats.sharpeRatio) },
-          { label: 'Profit Factor', val: stats.profitFactor?.toFixed(2), color: stats.profitFactor != null ? (stats.profitFactor >= 1 ? 'text-red-400' : 'text-green-500') : 'text-slate-500' },
-          { label: 'Payoff Ratio',  val: stats.payoffRatio?.toFixed(2),  color: stats.payoffRatio != null ? (stats.payoffRatio >= 1 ? 'text-red-400' : 'text-slate-400') : 'text-slate-500' },
+          { label: 'Profit Factor', val: stats.profitFactor?.toFixed(2), color: stats.profitFactor != null ? (stats.profitFactor >= 1 ? 'text-bull' : 'text-bear') : 'text-muted-foreground' },
+          { label: 'Payoff Ratio',  val: stats.payoffRatio?.toFixed(2),  color: stats.payoffRatio != null ? (stats.payoffRatio >= 1 ? 'text-bull' : 'text-muted-foreground') : 'text-muted-foreground' },
         ].map(({ label, val, color }) => (
           <div key={label} className="flex items-center gap-2">
-            <span className="text-[10px] text-slate-500 uppercase tracking-wide">{label}</span>
-            <span className={`text-sm font-bold ${val ? color : 'text-slate-500'}`}>{val ?? '–'}</span>
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</span>
+            <span className={`text-sm font-bold ${val ? color : 'text-muted-foreground'}`}>{val ?? '–'}</span>
           </div>
         ))}
         <div className="flex items-center gap-2 ml-auto">
-          <span className="text-[10px] text-slate-500 uppercase tracking-wide">覆蓋率</span>
-          <span className={`text-sm font-semibold ${stats.coverageRate >= 90 ? 'text-slate-300' : 'text-amber-400'}`}>
+          <span className="text-[10px] text-muted-foreground uppercase tracking-wide">覆蓋率</span>
+          <span className={`text-sm font-semibold ${stats.coverageRate >= 90 ? 'text-foreground/80' : 'text-amber-400'}`}>
             {stats.coverageRate}%
           </span>
           {stats.skippedCount > 0 && (
-            <span className="text-[10px] text-slate-600">（跳過 {stats.skippedCount} 筆）</span>
+            <span className="text-[10px] text-muted-foreground/60">（跳過 {stats.skippedCount} 筆）</span>
           )}
         </div>
       </div>
 
       {/* Market comparison note */}
       {stats.avgNetReturn != null && (
-        <div className="px-5 py-2 bg-slate-800/30 border-t border-slate-800/50 text-[11px] text-slate-500">
+        <div className="px-5 py-2 bg-secondary/30 border-t border-border/50 text-[11px] text-muted-foreground">
           提醒：回測績效需與同期大盤表現對比才有意義。
         </div>
       )}
 
       {/* Cost model */}
-      <div className="px-5 py-2 border-t border-slate-800/50 text-[10px] text-slate-600 flex flex-wrap gap-x-4 gap-y-0.5">
+      <div className="px-5 py-2 border-t border-border/50 text-[10px] text-muted-foreground/60 flex flex-wrap gap-x-4 gap-y-0.5">
         <span>台股：手續費 0.1425%×0.6 + 證交稅 0.3%</span>
         <span>陸股：佣金 0.025% + 印花稅 0.1%</span>
         <span>滑點 0.1%（買高賣低）</span>

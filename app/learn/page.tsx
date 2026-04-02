@@ -106,7 +106,7 @@ export default function LearnPage() {
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-2xl font-bold mb-2">技術分析學習手冊</h1>
-          <p className="text-slate-400">
+          <p className="text-muted-foreground">
             從基礎理論到實戰應用，系統性學習股票技術分析
           </p>
         </div>
@@ -115,7 +115,7 @@ export default function LearnPage() {
           const chapters = CHAPTERS.filter(ch => ch.category === cat);
           return (
             <div key={cat} className="mb-8">
-              <h2 className="text-lg font-semibold mb-3 text-slate-300">{cat}</h2>
+              <h2 className="text-lg font-semibold mb-3 text-foreground/80">{cat}</h2>
               <div className="grid gap-3">
                 {chapters.map((ch) => {
                   const Icon = ch.icon;
@@ -123,22 +123,22 @@ export default function LearnPage() {
                     <Link
                       key={ch.slug}
                       href={`/learn/${ch.slug}`}
-                      className={`block border rounded-lg p-4 transition-colors hover:bg-slate-800/50 ${CATEGORY_COLORS[ch.category]}`}
+                      className={`block border rounded-lg p-4 transition-colors hover:bg-secondary/50 ${CATEGORY_COLORS[ch.category]}`}
                     >
                       <div className="flex items-start gap-3">
-                        <div className="mt-0.5 text-slate-400">
+                        <div className="mt-0.5 text-muted-foreground">
                           <Icon size={20} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-medium text-white">{ch.title}</h3>
+                            <h3 className="font-medium text-foreground">{ch.title}</h3>
                             <span className={`text-xs px-2 py-0.5 rounded-full ${CATEGORY_BADGE[ch.category]}`}>
                               {ch.category}
                             </span>
                           </div>
-                          <p className="text-sm text-slate-400">{ch.subtitle}</p>
+                          <p className="text-sm text-muted-foreground">{ch.subtitle}</p>
                         </div>
-                        <span className="text-slate-600 text-sm shrink-0">&rarr;</span>
+                        <span className="text-muted-foreground/60 text-sm shrink-0">&rarr;</span>
                       </div>
                     </Link>
                   );

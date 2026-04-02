@@ -2,8 +2,10 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
+import { toast } from 'sonner';
 import { useWatchlistStore } from '@/store/watchlistStore';
 import { useSettingsStore } from '@/store/settingsStore';
+import { PageShell } from '@/components/shared';
 
 interface ConditionData {
   symbol: string;
@@ -37,7 +39,6 @@ export default function WatchlistPage() {
   const [data, setData] = useState<Record<string, ConditionData>>({});
   const [addInput, setAddInput] = useState('');
   const [addLoading, setAddLoading] = useState(false);
-  const [addError, setAddError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -70,7 +71,6 @@ export default function WatchlistPage() {
     const sym = addInput.trim();
     if (!sym) return;
     setAddLoading(true);
-    setAddError(null);
     try {
       const res = await fetch(`/api/watchlist/conditions?symbol=${encodeURIComponent(sym)}&strategyId=${encodeURIComponent(useSettingsStore.getState().activeStrategyId)}`);
       const json = await res.json();
@@ -78,9 +78,9 @@ export default function WatchlistPage() {
       add(json.symbol, json.name);
       setData(prev => ({ ...prev, [json.symbol]: { ...json, loading: false } }));
       setAddInput('');
+      toast.success(`已加入 ${json.name || json.symbol}`);
     } catch (err) {
-      setAddError(err instanceof Error ? err.message : '找不到股票，請確認代號是否正確');
-      setTimeout(() => setAddError(null), 5000);
+      toast.error(err instanceof Error ? err.message : '找不到股票，請確認代號是否正確');
     } finally {
       setAddLoading(false);
     }
@@ -96,32 +96,20 @@ export default function WatchlistPage() {
     return sb - sa;
   });
 
-  return (
-    <div className="min-h-screen bg-[#0b1120] text-white">
-      <header className="border-b border-slate-800 bg-slate-950 px-3 sm:px-4 py-2 sm:py-2.5 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-3 min-w-0">
-          <Link href="/" className="text-sky-400 hover:text-sky-300 text-sm font-medium transition shrink-0">← 走圖</Link>
-          <span className="w-px h-4 bg-slate-700 shrink-0" />
-          <span className="text-base font-bold whitespace-nowrap">⭐ 自選股清單</span>
-          <span className="relative group cursor-help">
-            <span className="text-[10px] w-4 h-4 flex items-center justify-center rounded-full bg-slate-700 text-slate-400">?</span>
-            <div className="absolute z-50 left-0 top-full mt-1 hidden group-hover:block w-56 p-2.5 rounded-lg bg-slate-800 border border-slate-600 text-[11px] text-slate-300 shadow-lg">
-              追蹤感興趣的個股，即時查看六大條件評分和飆股潛力。輸入股票代號加入自選。
-            </div>
-          </span>
-          <span className="text-xs text-slate-500 shrink-0">{items.length} 支</span>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {lastUpdated && <span className="text-[10px] text-slate-600 hidden sm:block">{lastUpdated} 更新</span>}
-          <button onClick={refreshAll} disabled={isRefreshing}
-            className="text-xs px-3 py-1.5 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 rounded-lg transition text-slate-300 flex items-center gap-1.5 font-medium">
-            <span className={isRefreshing ? 'animate-spin' : ''}>↻</span><span>{isRefreshing ? '刷新中...' : '重新整理'}</span>
-          </button>
-          <Link href="/scanner"  className="text-xs px-2 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg transition text-slate-400 hover:text-white">掃描</Link>
-          <Link href="/settings" className="text-xs px-2 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg transition text-slate-400 hover:text-white">⚙</Link>
-        </div>
-      </header>
+  const watchlistHeader = (
+    <div className="flex items-center gap-2 text-xs">
+      <span className="font-bold text-sm whitespace-nowrap">⭐ 自選股</span>
+      <span className="text-muted-foreground shrink-0">{items.length} 支</span>
+      {lastUpdated && <span className="text-muted-foreground/60 hidden sm:block">{lastUpdated}</span>}
+      <button onClick={refreshAll} disabled={isRefreshing}
+        className="px-2 py-1 bg-muted hover:bg-muted/80 disabled:opacity-50 rounded transition text-foreground/80 flex items-center gap-1 font-medium">
+        <span className={isRefreshing ? 'animate-spin' : ''}>↻</span><span className="hidden sm:inline">{isRefreshing ? '刷新中' : '刷新'}</span>
+      </button>
+    </div>
+  );
 
+  return (
+    <PageShell headerSlot={watchlistHeader}>
       <div className="p-3 sm:p-4 max-w-4xl mx-auto space-y-3 sm:space-y-4">
 
         {/* Add stock input */}
@@ -131,26 +119,19 @@ export default function WatchlistPage() {
             onChange={e => setAddInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleAdd()}
             placeholder="輸入股票代號（如：2330、AAPL）"
-            className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+            className="flex-1 bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-blue-500"
           />
           <button onClick={handleAdd} disabled={addLoading || !addInput.trim()}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 rounded-lg text-sm font-bold transition">
             {addLoading ? '載入中...' : '+ 加入'}
           </button>
         </div>
-        {addError && (
-          <div className="text-xs text-red-400 bg-red-900/20 border border-red-800/40 rounded-lg px-3 py-2 flex items-center gap-2">
-            <span>⚠</span> {addError}
-            <button onClick={() => setAddError(null)} className="ml-auto text-slate-500 hover:text-white">✕</button>
-          </div>
-        )}
-
         {items.length === 0 && (
-          <div className="text-center py-20 text-slate-500 border border-dashed border-slate-700 rounded-xl">
+          <div className="text-center py-20 text-muted-foreground border border-dashed border-border rounded-xl">
             <p className="text-5xl mb-4">⭐</p>
-            <p className="text-sm font-medium text-slate-400">尚未加入任何自選股</p>
-            <p className="text-xs text-slate-600 mt-1">在上方輸入股票代號，或從掃描結果直接加入</p>
-            <Link href="/scanner" className="inline-block mt-4 text-xs px-4 py-1.5 bg-blue-600/80 hover:bg-blue-500 rounded-lg text-white font-medium transition">
+            <p className="text-sm font-medium text-muted-foreground">尚未加入任何自選股</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">在上方輸入股票代號，或從掃描結果直接加入</p>
+            <Link href="/scanner" className="inline-block mt-4 text-xs px-4 py-1.5 bg-blue-600/80 hover:bg-blue-500 rounded-lg text-foreground font-medium transition">
               前往掃描
             </Link>
           </div>
@@ -162,41 +143,41 @@ export default function WatchlistPage() {
             const d = data[item.symbol];
             const score = d?.sixConditions?.totalScore ?? null;
             const isUp = (d?.changePercent ?? 0) >= 0;
-            const scoreColor = score == null ? 'bg-slate-700 text-slate-400' :
+            const scoreColor = score == null ? 'bg-muted text-muted-foreground' :
               score >= 5 ? 'bg-green-600 text-white' :
-              score >= 3 ? 'bg-yellow-500 text-black' : 'bg-slate-600 text-slate-300';
+              score >= 3 ? 'bg-yellow-500 text-black' : 'bg-muted text-foreground/80';
 
             return (
-              <div key={item.symbol} className={`bg-slate-800 border rounded-xl overflow-hidden ${
-                d?.hasBuySignal ? 'border-red-500/50' : 'border-slate-700'
+              <div key={item.symbol} className={`bg-secondary border rounded-xl overflow-hidden ${
+                d?.hasBuySignal ? 'border-red-500/50' : 'border-border'
               }`}>
                 {/* Header row */}
                 <div className="flex items-center gap-3 px-4 py-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-white">{item.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</span>
-                      <span className="text-xs text-slate-400 truncate">{d?.name ?? item.name}</span>
-                      {d?.hasBuySignal && <span className="text-[10px] bg-red-600 text-white px-1.5 py-0.5 rounded font-bold">買入訊號</span>}
+                      <span className="font-bold text-foreground">{item.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</span>
+                      <span className="text-xs text-muted-foreground truncate">{d?.name ?? item.name}</span>
+                      {d?.hasBuySignal && <span className="text-[10px] bg-red-600 text-foreground px-1.5 py-0.5 rounded font-bold">買入訊號</span>}
                     </div>
                     {/* Condition chips */}
                     {d?.sixConditions && (
                       <div className="flex gap-1 mt-1.5 flex-wrap">
                         {COND_KEYS.map(key => (
                           <span key={key} className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                            d.sixConditions[key]?.pass ? 'bg-red-900/60 text-red-300' : 'bg-slate-700 text-slate-500 line-through'
+                            d.sixConditions[key]?.pass ? 'bg-red-900/60 text-red-300' : 'bg-muted text-muted-foreground line-through'
                           }`}>{COND_NAMES[key]}</span>
                         ))}
                       </div>
                     )}
-                    {d?.loading && <p className="text-xs text-slate-500 mt-1 animate-pulse">載入中...</p>}
+                    {d?.loading && <p className="text-xs text-muted-foreground mt-1 animate-pulse">載入中...</p>}
                     {d?.error && <p className="text-xs text-red-400 mt-1">⚠ {d.error}</p>}
                   </div>
 
                   {/* Price */}
                   {d && !d.loading && !d.error && (
                     <div className="text-right shrink-0">
-                      <div className="font-mono font-bold text-white">${d.price.toFixed(2)}</div>
-                      <div className={`text-xs font-mono ${isUp ? 'text-red-400' : 'text-green-400'}`}>
+                      <div className="font-mono font-bold text-foreground">${d.price.toFixed(2)}</div>
+                      <div className={`text-xs font-mono ${isUp ? 'text-bull' : 'text-bear'}`}>
                         {isUp ? '+' : ''}{d.changePercent.toFixed(2)}%
                       </div>
                     </div>
@@ -208,7 +189,7 @@ export default function WatchlistPage() {
                       d.surgeGrade === 'S' ? 'bg-red-600 text-white' :
                       d.surgeGrade === 'A' ? 'bg-orange-500 text-white' :
                       d.surgeGrade === 'B' ? 'bg-yellow-500 text-black' :
-                      'bg-slate-600 text-slate-300'
+                      'bg-muted text-foreground/80'
                     }`}>{d.surgeGrade}</span>
                   )}
 
@@ -226,7 +207,7 @@ export default function WatchlistPage() {
                       className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs font-bold transition"
                     >走圖</Link>
                     <button onClick={() => remove(item.symbol)}
-                      className="px-2 py-1 bg-slate-700 hover:bg-red-900/60 hover:text-red-300 rounded text-xs text-slate-400 transition">
+                      className="px-2 py-1 bg-muted hover:bg-red-900/60 hover:text-red-300 rounded text-xs text-muted-foreground transition">
                       ✕
                     </button>
                   </div>
@@ -235,9 +216,9 @@ export default function WatchlistPage() {
                 {/* Trend / position info row */}
                 {d && !d.loading && !d.error && (
                   <div className="px-4 pb-2.5 flex items-center gap-2 flex-wrap">
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-700/80 text-slate-300 font-medium">{d.trend}</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-700/80 text-slate-300 font-medium">{d.position}</span>
-                    <span className="ml-auto text-[10px] text-slate-600">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-popover text-foreground/80 font-medium">{d.trend}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-popover text-foreground/80 font-medium">{d.position}</span>
+                    <span className="ml-auto text-[10px] text-muted-foreground/60">
                       加入 {new Date(item.addedAt).toLocaleDateString('zh-TW')}
                     </span>
                   </div>
@@ -247,6 +228,6 @@ export default function WatchlistPage() {
           })}
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 }

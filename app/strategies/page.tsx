@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
+import { PageShell } from '@/components/shared';
 import { useSettingsStore } from '@/store/settingsStore';
 import {
   BUILT_IN_STRATEGIES,
@@ -47,7 +47,7 @@ function formatThresholdValue(key: keyof StrategyThresholds, value: number | boo
   return String(value);
 }
 
-const INPUT_CLASS = 'w-full bg-slate-800 border border-slate-600 rounded px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500';
+const INPUT_CLASS = 'w-full bg-secondary border border-border rounded px-3 py-1.5 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-blue-500';
 
 // ── Strategy Card ─────────────────────────────────────────────────────────────
 
@@ -70,22 +70,22 @@ function StrategyCard({ strategy, isActive, isSelected, onSelect, onActivate, on
           ? 'border-blue-500 bg-blue-900/20'
           : isActive
           ? 'border-violet-500 bg-violet-900/10'
-          : 'border-slate-700 bg-slate-800/50 hover:border-slate-500'
+          : 'border-border bg-secondary/50 hover:border-muted-foreground'
       }`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-semibold text-white">{strategy.name}</span>
+            <span className="text-sm font-semibold text-foreground">{strategy.name}</span>
             {isActive && (
-              <span className="text-xs px-1.5 py-0.5 bg-violet-600 rounded text-white">使用中</span>
+              <span className="text-xs px-1.5 py-0.5 bg-violet-600 rounded text-foreground">使用中</span>
             )}
             {strategy.isBuiltIn && (
-              <span className="text-xs px-1.5 py-0.5 bg-slate-600 rounded text-slate-300">內建</span>
+              <span className="text-xs px-1.5 py-0.5 bg-muted rounded text-foreground/80">內建</span>
             )}
           </div>
-          <p className="text-xs text-slate-400 mt-1 leading-relaxed">{strategy.description}</p>
-          <div className="flex gap-3 mt-2 text-xs text-slate-500">
+          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{strategy.description}</p>
+          <div className="flex gap-3 mt-2 text-xs text-muted-foreground">
             <span>v{strategy.version}</span>
             <span>作者：{strategy.author}</span>
           </div>
@@ -97,14 +97,14 @@ function StrategyCard({ strategy, isActive, isSelected, onSelect, onActivate, on
             className={`text-xs px-3 py-1 rounded font-medium transition ${
               isActive
                 ? 'bg-violet-800 text-violet-400 cursor-default'
-                : 'bg-violet-600 hover:bg-violet-500 text-white'
+                : 'bg-violet-600 hover:bg-violet-500 text-foreground'
             }`}
           >
             {isActive ? '已啟用' : '啟用'}
           </button>
           <button
             onClick={e => { e.stopPropagation(); onDuplicate(); }}
-            className="text-xs px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 transition"
+            className="text-xs px-3 py-1 rounded bg-muted hover:bg-muted text-foreground/80 transition"
           >
             複製
           </button>
@@ -134,12 +134,12 @@ function StrategyDetail({
   const editable = !strategy.isBuiltIn && !!onUpdate;
 
   return (
-    <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-5 space-y-5">
+    <div className="rounded-xl border border-border bg-secondary/50 p-5 space-y-5">
       {/* Editable name/description for custom strategies */}
       {editable && (
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2 sm:col-span-1">
-            <label className="text-xs text-slate-400 mb-1 block">策略名稱</label>
+            <label className="text-xs text-muted-foreground mb-1 block">策略名稱</label>
             <input
               value={strategy.name}
               onChange={e => onUpdate({ name: e.target.value })}
@@ -147,7 +147,7 @@ function StrategyDetail({
             />
           </div>
           <div className="col-span-2 sm:col-span-1">
-            <label className="text-xs text-slate-400 mb-1 block">說明</label>
+            <label className="text-xs text-muted-foreground mb-1 block">說明</label>
             <input
               value={strategy.description}
               onChange={e => onUpdate({ description: e.target.value })}
@@ -159,7 +159,7 @@ function StrategyDetail({
 
       {/* Condition Toggles */}
       <div>
-        <h3 className="text-sm font-semibold text-white mb-3">條件開關</h3>
+        <h3 className="text-sm font-semibold text-foreground mb-3">條件開關</h3>
         <div className="grid grid-cols-2 gap-2">
           {(Object.keys(strategy.conditions) as Array<keyof StrategyConditionToggles>).map(key => (
             <label key={key} className="flex items-center gap-2 cursor-pointer">
@@ -173,9 +173,9 @@ function StrategyDetail({
                   className="w-3.5 h-3.5 rounded accent-green-500"
                 />
               ) : (
-                <span className={`w-2 h-2 rounded-full shrink-0 ${strategy.conditions[key] ? 'bg-green-400' : 'bg-slate-600'}`} />
+                <span className={`w-2 h-2 rounded-full shrink-0 ${strategy.conditions[key] ? 'bg-green-400' : 'bg-muted'}`} />
               )}
-              <span className="text-xs text-slate-300">{CONDITION_LABELS[key]}</span>
+              <span className="text-xs text-foreground/80">{CONDITION_LABELS[key]}</span>
             </label>
           ))}
         </div>
@@ -183,14 +183,14 @@ function StrategyDetail({
 
       {/* Threshold params */}
       <div>
-        <h3 className="text-sm font-semibold text-white mb-3">閾值參數</h3>
+        <h3 className="text-sm font-semibold text-foreground mb-3">閾值參數</h3>
         <div className="grid grid-cols-2 gap-x-6 gap-y-2">
           {(Object.keys(strategy.thresholds) as Array<keyof StrategyThresholds>).map(key => {
             const val = strategy.thresholds[key];
             if (typeof val === 'boolean') {
               return (
                 <label key={key} className="flex justify-between items-center text-xs cursor-pointer">
-                  <span className="text-slate-400">{THRESHOLD_LABELS[key]}</span>
+                  <span className="text-muted-foreground">{THRESHOLD_LABELS[key]}</span>
                   {editable ? (
                     <input
                       type="checkbox"
@@ -201,14 +201,14 @@ function StrategyDetail({
                       className="w-3.5 h-3.5 rounded accent-blue-500"
                     />
                   ) : (
-                    <span className="text-white font-mono ml-2">{val ? '啟用' : '停用'}</span>
+                    <span className="text-foreground font-mono ml-2">{val ? '啟用' : '停用'}</span>
                   )}
                 </label>
               );
             }
             return (
               <div key={key} className="flex justify-between items-center text-xs">
-                <span className="text-slate-400">{THRESHOLD_LABELS[key]}</span>
+                <span className="text-muted-foreground">{THRESHOLD_LABELS[key]}</span>
                 {editable ? (
                   <input
                     type="number"
@@ -217,10 +217,10 @@ function StrategyDetail({
                     onChange={e => onUpdate({
                       thresholds: { ...strategy.thresholds, [key]: Number(e.target.value) },
                     })}
-                    className="w-20 bg-slate-800 border border-slate-600 rounded px-2 py-0.5 text-xs text-white font-mono text-right focus:outline-none focus:border-blue-500"
+                    className="w-20 bg-secondary border border-border rounded px-2 py-0.5 text-xs text-foreground font-mono text-right focus:outline-none focus:border-blue-500"
                   />
                 ) : (
-                  <span className="text-white font-mono ml-2">
+                  <span className="text-foreground font-mono ml-2">
                     {formatThresholdValue(key, val)}
                   </span>
                 )}
@@ -264,23 +264,23 @@ function AddStrategyForm({ onAdd, onCancel, initial }: {
 
   return (
     <div className="rounded-xl border border-blue-600/50 bg-blue-900/10 p-5 space-y-4">
-      <h3 className="text-sm font-semibold text-white">
+      <h3 className="text-sm font-semibold text-foreground">
         {initial ? '複製策略' : '新增自訂策略'}
       </h3>
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2 sm:col-span-1">
-          <label className="text-xs text-slate-400 mb-1 block">策略名稱</label>
+          <label className="text-xs text-muted-foreground mb-1 block">策略名稱</label>
           <input value={name} onChange={e => setName(e.target.value)} placeholder="例：我的策略 v1" className={INPUT_CLASS} />
         </div>
         <div className="col-span-2 sm:col-span-1">
-          <label className="text-xs text-slate-400 mb-1 block">說明</label>
+          <label className="text-xs text-muted-foreground mb-1 block">說明</label>
           <input value={description} onChange={e => setDescription(e.target.value)} placeholder="策略說明..." className={INPUT_CLASS} />
         </div>
       </div>
 
       {/* Condition toggles */}
       <div>
-        <h4 className="text-xs font-semibold text-slate-400 mb-2">條件開關</h4>
+        <h4 className="text-xs font-semibold text-muted-foreground mb-2">條件開關</h4>
         <div className="grid grid-cols-2 gap-2">
           {(Object.keys(conditions) as Array<keyof StrategyConditionToggles>).map(key => (
             <label key={key} className="flex items-center gap-2 cursor-pointer">
@@ -290,7 +290,7 @@ function AddStrategyForm({ onAdd, onCancel, initial }: {
                 onChange={e => setConditions(c => ({ ...c, [key]: e.target.checked }))}
                 className="w-3.5 h-3.5 rounded accent-green-500"
               />
-              <span className="text-xs text-slate-300">{CONDITION_LABELS[key]}</span>
+              <span className="text-xs text-foreground/80">{CONDITION_LABELS[key]}</span>
             </label>
           ))}
         </div>
@@ -298,7 +298,7 @@ function AddStrategyForm({ onAdd, onCancel, initial }: {
 
       {/* Key thresholds */}
       <div>
-        <h4 className="text-xs font-semibold text-slate-400 mb-2">主要參數</h4>
+        <h4 className="text-xs font-semibold text-muted-foreground mb-2">主要參數</h4>
         <div className="grid grid-cols-2 gap-4">
           {([
             { key: 'minScore' as const, label: '最低進場分數', min: 1, max: 6, step: 1 },
@@ -311,7 +311,7 @@ function AddStrategyForm({ onAdd, onCancel, initial }: {
             { key: 'bearMinScore' as const, label: '空頭最低分數', min: 1, max: 6, step: 1 },
           ] as const).map(({ key, label, min, max, step }) => (
             <div key={key}>
-              <label className="text-xs text-slate-400 mb-1 block">{label}</label>
+              <label className="text-xs text-muted-foreground mb-1 block">{label}</label>
               <input
                 type="number" min={min} max={max} step={step}
                 value={thresholds[key] as number}
@@ -327,11 +327,11 @@ function AddStrategyForm({ onAdd, onCancel, initial }: {
         <button
           onClick={handleSubmit}
           disabled={!name.trim()}
-          className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 text-white text-sm rounded font-medium transition"
+          className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-muted disabled:text-muted-foreground text-foreground text-sm rounded font-medium transition"
         >
           {initial ? '建立複製' : '新增策略'}
         </button>
-        <button onClick={onCancel} className="px-4 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm rounded transition">
+        <button onClick={onCancel} className="px-4 py-1.5 bg-muted hover:bg-muted text-foreground/80 text-sm rounded transition">
           取消
         </button>
       </div>
@@ -371,30 +371,25 @@ export default function StrategiesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0b1120] text-white">
-      {/* Header */}
-      <header className="border-b border-slate-800 px-4 py-3 flex items-center gap-3">
-        <Link href="/" className="text-sm text-slate-400 hover:text-white transition">
-          ← 主頁
-        </Link>
-        <span className="text-slate-700">|</span>
-        <h1 className="text-sm font-semibold text-white">策略管理</h1>
+    <PageShell headerSlot={
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-semibold text-foreground">策略管理</span>
         <span className="relative group cursor-help">
-          <span className="text-[10px] w-4 h-4 flex items-center justify-center rounded-full bg-slate-700 text-slate-400">?</span>
-          <div className="absolute z-50 left-0 top-full mt-1 hidden group-hover:block w-60 p-2.5 rounded-lg bg-slate-800 border border-slate-600 text-[11px] text-slate-300 shadow-lg">
+          <span className="text-[10px] w-4 h-4 flex items-center justify-center rounded-full bg-muted text-muted-foreground">?</span>
+          <div className="absolute z-50 left-0 top-full mt-1 hidden group-hover:block w-60 p-2.5 rounded-lg bg-secondary border border-border text-[11px] text-foreground/80 shadow-lg">
             調整六大條件的門檻參數，或建立自訂策略版本。不同市場環境可切換不同策略。
           </div>
         </span>
-        <span className="text-xs text-slate-500 ml-auto">
+        <span className="text-xs text-muted-foreground">
           目前使用：<span className="text-violet-400">{allStrategies.find(s => s.id === activeStrategyId)?.name}</span>
         </span>
-      </header>
-
+      </div>
+    }>
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
 
         {/* Strategy Cards Grid */}
         <div>
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">策略列表</h2>
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">策略列表</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {allStrategies.map(s => (
               <StrategyCard
@@ -416,7 +411,7 @@ export default function StrategiesPage() {
             {!showAddForm && (
               <button
                 onClick={() => { setDuplicateSource(null); setShowAddForm(true); }}
-                className="rounded-xl border border-dashed border-slate-600 bg-transparent hover:border-slate-400 hover:bg-slate-800/30 p-4 text-slate-500 hover:text-slate-300 transition text-sm font-medium flex items-center justify-center gap-2"
+                className="rounded-xl border border-dashed border-border bg-transparent hover:border-muted-foreground hover:bg-secondary/30 p-4 text-muted-foreground hover:text-foreground/80 transition text-sm font-medium flex items-center justify-center gap-2"
               >
                 <span className="text-lg leading-none">+</span>
                 新增自訂策略
@@ -437,7 +432,7 @@ export default function StrategiesPage() {
         {/* Strategy Detail (editable for custom strategies) */}
         {selectedStrategy && (
           <div>
-            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
               策略詳情：{selectedStrategy.name}
               {!selectedStrategy.isBuiltIn && (
                 <span className="text-blue-400 ml-2 font-normal">（可直接編輯）</span>
@@ -455,17 +450,17 @@ export default function StrategiesPage() {
 
         {/* Strategy Comparison Table */}
         <div>
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
             策略參數比較
           </h2>
-          <div className="overflow-x-auto rounded-xl border border-slate-700">
+          <div className="overflow-x-auto rounded-xl border border-border">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-slate-700 bg-slate-800/60">
-                  <th className="text-left px-4 py-2.5 text-slate-400 font-medium whitespace-nowrap">參數</th>
+                <tr className="border-b border-border bg-secondary/60">
+                  <th className="text-left px-4 py-2.5 text-muted-foreground font-medium whitespace-nowrap">參數</th>
                   {allStrategies.map(s => (
                     <th key={s.id} className="text-center px-4 py-2.5 font-medium whitespace-nowrap">
-                      <span className={s.id === activeStrategyId ? 'text-violet-400' : 'text-slate-300'}>
+                      <span className={s.id === activeStrategyId ? 'text-violet-400' : 'text-foreground/80'}>
                         {s.name}
                       </span>
                       {s.id === activeStrategyId && (
@@ -477,10 +472,10 @@ export default function StrategiesPage() {
               </thead>
               <tbody>
                 {(Object.keys(allStrategies[0].thresholds) as Array<keyof StrategyThresholds>).map((key, i) => (
-                  <tr key={key} className={`border-b border-slate-800 ${i % 2 === 0 ? '' : 'bg-slate-800/20'}`}>
-                    <td className="px-4 py-2 text-slate-400">{THRESHOLD_LABELS[key]}</td>
+                  <tr key={key} className={`border-b border-border ${i % 2 === 0 ? '' : 'bg-secondary/20'}`}>
+                    <td className="px-4 py-2 text-muted-foreground">{THRESHOLD_LABELS[key]}</td>
                     {allStrategies.map(s => (
-                      <td key={s.id} className="px-4 py-2 text-center font-mono text-slate-200">
+                      <td key={s.id} className="px-4 py-2 text-center font-mono text-foreground/90">
                         {formatThresholdValue(key, s.thresholds[key] as number | boolean)}
                       </td>
                     ))}
@@ -492,6 +487,6 @@ export default function StrategiesPage() {
         </div>
 
       </div>
-    </div>
+    </PageShell>
   );
 }

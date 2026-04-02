@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import {
   MarketId, StockScanResult, StockForwardPerformance, BacktestSession,
+  sanitizeScanResult,
 } from '@/lib/scanner/types';
 import { TrendState } from '@/lib/analysis/trendAnalysis';
 import { calcBacktestSummary } from '@/lib/backtest/ForwardAnalyzer';
@@ -14,6 +15,9 @@ import {
   WalkForwardResult, WalkForwardSession, runWalkForward as _runWalkForward,
 } from '@/lib/backtest/WalkForwardTest';
 import { useSettingsStore } from './settingsStore';
+
+// Module-level abort controller for scan operations
+let scanAbortController: AbortController | null = null;
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -105,6 +109,7 @@ interface BacktestState {
   setWalkForwardConfig:   (c: Partial<WalkForwardConfig>) => void;
   computeWalkForward:     () => void;
   runScan:                () => Promise<void>;  // 統一入口（掃描+回測）
+  cancelScan:             () => void;          // 取消進行中的掃描
   runAiRank:              () => Promise<void>;  // AI 排名
   loadSession:            (id: string)  => void;
   clearCurrent:           () => void;
@@ -116,8 +121,26 @@ interface BacktestState {
   isBackfilling: boolean;
   backfillProgress: { done: number; total: number };
 
+  // ── 掃描預設 ──
+  scanPresets: ScanPreset[];
+  saveScanPreset:  (name: string) => void;
+  loadScanPreset:  (id: string) => void;
+  deleteScanPreset: (id: string) => void;
+
   // helpers
   getSummary: (horizon: BacktestHorizon) => BacktestSummary | null;
+}
+
+export interface ScanPreset {
+  id: string;
+  name: string;
+  market: MarketId;
+  scanMode: 'full' | 'pure' | 'sop';
+  scanDirection: 'long' | 'short';
+  useCapitalMode: boolean;
+  capitalConstraints: CapitalConstraints;
+  strategy: BacktestStrategyParams;
+  createdAt: string;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -264,8 +287,21 @@ export const useBacktestStore = create<BacktestState>()(
         }
       },
 
+      cancelScan: () => {
+        if (scanAbortController) {
+          scanAbortController.abort();
+          scanAbortController = null;
+        }
+        set({ isScanning: false, isFetchingForward: false, scanProgress: 0, scanError: '已取消掃描' });
+      },
+
       // ── 統一掃描入口（掃描 + 可選回測） ──
       runScan: async () => {
+        // Cancel any in-flight scan
+        if (scanAbortController) scanAbortController.abort();
+        scanAbortController = new AbortController();
+        const signal = scanAbortController.signal;
+
         const { market, scanDate, strategy, useCapitalMode, capitalConstraints, scanOnly } = get();
 
         // ── Phase 1: Get stock list ──────────────────────────────────────────
@@ -274,11 +310,12 @@ export const useBacktestStore = create<BacktestState>()(
 
         let stocks: Array<{ symbol: string; name: string }>;
         try {
-          const listRes = await fetch(`/api/scanner/list?market=${market}`);
+          const listRes = await fetch(`/api/scanner/list?market=${market}`, { signal });
           if (!listRes.ok) throw new Error('無法取得股票清單');
           const listJson = await listRes.json() as { stocks: Array<{ symbol: string; name: string }> };
           stocks = listJson.stocks ?? [];
         } catch (e) {
+          if (e instanceof DOMException && e.name === 'AbortError') return;
           set({ isScanning: false, scanError: String(e) });
           return;
         }
@@ -310,11 +347,12 @@ export const useBacktestStore = create<BacktestState>()(
               direction: scanDirection,
               ...strategyPayload,
             }),
+            signal,
           });
           if (!res.ok) throw new Error(`掃描失敗 (${res.status})`);
           const json = await res.json() as { results?: StockScanResult[]; marketTrend?: string; error?: string };
           if (json.error) throw new Error(json.error);
-          return { results: json.results ?? [], marketTrend: json.marketTrend ?? null };
+          return { results: (json.results ?? []).map(sanitizeScanResult), marketTrend: json.marketTrend ?? null };
         };
 
         set({ scanProgress: 30 });
@@ -399,6 +437,7 @@ export const useBacktestStore = create<BacktestState>()(
           let skippedByCapital = 0;
           let finalCapital: number | null = null;
           let capitalReturn: number | null = null;
+          let skipReasons: import('@/lib/backtest/BacktestEngine').SkipReasons | undefined;
 
           if (useCapitalMode) {
             const result     = runBatchBacktestWithCapital(combined, candlesMap, strategy, capitalConstraints);
@@ -411,9 +450,10 @@ export const useBacktestStore = create<BacktestState>()(
             const result = runBatchBacktest(combined, candlesMap, strategy);
             trades       = result.trades;
             skippedCount = result.skippedCount;
+            skipReasons  = result.skipReasons;
           }
 
-          const stats = calcBacktestStats(trades, skippedCount);
+          const stats = calcBacktestStats(trades, skippedCount, skipReasons);
 
           // ── Save session ──────────────────────────────────────────────────
           const session: BacktestSession = {
@@ -573,6 +613,7 @@ export const useBacktestStore = create<BacktestState>()(
           let skippedByCapital = 0;
           let finalCapital: number | null = null;
           let capitalReturn: number | null = null;
+          let skipReasonsInc: import('@/lib/backtest/BacktestEngine').SkipReasons | undefined;
 
           if (useCapitalMode) {
             const result = runBatchBacktestWithCapital(scanResults, candlesMap, strategy, capitalConstraints);
@@ -585,9 +626,10 @@ export const useBacktestStore = create<BacktestState>()(
             const result = runBatchBacktest(scanResults, candlesMap, strategy);
             trades = result.trades;
             skippedCount = result.skippedCount;
+            skipReasonsInc = result.skipReasons;
           }
 
-          const stats = calcBacktestStats(trades, skippedCount);
+          const stats = calcBacktestStats(trades, skippedCount, skipReasonsInc);
 
           // Save as session
           const session: BacktestSession = {

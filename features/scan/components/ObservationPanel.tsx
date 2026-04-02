@@ -30,30 +30,30 @@ const FACTOR_LABELS: Record<RankingFactor, string> = {
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-function SummaryKpi({ label, value, sub, color = 'text-white' }: {
+function SummaryKpi({ label, value, sub, color = 'text-foreground' }: {
   label: string; value: string; sub?: string; color?: string;
 }) {
   return (
-    <div className="flex flex-col gap-0.5 p-4 bg-slate-800/60 rounded-lg border border-slate-700/40">
-      <div className="text-[10px] text-slate-500 uppercase tracking-wide">{label}</div>
+    <div className="flex flex-col gap-0.5 p-4 bg-secondary/60 rounded-lg border border-border/40">
+      <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</div>
       <div className={`text-lg font-bold leading-tight ${color}`}>{value}</div>
-      {sub && <div className="text-[10px] text-slate-600 mt-0.5">{sub}</div>}
+      {sub && <div className="text-[10px] text-muted-foreground/60 mt-0.5">{sub}</div>}
     </div>
   );
 }
 
 function icColor(ic: number | undefined): string {
-  if (ic == null) return 'text-slate-400';
-  if (ic > 0.05) return 'text-red-400';
+  if (ic == null) return 'text-muted-foreground';
+  if (ic > 0.05) return 'text-bull';
   if (ic > 0) return 'text-orange-400';
-  if (ic < -0.05) return 'text-green-400';
-  return 'text-slate-400';
+  if (ic < -0.05) return 'text-bear';
+  return 'text-muted-foreground';
 }
 
 function SummarySection({ summary }: { summary: ObservationSummary }) {
   return (
     <div className="space-y-3">
-      <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide border-b border-slate-700 pb-2">
+      <div className="text-xs text-muted-foreground font-semibold uppercase tracking-wide border-b border-border pb-2">
         摘要統計 — {FACTOR_LABELS[summary.rankingFactor as RankingFactor] ?? summary.rankingFactor}
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -86,19 +86,19 @@ function SummarySection({ summary }: { summary: ObservationSummary }) {
 }
 
 function RetCell({ v }: { v: number | undefined }) {
-  if (v == null) return <span className="text-slate-600">—</span>;
+  if (v == null) return <span className="text-muted-foreground/60">—</span>;
   return <span className={retColor(v)}>{fmtRet(v)}</span>;
 }
 
 function RecordsTable({ records }: { records: ObservationRecord[] }) {
   const topN = records.filter(r => r.rank <= 5);
-  if (topN.length === 0) return <p className="text-slate-600 text-sm py-4">無資料</p>;
+  if (topN.length === 0) return <p className="text-muted-foreground/60 text-sm py-4">無資料</p>;
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-xs text-slate-300">
+      <table className="w-full text-xs text-foreground/80">
         <thead>
-          <tr className="border-b border-slate-700 text-slate-500">
+          <tr className="border-b border-border text-muted-foreground">
             <th className="py-2 pr-3 text-left">日期</th>
             <th className="py-2 pr-3 text-left">代號</th>
             <th className="py-2 pr-3 text-center">名次</th>
@@ -116,15 +116,15 @@ function RecordsTable({ records }: { records: ObservationRecord[] }) {
           {topN.map((r, i) => {
             const factorScore = r.compositeScore ?? r.surgeScore ?? r.sixConditionsScore;
             return (
-              <tr key={i} className="border-b border-slate-800/60 hover:bg-slate-800/30">
-                <td className="py-1.5 pr-3 text-slate-500 font-mono">{r.scanDate}</td>
-                <td className="py-1.5 pr-3 font-medium">{r.symbol} <span className="text-slate-500">{r.name}</span></td>
+              <tr key={i} className="border-b border-border/60 hover:bg-muted/30">
+                <td className="py-1.5 pr-3 text-muted-foreground font-mono">{r.scanDate}</td>
+                <td className="py-1.5 pr-3 font-medium">{r.symbol} <span className="text-muted-foreground">{r.name}</span></td>
                 <td className="py-1.5 pr-3 text-center">
-                  <span className={`font-bold ${r.rank === 1 ? 'text-yellow-400' : r.rank <= 3 ? 'text-slate-300' : 'text-slate-500'}`}>
+                  <span className={`font-bold ${r.rank === 1 ? 'text-yellow-400' : r.rank <= 3 ? 'text-foreground/80' : 'text-muted-foreground'}`}>
                     #{r.rank}
                   </span>
                 </td>
-                <td className="py-1.5 pr-3 text-right text-slate-400">{r.sixConditionsScore}/6</td>
+                <td className="py-1.5 pr-3 text-right text-muted-foreground">{r.sixConditionsScore}/6</td>
                 <td className="py-1.5 pr-3 text-right">{factorScore != null ? Math.round(factorScore) : '—'}</td>
                 <td className="py-1.5 pr-3 text-right"><RetCell v={r.returnD1} /></td>
                 <td className="py-1.5 pr-3 text-right"><RetCell v={r.returnD3} /></td>
@@ -154,9 +154,9 @@ function ComparisonTable({ rows }: { rows: FactorComparisonRow[] }) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-xs text-slate-300">
+      <table className="w-full text-xs text-foreground/80">
         <thead>
-          <tr className="border-b border-slate-700 text-slate-500">
+          <tr className="border-b border-border text-muted-foreground">
             <th className="py-2 pr-4 text-left">排序因子</th>
             <th className="py-2 pr-4 text-right">Top-1 勝率</th>
             <th className="py-2 pr-4 text-right">Top-1 均報酬</th>
@@ -168,7 +168,7 @@ function ComparisonTable({ rows }: { rows: FactorComparisonRow[] }) {
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={i} className="border-b border-slate-800/60 hover:bg-slate-800/30">
+            <tr key={i} className="border-b border-border/60 hover:bg-muted/30">
               <td className="py-1.5 pr-4 font-medium">{FACTOR_LABELS[r.factor]}</td>
               <td className={`py-1.5 pr-4 text-right font-mono ${r.top1WinRate === bestTop1WR ? 'text-yellow-400 font-bold' : retColor(r.top1WinRate != null ? r.top1WinRate - 50 : null)}`}>
                 {r.top1WinRate != null ? `${r.top1WinRate}%` : '—'}
@@ -185,12 +185,12 @@ function ComparisonTable({ rows }: { rows: FactorComparisonRow[] }) {
               <td className={`py-1.5 pr-4 text-right font-mono ${r.spearmanIC === bestIC ? 'text-yellow-400 font-bold' : icColor(r.spearmanIC)}`}>
                 {r.spearmanIC != null ? r.spearmanIC.toFixed(3) : '—'}
               </td>
-              <td className="py-1.5 text-right text-slate-500">{r.totalSignals}</td>
+              <td className="py-1.5 text-right text-muted-foreground">{r.totalSignals}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      <p className="text-[10px] text-slate-600 mt-2">黃色 = 各項最佳值</p>
+      <p className="text-[10px] text-muted-foreground/60 mt-2">黃色 = 各項最佳值</p>
     </div>
   );
 }
@@ -300,13 +300,13 @@ export function ObservationPanel({ sessions }: ObservationPanelProps) {
       {/* Controls */}
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] text-slate-500 uppercase tracking-wide">模式</label>
-          <div className="flex rounded overflow-hidden border border-slate-600">
+          <label className="text-[10px] text-muted-foreground uppercase tracking-wide">模式</label>
+          <div className="flex rounded overflow-hidden border border-border">
             {(['single', 'compare'] as const).map(m => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
-                className={`px-3 py-1.5 text-sm ${mode === m ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+                className={`px-3 py-1.5 text-sm ${mode === m ? 'bg-blue-600 text-white' : 'bg-secondary text-muted-foreground hover:bg-muted'}`}
               >
                 {m === 'single' ? '單因子' : '對比所有'}
               </button>
@@ -315,11 +315,11 @@ export function ObservationPanel({ sessions }: ObservationPanelProps) {
         </div>
         {mode === 'single' && (
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-slate-500 uppercase tracking-wide">排序因子</label>
+            <label className="text-[10px] text-muted-foreground uppercase tracking-wide">排序因子</label>
             <select
               value={factor}
               onChange={e => setFactor(e.target.value as RankingFactor)}
-              className="bg-slate-800 border border-slate-600 text-slate-200 text-sm rounded px-3 py-1.5"
+              className="bg-secondary border border-border text-foreground text-sm rounded px-3 py-1.5"
             >
               {(Object.entries(FACTOR_LABELS) as [RankingFactor, string][]).map(([k, v]) => (
                 <option key={k} value={k}>{v}</option>
@@ -328,8 +328,8 @@ export function ObservationPanel({ sessions }: ObservationPanelProps) {
           </div>
         )}
         <div className="flex flex-col gap-1">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wide">會話數</div>
-          <div className="text-sm text-slate-300 py-1.5">{validSessions.length} 個掃描日</div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">會話數</div>
+          <div className="text-sm text-foreground/80 py-1.5">{validSessions.length} 個掃描日</div>
         </div>
         <button
           onClick={runBacktest}
@@ -350,7 +350,7 @@ export function ObservationPanel({ sessions }: ObservationPanelProps) {
 
       {compareRows.length > 0 && (
         <div className="space-y-2">
-          <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide border-b border-slate-700 pb-2">
+          <div className="text-xs text-muted-foreground font-semibold uppercase tracking-wide border-b border-border pb-2">
             排序因子對比（Phase 6 — 找出最佳因子）
           </div>
           <ComparisonTable rows={compareRows} />
@@ -359,7 +359,7 @@ export function ObservationPanel({ sessions }: ObservationPanelProps) {
 
       {records.length > 0 && (
         <div className="space-y-2">
-          <div className="text-xs text-slate-400 font-semibold uppercase tracking-wide border-b border-slate-700 pb-2">
+          <div className="text-xs text-muted-foreground font-semibold uppercase tracking-wide border-b border-border pb-2">
             Top-5 排名紀錄（每日前5名）
           </div>
           <RecordsTable records={records} />
@@ -367,7 +367,7 @@ export function ObservationPanel({ sessions }: ObservationPanelProps) {
       )}
 
       {!loading && validSessions.length === 0 && (
-        <p className="text-slate-600 text-sm">請先執行選股掃描以取得歷史會話</p>
+        <p className="text-muted-foreground/60 text-sm">請先執行選股掃描以取得歷史會話</p>
       )}
     </div>
   );

@@ -1,7 +1,5 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import { ScanPageContent } from '@/features/scan';
-
-export default function ScanPage() {
-  return <ScanPageContent defaultMode="full" />;
+export default function ScanRedirect() {
+  redirect('/scanner?mode=full');
 }

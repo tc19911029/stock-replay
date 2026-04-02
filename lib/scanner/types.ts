@@ -121,6 +121,26 @@ export interface StockScanResult {
   consecutiveForeignBuy?: number;// 外資連續買超天數
 }
 
+/**
+ * Sanitize scan result — replace NaN/undefined numeric fields with safe defaults.
+ * Prevents NaN propagation when external APIs return unexpected data.
+ */
+export function sanitizeScanResult(r: StockScanResult): StockScanResult {
+  const num = (v: unknown, fallback = 0) => (typeof v === 'number' && !Number.isNaN(v) ? v : fallback);
+  return {
+    ...r,
+    price: num(r.price),
+    changePercent: num(r.changePercent),
+    volume: num(r.volume),
+    sixConditionsScore: num(r.sixConditionsScore),
+    surgeScore: r.surgeScore != null ? num(r.surgeScore) : undefined,
+    compositeScore: r.compositeScore != null ? num(r.compositeScore) : undefined,
+    smartMoneyScore: r.smartMoneyScore != null ? num(r.smartMoneyScore) : undefined,
+    histWinRate: r.histWinRate != null ? num(r.histWinRate) : undefined,
+    chipScore: r.chipScore != null ? num(r.chipScore) : undefined,
+  };
+}
+
 export interface MarketConfig {
   marketId: MarketId;
   name: string;

@@ -8,9 +8,9 @@ import { retColor, fmtRet, chipTooltip } from '../utils';
 
 export function trendBadge(t: string) {
   const cls =
-    t === '多頭' ? 'bg-red-900/60 text-red-300 border-red-800' :
-    t === '空頭' ? 'bg-green-900/60 text-green-300 border-green-800' :
-    'bg-slate-700/60 text-slate-300 border-slate-600';
+    t === '多頭' ? 'bg-red-900/60 text-bull-badge border-red-800' :
+    t === '空頭' ? 'bg-green-900/60 text-bear-badge border-green-800' :
+    'bg-muted/60 text-foreground/80 border-border';
   return (
     <span className={`inline-block whitespace-nowrap px-2 py-0.5 text-[11px] font-medium rounded-full border ${cls}`}>
       {t}
@@ -24,7 +24,7 @@ export function exitBadge(reason: string) {
     stopLoss:     'bg-green-900/50 text-green-300',
     takeProfit:   'bg-red-900/50 text-red-300',
     trailingStop: 'bg-amber-900/50 text-amber-300',
-    dataEnd:      'bg-slate-700/50 text-slate-400',
+    dataEnd:      'bg-muted/50 text-muted-foreground',
   };
   const labels: Record<string, string> = {
     holdDays: '持滿', stopLoss: '停損', takeProfit: '停利', trailingStop: '移停', dataEnd: '缺資料',
@@ -38,7 +38,7 @@ export function exitBadge(reason: string) {
 }
 
 export function chipBadge(score: number | undefined, grade: string | undefined, signal: string | undefined, tooltip: string) {
-  if (score == null) return <span className="text-[10px] text-slate-600">—</span>;
+  if (score == null) return <span className="text-[10px] text-muted-foreground/60">—</span>;
   const colorClass = score >= 70 ? 'bg-green-900/60 text-green-300' : score >= 50 ? 'bg-yellow-900/60 text-yellow-300' : 'bg-red-900/60 text-red-300';
   const icon = signal === '主力進場' ? '🟢' : signal === '法人偏多' ? '🔵' : signal === '大戶加碼' ? '🟡' : signal === '主力出貨' ? '🔴' : signal === '散戶追高' ? '⚠️' : signal === '法人偏空' ? '🟠' : '';
   const gradeDesc = grade === 'S' ? 'S(80+)主力強力買超' : grade === 'A' ? 'A(65-79)法人偏多' : grade === 'B' ? 'B(50-64)中性' : grade === 'C' ? 'C(35-49)法人偏空' : 'D(<35)主力出貨';
@@ -104,22 +104,22 @@ interface ChipData {
 export function TradeRow({ t, chip, composite }: { t: BacktestTrade; chip?: ChipData; composite?: number }) {
   const sym = t.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
   return (
-    <tr className="border-b border-slate-800/50 hover:bg-slate-800/40">
-      <td className="py-1.5 px-2 font-mono font-bold text-white">{sym}</td>
+    <tr className="border-b border-border/50 hover:bg-muted/40">
+      <td className="py-1.5 px-2 font-mono font-bold text-foreground">{sym}</td>
       <td className="py-1.5 px-2">
-        <div className="text-slate-300">{t.name}</div>
+        <div className="text-foreground/80">{t.name}</div>
         <div className="flex gap-0.5 mt-0.5">
           {t.signalReasons.slice(0, 6).map(r => (
             <span key={r} className="text-[8px] px-1 py-0.5 bg-sky-800/80 text-sky-300 rounded-sm">{r.replace(/條件|多頭|放大|長紅|多排|配合/g, '').slice(0, 2)}</span>
           ))}
         </div>
       </td>
-      <td className="py-1.5 px-1 text-[10px] text-slate-500 max-w-[60px] truncate" title={t.industry}>{t.industry ?? '—'}</td>
+      <td className="py-1.5 px-1 text-[10px] text-muted-foreground max-w-[60px] truncate" title={t.industry}>{t.industry ?? '—'}</td>
       <td className="py-1.5 px-1 text-center">
-        {(() => { const cs = composite ?? 0; return <span className={`font-bold text-[11px] ${cs >= 70 ? 'text-sky-400' : cs >= 55 ? 'text-slate-200' : 'text-slate-500'}`}>{cs.toFixed(1)}</span>; })()}
+        {(() => { const cs = composite ?? 0; return <span className={`font-bold text-[11px] ${cs >= 70 ? 'text-sky-400' : cs >= 55 ? 'text-foreground' : 'text-muted-foreground'}`}>{cs.toFixed(1)}</span>; })()}
       </td>
       <td className="py-1.5 px-1 text-center">
-        <span className={`font-bold ${t.signalScore >= 5 ? 'text-red-400' : t.signalScore >= 4 ? 'text-orange-400' : 'text-yellow-400'}`}>
+        <span className={`font-bold ${t.signalScore >= 5 ? 'text-bull' : t.signalScore >= 4 ? 'text-orange-400' : 'text-yellow-400'}`}>
           {t.signalScore}/6
         </span>
       </td>
@@ -129,11 +129,11 @@ export function TradeRow({ t, chip, composite }: { t: BacktestTrade; chip?: Chip
             t.surgeGrade === 'S' ? 'bg-red-600 text-white' :
             t.surgeGrade === 'A' ? 'bg-orange-500 text-white' :
             t.surgeGrade === 'B' ? 'bg-yellow-500 text-black' :
-            'bg-slate-600 text-slate-300'
+            'bg-muted text-foreground/80'
           }`}>{t.surgeGrade}</span>
         )}
       </td>
-      <td className="py-1.5 px-1 text-center font-mono text-slate-300">{t.surgeScore ?? '—'}</td>
+      <td className="py-1.5 px-1 text-center font-mono text-foreground/80">{t.surgeScore ?? '—'}</td>
       <td className="py-1.5 px-1 text-center">
         {t.histWinRate != null && (
           <span className={`text-[10px] px-1 rounded ${t.histWinRate >= 60 ? 'bg-green-900/60 text-green-300' : t.histWinRate >= 50 ? 'bg-yellow-900/60 text-yellow-300' : 'bg-red-900/60 text-red-300'}`}>
@@ -141,14 +141,14 @@ export function TradeRow({ t, chip, composite }: { t: BacktestTrade; chip?: Chip
           </span>
         )}
       </td>
-      <td className="py-1.5 px-2 text-right font-mono text-white whitespace-nowrap">{t.entryPrice.toFixed(2)}</td>
-      <td className="py-1.5 px-2 text-[10px] text-slate-400 whitespace-nowrap">{trendBadge(t.trendState)}</td>
-      <td className="py-1.5 px-2 text-[10px] text-slate-400 whitespace-nowrap">{t.trendPosition}</td>
+      <td className="py-1.5 px-2 text-right font-mono text-foreground whitespace-nowrap">{t.entryPrice.toFixed(2)}</td>
+      <td className="py-1.5 px-2 text-[10px] text-muted-foreground whitespace-nowrap">{trendBadge(t.trendState)}</td>
+      <td className="py-1.5 px-2 text-[10px] text-muted-foreground whitespace-nowrap">{t.trendPosition}</td>
       <td className="py-1.5 px-2 text-center whitespace-nowrap">
         {chipBadge(chip?.chipScore, chip?.chipGrade, chip?.chipSignal, chip ? chipTooltip(chip) : '')}
       </td>
-      <td className="py-1.5 px-2 text-right font-mono text-slate-400 whitespace-nowrap">{t.exitPrice.toFixed(2)}</td>
-      <td className="py-1.5 px-1 text-center text-slate-500">{t.holdDays}日</td>
+      <td className="py-1.5 px-2 text-right font-mono text-muted-foreground whitespace-nowrap">{t.exitPrice.toFixed(2)}</td>
+      <td className="py-1.5 px-1 text-center text-muted-foreground">{t.holdDays}日</td>
       <td className={`py-1.5 px-1 text-right font-mono font-bold ${retColor(t.netReturn)}`}>{fmtRet(t.netReturn)}</td>
       <td className="py-1.5 px-1 text-center">{exitBadge(t.exitReason)}</td>
       <td className="py-1.5 px-2 text-center whitespace-nowrap">
