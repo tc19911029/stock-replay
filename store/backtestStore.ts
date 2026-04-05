@@ -715,7 +715,7 @@ export const useBacktestStore = create<BacktestState>()(
           scanResults: sess.scanResults.slice(0, 20),  // top 20 only
           performance: sess.performance.map(p => ({
             ...p,
-            forwardCandles: p.forwardCandles.slice(0, 5),  // only 5 candles
+            forwardCandles: (p.forwardCandles ?? []).slice(0, 5),  // only 5 candles
           })).slice(0, 20),
         })),
         useCapitalMode: s.useCapitalMode,

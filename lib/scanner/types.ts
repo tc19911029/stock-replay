@@ -165,8 +165,10 @@ export interface BacktestSession {
   createdAt: string;
   scanResults: StockScanResult[];
   performance: StockForwardPerformance[];
-  trades: unknown[];
-  stats?: Record<string, unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  trades: any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  stats?: any;
   strategyVersion?: string;
 }
 
