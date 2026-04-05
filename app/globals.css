@@ -99,9 +99,9 @@ body {
   --border: oklch(0.88 0.01 250);
   --input: oklch(0.88 0.01 250);
   --ring: oklch(0.55 0.2 263);
-  /* Stock semantic colors */
-  --bull: oklch(0.52 0.18 145);
-  --bear: oklch(0.57 0.22 27);
+  /* Stock semantic colors — 紅漲綠跌 (Asian convention) */
+  --bull: oklch(0.57 0.22 27);
+  --bear: oklch(0.52 0.18 145);
   --neutral-price: oklch(0.5 0.02 250);
   /* Chart colors */
   --chart-1: oklch(0.55 0.2 263);
@@ -139,9 +139,9 @@ body {
   --border: oklch(1 0 0 / 9%);
   --input: oklch(1 0 0 / 12%);
   --ring: oklch(0.65 0.2 263);
-  /* Stock semantic colors */
-  --bull: oklch(0.68 0.18 145);
-  --bear: oklch(0.68 0.22 27);
+  /* Stock semantic colors — 紅漲綠跌 (Asian convention) */
+  --bull: oklch(0.68 0.22 27);
+  --bear: oklch(0.68 0.18 145);
   --neutral-price: oklch(0.62 0.02 250);
   /* Chart colors */
   --chart-1: oklch(0.65 0.2 263);

@@ -27,7 +27,6 @@ import WinnerPatternAlerts from '@/components/WinnerPatternAlerts';
 import SixConditionsPanel from '@/components/SixConditionsPanel';
 import ChipDetailPanel from '@/components/ChipDetailPanel';
 import AnalysisChat from '@/components/AnalysisChat';
-import TrendStateBar from '@/components/TrendStateBar';
 import { ErrorBoundary, SectionBoundary } from '@/components/ErrorBoundary';
 import BottomPanel from '@/components/BottomPanel';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -410,7 +409,6 @@ export default function HomePage() {
           {/* 趨勢狀態 + 播放控制 */}
           <div className="shrink-0 space-y-1">
             <div className="bg-secondary/60 rounded-lg border border-border px-2 py-1 flex items-center gap-2">
-              <TrendStateBar />
               <button
                 onClick={() => setSoundEnabled(v => !v)}
                 title={soundEnabled ? '關閉訊號音效' : '開啟訊號音效（走圖出現買賣訊號時嗶一聲）'}

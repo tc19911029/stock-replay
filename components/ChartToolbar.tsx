@@ -25,17 +25,17 @@ interface ChartToolbarProps {
 }
 
 const MA_CONFIGS = [
-  { key: 'ma5' as const, label: 'MA5', color: 'bg-yellow-600' },
-  { key: 'ma10' as const, label: 'MA10', color: 'bg-pink-600' },
-  { key: 'ma20' as const, label: 'MA20', color: 'bg-blue-600' },
-  { key: 'ma60' as const, label: 'MA60', color: 'bg-purple-600' },
+  { key: 'ma5' as const, label: 'MA5' },
+  { key: 'ma10' as const, label: 'MA10' },
+  { key: 'ma20' as const, label: 'MA20' },
+  { key: 'ma60' as const, label: 'MA60' },
 ];
 
 const INDICATOR_CONFIGS = [
-  { key: 'macd' as const, label: 'MACD' },
+  { key: 'volume' as const, label: '量' },
   { key: 'kd' as const, label: 'KD' },
   { key: 'rsi' as const, label: 'RSI' },
-  { key: 'volume' as const, label: '量' },
+  { key: 'macd' as const, label: 'MACD' },
 ];
 
 export default function ChartToolbar({
@@ -74,13 +74,13 @@ export default function ChartToolbar({
 
       {/* Toolbar: MA toggles + BB + indicators + signals */}
       <div className="ml-auto flex items-center gap-1 shrink-0 flex-wrap">
-        {MA_CONFIGS.map(({ key, label, color }) => (
+        {MA_CONFIGS.map(({ key, label }) => (
           <button key={key}
             onClick={() => onMaToggle(key)}
             aria-pressed={maToggles[key]}
             aria-label={`${maToggles[key] ? '隱藏' : '顯示'} ${label}`}
             className={`min-w-[2rem] min-h-[1.5rem] px-1.5 py-0.5 rounded text-[9px] font-medium transition ${
-              maToggles[key] ? `${color}/70 text-foreground` : 'bg-secondary text-muted-foreground/60'
+              maToggles[key] ? 'bg-sky-700/60 text-sky-200' : 'bg-secondary text-muted-foreground/60'
             }`}
             title={`顯示/隱藏 ${label}`}
           >{label}</button>
@@ -95,7 +95,6 @@ export default function ChartToolbar({
           }`}
           title="布林通道 (20, 2)"
         >BB</button>
-        <span className="w-px h-3 bg-border mx-0.5" />
         {INDICATOR_CONFIGS.map(({ key, label }) => (
           <button key={key}
             onClick={() => onIndicatorToggle(key)}

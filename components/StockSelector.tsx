@@ -28,29 +28,21 @@ const DEFAULT_QUICK_STOCKS = [
   { symbol: '000333', name: '美的集團' },
 ];
 
-const CUSTOM_STOCKS_KEY = 'rockstock-custom-stocks';
-
-function loadCustomStocks(): Array<{ symbol: string; name: string }> {
-  try {
-    const raw = localStorage.getItem(CUSTOM_STOCKS_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-}
-
-function saveCustomStocks(stocks: Array<{ symbol: string; name: string }>) {
-  try { localStorage.setItem(CUSTOM_STOCKS_KEY, JSON.stringify(stocks)); } catch {}
-}
 
 const INTERVALS = [
-  { label: '日K', value: '1d' },
-  { label: '週K', value: '1wk' },
-  { label: '月K', value: '1mo' },
+  { label: '1分', value: '1m' },
+  { label: '5分', value: '5m' },
+  { label: '15分', value: '15m' },
+  { label: '30分', value: '30m' },
+  { label: '60分', value: '60m' },
+  { label: '日', value: '1d' },
+  { label: '周', value: '1wk' },
+  { label: '月', value: '1mo' },
 ];
 
-const PERIODS: Record<string, { label: string; value: string }[]> = {
-  '1d':  [{ label:'1年', value:'1y' }, { label:'2年', value:'2y' }, { label:'3年', value:'3y' }, { label:'5年', value:'5y' }],
-  '1wk': [{ label:'2年', value:'2y' }, { label:'5年', value:'5y' }, { label:'10年', value:'10y' }],
-  '1mo': [{ label:'5年', value:'5y' }, { label:'10年', value:'10y' }, { label:'20年', value:'20y' }],
+const DEFAULT_PERIODS: Record<string, string> = {
+  '1m': '5d', '5m': '60d', '15m': '60d', '30m': '60d', '60m': '6mo',
+  '1d': '2y', '1wk': '5y', '1mo': '10y',
 };
 
 // Extract raw symbol from ticker (e.g. "2330.TW" → "2330", "AAPL" → "AAPL")
@@ -62,28 +54,9 @@ export default function StockSelector() {
   const { loadStock, isLoadingStock, currentStock } = useReplayStore();
   const [input,    setInput]    = useState('');
   const [interval, setInterval] = useState('1d');
-  const [period,   setPeriod]   = useState('2y');
   const [showDrop, setShowDrop] = useState(false);
   const [error,    setError]    = useState('');
-  const [customStocks, setCustomStocks] = useState<Array<{ symbol: string; name: string }>>([]);
   const wrapRef = useRef<HTMLDivElement>(null);
-
-  // Load custom stocks on mount (client-only)
-  useEffect(() => { setCustomStocks(loadCustomStocks()); }, []);
-
-  const QUICK_STOCKS = [...customStocks.map(s => ({ ...s, isCustom: true })), ...DEFAULT_QUICK_STOCKS.map(s => ({ ...s, isCustom: false }))];
-
-  const addCustomStock = (symbol: string, name: string) => {
-    const updated = [...customStocks.filter(s => s.symbol !== symbol), { symbol, name }];
-    setCustomStocks(updated);
-    saveCustomStocks(updated);
-  };
-
-  const removeCustomStock = (symbol: string) => {
-    const updated = customStocks.filter(s => s.symbol !== symbol);
-    setCustomStocks(updated);
-    saveCustomStocks(updated);
-  };
 
   // Sync input when stock is loaded externally (e.g. via ?load= URL param from scanner)
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -94,9 +67,10 @@ export default function StockSelector() {
   }, [currentStock?.ticker]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const handleLoad = async (symbol: string, iv = interval, pd = period) => {
+  const handleLoad = async (symbol: string, iv = interval) => {
     setError('');
     setShowDrop(false);
+    const pd = DEFAULT_PERIODS[iv] ?? '2y';
     try {
       await loadStock(symbol, iv, pd);
     } catch (e: unknown) {
@@ -106,17 +80,8 @@ export default function StockSelector() {
 
   // Auto-reload when interval changes
   const handleIntervalChange = (newIv: string) => {
-    const opts = PERIODS[newIv] ?? [];
-    const newPd = opts.find(o => o.value === period) ? period : (opts[0]?.value ?? period);
     setInterval(newIv);
-    setPeriod(newPd);
-    if (currentStock) handleLoad(rawSymbol(currentStock.ticker), newIv, newPd);
-  };
-
-  // Auto-reload when period changes
-  const handlePeriodChange = (newPd: string) => {
-    setPeriod(newPd);
-    if (currentStock) handleLoad(rawSymbol(currentStock.ticker), interval, newPd);
+    if (currentStock) handleLoad(rawSymbol(currentStock.ticker), newIv);
   };
 
   // Close dropdown on outside click
@@ -125,10 +90,8 @@ export default function StockSelector() {
   };
 
   const filtered = input.length > 0
-    ? QUICK_STOCKS.filter(s => s.symbol.toUpperCase().includes(input.toUpperCase()) || s.name.includes(input))
-    : QUICK_STOCKS;
-
-  const periodOpts = PERIODS[interval] ?? PERIODS['1d'];
+    ? DEFAULT_QUICK_STOCKS.filter(s => s.symbol.toUpperCase().includes(input.toUpperCase()) || s.name.includes(input))
+    : DEFAULT_QUICK_STOCKS;
 
   return (
     <div className="flex items-center gap-1.5 min-w-0 flex-1" onClick={closeOnOutside}>
@@ -152,20 +115,13 @@ export default function StockSelector() {
         {showDrop && filtered.length > 0 && (
           <div className="absolute top-full left-0 right-0 mt-1 bg-muted border border-border rounded shadow-xl z-50 max-h-52 overflow-y-auto">
             {filtered.map(s => (
-              <div key={s.symbol} className="flex items-center hover:bg-muted">
-                <button
-                  onClick={() => { setInput(s.symbol === 'mock' ? '' : s.symbol); handleLoad(s.symbol); }}
-                  className="flex-1 text-left px-2 py-1.5 text-xs flex gap-2 items-center min-w-0"
-                >
-                  <span className="font-mono text-yellow-400 w-10 shrink-0">{s.symbol === 'mock' ? '---' : s.symbol}</span>
-                  <span className="text-foreground/80 truncate">{s.name}</span>
-                  {s.isCustom && <span className="text-[8px] text-sky-400 shrink-0">★</span>}
-                </button>
-                {s.isCustom && (
-                  <button onClick={(e) => { e.stopPropagation(); removeCustomStock(s.symbol); }}
-                    className="px-1.5 text-muted-foreground hover:text-red-400 text-xs shrink-0" title="移除自訂">✕</button>
-                )}
-              </div>
+              <button key={s.symbol}
+                onClick={() => { setInput(s.symbol === 'mock' ? '' : s.symbol); handleLoad(s.symbol); }}
+                className="w-full text-left px-2 py-1.5 text-xs flex gap-2 items-center min-w-0 hover:bg-muted"
+              >
+                <span className="font-mono text-yellow-400 w-10 shrink-0">{s.symbol === 'mock' ? '---' : s.symbol}</span>
+                <span className="text-foreground/80 truncate">{s.name}</span>
+              </button>
             ))}
           </div>
         )}
@@ -178,15 +134,6 @@ export default function StockSelector() {
           ? <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 border-2 border-foreground border-t-transparent rounded-full animate-spin" />載入</span>
           : '載入'}
       </button>
-      {/* Pin to quick stocks */}
-      {currentStock && !customStocks.some(s => s.symbol === rawSymbol(currentStock.ticker)) && (
-        <button
-          onClick={() => addCustomStock(rawSymbol(currentStock.ticker), currentStock.name)}
-          className="shrink-0 px-1.5 py-1 text-muted-foreground hover:text-yellow-400 text-xs transition"
-          title="加入快捷清單"
-        >★</button>
-      )}
-
       <span className="text-muted-foreground/60 text-xs shrink-0">|</span>
 
       {/* Interval buttons — auto-reload on click */}
@@ -195,18 +142,6 @@ export default function StockSelector() {
           <button key={opt.value} onClick={() => handleIntervalChange(opt.value)}
             className={`px-2 py-1 rounded text-xs font-bold transition ${
               interval === opt.value ? 'bg-blue-600 text-foreground' : 'bg-muted hover:bg-muted text-foreground/80'
-            }`}>
-            {opt.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Period buttons — auto-reload on click */}
-      <div className="flex gap-0.5 shrink-0">
-        {periodOpts.map(opt => (
-          <button key={opt.value} onClick={() => handlePeriodChange(opt.value)}
-            className={`px-2 py-1 rounded text-xs transition ${
-              period === opt.value ? 'bg-muted-foreground text-foreground' : 'bg-muted hover:bg-muted text-muted-foreground'
             }`}>
             {opt.label}
           </button>

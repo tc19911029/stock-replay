@@ -17,7 +17,16 @@ import {
 import { CandleWithIndicators } from '@/types';
 import { subscribeRangeSync, getLastRange, LogicalRange, subscribeCrosshairSync } from './CandleChart';
 
-function toTime(date: string): Time { return date as Time; }
+/** Convert date string to lightweight-charts Time.
+ *  Daily: 'YYYY-MM-DD' → string Time (business day)
+ *  Intraday: 'YYYY-MM-DD HH:mm' → UTCTimestamp (seconds) */
+function toTime(date: string): Time {
+  if (date.includes(' ')) {
+    const d = new Date(date.replace(' ', 'T') + '+08:00');
+    return Math.floor(d.getTime() / 1000) as unknown as Time;
+  }
+  return date as Time;
+}
 
 function makeChart(container: HTMLElement, showTimeAxis: boolean): IChartApi {
   return createChart(container, {
@@ -26,7 +35,7 @@ function makeChart(container: HTMLElement, showTimeAxis: boolean): IChartApi {
       textColor: '#94a3b8',
     },
     grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
-    rightPriceScale: { borderColor: '#334155' },
+    rightPriceScale: { borderColor: '#334155', minimumWidth: 60 },
     timeScale: { borderColor: '#334155', timeVisible: showTimeAxis, visible: true },
     crosshair: { mode: 1, vertLine: { labelVisible: false } },
     width: container.clientWidth,
@@ -60,7 +69,7 @@ function VolumeChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]
       if (!chartRef.current || !volRef.current) return;
       if (!time) { chartRef.current.clearCrosshairPosition(); return; }
       const c = candlesRef.current.find(x => x.date === time);
-      if (c) chartRef.current.setCrosshairPosition(c.volume, time as Time, volRef.current);
+      if (c) chartRef.current.setCrosshairPosition(c.volume, toTime(time), volRef.current);
     });
     const ro = new ResizeObserver(() => {
       if (containerRef.current) chart.applyOptions({
@@ -135,9 +144,8 @@ function MACDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; 
     histRef.current   = chart.addSeries(HistogramSeries, { priceLineVisible: false, lastValueVisible: false });
     chartRef.current  = chart;
 
-    const unsub = subscribeRangeSync(range => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (range) chart.timeScale().setVisibleRange(range as any);
+    const unsub = subscribeRangeSync((range: LogicalRange | null) => {
+      if (range) chart.timeScale().setVisibleLogicalRange(range);
     });
     // ── Crosshair sync from main chart ────────────────────────────────────
     const unsubCrosshair = subscribeCrosshairSync((time) => {
@@ -145,7 +153,7 @@ function MACDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; 
       if (!time) { chartRef.current.clearCrosshairPosition(); return; }
       const c = candlesRef.current.find(x => x.date === time);
       if (c != null && c.macdDIF != null)
-        chartRef.current.setCrosshairPosition(c.macdDIF, time as Time, difRef.current);
+        chartRef.current.setCrosshairPosition(c.macdDIF, toTime(time), difRef.current);
     });
     const ro = new ResizeObserver(() => {
       if (containerRef.current) chart.applyOptions({
@@ -207,7 +215,7 @@ function KDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; ho
 
   useEffect(() => {
     if (!containerRef.current) return;
-    const chart = makeChart(containerRef.current, true);
+    const chart = makeChart(containerRef.current, false);
 
     const kSeries = chart.addSeries(LineSeries, { color: '#3b82f6', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     const dSeries = chart.addSeries(LineSeries, { color: '#f97316', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
@@ -216,9 +224,8 @@ function KDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; ho
     kMarkRef.current = createSeriesMarkers(kSeries, []);
     chartRef.current = chart;
 
-    const unsub = subscribeRangeSync(range => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (range) chart.timeScale().setVisibleRange(range as any);
+    const unsub = subscribeRangeSync((range: LogicalRange | null) => {
+      if (range) chart.timeScale().setVisibleLogicalRange(range);
     });
     // ── Crosshair sync from main chart ────────────────────────────────────
     const unsubCrosshair = subscribeCrosshairSync((time) => {
@@ -226,7 +233,7 @@ function KDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; ho
       if (!time) { chartRef.current.clearCrosshairPosition(); return; }
       const c = candlesRef.current.find(x => x.date === time);
       if (c != null && c.kdK != null)
-        chartRef.current.setCrosshairPosition(c.kdK, time as Time, kRef.current);
+        chartRef.current.setCrosshairPosition(c.kdK, toTime(time), kRef.current);
     });
     const ro = new ResizeObserver(() => {
       if (containerRef.current) chart.applyOptions({
@@ -290,23 +297,22 @@ function RSIChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; h
 
   useEffect(() => {
     if (!containerRef.current) return;
-    const chart = makeChart(containerRef.current, true);
+    const chart = makeChart(containerRef.current, false);
 
     const rsiSeries = chart.addSeries(LineSeries, { color: '#a855f7', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
     rsiRef.current  = rsiSeries;
     markRef.current = createSeriesMarkers(rsiSeries, []);
     chartRef.current = chart;
 
-    const unsub = subscribeRangeSync(range => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (range) chart.timeScale().setVisibleRange(range as any);
+    const unsub = subscribeRangeSync((range: LogicalRange | null) => {
+      if (range) chart.timeScale().setVisibleLogicalRange(range);
     });
     const unsubCrosshair = subscribeCrosshairSync((time) => {
       if (!chartRef.current || !rsiRef.current) return;
       if (!time) { chartRef.current.clearCrosshairPosition(); return; }
       const c = candlesRef.current.find(x => x.date === time);
       if (c != null && c.rsi14 != null)
-        chartRef.current.setCrosshairPosition(c.rsi14, time as Time, rsiRef.current);
+        chartRef.current.setCrosshairPosition(c.rsi14, toTime(time), rsiRef.current);
     });
     const ro = new ResizeObserver(() => {
       if (containerRef.current) chart.applyOptions({

@@ -1,10 +1,10 @@
 /** Read --bull / --bear CSS variables at runtime so color-theme toggle works */
 export function getBullBearColors(): { bull: string; bear: string } {
-  if (typeof document === 'undefined') return { bull: '#ef4444', bear: '#22c55e' };
+  if (typeof document === 'undefined') return { bull: '#ef4444', bear: '#16a34a' };
   const style = getComputedStyle(document.documentElement);
   const bull = style.getPropertyValue('--bull').trim();
   const bear = style.getPropertyValue('--bear').trim();
-  return { bull: oklchToHex(bull) || '#ef4444', bear: oklchToHex(bear) || '#22c55e' };
+  return { bull: oklchToHex(bull) || '#ef4444', bear: oklchToHex(bear) || '#16a34a' };
 }
 
 /** Convert an oklch() CSS color string to hex via offscreen canvas */
