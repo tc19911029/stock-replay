@@ -19,6 +19,7 @@ import type { Candle, CandleWithIndicators } from '@/types';
 import { computeIndicators } from '@/lib/indicators';
 import { DataProvider } from './DataProvider';
 import { globalCache } from './MemoryCache';
+import { rateLimiter } from './UnifiedRateLimiter';
 
 // ── 快取 TTL ──────────────────────────────────────────────────────────────────
 
@@ -118,6 +119,9 @@ async function fetchEMKlines(
   fqt: number,
   timeoutMs = 15000,
 ): Promise<string[]> {
+  // 統一限流
+  await rateLimiter.acquire('eastmoney');
+
   const url =
     `https://push2his.eastmoney.com/api/qt/stock/kline/get` +
     `?secid=${secid}` +
@@ -131,8 +135,12 @@ async function fetchEMKlines(
     signal: AbortSignal.timeout(timeoutMs),
   });
 
-  if (!res.ok) throw new Error(`EastMoney kline ${res.status}`);
+  if (!res.ok) {
+    rateLimiter.reportError('eastmoney', res.status, `HTTP ${res.status}`);
+    throw new Error(`EastMoney kline ${res.status}`);
+  }
 
+  rateLimiter.reportSuccess('eastmoney');
   const json = (await res.json()) as EMKlineResponse;
   return json.data?.klines ?? [];
 }

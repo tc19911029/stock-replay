@@ -7,7 +7,7 @@ export const maxDuration = 300; // 陸股 5000 檔需要更多時間
 
 import { TaiwanScanner } from '@/lib/scanner/TaiwanScanner';
 import { ChinaScanner } from '@/lib/scanner/ChinaScanner';
-import { MarketId } from '@/lib/scanner/types';
+import { MarketId, ScanDiagnostics } from '@/lib/scanner/types';
 import { resolveThresholds } from '@/lib/strategy/resolveThresholds';
 
 const scannerChunkSchema = z.object({
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     const scanner = market === 'CN' ? new ChinaScanner() : new TaiwanScanner();
     const mode = parsed.data.mode;
 
-    let scanResult;
+    let scanResult: { results: unknown[]; marketTrend: unknown; diagnostics?: ScanDiagnostics };
     if (mode === 'sop' && parsed.data.direction === 'short') {
       // V2 做空版：做空六條件 + 做空戒律
       const { candidates, marketTrend: mt } = await scanner.scanShortCandidates(stocks, asOfDate, thresholds);
@@ -72,8 +72,8 @@ export async function POST(req: NextRequest) {
       scanResult = await scanner.scanList(stocks, thresholds);
     }
 
-    const { results, marketTrend } = scanResult;
-    return apiOk({ results, marketTrend, mode: parsed.data.mode });
+    const { results, marketTrend, diagnostics } = scanResult;
+    return apiOk({ results, marketTrend, mode: parsed.data.mode, diagnostics });
   } catch (err) {
     console.error('[scanner/chunk] error:', err);
     return apiError('掃描服務暫時無法使用');

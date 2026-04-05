@@ -1,15 +1,55 @@
+import { readFile, writeFile, mkdir } from 'fs/promises';
+import { existsSync } from 'fs';
+import path from 'path';
 import { StockEntry } from './MarketScanner';
+
+const STOCKLIST_CACHE_PATH = path.join(process.cwd(), 'data', 'cn_stocklist.json');
+const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 天
+
+interface StockListCache {
+  updatedAt: string;
+  stocks: StockEntry[];
+}
+
+/**
+ * 讀取本地快取的 A 股清單（< 7 天有效）
+ */
+async function loadCachedStockList(): Promise<StockEntry[] | null> {
+  try {
+    const raw = await readFile(STOCKLIST_CACHE_PATH, 'utf-8');
+    const cache: StockListCache = JSON.parse(raw);
+    const age = Date.now() - new Date(cache.updatedAt).getTime();
+    if (age < CACHE_MAX_AGE_MS && cache.stocks.length > 100) {
+      return cache.stocks;
+    }
+  } catch { /* 快取不存在或格式錯誤 */ }
+  return null;
+}
+
+/**
+ * 儲存 A 股清單到本地快取
+ */
+async function saveCachedStockList(stocks: StockEntry[]): Promise<void> {
+  try {
+    const dir = path.dirname(STOCKLIST_CACHE_PATH);
+    if (!existsSync(dir)) await mkdir(dir, { recursive: true });
+    const cache: StockListCache = { updatedAt: new Date().toISOString(), stocks };
+    await writeFile(STOCKLIST_CACHE_PATH, JSON.stringify(cache), 'utf-8');
+  } catch { /* 寫入失敗不影響主流程 */ }
+}
 
 /**
  * 從東方財富 API 動態取得全部 A 股清單（含成交量排序）
+ * 優先讀取本地快取（< 7 天），失敗才打 API
+ *
  * API: push2.eastmoney.com → 全市場 A 股即時行情
  * f12=代碼, f14=名稱, f3=漲跌幅, f6=成交額
  * fs: m:0+t:6(滬A主板), m:0+t:80(滬A科創板), m:1+t:2(深A主板), m:1+t:23(深A創業板)
  */
-/**
- * 分頁取得東方財富全部 A 股（每頁最多 5000 筆，自動翻頁直到取完）
- */
 export async function fetchEastMoneyStockList(): Promise<StockEntry[]> {
+  // 優先讀取本地快取
+  const cached = await loadCachedStockList();
+  if (cached) return cached;
   const all: StockEntry[] = [];
   const pageSize = 5000;
   let page = 1;
@@ -58,6 +98,11 @@ export async function fetchEastMoneyStockList(): Promise<StockEntry[]> {
     // 如果本頁取得數量不足 pageSize，表示已是最後一頁
     if (items.length < pageSize) break;
     page++;
+  }
+
+  // 成功取得後存到本地快取
+  if (all.length > 100) {
+    saveCachedStockList(all).catch(() => {});
   }
 
   return all;

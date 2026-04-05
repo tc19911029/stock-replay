@@ -3,14 +3,14 @@ import { ruleEngine } from '@/lib/rules/ruleEngine';
 import { evaluateSixConditions, detectTrend, detectTrendPosition, TrendState } from '@/lib/analysis/trendAnalysis';
 import { checkLongProhibitions, checkShortProhibitions } from '@/lib/rules/entryProhibitions';
 import { evaluateShortSixConditions } from '@/lib/analysis/shortAnalysis';
-import { StockScanResult, MarketConfig, TriggeredRule } from './types';
+import { StockScanResult, MarketConfig, TriggeredRule, ScanDiagnostics, createEmptyDiagnostics } from './types';
 import type { StrategyThresholds } from '@/lib/strategy/StrategyConfig';
 import { ZHU_V1 } from '@/lib/strategy/StrategyConfig';
 import { evaluateHighWinRateEntry } from '@/lib/analysis/highWinRateEntry';
 import { evaluateElimination } from '@/lib/scanner/eliminationFilter';
 import { evaluateMultiTimeframe, MultiTimeframeResult } from '@/lib/analysis/multiTimeframeFilter';
 import { getScannerCache, setScannerCache, getScannerCacheStats } from '@/lib/datasource/ScannerCache';
-import { loadLocalCandlesForDate, saveLocalCandles } from '@/lib/datasource/LocalCandleStore';
+import { loadLocalCandlesWithTolerance, saveLocalCandles } from '@/lib/datasource/LocalCandleStore';
 
 const CONCURRENCY = 8; // parallel requests per chunk (降低避免打爆外部 API)
 const BATCH_DELAY_MS = 300; // 每批次間隔 ms
@@ -32,6 +32,7 @@ export abstract class MarketScanner {
   protected async fetchCandlesForScan(
     symbol: string,
     asOfDate?: string,
+    diag?: ScanDiagnostics,
   ): Promise<CandleWithIndicators[]> {
     const today = new Date().toISOString().split('T')[0];
     const isHistorical = !!asOfDate && asOfDate < today;
@@ -40,29 +41,48 @@ export abstract class MarketScanner {
     if (isHistorical) {
       // L1: 記憶體快取
       const memCached = getScannerCache(symbol, asOfDate);
-      if (memCached) return memCached;
+      if (memCached) {
+        if (diag) diag.memoryCacheHits++;
+        return memCached;
+      }
 
-      // L2: 本地檔案
+      // L2: 本地檔案（容忍 5 個交易日差距）
       try {
-        const local = await loadLocalCandlesForDate(symbol, market, asOfDate);
-        if (local && local.length > 0) {
-          setScannerCache(symbol, asOfDate, local);
-          return local;
+        const local = await loadLocalCandlesWithTolerance(symbol, market, asOfDate, 5);
+        if (local && local.candles.length > 0) {
+          setScannerCache(symbol, asOfDate, local.candles);
+          if (diag) {
+            diag.localCacheHits++;
+            if (local.staleDays > 0) diag.localCacheStale++;
+          }
+          return local.candles;
+        }
+      } catch { /* 本地讀取失敗，fallback 到 API */ }
+    } else {
+      // 今日掃描：也先嘗試本地檔案（容忍 3 個交易日，即週末/假日差距）
+      // 本地數據通常是昨天或前幾天的，差距很小，對均線策略影響可忽略
+      try {
+        const local = await loadLocalCandlesWithTolerance(symbol, market, today, 3);
+        if (local && local.candles.length > 0) {
+          if (diag) {
+            diag.localCacheHits++;
+            if (local.staleDays > 0) diag.localCacheStale++;
+          }
+          // 今日不寫入 L1 記憶體快取，每次掃描取最新本地數據
+          return local.candles;
         }
       } catch { /* 本地讀取失敗，fallback 到 API */ }
     }
 
-    // L3: 打外部 API
-    const candles = await this.fetchCandles(symbol, asOfDate);
-
-    // 回寫快取（僅歷史日期）
-    if (isHistorical && candles.length > 0) {
-      setScannerCache(symbol, asOfDate, candles);
-      // 異步存本地檔案（不阻塞掃描流程）
-      saveLocalCandles(symbol, market, candles).catch(() => {});
+    // L3: 不再在掃描時打外部 API — 記錄缺失，回傳空陣列
+    // API 呼叫只在 cron 盤後下載或掃描前 ingest 補缺時發生
+    if (diag) {
+      diag.dataMissing++;
+      if (diag.missingSymbols.length < 20) {
+        diag.missingSymbols.push(symbol);
+      }
     }
-
-    return candles;
+    return [];
   }
 
   /**
@@ -83,6 +103,7 @@ export abstract class MarketScanner {
     thresholds: StrategyThresholds,
     asOfDate?: string,
     industry?: string,
+    diag?: ScanDiagnostics,
   ): Promise<StockScanResult | null> {
     try {
       let name = rawName;
@@ -95,8 +116,11 @@ export abstract class MarketScanner {
         } catch { /* 查不到就用東方財富的名字 */ }
       }
 
-      const candles = await this.fetchCandlesForScan(symbol, asOfDate);
-      if (candles.length < 30) return null;
+      const candles = await this.fetchCandlesForScan(symbol, asOfDate, diag);
+      if (candles.length < 30) {
+        if (diag) diag.tooFewCandles++;
+        return null;
+      }
 
       const lastIdx = candles.length - 1;
       const last = candles[lastIdx];
@@ -108,7 +132,7 @@ export abstract class MarketScanner {
       let mtfResult: MultiTimeframeResult | undefined;
       if (thresholds.multiTimeframeFilter) {
         mtfResult = evaluateMultiTimeframe(candles, thresholds);
-        if (!mtfResult.pass) return null;
+        if (!mtfResult.pass) { if (diag) diag.filteredOut++; return null; }
       }
 
       // ══════════════════════════════════════════════════════════════════
@@ -117,26 +141,26 @@ export abstract class MarketScanner {
 
       // ── 1. 六大條件（前5個=核心門檻，第6個 KD/MACD=候補加分）──────────
       const sixConds = evaluateSixConditions(candles, lastIdx, thresholds);
-      if (!sixConds.isCoreReady) return null;
+      if (!sixConds.isCoreReady) { if (diag) diag.filteredOut++; return null; }
 
       // ── 2. 短線第9條：KD值向下時不買 ─────────────────────────────────
       if (last.kdK != null && lastIdx > 0) {
         const prevKdK = candles[lastIdx - 1]?.kdK;
-        if (prevKdK != null && last.kdK < prevKdK) return null;
+        if (prevKdK != null && last.kdK < prevKdK) { if (diag) diag.filteredOut++; return null; }
       }
 
       // ── 3. 短線第10條：進場紅K線上影線超過二分之一 → 不買進 ───────────
       const dayRange = last.high - last.low;
       const entryUpperShadow = last.high - last.close;
-      if (dayRange > 0 && entryUpperShadow / dayRange > 0.5) return null;
+      if (dayRange > 0 && entryUpperShadow / dayRange > 0.5) { if (diag) diag.filteredOut++; return null; }
 
       // ── 4. 10大戒律：硬性禁忌過濾（朱老師 p.54）─────────────────────
       const prohib = checkLongProhibitions(candles, lastIdx);
-      if (prohib.prohibited) return null;
+      if (prohib.prohibited) { if (diag) diag.filteredOut++; return null; }
 
       // ── 5. 淘汰法 R1-R11（寶典）─────────────────────────────────────
       const elimination = evaluateElimination(candles, lastIdx);
-      if (elimination.eliminated) return null;
+      if (elimination.eliminated) { if (diag) diag.filteredOut++; return null; }
 
       // ══════════════════════════════════════════════════════════════════
       // 第二層：排序資料收集（共振 + 高勝率進場）
@@ -208,7 +232,10 @@ export abstract class MarketScanner {
           mtfWeeklyNearResistance: mtfResult.weeklyNearResistance,
         } : {}),
       };
-    } catch {
+    } catch (err) {
+      if (diag && diag.errorSamples.length < 5) {
+        diag.errorSamples.push(`${symbol}: ${err instanceof Error ? err.message : String(err)}`);
+      }
       return null;
     }
   }
@@ -320,7 +347,7 @@ export abstract class MarketScanner {
   async scanList(
     stocks: StockEntry[],
     thresholds?: StrategyThresholds,
-  ): Promise<{ results: StockScanResult[]; marketTrend: TrendState }> {
+  ): Promise<{ results: StockScanResult[]; marketTrend: TrendState; diagnostics: ScanDiagnostics }> {
     return this._scanChunk(stocks, undefined, thresholds);
   }
 
@@ -329,7 +356,7 @@ export abstract class MarketScanner {
     stocks: StockEntry[],
     asOfDate: string,
     thresholds?: StrategyThresholds,
-  ): Promise<{ results: StockScanResult[]; marketTrend: TrendState }> {
+  ): Promise<{ results: StockScanResult[]; marketTrend: TrendState; diagnostics: ScanDiagnostics }> {
     return this._scanChunk(stocks, asOfDate, thresholds);
   }
 
@@ -612,11 +639,13 @@ export abstract class MarketScanner {
     stocks: StockEntry[],
     asOfDate: string | undefined,
     thresholds?: StrategyThresholds,
-  ): Promise<{ results: StockScanResult[]; marketTrend: TrendState }> {
+  ): Promise<{ results: StockScanResult[]; marketTrend: TrendState; diagnostics: ScanDiagnostics }> {
     const config = this.getMarketConfig();
     const th = thresholds ?? ZHU_V1.thresholds;
     const results: StockScanResult[] = [];
     const DEADLINE = Date.now() + 110_000;
+    const diag = createEmptyDiagnostics();
+    diag.totalStocks = stocks.length;
 
     let minScore = th.minScore;
     let marketTrend: TrendState = '多頭';
@@ -631,11 +660,12 @@ export abstract class MarketScanner {
       if (Date.now() > DEADLINE) break;
       const batch = stocks.slice(i, i + CONCURRENCY);
       const settled = await Promise.allSettled(
-        batch.map(({ symbol, name, industry }) => this.scanOne(symbol, name, config, minScore, th, asOfDate, industry))
+        batch.map(({ symbol, name, industry }) => this.scanOne(symbol, name, config, minScore, th, asOfDate, industry, diag))
       );
       for (const r of settled) {
         if (r.status === 'fulfilled' && r.value) results.push(r.value);
       }
+      diag.processedCount += batch.length;
       if (i + CONCURRENCY < stocks.length) await sleep(BATCH_DELAY_MS);
     }
 
@@ -648,7 +678,8 @@ export abstract class MarketScanner {
       .slice(0, maxResults);
 
     console.info('[ScannerCache]', getScannerCacheStats());
-    return { results: sortedResults, marketTrend };
+    console.info('[ScanDiagnostics]', JSON.stringify(diag));
+    return { results: sortedResults, marketTrend, diagnostics: diag };
   }
 
   async scan(thresholds?: StrategyThresholds): Promise<{ results: StockScanResult[]; partial: boolean; marketTrend?: TrendState }> {

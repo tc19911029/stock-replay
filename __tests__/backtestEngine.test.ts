@@ -24,11 +24,12 @@ function mockForwardCandles(count: number, startPrice: number, dailyPct = 0.01):
   return Array.from({ length: count }, (_, i) => {
     const price = startPrice * (1 + dailyPct * (i + 1));
     return {
-      date:  `2024-01-${String(16 + i).padStart(2, '0')}`,
-      open:  +(price * 0.995).toFixed(2),
-      close: +price.toFixed(2),
-      high:  +(price * 1.010).toFixed(2),
-      low:   +(price * 0.985).toFixed(2),
+      date:   `2024-01-${String(16 + i).padStart(2, '0')}`,
+      open:   +(price * 0.995).toFixed(2),
+      close:  +price.toFixed(2),
+      high:   +(price * 1.010).toFixed(2),
+      low:    +(price * 0.985).toFixed(2),
+      volume: 1_000_000,
     };
   });
 }
@@ -66,8 +67,8 @@ describe('runSingleBacktest', () => {
 
   test('停損觸發', () => {
     const candles: ForwardCandle[] = [
-      { date: '2024-01-16', open: 100, close: 88, high: 101, low: 87 },
-      { date: '2024-01-17', open: 88,  close: 90, high: 92,  low: 87 },
+      { date: '2024-01-16', open: 100, close: 88, high: 101, low: 87, volume: 0 },
+      { date: '2024-01-17', open: 88,  close: 90, high: 92,  low: 87, volume: 0 },
     ];
     const trade = runSingleBacktest(scanResultToSignal(mockScanResult()), candles, { ...NO_SLIP, stopLoss: -0.07 });
     expect(trade!.exitReason).toBe('stopLoss');
@@ -78,8 +79,8 @@ describe('runSingleBacktest', () => {
     // 進場日 close=108 不觸發 TP（entry day 只看 close）
     // 隔日 high=122 > 115（TP 價），觸發停利
     const candles: ForwardCandle[] = [
-      { date: '2024-01-16', open: 100, close: 108, high: 109, low: 99 },  // 進場日
-      { date: '2024-01-17', open: 108, close: 110, high: 122, low: 107 }, // 隔日觸發 TP
+      { date: '2024-01-16', open: 100, close: 108, high: 109, low: 99,  volume: 0 },  // 進場日
+      { date: '2024-01-17', open: 108, close: 110, high: 122, low: 107, volume: 0 }, // 隔日觸發 TP
     ];
     const trade = runSingleBacktest(scanResultToSignal(mockScanResult()), candles, { ...NO_SLIP, takeProfit: 0.15, stopLoss: null });
     expect(trade!.exitReason).toBe('takeProfit');
@@ -93,8 +94,8 @@ describe('runSingleBacktest', () => {
     // candle[1]: open=100, high=120 (>115, hitTP), low=88 (<93, hitSL)
     // distSL = |100-93| = 7, distTP = |100-115| = 15 → 停損先
     const candles: ForwardCandle[] = [
-      { date: '2024-01-16', open: 100, close: 100, high: 101, low: 99 }, // 進場日
-      { date: '2024-01-17', open: 100, close: 95, high: 120, low: 88 },  // 隔日同時觸發 SL+TP
+      { date: '2024-01-16', open: 100, close: 100, high: 101, low: 99, volume: 0 }, // 進場日
+      { date: '2024-01-17', open: 100, close: 95, high: 120, low: 88,  volume: 0 },  // 隔日同時觸發 SL+TP
     ];
     const trade = runSingleBacktest(scanResultToSignal(mockScanResult()), candles, { ...NO_SLIP, stopLoss: -0.07, takeProfit: 0.15 });
     expect(trade!.exitReason).toBe('stopLoss');
@@ -105,8 +106,8 @@ describe('runSingleBacktest', () => {
     // candle[1]: open=103, high=120 (>105, hitTP), low=88 (<93, hitSL)
     // distSL = |103-93| = 10, distTP = |103-105| = 2 → 停利先
     const candles: ForwardCandle[] = [
-      { date: '2024-01-16', open: 100, close: 100, high: 101, low: 99 }, // 進場日
-      { date: '2024-01-17', open: 103, close: 95, high: 120, low: 88 },  // 隔日同時觸發 SL+TP
+      { date: '2024-01-16', open: 100, close: 100, high: 101, low: 99, volume: 0 }, // 進場日
+      { date: '2024-01-17', open: 103, close: 95, high: 120, low: 88,  volume: 0 },  // 隔日同時觸發 SL+TP
     ];
     const trade = runSingleBacktest(scanResultToSignal(mockScanResult()), candles, { ...NO_SLIP, stopLoss: -0.07, takeProfit: 0.05 });
     expect(trade!.exitReason).toBe('takeProfit');
@@ -117,8 +118,8 @@ describe('runSingleBacktest', () => {
     // 進場 candle[0] open=100 → entryPrice=100, SL=-7% → stopLossPrice=93
     // 持有期 candle[1] 跳空開盤 90（低於停損價 93）→ 應以開盤 90 出場
     const candles: ForwardCandle[] = [
-      { date: '2024-01-16', open: 100, close: 100, high: 101, low: 99 }, // 進場日（正常）
-      { date: '2024-01-17', open: 90,  close: 89,  high: 91,  low: 88 }, // 隔天跳空
+      { date: '2024-01-16', open: 100, close: 100, high: 101, low: 99, volume: 0 }, // 進場日（正常）
+      { date: '2024-01-17', open: 90,  close: 89,  high: 91,  low: 88, volume: 0 }, // 隔天跳空
     ];
     const trade = runSingleBacktest(scanResultToSignal(mockScanResult()), candles, { ...NO_SLIP, stopLoss: -0.07, holdDays: 5 });
     expect(trade!.exitReason).toBe('stopLoss');

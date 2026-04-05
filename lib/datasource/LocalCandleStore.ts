@@ -133,7 +133,121 @@ export async function isLocalDataFresh(
   }
 }
 
+/**
+ * 計算兩個日期之間的交易日數（跳過週六日）
+ * dateA 必須 <= dateB，回傳 0 表示同一天
+ */
+function businessDaysBetween(dateA: string, dateB: string): number {
+  if (dateA >= dateB) return 0;
+  const a = new Date(dateA + 'T00:00:00');
+  const b = new Date(dateB + 'T00:00:00');
+  let count = 0;
+  const cursor = new Date(a);
+  cursor.setDate(cursor.getDate() + 1); // start from day after dateA
+  while (cursor <= b) {
+    const dow = cursor.getDay();
+    if (dow !== 0 && dow !== 6) count++;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return count;
+}
+
+/**
+ * 讀取本地 K 線，允許一定的交易日容忍度
+ * 當 lastDate 與 asOfDate 差距在 toleranceDays 個交易日以內時，
+ * 仍回傳可用數據（截取到 lastDate 為止）
+ *
+ * 數學依據：60-120 日均線差 2-5 天的影響 < 0.1%，對策略篩選無實質影響
+ */
+export async function loadLocalCandlesWithTolerance(
+  symbol: string,
+  market: 'TW' | 'CN',
+  asOfDate: string,
+  toleranceDays = 5,
+): Promise<{ candles: CandleWithIndicators[]; staleDays: number } | null> {
+  const filePath = getFilePath(symbol, market);
+  try {
+    const raw = await readFile(filePath, 'utf-8');
+    const data: LocalCandleFile = JSON.parse(raw);
+    if (!data.candles || data.candles.length === 0) return null;
+
+    // 完全覆蓋 → staleDays = 0
+    if (data.lastDate >= asOfDate) {
+      const filtered = data.candles.filter(c => c.date <= asOfDate);
+      if (filtered.length === 0) return null;
+      return { candles: computeIndicators(filtered), staleDays: 0 };
+    }
+
+    // 差距在容忍範圍內 → 使用截至 lastDate 的數據
+    const gap = businessDaysBetween(data.lastDate, asOfDate);
+    if (gap <= toleranceDays) {
+      // 回傳所有可用 K 線（已經是到 lastDate 為止）
+      return { candles: computeIndicators(data.candles), staleDays: gap };
+    }
+
+    return null; // 數據太舊
+  } catch {
+    return null;
+  }
+}
+
 /** 取得已下載的股票數量（統計用） */
 export function getLocalCandleDir(market: 'TW' | 'CN'): string {
   return path.join(DATA_ROOT, market);
+}
+
+/**
+ * 批量檢查多支股票的本地資料新鮮度
+ * 回傳 { fresh: string[], stale: string[], missing: string[] }
+ */
+export async function batchCheckFreshness(
+  symbols: string[],
+  market: 'TW' | 'CN',
+  asOfDate: string,
+  toleranceDays = 3,
+): Promise<{ fresh: string[]; stale: string[]; missing: string[] }> {
+  const fresh: string[] = [];
+  const stale: string[] = [];
+  const missing: string[] = [];
+
+  // 並行讀取所有檔案（I/O bound，不需限流）
+  const BATCH_SIZE = 50;
+  for (let i = 0; i < symbols.length; i += BATCH_SIZE) {
+    const batch = symbols.slice(i, i + BATCH_SIZE);
+    const results = await Promise.allSettled(
+      batch.map(async (symbol) => {
+        const filePath = getFilePath(symbol, market);
+        try {
+          const raw = await readFile(filePath, 'utf-8');
+          const data: LocalCandleFile = JSON.parse(raw);
+          if (!data.candles || data.candles.length === 0) return { symbol, status: 'missing' as const };
+
+          if (data.lastDate >= asOfDate) {
+            return { symbol, status: 'fresh' as const };
+          }
+
+          const gap = businessDaysBetween(data.lastDate, asOfDate);
+          if (gap <= toleranceDays) {
+            return { symbol, status: 'stale' as const };
+          }
+
+          return { symbol, status: 'missing' as const };
+        } catch {
+          return { symbol, status: 'missing' as const };
+        }
+      }),
+    );
+
+    for (const r of results) {
+      if (r.status === 'fulfilled') {
+        if (r.value.status === 'fresh') fresh.push(r.value.symbol);
+        else if (r.value.status === 'stale') stale.push(r.value.symbol);
+        else missing.push(r.value.symbol);
+      } else {
+        // Promise 失敗視為 missing（不應該發生，allSettled 內部 catch 了）
+      }
+    }
+  }
+
+  return { fresh, stale, missing };
 }

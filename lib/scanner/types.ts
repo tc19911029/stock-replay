@@ -117,6 +117,88 @@ export function sanitizeScanResult(r: StockScanResult): StockScanResult {
   };
 }
 
+// ── 掃描診斷 ────────────────────────────────────────────────────────────────
+
+export interface ScanDiagnostics {
+  totalStocks: number;
+  memoryCacheHits: number;
+  localCacheHits: number;
+  localCacheStale: number;    // 容忍性命中（數據差 1-5 交易日）
+  apiCalls: number;
+  apiFailed: number;
+  tooFewCandles: number;      // candles.length < 30
+  filteredOut: number;        // 被六條件/戒律/淘汰法過濾
+  processedCount: number;     // 實際處理完的股票數
+  errorSamples: string[];     // 前 5 個錯誤訊息
+  // ── 資料完整度（Phase 2 新增）────────────────────────────────────────────
+  dataMissing: number;        // 本地無資料的股票數
+  missingSymbols: string[];   // 缺失股票清單（前 20 個）
+  coverageRate: number;       // 0-100% 本地資料覆蓋率
+  /** complete: 覆蓋率 >= 95%, partial: 70-95%, insufficient: < 70% */
+  dataStatus: 'complete' | 'partial' | 'insufficient';
+  // ── 掃描前補缺統計 ──────────────────────────────────────────────────────
+  ingestDownloaded: number;   // 掃描前補缺下載的股票數
+  ingestFailed: number;       // 補缺失敗的股票數
+}
+
+export function createEmptyDiagnostics(): ScanDiagnostics {
+  return {
+    totalStocks: 0, memoryCacheHits: 0, localCacheHits: 0,
+    localCacheStale: 0, apiCalls: 0, apiFailed: 0, tooFewCandles: 0,
+    filteredOut: 0, processedCount: 0, errorSamples: [],
+    dataMissing: 0, missingSymbols: [], coverageRate: 100,
+    dataStatus: 'complete', ingestDownloaded: 0, ingestFailed: 0,
+  };
+}
+
+export function mergeDiagnostics(a: ScanDiagnostics, b: ScanDiagnostics): ScanDiagnostics {
+  const merged = {
+    totalStocks:      a.totalStocks + b.totalStocks,
+    memoryCacheHits:  a.memoryCacheHits + b.memoryCacheHits,
+    localCacheHits:   a.localCacheHits + b.localCacheHits,
+    localCacheStale:  a.localCacheStale + b.localCacheStale,
+    apiCalls:         a.apiCalls + b.apiCalls,
+    apiFailed:        a.apiFailed + b.apiFailed,
+    tooFewCandles:    a.tooFewCandles + b.tooFewCandles,
+    filteredOut:      a.filteredOut + b.filteredOut,
+    processedCount:   a.processedCount + b.processedCount,
+    errorSamples:     [...a.errorSamples, ...b.errorSamples].slice(0, 5),
+    dataMissing:      a.dataMissing + b.dataMissing,
+    missingSymbols:   [...a.missingSymbols, ...b.missingSymbols].slice(0, 20),
+    ingestDownloaded: a.ingestDownloaded + b.ingestDownloaded,
+    ingestFailed:     a.ingestFailed + b.ingestFailed,
+    coverageRate: 100,
+    dataStatus: 'complete' as ScanDiagnostics['dataStatus'],
+  };
+  // 計算合併後的覆蓋率與狀態
+  if (merged.totalStocks > 0) {
+    merged.coverageRate = Math.round((1 - merged.dataMissing / merged.totalStocks) * 100);
+  }
+  merged.dataStatus = merged.coverageRate >= 95 ? 'complete'
+    : merged.coverageRate >= 70 ? 'partial'
+    : 'insufficient';
+  return merged;
+}
+
+/** 將診斷資訊轉為人類可讀的摘要 */
+export function diagnosticsSummary(d: ScanDiagnostics): string {
+  const parts: string[] = [];
+  parts.push(`已掃描 ${d.processedCount}/${d.totalStocks} 檔`);
+  if (d.coverageRate < 100) parts.push(`覆蓋率 ${d.coverageRate}%`);
+  if (d.localCacheHits > 0) parts.push(`本地快取 ${d.localCacheHits}`);
+  if (d.localCacheStale > 0) parts.push(`容忍性快取 ${d.localCacheStale}`);
+  if (d.memoryCacheHits > 0) parts.push(`記憶體快取 ${d.memoryCacheHits}`);
+  if (d.ingestDownloaded > 0) parts.push(`補缺下載 ${d.ingestDownloaded}`);
+  if (d.ingestFailed > 0) parts.push(`補缺失敗 ${d.ingestFailed}`);
+  if (d.apiCalls > 0) parts.push(`API ${d.apiCalls}`);
+  if (d.apiFailed > 0) parts.push(`API失敗 ${d.apiFailed}`);
+  if (d.dataMissing > 0) parts.push(`缺資料 ${d.dataMissing}`);
+  if (d.tooFewCandles > 0) parts.push(`數據不足 ${d.tooFewCandles}`);
+  if (d.filteredOut > 0) parts.push(`被過濾 ${d.filteredOut}`);
+  if (d.errorSamples.length > 0) parts.push(`錯誤: ${d.errorSamples[0]}`);
+  return parts.join('、');
+}
+
 export interface MarketConfig {
   marketId: MarketId;
   name: string;

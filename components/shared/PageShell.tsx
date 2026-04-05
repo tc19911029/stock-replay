@@ -5,8 +5,7 @@ import { usePathname } from 'next/navigation';
 import NavigationProgress from '@/components/NavigationProgress';
 import {
   Moon, Sun,
-  ScanSearch,
-  Star, Briefcase, Settings, Menu, BookOpen, ChevronDown, Scale,
+  Star, Briefcase, Settings, Menu, ChevronDown, Scale,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
@@ -17,11 +16,6 @@ import { cn } from '@/lib/utils';
 import { useState, useRef, useEffect } from 'react';
 
 // ── Navigation Items ──────────────────────────────────────────────────────────
-
-const PRIMARY_NAV = [
-  { href: '/scanner', label: '掃描', icon: ScanSearch },
-  { href: '/learn',   label: '教學', icon: BookOpen },
-] as const;
 
 // Items under the settings (gear) dropdown
 const SETTINGS_SUB = [
@@ -144,25 +138,6 @@ export function PageShell({ children, headerSlot, fullViewport, className }: Pag
             <div className="shrink-0">{headerSlot}</div>
           )}
 
-          {/* Primary Nav — desktop */}
-          <nav aria-label="主要導覽" className="hidden md:flex items-center gap-0.5 ml-1">
-            {PRIMARY_NAV.map(({ href, label, icon: Icon }) => (
-              <Link
-                key={href}
-                href={href}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
-                  isActive(href)
-                    ? 'bg-sky-500/15 text-sky-400'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary',
-                )}
-              >
-                <Icon className="w-4 h-4" />
-                {label}
-              </Link>
-            ))}
-          </nav>
-
           {/* Spacer */}
           <div className="flex-1" />
 
@@ -226,25 +201,6 @@ export function PageShell({ children, headerSlot, fullViewport, className }: Pag
                   </SheetTitle>
                 </SheetHeader>
                 <nav aria-label="行動版導覽" className="flex flex-col gap-1 mt-4 px-2">
-                  {PRIMARY_NAV.map(({ href, label, icon: Icon }) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      onClick={() => setMobileOpen(false)}
-                      className={cn(
-                        'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                        isActive(href)
-                          ? 'bg-sky-500/15 text-sky-400'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-secondary',
-                      )}
-                    >
-                      <Icon className="w-4 h-4" />
-                      {label}
-                    </Link>
-                  ))}
-
-                  <div className="h-px bg-border my-2" />
-
                   {/* Mobile: flat list of sub-pages */}
                   {[
                     { href: '/watchlist',            label: '自選股',    icon: Star },

@@ -15,6 +15,7 @@
  */
 
 import { globalCache } from './MemoryCache';
+import { rateLimiter } from './UnifiedRateLimiter';
 import type { Candle } from '@/types';
 
 const FUGLE_BASE = 'https://api.fugle.tw/marketdata/v1.0/stock';
@@ -82,6 +83,7 @@ export async function getFugleIntradayCandles(
   if (cached) return cached;
 
   try {
+    await rateLimiter.acquire('fugle');
     const url = `${FUGLE_BASE}/intraday/candles/${symbol}?timeframe=${timeframe}`;
     const res = await fetch(url, {
       headers: fugleHeaders(),
@@ -89,11 +91,13 @@ export async function getFugleIntradayCandles(
     });
 
     if (!res.ok) {
+      rateLimiter.reportError('fugle', res.status);
       if (res.status === 401 || res.status === 403) {
         console.warn('[Fugle] API Key 無效或過期');
       }
       return [];
     }
+    rateLimiter.reportSuccess('fugle');
 
     const json = (await res.json()) as FugleCandlesResponse;
     const candles: Candle[] = (json.data ?? [])
@@ -160,13 +164,18 @@ export async function getFugleQuote(symbol: string): Promise<FugleQuote | null> 
   if (cached) return cached;
 
   try {
+    await rateLimiter.acquire('fugle');
     const url = `${FUGLE_BASE}/intraday/quote/${symbol}`;
     const res = await fetch(url, {
       headers: fugleHeaders(),
       signal: AbortSignal.timeout(8000),
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      rateLimiter.reportError('fugle', res.status);
+      return null;
+    }
+    rateLimiter.reportSuccess('fugle');
 
     const json = (await res.json()) as FugleQuoteResponse;
 

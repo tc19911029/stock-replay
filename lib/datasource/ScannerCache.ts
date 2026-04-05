@@ -2,10 +2,10 @@
  * ScannerCache — 掃描專用歷史 K 線快取
  *
  * 設計原則：
- * - 歷史日期的 K 線永遠不變（2024-01-15 的 K 線永遠是那根）→ 存了就不用再打 API
+ * - 歷史日期的 K 線永遠不變 → 存了就不用再打 API
  * - 當天 / 無指定日期 → 不快取（盤中數據可能還在變）
  * - 獨立於 globalCache，不搶走圖的快取空間
- * - 無容量上限（歷史數據不會無限增長，同一 asOfDate 掃完就結束）
+ * - LRU 容量上限 10,000 entries（防止歷史回測時記憶體爆炸）
  * - serverless 環境下 cold start 會清空，但同一次掃描內有效
  *
  * Key 格式: `${symbol}:${asOfDate}`
@@ -14,6 +14,7 @@
 
 import type { CandleWithIndicators } from '@/types';
 
+const MAX_ENTRIES = 10_000;
 const cache = new Map<string, CandleWithIndicators[]>();
 
 let hits = 0;
@@ -43,6 +44,9 @@ export function getScannerCache(
   const cached = cache.get(key);
   if (cached) {
     hits++;
+    // LRU: 刷新位置（delete + set 把 key 移到末尾）
+    cache.delete(key);
+    cache.set(key, cached);
     return cached;
   }
   misses++;
@@ -61,6 +65,14 @@ export function setScannerCache(
   if (!asOfDate || asOfDate >= getTodayStr()) return;
   if (candles.length === 0) return;
   const key = makeKey(symbol, asOfDate);
+
+  // LRU: 超過上限時移除最舊的 entries
+  if (cache.size >= MAX_ENTRIES && !cache.has(key)) {
+    const firstKey = cache.keys().next().value;
+    if (firstKey !== undefined) cache.delete(firstKey);
+  }
+
+  // Map.set 會把 key 移到末尾（最近使用）
   cache.set(key, candles);
 }
 

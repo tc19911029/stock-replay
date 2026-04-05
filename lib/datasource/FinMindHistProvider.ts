@@ -15,6 +15,7 @@ import { computeIndicators } from '@/lib/indicators';
 import { DataProvider } from './DataProvider';
 import { globalCache } from './MemoryCache';
 import { aggregateCandles } from './aggregateCandles';
+import { rateLimiter } from './UnifiedRateLimiter';
 
 const FINMIND_BASE = 'https://api.finmindtrade.com/api/v4/data';
 const FINMIND_TOKEN = process.env.FINMIND_API_TOKEN ?? '';
@@ -25,9 +26,29 @@ const RECENT_TTL = 5 * 60 * 1000;
 // ── 熔斷器：402 後停止嘗試 1 小時 ────────────────────────────────────────────
 let rateLimitedUntil = 0;
 
+// ── 額度追蹤（session 級別）───────────────────────────────────────────────────
+let sessionCallCount = 0;
+let sessionCallResetAt = 0;
+const QUOTA_LIMIT = FINMIND_TOKEN ? 600 : 300; // 有 token: 600/hr, 免費: 300/hr
+const QUOTA_WARN_THRESHOLD = Math.floor(QUOTA_LIMIT * 0.8); // 80% 時警告
+
 /** FinMind 是否可用（未被限流） */
 export function isFinMindAvailable(): boolean {
   return Date.now() > rateLimitedUntil;
+}
+
+/** 取得本小時已使用的 API 額度 */
+export function getFinMindQuotaUsage(): { used: number; limit: number; isWarning: boolean } {
+  // 每小時重置計數
+  if (Date.now() > sessionCallResetAt) {
+    sessionCallCount = 0;
+    sessionCallResetAt = Date.now() + 60 * 60 * 1000;
+  }
+  return {
+    used: sessionCallCount,
+    limit: QUOTA_LIMIT,
+    isWarning: sessionCallCount >= QUOTA_WARN_THRESHOLD,
+  };
 }
 
 // ── FinMind 回傳型別 ─────────────────────────────────────────────────────────
@@ -75,6 +96,19 @@ async function fetchFinMindPrice(
     throw new Error('FinMind rate limited (circuit breaker open)');
   }
 
+  // 統一限流：等待取得 token
+  await rateLimiter.acquire('finmind');
+
+  // 額度追蹤（保留舊邏輯作為備份監控）
+  if (Date.now() > sessionCallResetAt) {
+    sessionCallCount = 0;
+    sessionCallResetAt = Date.now() + 60 * 60 * 1000;
+  }
+  sessionCallCount++;
+  if (sessionCallCount === QUOTA_WARN_THRESHOLD) {
+    console.warn(`[FinMind] 已使用 ${sessionCallCount}/${QUOTA_LIMIT} 額度 (${Math.round(sessionCallCount / QUOTA_LIMIT * 100)}%)，接近上限`);
+  }
+
   const url = new URL(FINMIND_BASE);
   url.searchParams.set('dataset', 'TaiwanStockPrice');
   url.searchParams.set('data_id', code);
@@ -90,11 +124,17 @@ async function fetchFinMindPrice(
   if (res.status === 402) {
     // 額度用完，啟動熔斷器 — 1 小時後重試
     rateLimitedUntil = Date.now() + 60 * 60 * 1000;
+    rateLimiter.reportError('finmind', 402, 'quota exhausted');
     console.warn('[FinMind] Rate limited (402). Circuit breaker open for 1 hour.');
     throw new Error('FinMind 402 rate limited');
   }
 
-  if (!res.ok) throw new Error(`FinMind ${res.status}`);
+  if (!res.ok) {
+    rateLimiter.reportError('finmind', res.status, `HTTP ${res.status}`);
+    throw new Error(`FinMind ${res.status}`);
+  }
+
+  rateLimiter.reportSuccess('finmind');
 
   const json = (await res.json()) as { status: number; data: FinMindPriceRow[] };
   if (json.status !== 200 || !json.data) return [];

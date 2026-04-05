@@ -1,13 +1,42 @@
+import { loadLocalCandles } from '@/lib/datasource/LocalCandleStore';
 import { fetchCandlesRange } from '@/lib/datasource/YahooFinanceDS';
+import { rateLimiter } from '@/lib/datasource/UnifiedRateLimiter';
 import { StockForwardPerformance, ForwardCandle } from '@/lib/scanner/types';
+import type { Candle } from '@/types';
 
 // 增加到 45 曆天，確保春節/國慶長假後仍能覆蓋 20+ 個交易日
 const FORWARD_WINDOW_DAYS = 45;
 const CONCURRENCY = 10;
 
+/** 判斷股票所屬市場 */
+function detectMarket(symbol: string): 'TW' | 'CN' {
+  if (/\.(SS|SZ)$/i.test(symbol)) return 'CN';
+  return 'TW';
+}
+
+/**
+ * 從本地 K 線檔案提取指定日期範圍的 candles
+ * 本地檔案存的是完整歷史（2年+），只需要 filter 出 scanDate 之後的部分
+ */
+async function loadForwardFromLocal(
+  symbol: string,
+  startStr: string,
+  safeEndStr: string,
+): Promise<Candle[]> {
+  const market = detectMarket(symbol);
+  const localCandles = await loadLocalCandles(symbol, market);
+  if (!localCandles || localCandles.length === 0) return [];
+
+  return localCandles
+    .filter(c => c.date >= startStr && c.date <= safeEndStr)
+    .map(c => ({ date: c.date, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume }));
+}
+
 /**
  * Analyse forward performance for a single stock after a scan date.
  * Returns null if data unavailable (caller should track for survivorship bias).
+ *
+ * 資料優先順序：本地 K 線 → Yahoo API（帶限流）
  */
 async function analyzeOne(
   symbol:    string,
@@ -27,11 +56,21 @@ async function analyzeOne(
     const todayStr = utc8.toISOString().split('T')[0];
     const safeEndStr = endStr > todayStr ? todayStr : endStr;
 
-    let candles = await fetchCandlesRange(symbol, startStr, safeEndStr, 8000);
-    // retry 一次：資料源可能暫時性失敗（rate limit、網路）
+    // 優先讀本地 K 線
+    let candles = await loadForwardFromLocal(symbol, startStr, safeEndStr);
+
+    // 本地沒有才打 API（帶限流 + retry）
     if (candles.length === 0) {
-      await new Promise(r => setTimeout(r, 2000));
+      const market = detectMarket(symbol);
+      const provider = market === 'TW' ? 'finmind' : 'eastmoney';
+      await rateLimiter.acquire(provider);
       candles = await fetchCandlesRange(symbol, startStr, safeEndStr, 8000);
+      if (candles.length === 0) {
+        await new Promise(r => setTimeout(r, 2000));
+        await rateLimiter.acquire(provider);
+        candles = await fetchCandlesRange(symbol, startStr, safeEndStr, 8000);
+      }
+      if (candles.length > 0) rateLimiter.reportSuccess(provider);
     }
 
     // P0-4: 若 scanDate 距今不超過 3 個曆天（週五掃描、長假前），

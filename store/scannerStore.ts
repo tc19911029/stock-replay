@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { StockScanResult, ScanSession, MarketId, sanitizeScanResult } from '@/lib/scanner/types';
+import { StockScanResult, ScanSession, MarketId, sanitizeScanResult, ScanDiagnostics, createEmptyDiagnostics, mergeDiagnostics, diagnosticsSummary } from '@/lib/scanner/types';
 import { TrendState } from '@/lib/analysis/trendAnalysis';
 import { useSettingsStore } from './settingsStore';
 
@@ -196,8 +196,12 @@ export const useScannerStore = create<ScannerStore>()(
               const j = await res.json().catch(() => ({}));
               throw new Error((j as { error?: string }).error ?? '掃描失敗');
             }
-            const j = await res.json() as { results?: StockScanResult[]; marketTrend?: TrendState };
-            return { results: (j.results ?? []).map(sanitizeScanResult), marketTrend: j.marketTrend ?? null };
+            const j = await res.json() as { results?: StockScanResult[]; marketTrend?: TrendState; diagnostics?: ScanDiagnostics };
+            return {
+              results: (j.results ?? []).map(sanitizeScanResult),
+              marketTrend: j.marketTrend ?? null,
+              diagnostics: j.diagnostics ?? createEmptyDiagnostics(),
+            };
           };
 
           // ── Step 3: Run both chunks in parallel ────────────────────────────
@@ -213,6 +217,12 @@ export const useScannerStore = create<ScannerStore>()(
             (r2.status === 'fulfilled' ? r2.value.marketTrend : null) ??
             '多頭';
 
+          // Merge diagnostics from both chunks
+          const combinedDiag = mergeDiagnostics(
+            r1.status === 'fulfilled' ? r1.value.diagnostics : createEmptyDiagnostics(),
+            r2.status === 'fulfilled' ? r2.value.diagnostics : createEmptyDiagnostics(),
+          );
+
           const results: StockScanResult[] = [
             ...(r1.status === 'fulfilled' ? r1.value.results : []),
             ...(r2.status === 'fulfilled' ? r2.value.results : []),
@@ -222,6 +232,21 @@ export const useScannerStore = create<ScannerStore>()(
               : b.changePercent - a.changePercent
           );
 
+          // 結果為空時：提供診斷信息（而非泛用錯誤）
+          if (results.length === 0 && combinedDiag.totalStocks > 0) {
+            const diagMsg = diagnosticsSummary(combinedDiag);
+            if (combinedDiag.filteredOut > 0 && combinedDiag.apiFailed === 0) {
+              // 正常：全被過濾但不是 API 錯誤
+              set(s => ({
+                [mKey]: { ...s[mKey], isScanning: false, progress: 100, scanningStock: '', results: [], lastScanTime: new Date().toISOString(), marketTrend, error: `無符合條件的股票（${diagMsg}）` },
+              }));
+            } else {
+              set(s => ({
+                [mKey]: { ...s[mKey], isScanning: false, progress: 100, scanningStock: '', results: [], marketTrend, error: `掃描異常（${diagMsg}）` },
+              }));
+            }
+            return;
+          }
 
           const now = new Date().toISOString();
 

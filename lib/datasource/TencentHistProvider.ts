@@ -18,6 +18,7 @@ import { computeIndicators } from '@/lib/indicators';
 import { DataProvider } from './DataProvider';
 import { globalCache } from './MemoryCache';
 import { aggregateCandles } from './aggregateCandles';
+import { rateLimiter } from './UnifiedRateLimiter';
 
 // ── 快取 TTL ──────────────────────────────────────────────────────────────────
 
@@ -116,6 +117,9 @@ async function fetchTencentKlines(
   isCN: boolean,
   maxRecords = 640,
 ): Promise<Candle[]> {
+  // 統一限流
+  await rateLimiter.acquire('tencent');
+
   const url =
     `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get` +
     `?param=${code},day,${startDate},${endDate},${maxRecords},qfq`;
@@ -125,7 +129,11 @@ async function fetchTencentKlines(
       signal: AbortSignal.timeout(10000),
       headers: { 'User-Agent': 'Mozilla/5.0' },
     });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      rateLimiter.reportError('tencent', res.status);
+      return [];
+    }
+    rateLimiter.reportSuccess('tencent');
 
     const json = (await res.json()) as TencentResponse;
     if (json.code !== 0 || !json.data) return [];
