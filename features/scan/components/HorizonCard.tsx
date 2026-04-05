@@ -2,7 +2,24 @@
 
 import { BacktestHorizon } from '@/store/backtestStore';
 import { StockForwardPerformance } from '@/lib/scanner/types';
-import { calcBacktestSummary } from '@/lib/backtest/ForwardAnalyzer';
+
+// Inline to avoid pulling server-only ForwardAnalyzer → LocalCandleStore (fs)
+function calcBacktestSummary(perf: StockForwardPerformance[], horizon: BacktestHorizon) {
+  const key = (horizon === 'open' ? 'openReturn' : `${horizon}Return`) as keyof StockForwardPerformance;
+  const returns = perf.map(p => p[key] as number | null).filter((r): r is number => r !== null);
+  if (returns.length === 0) return null;
+  const wins = returns.filter(r => r > 0).length;
+  const avg = returns.reduce((a, b) => a + b, 0) / returns.length;
+  const sorted = [...returns].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  return {
+    count: returns.length, wins, losses: returns.length - wins,
+    winRate: +(wins / returns.length * 100).toFixed(1),
+    avgReturn: +avg.toFixed(2), median: +median.toFixed(2),
+    maxGain: +Math.max(...returns).toFixed(2),
+    maxLoss: +Math.min(...returns).toFixed(2),
+  };
+}
 import { retColor, fmtRet } from '../utils';
 
 /** 根據 horizon key 取得所需的最少交易日數 */

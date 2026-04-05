@@ -1,14 +1,45 @@
 'use client';
 
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import Link from 'next/link';
 import { useBacktestStore } from '@/store/backtestStore';
 import { useWatchlistStore } from '@/store/watchlistStore';
-import { calcComposite, chipTooltip } from '../utils';
-import { chipBadge } from './TradeRow';
 import { POLLING } from '@/lib/config';
 import { fetchInstitutionalBatch, type InstitutionalSummary } from '@/lib/datasource/useInstitutionalSummary';
 import { Button } from '@/components/ui/button';
+import type { StockForwardPerformance } from '@/lib/scanner/types';
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Format a return % value for display */
+function fmtRet(val: number | null | undefined): string {
+  if (val == null) return '—';
+  return `${val >= 0 ? '+' : ''}${val.toFixed(1)}%`;
+}
+
+/** Return color class for a return value */
+function retColor(val: number | null | undefined): string {
+  if (val == null) return 'text-muted-foreground/50';
+  if (val > 0) return 'text-bull';
+  if (val < 0) return 'text-bear';
+  return 'text-muted-foreground';
+}
+
+// Forward performance column definitions
+const FWD_COLS = [
+  { key: 'openReturn' as const, label: '隔日開' },
+  { key: 'd1Return' as const, label: '1日' },
+  { key: 'd2Return' as const, label: '2日' },
+  { key: 'd3Return' as const, label: '3日' },
+  { key: 'd4Return' as const, label: '4日' },
+  { key: 'd5Return' as const, label: '5日' },
+  { key: 'd10Return' as const, label: '10日' },
+  { key: 'd20Return' as const, label: '20日' },
+  { key: 'maxGain' as const, label: '最高' },
+  { key: 'maxLoss' as const, label: '最低' },
+] as const;
+
+const TOTAL_COLS = 18; // 代號+名稱+概念+價格+漲跌%+趨勢+位置 + 10 fwd cols + 操作
 
 export function ScanResultsTable() {
   const {
@@ -17,6 +48,8 @@ export function ScanResultsTable() {
     market,
     marketTrend,
     scanOnly,
+    performance,
+    isFetchingForward,
   } = useBacktestStore();
 
   const [expandedStock, setExpandedStock] = useState<string | null>(null);
@@ -24,14 +57,21 @@ export function ScanResultsTable() {
   const [instData, setInstData] = useState<Map<string, InstitutionalSummary | null>>(new Map());
   const [realtimePrices, setRealtimePrices] = useState<Map<string, { price: number; changePct: number; time: string }>>(new Map());
   const [conceptFilter, setConceptFilter] = useState<string>('all');
-  const [scanSort, setScanSort] = useState<'composite' | 'score' | 'grade' | 'potential' | 'winRate' | 'price' | 'change'>('composite');
+  const [scanSort, setScanSort] = useState<'price' | 'change'>('change');
   const [scanSortDir, setScanSortDir] = useState<'asc' | 'desc'>('desc');
-  const [heatmapMode, setHeatmapMode] = useState(false);
 
-  // ── 盤中即時價格更新（每 30 秒，僅台股+掃描選股模式）────────────────────
+  // Build performance lookup map
+  const perfMap = useMemo(() => {
+    const map = new Map<string, StockForwardPerformance>();
+    for (const p of performance) {
+      map.set(p.symbol, p);
+    }
+    return map;
+  }, [performance]);
+
+  // ── Realtime prices (盤中即時價格更新) ──
   useEffect(() => {
     if (market !== 'TW' || scanResults.length === 0 || !scanOnly) return;
-
     const now = new Date();
     const h = now.getHours(), m = now.getMinutes();
     const isMarketHour = (h >= 9 && (h < 13 || (h === 13 && m <= 30)));
@@ -57,14 +97,14 @@ export function ScanResultsTable() {
     return () => clearInterval(timer);
   }, [market, scanResults.length, scanOnly]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch FinMind historical institutional summaries when TW scan results appear
+  // Fetch FinMind institutional summaries
   useEffect(() => {
     if (market !== 'TW' || scanResults.length === 0) return;
     const tickers = scanResults.map(r => r.symbol.replace(/\.(TW|TWO)$/i, ''));
     fetchInstitutionalBatch(tickers).then(setInstData).catch(() => {});
   }, [market, scanResults]);
 
-  // Fetch news sentiment on-demand when a scan row is expanded
+  // Fetch news on-demand
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!expandedStock) return;
@@ -99,39 +139,11 @@ export function ScanResultsTable() {
   const sortedScanResults = [...filteredScanResults].sort((a, b) => {
     const dir = scanSortDir === 'desc' ? 1 : -1;
     switch (scanSort) {
-      case 'composite':  return dir * (calcComposite(b) - calcComposite(a));
-      case 'score':     return dir * ((b.sixConditionsScore ?? 0) - (a.sixConditionsScore ?? 0));
-      case 'grade': {
-        const gradeOrder: Record<string, number> = { S: 5, A: 4, B: 3, C: 2, D: 1 };
-        return dir * ((gradeOrder[b.surgeGrade ?? ''] ?? 0) - (gradeOrder[a.surgeGrade ?? ''] ?? 0));
-      }
-      case 'potential':  return dir * ((b.surgeScore ?? 0) - (a.surgeScore ?? 0));
-      case 'winRate':    return dir * ((b.histWinRate ?? 0) - (a.histWinRate ?? 0));
       case 'price':      return dir * ((b.price ?? 0) - (a.price ?? 0));
       case 'change':     return dir * ((b.changePercent ?? 0) - (a.changePercent ?? 0));
       default:           return 0;
     }
   });
-
-  // ── 三層分級：強烈推薦 / 值得關注 / 一般符合 ──
-  const tierOf = (r: typeof scanResults[number]) => {
-    const composite = calcComposite(r);
-    if (r.sixConditionsScore >= 5 && composite >= 65) return 'top';
-    if (r.sixConditionsScore >= 4 && composite >= 45) return 'watch';
-    return 'normal';
-  };
-
-  const topCount = sortedScanResults.filter(r => tierOf(r) === 'top').length;
-  const watchCount = sortedScanResults.filter(r => tierOf(r) === 'watch').length;
-
-  // Heatmap cell background: value 0-max → opacity 0-40% of given color
-  function heatBg(value: number, max: number, color: 'sky' | 'green' | 'orange'): string {
-    if (!heatmapMode) return '';
-    const t = Math.min(Math.max(value / max, 0), 1);
-    const opacity = Math.round(t * 45);
-    const colors = { sky: `rgba(56,189,248,${opacity / 100})`, green: `rgba(74,222,128,${opacity / 100})`, orange: `rgba(251,146,60,${opacity / 100})` };
-    return colors[color];
-  }
 
   if (!scanOnly) return null;
 
@@ -147,39 +159,43 @@ export function ScanResultsTable() {
 
   return (
     <div className="space-y-2">
+      {/* Header row */}
       <div className="flex items-center gap-2 text-sm flex-wrap">
         <span className="font-bold text-foreground">掃描結果</span>
         <span className="text-muted-foreground">{scanResults.length} 檔符合條件</span>
         <span className="text-[10px] text-muted-foreground/60" title="掃描的歷史資料日期">資料日期：{scanDate}</span>
         {marketTrend && (
-          <span title={`大盤趨勢：${marketTrend}｜多頭＝大盤上漲，選股勝率較高｜盤整＝方向不明，需謹慎｜空頭＝大盤下跌，風險較大`}
+          <span title={`大盤趨勢：${marketTrend}`}
             className={`px-1.5 py-0.5 rounded text-[10px] font-bold cursor-help ${
             marketTrend === '多頭' ? 'bg-red-900/50 text-red-300' :
             marketTrend === '空頭' ? 'bg-green-900/50 text-green-300' :
             'bg-yellow-900/50 text-yellow-300'
           }`}>{String(marketTrend)}</span>
         )}
-        {topCount > 0 && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-900/50 text-red-300">TOP {topCount}</span>}
-        {watchCount > 0 && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-900/40 text-orange-300">關注 {watchCount}</span>}
-        <Button
-          onClick={() => setHeatmapMode(v => !v)}
-          variant="outline"
-          size="sm"
-          title="熱力圖模式：數值越高顏色越深，快速辨別強弱"
-          className={`text-[11px] px-2.5 py-1 h-auto bg-transparent ${heatmapMode ? 'border-amber-500/60 text-amber-400 bg-amber-900/20' : 'border-border text-muted-foreground hover:text-foreground'}`}
-        >
-          熱力圖
-        </Button>
+        {isFetchingForward && (
+          <span className="text-[10px] text-sky-400 animate-pulse">載入後續表現…</span>
+        )}
         <Button
           onClick={() => {
-            const headers = ['代號','名稱','概念','評分','等級','潛力','勝率','信號次數','價格','漲跌%','趨勢','位置'];
-            const rows = sortedScanResults.map(r => [
-              r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, ''), r.name, r.industry ?? '',
-              r.sixConditionsScore, r.surgeGrade ?? '', r.surgeScore ?? '',
-              r.histWinRate != null ? `${r.histWinRate}%` : '', r.histSignalCount ?? '',
-              r.price.toFixed(2), `${r.changePercent >= 0 ? '+' : ''}${r.changePercent.toFixed(2)}%`,
-              r.trendState, r.trendPosition,
-            ]);
+            const headers = ['代號','名稱','概念','價格','漲跌%','趨勢','位置','隔日開','1日','2日','3日','4日','5日','10日','20日','最高','最低'];
+            const rows = sortedScanResults.map(r => {
+              const perf = perfMap.get(r.symbol);
+              return [
+                r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, ''), r.name, r.industry ?? '',
+                r.price.toFixed(2), `${r.changePercent >= 0 ? '+' : ''}${r.changePercent.toFixed(2)}%`,
+                r.trendState, r.trendPosition,
+                perf?.openReturn != null ? `${perf.openReturn.toFixed(2)}%` : '',
+                perf?.d1Return != null ? `${perf.d1Return.toFixed(2)}%` : '',
+                perf?.d2Return != null ? `${perf.d2Return.toFixed(2)}%` : '',
+                perf?.d3Return != null ? `${perf.d3Return.toFixed(2)}%` : '',
+                perf?.d4Return != null ? `${perf.d4Return.toFixed(2)}%` : '',
+                perf?.d5Return != null ? `${perf.d5Return.toFixed(2)}%` : '',
+                perf?.d10Return != null ? `${perf.d10Return.toFixed(2)}%` : '',
+                perf?.d20Return != null ? `${perf.d20Return.toFixed(2)}%` : '',
+                perf?.maxGain != null ? `${perf.maxGain.toFixed(2)}%` : '',
+                perf?.maxLoss != null ? `${perf.maxLoss.toFixed(2)}%` : '',
+              ];
+            });
             const csv = '\uFEFF' + [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
@@ -194,7 +210,8 @@ export function ScanResultsTable() {
           匯出 CSV
         </Button>
       </div>
-      {/* 概念篩選器 */}
+
+      {/* Concept filter pills */}
       {availableConcepts.length > 1 && (
         <div className="flex flex-wrap gap-1 items-center">
           <span className="text-[10px] text-muted-foreground mr-1">篩選：</span>
@@ -217,54 +234,49 @@ export function ScanResultsTable() {
           })}
         </div>
       )}
+
+      {/* Main table with horizontal scroll */}
       <div className="overflow-x-auto">
-        <table className="w-full text-xs">
+        <table className="w-full text-xs" style={{ minWidth: '1100px' }}>
           <thead>
             <tr className="text-muted-foreground border-b border-border">
-              <th className="text-left py-1.5 px-2">代號</th>
-              <th className="text-left py-1.5 px-2">名稱</th>
-              <th className="text-left py-1.5 px-2">概念</th>
+              <th className="text-left py-1.5 px-2 sticky left-0 bg-background z-10 whitespace-nowrap">代號</th>
+              <th className="text-left py-1.5 px-2 sticky left-[60px] bg-background z-10 whitespace-nowrap">名稱</th>
+              <th className="text-left py-1.5 px-2 whitespace-nowrap">概念</th>
               {([
-                { key: 'composite' as const, label: '綜合', align: 'text-center', tooltip: '綜合評分 (0-100)\n六條件35% + 潛力25% + 勝率20%\n+ 位置10% + 量能10%\n越高代表多維度共振越強' },
-                { key: 'score' as const, label: '評分', align: 'text-center', tooltip: '六大條件評分 (0-6)\n1.趨勢：頭頭高底底高+MA排列\n2.位置：MA20乖離0-12%或回踩MA10\n3.K棒：紅棒≥2%收上半部\n4.均線：MA5>MA10>MA20多頭排列\n5.量能：成交量≥5日均量×1.5倍\n6.指標：MACD紅柱或KD黃金交叉' },
-                { key: 'grade' as const, label: '等級', align: 'text-center', tooltip: '飆股潛力等級\nS級(80+)：極強飆股特徵\nA級(65-79)：強勢股\nB級(50-64)：中等潛力\nC級(35-49)：偏弱\nD級(<35)：不具飆股特徵' },
-                { key: 'potential' as const, label: '潛力', align: 'text-center', tooltip: '飆股潛力分數 (0-100)\n動能(18%)+波動率(12%)+量能(15%)\n+突破(15%)+趨勢品質(15%)\n+價格位置(5%)+K棒強度(5%)\n+指標共振(5%)+長期品質(10%)' },
-                { key: 'winRate' as const, label: '勝率', align: 'text-center', tooltip: '歷史勝率：過去同類信號\n在相同策略參數下的獲利比率\n基於回測歷史交易計算' },
-                { key: 'price' as const, label: '價格', align: 'text-right', tooltip: '' },
-                { key: 'change' as const, label: '漲跌%', align: 'text-right', tooltip: '' },
-              ]).map(({ key, label, align, tooltip }) => (
+                { key: 'price' as const, label: '價格' },
+                { key: 'change' as const, label: '漲跌%' },
+              ]).map(({ key, label }) => (
                 <th key={key}
-                  title={tooltip || undefined}
-                  className={`${align} py-1.5 px-1 cursor-pointer hover:text-foreground select-none`}
+                  className="text-right py-1.5 px-1 cursor-pointer hover:text-foreground select-none whitespace-nowrap"
                   onClick={() => {
                     if (scanSort === key) setScanSortDir(d => d === 'desc' ? 'asc' : 'desc');
                     else { setScanSort(key); setScanSortDir('desc'); }
                   }}>
-                  {label}{tooltip && <span className="text-[8px] text-muted-foreground/60 ml-0.5">ⓘ</span>}
+                  {label}
                   {scanSort === key && <span className="ml-0.5 text-sky-400">{scanSortDir === 'desc' ? '▼' : '▲'}</span>}
                 </th>
               ))}
               <th className="text-left py-1.5 px-2 whitespace-nowrap">趨勢</th>
               <th className="text-left py-1.5 px-2 whitespace-nowrap">位置</th>
-              <th className="text-center py-1.5 px-2 whitespace-nowrap"
-                title="籌碼面評分 (0-100)\nS(80+)=主力強力買超\nA(65-79)=法人偏多\nB(50-64)=中性\nC(35-49)=法人偏空\nD(<35)=主力出貨\n\n依據：三大法人買賣超+融資融券+大額交易人+當沖比例">籌碼ⓘ</th>
-              <th className="text-center py-1.5 px-2 whitespace-nowrap" title="FinMind: 外資近5日淨買超（張）">外資5日</th>
-              <th className="text-center py-1.5 px-2 whitespace-nowrap" title="FinMind: 外資連續買超天數">連買</th>
-              <th className="text-center py-1.5 px-2">操作</th>
+              {FWD_COLS.map(({ key, label }) => (
+                <th key={key} className="text-right py-1.5 px-1 whitespace-nowrap text-[10px]">{label}</th>
+              ))}
+              <th className="text-center py-1.5 px-2 whitespace-nowrap">操作</th>
             </tr>
           </thead>
           <tbody>
-            {sortedScanResults.slice(0, 50).map((r) => (<Fragment key={r.symbol}>
+            {sortedScanResults.slice(0, 50).map((r) => {
+              const perf = perfMap.get(r.symbol);
+              return (<Fragment key={r.symbol}>
               <tr className={`border-b border-border/50 hover:bg-secondary/40 cursor-pointer ${expandedStock === r.symbol ? 'bg-secondary/60' : ''}`}
                 onClick={() => setExpandedStock(expandedStock === r.symbol ? null : r.symbol)}>
-                <td className="py-1.5 px-2 font-mono font-bold text-foreground">
-                  <div className="flex items-center gap-1">
-                    {r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}
-                    {tierOf(r) === 'top' && <span className="text-[8px] px-1 py-0 rounded bg-red-600 text-white font-bold leading-tight">TOP</span>}
-                    {tierOf(r) === 'watch' && <span className="text-[8px] px-1 py-0 rounded bg-orange-600/80 text-white font-bold leading-tight">!</span>}
-                  </div>
+                {/* 代號 — sticky */}
+                <td className="py-1.5 px-2 font-mono font-bold text-foreground sticky left-0 bg-background z-10">
+                  {r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}
                 </td>
-                <td className="py-1.5 px-2">
+                {/* 名稱 + six-conditions badges — sticky */}
+                <td className="py-1.5 px-2 sticky left-[60px] bg-background z-10">
                   <div className="text-foreground/80">{r.name}</div>
                   <div className="flex gap-0.5 mt-0.5">
                     {[
@@ -279,76 +291,42 @@ export function ScanResultsTable() {
                     ))}
                   </div>
                 </td>
-                <td className="py-1.5 px-1 text-[10px] text-muted-foreground max-w-[60px] truncate" title={r.industry}>{r.industry ?? '—'}</td>
-                <td className="py-1.5 px-1 text-center" style={{ background: heatBg(calcComposite(r), 100, 'sky') }}>
-                  {(() => {
-                    const cs = calcComposite(r);
-                    return <span className={`font-bold text-[11px] ${cs >= 70 ? 'text-sky-400' : cs >= 55 ? 'text-foreground' : 'text-muted-foreground'}`}>{cs.toFixed(1)}</span>;
-                  })()}
-                </td>
-                <td className="py-1.5 px-1 text-center" style={{ background: heatBg(r.sixConditionsScore, 6, 'green') }}>
-                  <span className={`font-bold ${r.sixConditionsScore >= 5 ? 'text-bull' : r.sixConditionsScore >= 4 ? 'text-orange-400' : 'text-yellow-400'}`}>
-                    {r.sixConditionsScore}/6
-                  </span>
-                </td>
-                <td className="py-1.5 px-1 text-center">
-                  {r.surgeGrade && (
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                      r.surgeGrade === 'S' ? 'bg-red-600 text-foreground' :
-                      r.surgeGrade === 'A' ? 'bg-orange-500 text-foreground' :
-                      r.surgeGrade === 'B' ? 'bg-yellow-500 text-black' :
-                      'bg-muted text-foreground/80'
-                    }`}>{r.surgeGrade}</span>
-                  )}
-                </td>
-                <td className="py-1.5 px-1 text-center font-mono text-foreground/80" style={{ background: heatBg(r.surgeScore ?? 0, 100, 'orange') }}>{r.surgeScore ?? '—'}</td>
-                <td className="py-1.5 px-1 text-center" style={{ background: heatBg(r.histWinRate ?? 0, 100, 'green') }}>
-                  {r.histWinRate != null && (
-                    <span className={`text-[10px] px-1 rounded ${r.histWinRate >= 60 ? 'bg-green-900/60 text-green-300' : r.histWinRate >= 50 ? 'bg-yellow-900/60 text-yellow-300' : 'bg-red-900/60 text-red-300'}`}
-                      title={`基於過去 ${r.histSignalCount ?? '?'} 次同類信號的歷史勝率`}>
-                      {r.histWinRate}%<span className="text-[8px] opacity-60">({r.histSignalCount ?? '?'})</span>
-                    </span>
-                  )}
-                </td>
+                {/* 概念 */}
+                <td className="py-1.5 px-1 text-[10px] text-muted-foreground max-w-[80px] truncate" title={r.industry}>{r.industry ?? '—'}</td>
+                {/* 價格 + 漲跌% */}
                 {(() => {
                   const sym = r.symbol.replace(/\.(TW|TWO)$/i, '');
                   const rt = realtimePrices.get(sym);
                   const price = rt?.price ?? r.price;
                   const chgPct = rt?.changePct ?? r.changePercent;
                   return (<>
-                    <td className="py-1.5 px-2 text-right font-mono text-foreground" title={rt ? `即時 ${rt.time}` : '掃描時價格'}>
+                    <td className="py-1.5 px-2 text-right font-mono text-foreground whitespace-nowrap" title={rt ? `即時 ${rt.time}` : '掃描時價格'}>
                       {price.toFixed(2)}
                       {rt && <span className="text-[8px] text-sky-500 ml-0.5">⚡</span>}
                     </td>
-                    <td className={`py-1.5 px-2 text-right font-mono font-bold ${chgPct >= 0 ? 'text-bull' : 'text-bear'}`}>
+                    <td className={`py-1.5 px-2 text-right font-mono font-bold whitespace-nowrap ${chgPct >= 0 ? 'text-bull' : 'text-bear'}`}>
                       {chgPct >= 0 ? '+' : ''}{chgPct.toFixed(2)}%
                     </td>
                   </>);
                 })()}
+                {/* 趨勢 */}
                 <td className="py-1.5 px-2 text-[10px] text-muted-foreground whitespace-nowrap">{r.trendState}</td>
+                {/* 位置 */}
                 <td className="py-1.5 px-2 text-[10px] text-muted-foreground whitespace-nowrap">{r.trendPosition}</td>
-                <td className="py-1.5 px-2 text-center whitespace-nowrap">
-                  {chipBadge(r.chipScore, r.chipGrade, r.chipSignal, chipTooltip(r))}
-                </td>
-                <td className="py-1.5 px-2 text-center whitespace-nowrap font-mono text-xs">
-                  {(() => {
-                    const inst = instData.get(r.symbol.replace(/\.(TW|TWO)$/i, ''));
-                    if (!inst) return <span className="text-muted-foreground/60">—</span>;
-                    const v = inst.foreignNet5d;
-                    return <span className={v > 0 ? 'text-bull' : v < 0 ? 'text-bear' : 'text-muted-foreground'}>
-                      {v > 0 ? '+' : ''}{v.toLocaleString()}
-                    </span>;
-                  })()}
-                </td>
-                <td className="py-1.5 px-2 text-center whitespace-nowrap text-xs">
-                  {(() => {
-                    const inst = instData.get(r.symbol.replace(/\.(TW|TWO)$/i, ''));
-                    if (!inst || inst.consecutiveForeignBuy === 0) return <span className="text-muted-foreground/60">—</span>;
-                    return <span className={`font-bold ${inst.consecutiveForeignBuy >= 3 ? 'text-bull' : 'text-foreground/80'}`}>
-                      {inst.consecutiveForeignBuy}日
-                    </span>;
-                  })()}
-                </td>
+                {/* Forward performance columns */}
+                {FWD_COLS.map(({ key }) => {
+                  const val = perf ? perf[key] : undefined;
+                  return (
+                    <td key={key} className={`py-1.5 px-1 text-right font-mono text-[10px] whitespace-nowrap ${retColor(val as number | null | undefined)}`}>
+                      {isFetchingForward && !perf ? (
+                        <span className="text-muted-foreground/40">…</span>
+                      ) : (
+                        fmtRet(val as number | null | undefined)
+                      )}
+                    </td>
+                  );
+                })}
+                {/* 操作 */}
                 <td className="py-1.5 px-2 text-center whitespace-nowrap">
                   <Link href={`/?load=${r.symbol}&date=${scanDate}`}
                     className="text-[10px] text-sky-400 hover:text-sky-300 px-1.5 py-0.5 rounded border border-sky-700/50 hover:bg-sky-900/30 mr-1">
@@ -356,6 +334,7 @@ export function ScanResultsTable() {
                   </Link>
                   <Button
                     onClick={(e) => {
+                      e.stopPropagation();
                       useWatchlistStore.getState().add(r.symbol, r.name);
                       const btn = e.currentTarget;
                       btn.textContent = '✓ 已加';
@@ -368,9 +347,11 @@ export function ScanResultsTable() {
                   </Button>
                 </td>
               </tr>
+
+              {/* Expanded row */}
               {expandedStock === r.symbol && (
                 <tr className="bg-card/80">
-                  <td colSpan={13} className="px-4 py-3">
+                  <td colSpan={TOTAL_COLS} className="px-4 py-3">
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-[11px]">
                       {/* 飆股組件分數 */}
                       {r.surgeComponents && (
@@ -402,7 +383,7 @@ export function ScanResultsTable() {
                           })}
                         </div>
                       )}
-                      {/* 飆股特徵標籤 */}
+                      {/* 技術特徵 */}
                       <div className="space-y-1.5">
                         <div className="text-muted-foreground font-medium">技術特徵</div>
                         <div className="flex flex-wrap gap-1">
@@ -430,7 +411,6 @@ export function ScanResultsTable() {
                           ))}
                           {r.triggeredRules.length === 0 && <span className="text-muted-foreground/60 text-[10px]">無觸發規則</span>}
                         </div>
-                        {/* 高勝率進場位置 */}
                         {(r.highWinRateDetails ?? []).length > 0 && (
                           <div className="mt-2">
                             <div className="text-amber-400 font-medium text-[10px] mb-0.5">高勝率進場</div>
@@ -439,7 +419,6 @@ export function ScanResultsTable() {
                             ))}
                           </div>
                         )}
-                        {/* 贏家圖像 */}
                         {((r.winnerBullishPatterns ?? []).length > 0 || (r.winnerBearishPatterns ?? []).length > 0) && (
                           <div className="mt-2">
                             <div className="text-muted-foreground font-medium text-[10px] mb-0.5">贏家圖像</div>
@@ -451,7 +430,6 @@ export function ScanResultsTable() {
                             ))}
                           </div>
                         )}
-                        {/* 淘汰法警示 */}
                         {(r.eliminationReasons ?? []).length > 0 && (
                           <div className="mt-2">
                             <div className="text-orange-400 font-medium text-[10px] mb-0.5">風險提示 (-{r.eliminationPenalty ?? 0}分)</div>
@@ -460,7 +438,6 @@ export function ScanResultsTable() {
                             ))}
                           </div>
                         )}
-                        {/* 切線突破 */}
                         {(r.trendlineBreakAbove || r.trendlineBreakBelow) && (
                           <div className="mt-2">
                             <div className="text-muted-foreground font-medium text-[10px] mb-0.5">切線分析</div>
@@ -469,7 +446,7 @@ export function ScanResultsTable() {
                           </div>
                         )}
                       </div>
-                      {/* 新聞情緒（on-demand） */}
+                      {/* 新聞情緒 */}
                       {(() => {
                         const tk = r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
                         const nd = newsCache[tk];
@@ -504,7 +481,7 @@ export function ScanResultsTable() {
                 </tr>
               )}
             </Fragment>
-            ))}
+            );})}
           </tbody>
         </table>
       </div>

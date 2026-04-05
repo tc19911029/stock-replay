@@ -1,19 +1,145 @@
 'use client';
 
-import { useState, useEffect, useMemo, Fragment, useCallback } from 'react';
-import Link from 'next/link';
+import { useState, useEffect, useCallback } from 'react';
 import { useBacktestStore } from '@/store/backtestStore';
-import { useSettingsStore } from '@/store/settingsStore';
-import { BUILT_IN_STRATEGIES } from '@/lib/strategy/StrategyConfig';
-import { useWatchlistStore } from '@/store/watchlistStore';
 import {
-  calcComposite,
-  ResearchAssumptions, SessionHistory,
-  ScanResultsTable, BacktestSection,
+  SessionHistory,
+  ScanResultsTable,
 } from '@/features/scan';
 import { PageShell } from '@/components/shared';
 import { SectionBoundary } from '@/components/ErrorBoundary';
 import { Button } from '@/components/ui/button';
+
+// ── Compact Scan Panel (embeddable in other pages) ───────────────────────────
+
+export function ScanPanel() {
+  const {
+    market, scanDate,
+    useMultiTimeframe, toggleMultiTimeframe,
+    setMarket, setScanDate,
+    isScanning, scanProgress, scanningStock, scanningCount, scanError,
+    scanResults, isFetchingForward, forwardError,
+    clearCurrent,
+    setScanOnly,
+    scanDirection, setScanDirection,
+    marketTrend,
+    cancelScan,
+  } = useBacktestStore();
+
+  const [maxDate, setMaxDate] = useState('2099-12-31');
+  useEffect(() => { setMaxDate(new Date().toISOString().split('T')[0]); }, []);
+
+  const isBusy = isScanning || isFetchingForward;
+
+  const handleScan = useCallback(() => {
+    if (isBusy) return;
+    setScanOnly(true);
+    setTimeout(() => useBacktestStore.getState().runScan(), 0);
+  }, [isBusy, setScanOnly]);
+
+  return (
+    <div className="text-foreground text-xs">
+      {/* Compact action bar — single row */}
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-border">
+        {/* Market */}
+        <div className="flex rounded overflow-hidden border border-border">
+          {(['TW', 'CN'] as const).map(m => (
+            <button key={m} onClick={() => { setMarket(m); clearCurrent(); }}
+              className={`px-2.5 py-1 text-[11px] font-medium ${market === m ? 'bg-blue-600 text-foreground' : 'bg-secondary text-muted-foreground hover:bg-muted'}`}>
+              {m === 'TW' ? '台股' : '陸股'}
+            </button>
+          ))}
+        </div>
+
+        {/* Direction */}
+        <div className="flex rounded overflow-hidden border border-border">
+          <button onClick={() => { setScanDirection('long'); clearCurrent(); }}
+            className={`px-2 py-1 text-[11px] font-medium ${scanDirection === 'long' ? 'bg-red-600 text-foreground' : 'bg-secondary text-muted-foreground hover:bg-muted'}`}>多</button>
+          <button onClick={() => { setScanDirection('short'); clearCurrent(); }}
+            className={`px-2 py-1 text-[11px] font-medium ${scanDirection === 'short' ? 'bg-green-600 text-foreground' : 'bg-secondary text-muted-foreground hover:bg-muted'}`}>空</button>
+        </div>
+
+        {/* Date */}
+        <input type="date" value={scanDate} max={maxDate} min="2020-01-01"
+          onChange={e => { setScanDate(e.target.value); clearCurrent(); }}
+          className="bg-secondary border border-border text-foreground rounded px-2 py-1 text-[11px] focus:outline-none focus:border-sky-500"
+        />
+
+        {/* 長線保護 */}
+        <button onClick={toggleMultiTimeframe}
+          className={`px-2 py-1 rounded text-[11px] font-medium border ${useMultiTimeframe ? 'bg-blue-700/60 border-blue-600 text-blue-200' : 'bg-secondary border-border text-muted-foreground hover:bg-muted'}`}>
+          {useMultiTimeframe ? '週月線' : '僅日線'}
+        </button>
+
+        {/* Result badge */}
+        {scanResults.length > 0 && !isScanning && (
+          <span className="text-muted-foreground">
+            選出 <span className="text-amber-400 font-bold">{scanResults.length}</span> 檔
+            {marketTrend && (
+              <span className={`ml-1 px-1 py-0.5 rounded text-[10px] font-bold ${
+                marketTrend === '多頭' ? 'bg-red-900/50 text-red-300' :
+                marketTrend === '空頭' ? 'bg-green-900/50 text-green-300' :
+                'bg-yellow-900/50 text-yellow-300'
+              }`}>{marketTrend}</span>
+            )}
+          </span>
+        )}
+
+        {/* Scan button */}
+        <div className="flex items-center gap-1.5">
+          <button onClick={handleScan} disabled={isBusy || !scanDate}
+            className="px-3 py-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-foreground text-[11px] font-semibold rounded whitespace-nowrap">
+            {isScanning ? `掃描中 ${Math.round(scanProgress)}%` : '掃描'}
+          </button>
+          {isBusy && (
+            <button onClick={cancelScan}
+              className="px-2 py-1 bg-red-700 hover:bg-red-600 text-foreground text-[11px] rounded">
+              取消
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      {(isScanning || isFetchingForward) && (
+        <div className="px-3 py-1.5 border-b border-border">
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
+            <span>{isScanning ? (scanningStock || '掃描中…') : '計算績效…'}</span>
+            {isScanning && scanningCount && <span className="font-mono">{scanningCount}</span>}
+          </div>
+          <div className="h-1 bg-secondary rounded-full overflow-hidden">
+            <div className="h-full bg-sky-500 rounded-full transition-all duration-500"
+              style={{ width: isScanning ? `${scanProgress}%` : '100%' }} />
+          </div>
+        </div>
+      )}
+
+      {/* Error / Warning */}
+      {(scanError || forwardError) && (() => {
+        const msg = scanError || forwardError || '';
+        const isWarning = msg.includes('\u90e8\u5206\u8986\u84cb') || msg.includes('\u8986\u84cb\u7387');
+        return (
+          <div className={`mx-3 my-1.5 px-3 py-1.5 rounded text-[11px] ${
+            isWarning
+              ? 'bg-amber-950/60 border border-amber-900 text-amber-300'
+              : 'bg-red-950/60 border border-red-900 text-red-300'
+          }`}>
+            {msg}
+          </div>
+        );
+      })()}
+
+      {/* Results table */}
+      <div className="overflow-y-auto" style={{ maxHeight: 'calc(40vh - 60px)' }}>
+        <div className="px-3 py-2">
+          <SectionBoundary section="掃描結果">
+            <ScanResultsTable />
+          </SectionBoundary>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── Shared Scan Page Content ──────────────────────────────────────────────────
 
@@ -24,22 +150,18 @@ interface ScanPageContentProps {
 
 export default function ScanPageContent({ defaultMode = 'full' }: ScanPageContentProps) {
   const {
-    market, scanDate, strategy,
-    useCapitalMode, capitalConstraints,
+    market, scanDate,
     useMultiTimeframe, toggleMultiTimeframe,
     sessions,
-    setMarket, setScanDate, setStrategy,
-    setCapitalConstraints, toggleCapitalMode,
+    setMarket, setScanDate,
     isScanning, scanProgress, scanningStock, scanningCount, scanError,
-    scanResults, isFetchingForward, forwardError, performance,
-    trades,
+    scanResults, isFetchingForward, forwardError,
     clearCurrent,
-    scanOnly, setScanOnly,
-    scanMode, setScanMode,
+    setScanOnly,
+    scanMode,
     scanDirection, setScanDirection,
     marketTrend,
     cancelScan,
-    scanPresets, saveScanPreset, loadScanPreset, deleteScanPreset,
     cronDates, fetchCronDates,
   } = useBacktestStore();
 
@@ -52,34 +174,14 @@ export default function ScanPageContent({ defaultMode = 'full' }: ScanPageConten
   useEffect(() => { setMaxDate(new Date().toISOString().split('T')[0]); }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // ── Strategy picker ──
-  const { activeStrategyId, customStrategies, setActiveStrategy } = useSettingsStore();
-  const allStrategies = useMemo(
-    () => [...BUILT_IN_STRATEGIES, ...customStrategies],
-    [customStrategies],
-  );
-
-  // ── Backtest params collapsible ──
-  const [showBacktestParams, setShowBacktestParams] = useState(false);
-
   // ── One-click scan actions ──
   const isBusy = isScanning || isFetchingForward;
 
   const handleScan = useCallback(() => {
     if (isBusy) return;
-    setScanOnly(false);
+    setScanOnly(true);
     setTimeout(() => useBacktestStore.getState().runScan(), 0);
   }, [isBusy, setScanOnly]);
-
-  // Summary text for collapsed backtest params
-  const paramsSummary = useMemo(() => {
-    const parts: string[] = [];
-    parts.push(`${strategy.holdDays}日`);
-    parts.push(strategy.stopLoss != null ? `停損${(strategy.stopLoss * 100).toFixed(0)}%` : '不停損');
-    parts.push(strategy.takeProfit != null ? `停利+${(strategy.takeProfit * 100).toFixed(0)}%` : '不停利');
-    parts.push(useCapitalMode ? '資本限制' : '無限資本');
-    return parts.join(' · ');
-  }, [strategy.holdDays, strategy.stopLoss, strategy.takeProfit, useCapitalMode]);
 
   return (
     <PageShell>
@@ -126,6 +228,18 @@ export default function ScanPageContent({ defaultMode = 'full' }: ScanPageConten
             </div>
 
 
+            {/* Multi-Timeframe Toggle (長線保護短線) */}
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground font-medium">長線保護</label>
+              <Button
+                onClick={toggleMultiTimeframe}
+                variant={useMultiTimeframe ? 'default' : 'secondary'}
+                className={`px-4 py-2 text-sm ${useMultiTimeframe ? 'bg-blue-700/60 hover:bg-blue-600/60 border border-blue-600 text-blue-200' : ''}`}
+              >
+                {useMultiTimeframe ? '週月線過濾' : '僅日線'}
+              </Button>
+            </div>
+
             {/* Scan Result Badge */}
             {scanResults.length > 0 && !isScanning && (
               <div className="text-sm text-muted-foreground hidden sm:flex items-center gap-1.5">
@@ -160,7 +274,7 @@ export default function ScanPageContent({ defaultMode = 'full' }: ScanPageConten
                     <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     {isScanning ? `掃描中 ${Math.round(scanProgress)}%` : '計算績效…'}
                   </span>
-                ) : '掃描+回測'}
+                ) : '掃描'}
               </Button>
               {isBusy && (
                 <Button
@@ -172,126 +286,6 @@ export default function ScanPageContent({ defaultMode = 'full' }: ScanPageConten
                 </Button>
               )}
             </div>
-          </div>
-
-          {/* ── Backtest Params (collapsible) ── */}
-          <div className="border-t border-border">
-            <Button
-              onClick={() => setShowBacktestParams(v => !v)}
-              variant="ghost"
-              className="w-full px-5 py-2.5 flex items-center justify-between text-xs text-muted-foreground hover:text-foreground/80 hover:bg-secondary/50 h-auto rounded-none"
-            >
-              <span className="flex items-center gap-2">
-                <span className="font-medium">回測參數</span>
-                <span className="text-muted-foreground/60">{paramsSummary}</span>
-              </span>
-              <span className={`transition-transform ${showBacktestParams ? 'rotate-180' : ''}`}>▾</span>
-            </Button>
-
-            {showBacktestParams && (
-              <div className="px-5 pb-4 flex flex-wrap items-end gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs text-muted-foreground font-medium">持有天數</label>
-                  <select value={strategy.holdDays}
-                    onChange={e => setStrategy({ holdDays: +e.target.value })}
-                    className="bg-secondary border border-border text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-sky-500">
-                    {[1, 3, 5, 10, 20].map(d => <option key={d} value={d}>{d} 日</option>)}
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs text-muted-foreground font-medium">停損</label>
-                  <select
-                    value={strategy.stopLoss == null ? 'off' : String(strategy.stopLoss)}
-                    onChange={e => setStrategy({ stopLoss: e.target.value === 'off' ? null : +e.target.value })}
-                    className="bg-secondary border border-border text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-sky-500">
-                    <option value="off">不設停損</option>
-                    <option value="-0.05">-5%</option>
-                    <option value="-0.07">-7%（朱老師）</option>
-                    <option value="-0.10">-10%</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs text-muted-foreground font-medium">停利</label>
-                  <select
-                    value={strategy.takeProfit == null ? 'off' : String(strategy.takeProfit)}
-                    onChange={e => setStrategy({ takeProfit: e.target.value === 'off' ? null : +e.target.value })}
-                    className="bg-secondary border border-border text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-sky-500">
-                    <option value="off">不設停利</option>
-                    <option value="0.10">+10%</option>
-                    <option value="0.15">+15%</option>
-                    <option value="0.20">+20%</option>
-                  </select>
-                </div>
-
-                {/* Multi-Timeframe Toggle (長線保護短線) */}
-                <div className="space-y-1.5">
-                  <label className="text-xs text-muted-foreground font-medium">長線保護</label>
-                  <Button
-                    onClick={toggleMultiTimeframe}
-                    variant={useMultiTimeframe ? 'default' : 'secondary'}
-                    className={`px-4 py-2 text-sm ${useMultiTimeframe ? 'bg-blue-700/60 hover:bg-blue-600/60 border border-blue-600 text-blue-200' : ''}`}
-                  >
-                    {useMultiTimeframe ? '週月線過濾' : '僅日線'}
-                  </Button>
-                </div>
-
-                {/* Capital Mode Toggle */}
-                <div className="space-y-1.5">
-                  <label className="text-xs text-muted-foreground font-medium">資本模式</label>
-                  <Button
-                    onClick={toggleCapitalMode}
-                    variant={useCapitalMode ? 'default' : 'secondary'}
-                    className={`px-4 py-2 text-sm ${useCapitalMode ? 'bg-amber-700/60 hover:bg-amber-600/60 border border-amber-600 text-amber-200' : ''}`}
-                  >
-                    {useCapitalMode ? '資本限制' : '無限資本'}
-                  </Button>
-                </div>
-
-                {/* Capital params (shown when capital mode is on) */}
-                {useCapitalMode && (
-                  <>
-                    <div className="space-y-1.5">
-                      <label className="text-xs text-amber-500/80 font-medium">初始資金（萬）</label>
-                      <input
-                        type="number" min="10" max="10000" step="10"
-                        value={capitalConstraints.initialCapital / 10000}
-                        onChange={e => setCapitalConstraints({ initialCapital: +e.target.value * 10000 })}
-                        className="bg-secondary border border-amber-700/60 text-foreground rounded-lg px-3 py-2 text-sm w-24 focus:outline-none focus:border-amber-500"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs text-amber-500/80 font-medium">最多持倉</label>
-                      <select
-                        value={capitalConstraints.maxPositions}
-                        onChange={e => setCapitalConstraints({ maxPositions: +e.target.value })}
-                        className="bg-secondary border border-amber-700/60 text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
-                      >
-                        {[1, 2, 3, 5, 8, 10].map(n => <option key={n} value={n}>{n} 檔</option>)}
-                      </select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs text-amber-500/80 font-medium">每筆倉位</label>
-                      <select
-                        value={capitalConstraints.positionSizePct}
-                        onChange={e => setCapitalConstraints({ positionSizePct: +e.target.value })}
-                        className="bg-secondary border border-amber-700/60 text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
-                      >
-                        <option value={0.05}>5%</option>
-                        <option value={0.1}>10%</option>
-                        <option value={0.15}>15%</option>
-                        <option value={0.2}>20%</option>
-                        <option value={0.25}>25%</option>
-                        <option value={0.3}>30%</option>
-                        <option value={0.5}>50%</option>
-                        <option value={1.0}>100%（全倉）</option>
-                      </select>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Progress */}
@@ -312,15 +306,21 @@ export default function ScanPageContent({ defaultMode = 'full' }: ScanPageConten
             </div>
           )}
 
-          {(scanError || forwardError) && (
-            <div className="mx-5 mb-4 px-4 py-2.5 bg-red-950/60 border border-red-900 rounded-lg text-sm text-red-300">
-              {scanError || forwardError}
+          {(scanError || forwardError) && (() => {
+            const msg = scanError || forwardError || '';
+            const isWarn = msg.includes('\u90e8\u5206\u8986\u84cb') || msg.includes('\u8986\u84cb\u7387');
+            return (
+            <div className={`mx-5 mb-4 px-4 py-2.5 rounded-lg text-sm ${
+              isWarn ? 'bg-amber-950/60 border border-amber-900 text-amber-300' : 'bg-red-950/60 border border-red-900 text-red-300'
+            }`}>
+              {msg}
             </div>
-          )}
+            );
+          })()}
         </div>
 
         {/* History sidebar (standalone, when no scan results yet but cron data exists) */}
-        {scanResults.length === 0 && trades.length === 0 && performance.length === 0
+        {scanResults.length === 0
           && (sessions.filter(s => s.market === market).length > 0 || cronDates.length > 0) && (
           <div className="max-w-xs">
             <SessionHistory />
@@ -328,171 +328,13 @@ export default function ScanPageContent({ defaultMode = 'full' }: ScanPageConten
         )}
 
         {/* Results */}
-        {(scanResults.length > 0 || trades.length > 0 || performance.length > 0) && (
+        {scanResults.length > 0 && (
           <div className="flex gap-4">
             <div className="flex-1 min-w-0 space-y-4 overflow-x-auto">
 
-              {/* Research Assumptions Notice */}
-              <ResearchAssumptions market={market} strategy={strategy} />
-
-              {/* 🎯 當日 Top 3 推薦績效追蹤 */}
-              {scanResults.length > 0 && (() => {
-                const sorted = [...scanResults]
-                  .filter(r => r.surgeScore != null && r.surgeScore >= 30)
-                  .map(r => ({ ...r, _composite: calcComposite(r) }))
-                  .sort((a, b) => b._composite - a._composite);
-                // 板塊分散：同板塊最多 2 支，避免過度集中
-                const scored: typeof sorted = [];
-                const sectorCount: Record<string, number> = {};
-                for (const s of sorted) {
-                  const sector = s.industry || s.symbol.slice(0, 2);
-                  if ((sectorCount[sector] || 0) >= 2) continue;
-                  scored.push(s);
-                  sectorCount[sector] = (sectorCount[sector] || 0) + 1;
-                  if (scored.length >= 3) break;
-                }
-
-                if (scored.length === 0) return null;
-                const perfMap = new Map(performance.map(p => [p.symbol, p]));
-
-                const getReasons = (r: typeof scored[0]) => {
-                  const reasons: string[] = [];
-                  const bd = r.sixConditionsBreakdown;
-                  const passed = [
-                    bd.trend && '趨勢', bd.position && '位置', bd.kbar && 'K棒',
-                    bd.ma && '均線', bd.volume && '量能', bd.indicator && '指標'
-                  ].filter(Boolean);
-                  if (passed.length > 0) reasons.push(`六大條件 ${r.sixConditionsScore}/6（${passed.join('+')}）`);
-                  if (r.trendState && r.trendPosition) reasons.push(`${r.trendState}・${r.trendPosition}`);
-                  if (r.surgeFlags && r.surgeFlags.length > 0) {
-                    const flagMap: Record<string, string> = {
-                      'BB_SQUEEZE_BREAKOUT': '布林收縮突破', 'VOLUME_CLIMAX': '量能高潮',
-                      'MA_CONVERGENCE_BREAKOUT': '均線收斂突破', 'CONSOLIDATION_BREAKOUT': '盤整突破',
-                      'NEW_60D_HIGH': '60日新高', 'MOMENTUM_ACCELERATION': '動能加速',
-                      'PROGRESSIVE_VOLUME': '遞增量', 'NEW_20D_HIGH': '20日新高',
-                    };
-                    reasons.push(r.surgeFlags.map(f => flagMap[f] || f).slice(0, 3).join('、'));
-                  }
-                  if (r.triggeredRules.length > 0) {
-                    const buyRules = r.triggeredRules.filter(t => t.signalType === 'BUY').slice(0, 2);
-                    if (buyRules.length > 0) reasons.push(buyRules.map(t => t.ruleName).join('、'));
-                  }
-                  if (r.histWinRate != null && r.histWinRate >= 60)
-                    reasons.push(`歷史勝率 ${r.histWinRate}%（${r.histSignalCount ?? '?'}次）`);
-                  return reasons;
-                };
-
-                return (
-                  <div className="bg-gradient-to-r from-violet-900/20 to-blue-900/20 border border-violet-700/50 rounded-xl p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-lg">🎯</span>
-                      <span className="text-sm font-bold text-foreground">當日 Top 3 推薦績效追蹤</span>
-                      <span className="text-[10px] text-muted-foreground">{scanDate}</span>
-                    </div>
-
-                    <div className="space-y-3">
-                      {scored.map((r, idx) => {
-                        const p = perfMap.get(r.symbol);
-                        const reasons = getReasons(r);
-                        const retClass = (v: number | null | undefined) =>
-                          v == null ? 'text-muted-foreground/60' : v > 0 ? 'text-bull' : v < 0 ? 'text-bear' : 'text-muted-foreground';
-                        const fmt = (v: number | null | undefined) =>
-                          v != null ? `${v > 0 ? '+' : ''}${v.toFixed(2)}%` : '—';
-                        const rankColors = ['border-red-500/60 bg-red-950/30', 'border-orange-500/60 bg-orange-950/30', 'border-yellow-500/60 bg-yellow-950/30'];
-                        const rankBg = ['bg-red-600', 'bg-orange-500', 'bg-yellow-500'];
-                        const rankText = ['text-foreground', 'text-foreground', 'text-black'];
-
-                        return (
-                          <div key={r.symbol} className={`border rounded-lg p-3 ${rankColors[idx]}`}>
-                            <div className="flex items-start gap-3">
-                              <span className={`text-xs font-black w-6 h-6 flex items-center justify-center rounded-full shrink-0 mt-0.5 ${rankBg[idx]} ${rankText[idx]}`}>
-                                {idx + 1}
-                              </span>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-bold text-foreground text-sm">{r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</span>
-                                  <span className="text-muted-foreground text-xs">{r.name}</span>
-                                  <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${
-                                    r.surgeGrade === 'S' ? 'bg-red-600 text-foreground' :
-                                    r.surgeGrade === 'A' ? 'bg-orange-500 text-foreground' : 'bg-yellow-600 text-foreground'
-                                  }`}>{r.surgeGrade}級</span>
-                                  <span className="text-[10px] text-muted-foreground">潛力{r.surgeScore}</span>
-                                  <span className="text-[10px] text-sky-400">綜合{r._composite}</span>
-                                  {r.histWinRate != null && (
-                                    <span className={`text-[10px] px-1 rounded ${r.histWinRate >= 60 ? 'bg-green-900/60 text-green-300' : r.histWinRate >= 50 ? 'bg-yellow-900/60 text-yellow-300' : 'bg-red-900/60 text-red-300'}`}>
-                                      勝率{r.histWinRate}%
-                                    </span>
-                                  )}
-                                  <span className="text-[10px] text-muted-foreground">買入 {r.price.toFixed(2)}</span>
-                                  <Link href={`/?load=${r.symbol}&date=${scanDate}`}
-                                    className="text-[10px] text-sky-400 hover:text-sky-300 px-1.5 py-0.5 rounded border border-sky-700/50 hover:bg-sky-900/30 ml-1">
-                                    走圖
-                                  </Link>
-                                  <Button
-                                    onClick={(e) => {
-                                      useWatchlistStore.getState().add(r.symbol, r.name);
-                                      const btn = e.currentTarget;
-                                      btn.textContent = '✓ 已加';
-                                      setTimeout(() => { btn.textContent = '+自選'; }, 1200);
-                                    }}
-                                    variant="outline"
-                                    size="sm"
-                                    className="text-[10px] text-amber-400 hover:text-amber-300 px-1.5 py-0.5 h-auto border-amber-700/50 hover:bg-amber-900/30 bg-transparent">
-                                    {useWatchlistStore.getState().has(r.symbol) ? '✓ 已加' : '+自選'}
-                                  </Button>
-                                </div>
-
-                                <div className="mt-1.5 flex flex-wrap gap-1">
-                                  {reasons.map((reason, i) => (
-                                    <span key={i} className="text-[10px] bg-secondary/80 text-foreground/80 px-1.5 py-0.5 rounded">
-                                      {reason}
-                                    </span>
-                                  ))}
-                                </div>
-
-                                {performance.length > 0 && <div className="mt-2 grid grid-cols-10 gap-1 text-[10px]">
-                                  {[
-                                    { label: '隔日開', val: p?.openReturn },
-                                    { label: '1日', val: p?.d1Return },
-                                    { label: '2日', val: p?.d2Return },
-                                    { label: '3日', val: p?.d3Return },
-                                    { label: '4日', val: p?.d4Return },
-                                    { label: '5日', val: p?.d5Return },
-                                    { label: '10日', val: p?.d10Return },
-                                    { label: '20日', val: p?.d20Return },
-                                  ].map(({ label, val }) => (
-                                    <div key={label} className="text-center">
-                                      <div className="text-muted-foreground">{label}</div>
-                                      <div className={`font-mono font-bold ${retClass(val)}`}>{fmt(val)}</div>
-                                    </div>
-                                  ))}
-                                  <div className="text-center">
-                                    <div className="text-muted-foreground">最高</div>
-                                    <div className="font-mono font-bold text-bull">{p ? `+${(p.maxGain ?? 0).toFixed(1)}%` : '—'}</div>
-                                  </div>
-                                  <div className="text-center">
-                                    <div className="text-muted-foreground">最低</div>
-                                    <div className="font-mono font-bold text-bear">{p ? `${(p.maxLoss ?? 0).toFixed(1)}%` : '—'}</div>
-                                  </div>
-                                </div>}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Scan Results Table (scanOnly mode) */}
+              {/* Scan Results Table */}
               <SectionBoundary section="掃描結果">
                 <ScanResultsTable />
-              </SectionBoundary>
-
-              {/* Backtest Section (backtest mode) */}
-              <SectionBoundary section="回測結果">
-                <BacktestSection />
               </SectionBoundary>
 
             </div>

@@ -28,7 +28,9 @@ import ChipDetailPanel from '@/components/ChipDetailPanel';
 import AnalysisChat from '@/components/AnalysisChat';
 import { ErrorBoundary, SectionBoundary } from '@/components/ErrorBoundary';
 import BottomPanel from '@/components/BottomPanel';
+import { ScanPanel } from '@/features/scan';
 import { useSettingsStore } from '@/store/settingsStore';
+import { ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import ChartToolbar from '@/components/ChartToolbar';
 
@@ -105,6 +107,7 @@ export default function HomePage() {
     else if (e.key === '2') { e.preventDefault(); setSideTab('signals'); }
     else if (e.key === '3') { e.preventDefault(); setSideTab('chip'); }
     else if (e.key === '4') { e.preventDefault(); setSideTab('chat'); }
+    else if (e.key === '5') { e.preventDefault(); setScannerOpen(v => !v); }
     // P2-3: indicator toggle
     else if (e.key === 'i' || e.key === 'I') { e.preventDefault(); setShowIndicators(v => !v); }
     // P1-5: help overlay
@@ -146,6 +149,8 @@ export default function HomePage() {
   }, []);
   // P1-5: keyboard shortcut help overlay
   const [showHelp, setShowHelp] = useState(false);
+  // Scanner bottom panel
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   // P1-5: 可拖拽分隔條 — K 線圖 vs 副圖指標
   // 預設 0.65，mount 後再從 localStorage 讀取，避免 SSR hydration mismatch
@@ -294,14 +299,16 @@ export default function HomePage() {
 
   return (
     <PageShell fullViewport headerSlot={<StockSelector />}>
-      <div className="flex-1 flex flex-col md:flex-row gap-2 px-3 py-2 min-h-0 overflow-hidden h-full">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden h-full">
 
-        {/* Left: Chart + BottomPanel (desktop) */}
+        {/* Top row: Chart + Sidebar */}
+        <div className="flex-1 flex flex-col md:flex-row gap-2 px-3 py-2 min-h-0 overflow-hidden">
+
+        {/* Left: Chart */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0 gap-1.5">
           <div
             ref={chartContainerRef}
-            className={`relative flex flex-col rounded-xl border border-border overflow-hidden bg-card transition-opacity ${isLoadingStock ? 'opacity-40 pointer-events-none' : ''}`}
-            style={{ height: 'calc(100vh - 60px)' }}
+            className={`relative flex flex-col flex-1 rounded-xl border border-border overflow-hidden bg-card transition-opacity ${isLoadingStock ? 'opacity-40 pointer-events-none' : ''}`}
           >
             {isLoadingStock && (
               <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-card/90">
@@ -446,6 +453,24 @@ export default function HomePage() {
           {/* 自選股 / 持倉 摺疊面板 */}
           <BottomPanel />
         </div>
+        </div>{/* end Top row */}
+
+        {/* ── Scanner Bottom Panel ── */}
+        <div className="shrink-0 border-t border-border bg-card/80 mx-3 mb-1 rounded-b-lg overflow-hidden">
+          <button
+            onClick={() => setScannerOpen(o => !o)}
+            className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-foreground/80 hover:bg-muted transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <kbd className="text-[9px] text-muted-foreground/60 bg-secondary px-1 rounded">5</kbd>
+            </div>
+            <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${scannerOpen ? 'rotate-180' : ''}`} />
+          </button>
+          <div className={`transition-all duration-300 ${scannerOpen ? 'max-h-[40vh]' : 'max-h-0'} overflow-hidden`}>
+            <ScanPanel />
+          </div>
+        </div>
+
       </div>
       {/* P1-5: Keyboard shortcut help overlay */}
       {showHelp && (
@@ -470,6 +495,7 @@ export default function HomePage() {
                 ['2', '切換至「訊號」面板'],
                 ['3', '切換至「籌碼」面板'],
                 ['4', '切換至「問老師」面板'],
+                ['5', '展開 / 收起掃描面板'],
                 ['B', '買入（全倉）'],
                 ['S', '賣出（半倉）'],
                 ['Q', '全部賣出'],

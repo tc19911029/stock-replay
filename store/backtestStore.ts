@@ -3,9 +3,36 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import {
   MarketId, StockScanResult, StockForwardPerformance, BacktestSession,
   ForwardCandle, sanitizeScanResult,
+  ScanDiagnostics, createEmptyDiagnostics, mergeDiagnostics, diagnosticsSummary,
 } from '@/lib/scanner/types';
 import { TrendState } from '@/lib/analysis/trendAnalysis';
-import { calcBacktestSummary } from '@/lib/backtest/ForwardAnalyzer';
+// Inline calcBacktestSummary to avoid pulling server-only ForwardAnalyzer → LocalCandleStore (fs)
+function calcBacktestSummary(
+  perf: StockForwardPerformance[],
+  horizon: 'open' | 'd1' | 'd2' | 'd3' | 'd4' | 'd5' | 'd10' | 'd20',
+) {
+  const key = (horizon === 'open' ? 'openReturn' : `${horizon}Return`) as keyof StockForwardPerformance;
+  const returns = perf
+    .map(p => p[key] as number | null)
+    .filter((r): r is number => r !== null);
+  if (returns.length === 0) return null;
+  const wins    = returns.filter(r => r > 0).length;
+  const avg     = returns.reduce((a, b) => a + b, 0) / returns.length;
+  const sorted  = [...returns].sort((a, b) => a - b);
+  const median  = sorted[Math.floor(sorted.length / 2)];
+  const maxGain = Math.max(...returns);
+  const maxLoss = Math.min(...returns);
+  return {
+    count:    returns.length,
+    wins,
+    losses:   returns.length - wins,
+    winRate:  +(wins / returns.length * 100).toFixed(1),
+    avgReturn: +avg.toFixed(2),
+    median:   +median.toFixed(2),
+    maxGain:  +maxGain.toFixed(2),
+    maxLoss:  +maxLoss.toFixed(2),
+  };
+}
 import {
   BacktestTrade, BacktestStats, BacktestStrategyParams,
   DEFAULT_STRATEGY, runBatchBacktest, runBatchBacktestWithCapital, calcBacktestStats,
@@ -354,9 +381,52 @@ export const useBacktestStore = create<BacktestState>()(
           return;
         }
 
-        set({ scanProgress: 15, scanningStock: `準備分析 ${stocks.length} 檔股票...`, scanningCount: `0/${stocks.length}` });
+        set({ scanProgress: 10, scanningStock: `檢查本地資料覆蓋率...`, scanningCount: `0/${stocks.length}` });
 
-        // ── Phase 2: Split into 2 chunks, scan in parallel ───────────────────
+        // ── Phase 1.5: 掃描前覆蓋率檢查 + 補缺 ─────────────────────────────
+        interface CoverageReport {
+          coverageRate: number;
+          dataStatus: 'complete' | 'partial' | 'insufficient';
+          missingCount: number;
+          ingest?: { downloaded: number; failed: number };
+        }
+        let coverageReport: CoverageReport | null = null;
+        try {
+          const ingestRes = await fetch('/api/scanner/ingest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              market,
+              symbols: stocks.map(s => s.symbol),
+              asOfDate: scanDate,
+            }),
+            signal,
+          });
+          if (ingestRes.ok) {
+            const ingestJson = await ingestRes.json() as { data?: CoverageReport };
+            coverageReport = ingestJson.data ?? null;
+          }
+        } catch (e) {
+          if (e instanceof DOMException && e.name === 'AbortError') return;
+          // 覆蓋率檢查失敗不阻塞掃描，繼續進行
+        }
+
+        // 若覆蓋率嚴重不足（< 50%），提前警告
+        if (coverageReport && coverageReport.coverageRate < 50) {
+          set({
+            isScanning: false,
+            scanError: `本地資料覆蓋率僅 ${coverageReport.coverageRate}%（缺少 ${coverageReport.missingCount} 檔），請先執行盤後資料下載`,
+          });
+          return;
+        }
+
+        const coverageSuffix = coverageReport && coverageReport.coverageRate < 95
+          ? ` (覆蓋率 ${coverageReport.coverageRate}%)`
+          : '';
+
+        set({ scanProgress: 15, scanningStock: `準備分析 ${stocks.length} 檔股票${coverageSuffix}...`, scanningCount: `0/${stocks.length}` });
+
+        // ── Phase 2: Split into 2 chunks, scan ──────────────────────────────
         const half   = Math.ceil(stocks.length / 2);
         const chunk1 = stocks.slice(0, half);
         const chunk2 = stocks.slice(half);
@@ -385,38 +455,73 @@ export const useBacktestStore = create<BacktestState>()(
             signal,
           });
           if (!res.ok) throw new Error(`掃描失敗 (${res.status})`);
-          const json = await res.json() as { results?: StockScanResult[]; marketTrend?: string; error?: string };
+          const json = await res.json() as { results?: StockScanResult[]; marketTrend?: string; error?: string; diagnostics?: ScanDiagnostics };
           if (json.error) throw new Error(json.error);
-          return { results: (json.results ?? []).map(sanitizeScanResult), marketTrend: json.marketTrend ?? null };
+          return {
+            results: (json.results ?? []).map(sanitizeScanResult),
+            marketTrend: json.marketTrend ?? null,
+            diagnostics: json.diagnostics ?? createEmptyDiagnostics(),
+          };
         };
 
         set({ scanProgress: 20, scanningStock: `分析中（${stocks.length} 檔）...`, scanningCount: `0/${stocks.length}` });
 
-        // 串行掃描：避免同時 2 個 chunk 打爆外部 API
+        // 並行掃描：掃描不再打 API（只讀本地資料），可以安全並行
         let results1: StockScanResult[] = [];
         let results2: StockScanResult[] = [];
         let mt: string | null = null;
+        let diag1 = createEmptyDiagnostics();
+        let diag2 = createEmptyDiagnostics();
+
+        const scanPromise1 = scanChunk(chunk1).catch((e: unknown) => {
+          if (e instanceof DOMException && e.name === 'AbortError') throw e;
+          return null;
+        });
+        const scanPromise2 = scanChunk(chunk2).catch((e: unknown) => {
+          if (e instanceof DOMException && e.name === 'AbortError') throw e;
+          return null;
+        });
 
         try {
-          const r1 = await scanChunk(chunk1);
-          results1 = r1.results;
-          mt = r1.marketTrend;
-          set({ scanProgress: 55, scanningCount: `${chunk1.length}/${stocks.length}` });
+          const [r1, r2] = await Promise.all([scanPromise1, scanPromise2]);
+          if (r1) {
+            results1 = r1.results;
+            mt = r1.marketTrend;
+            diag1 = r1.diagnostics;
+          }
+          if (r2) {
+            results2 = r2.results;
+            if (!mt) mt = r2.marketTrend;
+            diag2 = r2.diagnostics;
+          }
+          set({ scanProgress: 88, scanningCount: `${stocks.length}/${stocks.length}` });
         } catch (e) {
           if (e instanceof DOMException && e.name === 'AbortError') return;
-          // chunk1 失敗仍繼續 chunk2
         }
 
-        try {
-          const r2 = await scanChunk(chunk2);
-          results2 = r2.results;
-          if (!mt) mt = r2.marketTrend;
-        } catch (e) {
-          if (e instanceof DOMException && e.name === 'AbortError') return;
+        const combinedDiag = mergeDiagnostics(diag1, diag2);
+
+        // 補充 ingest 統計到 diagnostics
+        if (coverageReport?.ingest) {
+          combinedDiag.ingestDownloaded = coverageReport.ingest.downloaded;
+          combinedDiag.ingestFailed = coverageReport.ingest.failed;
         }
 
         if (results1.length === 0 && results2.length === 0) {
-          set({ isScanning: false, scanError: '掃描失敗：兩個分段均無結果' });
+          // 三態區分：No Signal / Data Unavailable / Partial Coverage
+          if (combinedDiag.dataStatus === 'insufficient') {
+            // 資料嚴重不足
+            set({ isScanning: false, scanError: `資料不足（覆蓋率 ${combinedDiag.coverageRate}%），請先執行盤後資料下載` });
+          } else if (combinedDiag.dataStatus === 'partial') {
+            // 部分覆蓋，結果可能不完整
+            set({ isScanning: false, scanError: `部分覆蓋 (${combinedDiag.coverageRate}%)，無符合條件的股票（${diagnosticsSummary(combinedDiag)}）` });
+          } else if (combinedDiag.filteredOut > 0 && combinedDiag.dataMissing === 0) {
+            // 正常：資料完整，有股票被處理但全被六條件過濾掉了
+            set({ isScanning: false, scanError: `掃描完成，無符合條件的股票（${diagnosticsSummary(combinedDiag)}）` });
+          } else {
+            // 異常：資料缺失或其他錯誤
+            set({ isScanning: false, scanError: `掃描異常（${diagnosticsSummary(combinedDiag)}）` });
+          }
           return;
         }
 
@@ -457,9 +562,6 @@ export const useBacktestStore = create<BacktestState>()(
             .catch(() => {});
         }
 
-        // ── 掃描模式：到此為止，不做前瞻回測 ──
-        if (scanOnly) return;
-
         // ── Phase 3: Forward performance ─────────────────────────────────────
         set({ isFetchingForward: true, forwardError: null });
 
@@ -477,6 +579,12 @@ export const useBacktestStore = create<BacktestState>()(
           if (!fwdRes.ok) throw new Error('無法取得後續績效資料');
           const fwdJson = await fwdRes.json() as { performance?: StockForwardPerformance[]; nullCount?: number; totalRequested?: number };
           const performance = fwdJson.performance ?? [];
+
+          // ── 掃描模式：只取前瞻表現，不做回測引擎 ──
+          if (scanOnly) {
+            set({ performance, isFetchingForward: false });
+            return;
+          }
 
           // ── Phase 4: Run strict BacktestEngine ────────────────────────────
           // Build forward candles map: symbol → ForwardCandle[]
