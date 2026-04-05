@@ -354,10 +354,6 @@ export function ScanResultsTable() {
                     className="text-[10px] text-sky-400 hover:text-sky-300 px-1.5 py-0.5 rounded border border-sky-700/50 hover:bg-sky-900/30 mr-1">
                     走圖
                   </Link>
-                  <Link href={`/analysis/${r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}`}
-                    className="text-[10px] text-violet-400 hover:text-violet-300 px-1.5 py-0.5 rounded border border-violet-700/50 hover:bg-violet-900/30 mr-1">
-                    AI分析
-                  </Link>
                   <Button
                     onClick={(e) => {
                       useWatchlistStore.getState().add(r.symbol, r.name);

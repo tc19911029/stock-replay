@@ -357,6 +357,9 @@ export class MultiMarketProvider implements DataProvider {
 
     let result: CandleWithIndicators[];
 
+    // 分鐘級 interval：僅 EastMoney 支援（FinMind/TWSE/騰訊只有日K）
+    const isMinuteInterval = ['1m', '5m', '15m', '30m', '60m'].includes(interval ?? '');
+
     if (market === 'TW') {
       result = await tryProvidersWithRacing([
         {
@@ -366,6 +369,14 @@ export class MultiMarketProvider implements DataProvider {
         {
           name: `TWSE ${symbol}`,
           fn: () => twseHistProvider.getHistoricalCandles(symbol, period, asOfDate, interval),
+        },
+      ]);
+    } else if (isMinuteInterval) {
+      // 分鐘 K 線只有 EastMoney 支援，跳過 Tencent（只有日K會被錯誤聚合）
+      result = await tryProvidersWithRacing([
+        {
+          name: `EastMoney ${symbol}`,
+          fn: () => eastMoneyHistProvider.getHistoricalCandles(symbol, period, asOfDate, interval),
         },
       ]);
     } else {

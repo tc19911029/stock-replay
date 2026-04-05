@@ -171,9 +171,14 @@ async function fetchUSKlines(
 
 function intervalToKlt(interval?: string): number {
   switch (interval) {
+    case '1m':  return 1;
+    case '5m':  return 5;
+    case '15m': return 15;
+    case '30m': return 30;
+    case '60m': return 60;
     case '1wk': return 102;
     case '1mo': return 103;
-    default: return 101; // 日K
+    default:    return 101; // 日K
   }
 }
 
@@ -201,7 +206,11 @@ export class EastMoneyHistProvider implements DataProvider {
     const cached = globalCache.get<CandleWithIndicators[]>(cacheKey);
     if (cached) return cached;
 
-    const beg = periodToBeg(period);
+    // 分鐘 K 線東方財富只保留近期數據（1m 約 5 天，5m 約 20 天，15m+ 約 2 個月）
+    // 強制使用較短的 beg 以確保有數據回傳
+    const isMinuteKlt = klt >= 1 && klt <= 60;
+    const effectivePeriod = isMinuteKlt ? '3m' : period;
+    const beg = periodToBeg(effectivePeriod);
     const end = asOfDate
       ? asOfDate.replace(/-/g, '')
       : '20500101';

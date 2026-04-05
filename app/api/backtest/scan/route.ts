@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
         // full 有但 pure 沒有的（被額外規則篩掉的）
         onlyInFull: fullResult.results
           .filter(f => !pureResult.results.some(p => p.symbol === f.symbol))
-          .map(r => ({ symbol: r.symbol, name: r.name, compositeScore: r.compositeScore })),
+          .map(r => ({ symbol: r.symbol, name: r.name, compositeScore: (r as any).compositeScore })),
         // pure 有但 full 沒有的（被額外規則過濾掉的好股票？）
         onlyInPure: pureResult.results
           .filter(p => !fullResult.results.some(f => f.symbol === p.symbol))

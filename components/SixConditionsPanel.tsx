@@ -118,7 +118,6 @@ function ConditionRow({
 export default function SixConditionsPanel() {
   const sixConditions     = useReplayStore(s => s.sixConditions);
   const prevSixConditions = useReplayStore(s => s.prevSixConditions);
-  const surgeScore    = useReplayStore(s => s.surgeScore);
   const allCandles    = useReplayStore(s => s.allCandles);
   const currentIndex  = useReplayStore(s => s.currentIndex);
   const strategyName = useSettingsStore(s => {
@@ -272,64 +271,6 @@ export default function SixConditionsPanel() {
           <p className="text-[10px] text-yellow-500 mt-0.5">第⑥指標參考為輔助條件，可後面補上</p>
         )}
       </div>
-
-      {/* Surge Score */}
-      {surgeScore && (
-        <div className="px-3 py-2.5 border-t border-border">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10px] font-bold text-violet-400">飆股潛力分</span>
-            <div className="flex items-center gap-1.5">
-              <span className={`text-xs font-black px-1.5 py-0.5 rounded ${
-                surgeScore.grade === 'S' ? 'bg-red-600 text-foreground' :
-                surgeScore.grade === 'A' ? 'bg-orange-500 text-foreground' :
-                surgeScore.grade === 'B' ? 'bg-yellow-500 text-black' :
-                'bg-secondary text-foreground/80'
-              }`}>{surgeScore.grade}</span>
-              <span className="text-xs font-bold text-foreground">{surgeScore.totalScore}</span>
-            </div>
-          </div>
-          <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden mb-2">
-            <div className={`h-full rounded-full transition-all ${
-              surgeScore.totalScore >= 65 ? 'bg-red-500' :
-              surgeScore.totalScore >= 50 ? 'bg-orange-500' :
-              surgeScore.totalScore >= 35 ? 'bg-yellow-500' : 'bg-muted-foreground/60'
-            }`} style={{ width: `${surgeScore.totalScore}%` }} />
-          </div>
-          {surgeScore.flags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-1.5">
-              {surgeScore.flags.map(f => (
-                <span key={f} className="text-[9px] px-1.5 py-0.5 rounded bg-violet-900/60 text-violet-300">
-                  {f === 'BB_SQUEEZE_BREAKOUT' ? 'BB壓縮突破' :
-                   f === 'VOLUME_CLIMAX' ? '量能爆發' :
-                   f === 'MA_CONVERGENCE_BREAKOUT' ? '均線糾結突破' :
-                   f === 'CONSOLIDATION_BREAKOUT' ? '整理突破' :
-                   f === 'NEW_60D_HIGH' ? '60日新高' :
-                   f === 'MOMENTUM_ACCELERATION' ? '動能加速' :
-                   f === 'PROGRESSIVE_VOLUME' ? '連續增量' : f}
-                </span>
-              ))}
-            </div>
-          )}
-          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
-            {Object.entries(surgeScore.components).map(([key, comp]) => (
-              <div key={key} className="flex items-center gap-1 text-[9px]">
-                <div className="w-10 bg-muted rounded-full h-1 overflow-hidden">
-                  <div className={`h-full rounded-full ${
-                    comp.score >= 70 ? 'bg-red-500' : comp.score >= 50 ? 'bg-orange-500' : comp.score >= 30 ? 'bg-yellow-500' : 'bg-muted-foreground/60'
-                  }`} style={{ width: `${comp.score}%` }} />
-                </div>
-                <span className="text-muted-foreground truncate">
-                  {key === 'momentum' ? '動能' : key === 'volatility' ? '波動' :
-                   key === 'volume' ? '量能' : key === 'breakout' ? '突破' :
-                   key === 'trendQuality' ? '趨勢' : key === 'pricePosition' ? '位置' :
-                   key === 'kbarStrength' ? 'K棒' : key === 'longTermQuality' ? '長期' : '指標'}
-                </span>
-                <span className="text-muted-foreground font-mono">{comp.score}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Sell Signals */}
       {sellSignals.length > 0 && (

@@ -24,7 +24,16 @@ const MA_COLORS = {
   ma60: '#f43f5e', // 玫紅（長線，明顯區別於 MA5 黃色）
 };
 
-function toTime(date: string): Time { return date as Time; }
+/** Convert date string to lightweight-charts Time.
+ *  Daily: 'YYYY-MM-DD' → string Time (business day)
+ *  Intraday: 'YYYY-MM-DD HH:mm' → UTCTimestamp (seconds) */
+function toTime(date: string): Time {
+  if (date.includes(' ')) {
+    const d = new Date(date.replace(' ', 'T') + '+08:00');
+    return Math.floor(d.getTime() / 1000) as unknown as Time;
+  }
+  return date as Time;
+}
 
 // ── Chart sync — imported from store, re-exported for backwards compatibility ─
 import {
@@ -90,11 +99,17 @@ export default function CandleChart({
   const stopLossLineRef  = useRef<ReturnType<ISeriesApi<'Candlestick'>['createPriceLine']> | null>(null);
   // Keep latest candles accessible inside event closures without re-subscribing
   const candlesRef     = useRef<CandleWithIndicators[]>(candles);
+  const timeMapRef     = useRef<Map<string | number, CandleWithIndicators>>(new Map());
   const onCrosshairRef = useRef(onCrosshairMove);
   const onDoubleClickRef = useRef(onDoubleClick);
   const [hoverCandle, setHoverCandle] = useState<CandleWithIndicators | null>(null);
 
-  useEffect(() => { candlesRef.current = candles; }, [candles]);
+  useEffect(() => {
+    candlesRef.current = candles;
+    const map = new Map<string | number, CandleWithIndicators>();
+    for (const c of candles) map.set(toTime(c.date) as string | number, c);
+    timeMapRef.current = map;
+  }, [candles]);
   useEffect(() => { onCrosshairRef.current = onCrosshairMove; }, [onCrosshairMove]);
   useEffect(() => { onDoubleClickRef.current = onDoubleClick; }, [onDoubleClick]);
 
@@ -162,9 +177,8 @@ export default function CandleChart({
         broadcastCrosshairTime(null);
         return;
       }
-      const dateStr = param.time as string;
-      broadcastCrosshairTime(dateStr);
-      const found = candlesRef.current.find(c => c.date === dateStr) ?? null;
+      const found = timeMapRef.current.get(param.time as string | number) ?? null;
+      broadcastCrosshairTime(found?.date ?? null);
       setHoverCandle(found);
       onCrosshairRef.current?.(found);
     });
@@ -295,7 +309,7 @@ export default function CandleChart({
     const markerCfg = getMarkerConfig();
     const converted: SeriesMarker<Time>[] = chartMarkers.map(m => {
       const cfg = markerCfg[m.type];
-      return { time: m.date as Time, position: cfg.position, shape: cfg.shape, color: cfg.color, text: m.label, size: 1 };
+      return { time: toTime(m.date), position: cfg.position, shape: cfg.shape, color: cfg.color, text: m.label, size: 1 };
     });
     markersPlugRef.current.setMarkers(converted);
   }, [chartMarkers]);

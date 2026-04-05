@@ -4,12 +4,6 @@ import Link from 'next/link';
 import { StockScanResult } from '@/lib/scanner/types';
 import { useWatchlistStore } from '@/store/watchlistStore';
 
-const GRADE_BG: Record<string, string> = {
-  S: 'from-red-600 to-red-800',
-  A: 'from-orange-500 to-orange-700',
-  B: 'from-yellow-500 to-yellow-700',
-};
-
 const FLAG_LABELS: Record<string, string> = {
   BB_SQUEEZE_BREAKOUT: 'BB壓縮突破',
   VOLUME_CLIMAX: '量能爆發',
@@ -67,16 +61,9 @@ export default function TodayPicks({ results, isLoading }: Props) {
 
   if (results.length === 0) return null;
 
-  // Select top 3: prioritize AI rank, then surge score, penalize low win rate
+  // Select top 3: by sixConditionsScore, then changePercent
   const scored = results
-    .filter(r => r.surgeScore != null && r.surgeScore >= 40)
-    .map(r => {
-      const aiBonus = r.aiRank != null && r.aiRank <= 5 ? (6 - r.aiRank) * 5 : 0;
-      const winBonus = (r.histWinRate ?? 50) >= 60 ? 15 : (r.histWinRate ?? 50) >= 50 ? 5 : -10;
-      const compositeScore = (r.surgeScore ?? 0) + aiBonus + winBonus;
-      return { ...r, compositeScore };
-    })
-    .sort((a, b) => b.compositeScore - a.compositeScore)
+    .sort((a, b) => b.sixConditionsScore - a.sixConditionsScore || b.changePercent - a.changePercent)
     .slice(0, 3);
 
   if (scored.length === 0) return null;
@@ -88,7 +75,7 @@ export default function TodayPicks({ results, isLoading }: Props) {
           <span className="text-lg">🎯</span>
           <span className="text-sm font-bold text-foreground">今日精選推薦 Top 3</span>
         </div>
-        <span className="text-[10px] text-muted-foreground">綜合飆股潛力分 + AI判斷 + 歷史勝率</span>
+        <span className="text-[10px] text-muted-foreground">六條件排序</span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -101,18 +88,11 @@ export default function TodayPicks({ results, isLoading }: Props) {
             <div key={r.symbol} className="bg-secondary/80 border border-border rounded-xl p-3 space-y-2">
               {/* Header: rank + symbol + grade */}
               <div className="flex items-center gap-2">
-                <span className={`text-xs font-black w-6 h-6 flex items-center justify-center rounded-full bg-gradient-to-br ${GRADE_BG[r.surgeGrade ?? 'B'] ?? 'from-slate-600 to-slate-700'} text-foreground`}>
+                <span className="text-xs font-black w-6 h-6 flex items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-blue-600 text-foreground">
                   {idx + 1}
                 </span>
                 <span className="text-sm font-bold text-foreground">{sym}</span>
                 <span className="text-xs text-muted-foreground">{r.name}</span>
-                {r.surgeGrade && (
-                  <span className={`text-[10px] font-bold px-1 rounded ${
-                    r.surgeGrade === 'S' ? 'bg-red-600 text-foreground' :
-                    r.surgeGrade === 'A' ? 'bg-orange-500 text-foreground' :
-                    'bg-yellow-500 text-black'
-                  }`}>{r.surgeGrade}</span>
-                )}
               </div>
 
               {/* Price + change */}
@@ -125,7 +105,6 @@ export default function TodayPicks({ results, isLoading }: Props) {
 
               {/* Scores */}
               <div className="flex items-center gap-2 text-[10px]">
-                <span className="text-muted-foreground">潛力分 <span className="text-foreground font-bold">{r.surgeScore}</span></span>
                 <span className="text-muted-foreground">條件 <span className="text-foreground font-bold">{r.sixConditionsScore}/6</span></span>
                 {r.histWinRate != null && (
                   <span className={`px-1 rounded ${

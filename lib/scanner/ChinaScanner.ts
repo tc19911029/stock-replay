@@ -1,5 +1,5 @@
 import { CandleWithIndicators } from '@/types';
-import { fetchCandlesYahoo } from '@/lib/datasource/YahooFinanceDS';
+import { dataProvider } from '@/lib/datasource/MultiMarketProvider';
 import { MarketScanner, StockEntry } from './MarketScanner';
 import { MarketConfig } from './types';
 import { detectTrend, TrendState } from '@/lib/analysis/trendAnalysis';
@@ -30,7 +30,7 @@ export class ChinaScanner extends MarketScanner {
   }
 
   async fetchCandles(symbol: string, asOfDate?: string): Promise<CandleWithIndicators[]> {
-    return fetchCandlesYahoo(symbol, '1y', 4000, asOfDate);
+    return dataProvider.getHistoricalCandles(symbol, '1y', asOfDate);
   }
 
   /**
@@ -43,7 +43,7 @@ export class ChinaScanner extends MarketScanner {
    */
   async getMarketTrend(asOfDate?: string): Promise<TrendState> {
     try {
-      const candles = await fetchCandlesYahoo('000300.SS', '1y', 8000, asOfDate);
+      const candles = await dataProvider.getHistoricalCandles('000300.SS', '1y', asOfDate);
       if (candles.length < 20) return '盤整'; // 資料不足，保守預設
 
       const lastIdx = candles.length - 1;

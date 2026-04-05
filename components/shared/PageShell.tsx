@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import NavigationProgress from '@/components/NavigationProgress';
 import {
-  Moon, Sun, TrendingUp,
-  BarChart2, ScanSearch, Activity, FileBarChart, Settings2,
+  Moon, Sun,
+  ScanSearch,
   Star, Briefcase, Settings, Menu, BookOpen, ChevronDown, Scale,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
@@ -19,12 +19,8 @@ import { useState, useRef, useEffect } from 'react';
 // ── Navigation Items ──────────────────────────────────────────────────────────
 
 const PRIMARY_NAV = [
-  { href: '/',           label: '走圖',   icon: BarChart2 },
-  { href: '/scanner',    label: '掃描',   icon: ScanSearch },
-  { href: '/live-daytrade', label: '當沖', icon: Activity },
-  { href: '/report',     label: '報表',   icon: FileBarChart },
-  { href: '/strategies', label: '策略',   icon: Settings2 },
-  { href: '/learn',      label: '教學',   icon: BookOpen },
+  { href: '/scanner', label: '掃描', icon: ScanSearch },
+  { href: '/learn',   label: '教學', icon: BookOpen },
 ] as const;
 
 // Items under the settings (gear) dropdown
@@ -34,14 +30,6 @@ const SETTINGS_SUB = [
   { href: '/settings',   label: '設定',   icon: Settings },
   { href: '/disclaimer', label: '免責聲明', icon: Scale },
 ] as const;
-
-/** Page-specific brand title shown in the logo area */
-function getBrandTitle(pathname: string): string {
-  if (pathname.startsWith('/scanner') || pathname.startsWith('/scan')) return '選股神器';
-  if (pathname.startsWith('/live-daytrade')) return '當沖神器';
-  if (pathname.startsWith('/rule-group-analysis')) return '規則回測';
-  return '走圖神器';
-}
 
 // ── Dropdown component ────────────────────────────────────────────────────────
 
@@ -151,14 +139,6 @@ export function PageShell({ children, headerSlot, fullViewport, className }: Pag
       <header role="banner" className="shrink-0 border-b border-border bg-background px-3 sticky top-0 z-50">
         <div className="h-12 flex items-center gap-2">
 
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-1.5 shrink-0">
-            <TrendingUp className="w-5 h-5 text-sky-400" />
-            <span className="font-bold text-sm text-sky-400 tracking-tight hidden sm:block">
-              {getBrandTitle(pathname)}
-            </span>
-          </Link>
-
           {/* Header slot (e.g. StockSelector) */}
           {headerSlot && (
             <div className="shrink-0">{headerSlot}</div>
@@ -241,9 +221,8 @@ export function PageShell({ children, headerSlot, fullViewport, className }: Pag
               </SheetTrigger>
               <SheetContent side="right" className="w-64 bg-background border-border">
                 <SheetHeader>
-                  <SheetTitle className="flex items-center gap-2 text-sky-400">
-                    <TrendingUp className="w-5 h-5" />
-                    選股神器
+                  <SheetTitle className="text-sky-400">
+                    選單
                   </SheetTitle>
                 </SheetHeader>
                 <nav aria-label="行動版導覽" className="flex flex-col gap-1 mt-4 px-2">

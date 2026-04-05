@@ -22,7 +22,6 @@ import {
   TrendPosition,
   SixConditionsResult,
 } from '@/lib/analysis/trendAnalysis';
-import { computeSurgeScore, SurgeScoreResult } from '@/lib/analysis/surgeScore';
 import { checkLongProhibitions, checkShortProhibitions, type ProhibitionResult } from '@/lib/rules/entryProhibitions';
 import { evaluateShortSixConditions, type ShortSixConditionsResult } from '@/lib/analysis/shortAnalysis';
 import { evaluateWinnerPatterns, type WinnerPatternResult } from '@/lib/rules/winnerPatternRules';
@@ -38,7 +37,6 @@ export interface DerivedState {
   trendState: TrendState;
   trendPosition: TrendPosition;
   sixConditions: SixConditionsResult | null;
-  surgeScore: SurgeScoreResult | null;
   longProhibitions: ProhibitionResult | null;
   shortProhibitions: ProhibitionResult | null;
   shortConditions: ShortSixConditionsResult | null;
@@ -81,7 +79,6 @@ export function buildState(
   const trendPosition = detectTrendPosition(allCandles, index);
   const activeThresholds = useSettingsStore.getState().getActiveStrategy().thresholds;
   const sixConditions = evaluateSixConditions(allCandles, index, activeThresholds);
-  const surgeScore = computeSurgeScore(allCandles, index);
   const longProhibitions  = index >= 5 ? checkLongProhibitions(allCandles, index)  : null;
   const shortProhibitions = index >= 5 ? checkShortProhibitions(allCandles, index) : null;
   const shortConditions   = index >= 5 ? evaluateShortSixConditions(allCandles, index) : null;
@@ -96,7 +93,6 @@ export function buildState(
     trendState,
     trendPosition,
     sixConditions,
-    surgeScore,
     longProhibitions,
     shortProhibitions,
     shortConditions,

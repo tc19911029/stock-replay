@@ -46,11 +46,10 @@ const safeStorage = {
 /** Strip heavy fields from scan results for storage (keep only top N) */
 function compactResults(results: StockScanResult[], topN = 20): StockScanResult[] {
   return results
-    .sort((a, b) => (b.surgeScore ?? 0) - (a.surgeScore ?? 0))
+    .sort((a, b) => b.sixConditionsScore - a.sixConditionsScore)
     .slice(0, topN)
     .map(r => ({
       ...r,
-      surgeComponents: undefined as unknown as typeof r.surgeComponents,  // strip heavy nested data
       triggeredRules: r.triggeredRules?.slice(0, 3),  // keep only top 3 rules
     }));
 }
@@ -228,17 +227,10 @@ export const useScannerStore = create<ScannerStore>()(
 
           // 計算 Top 3 推薦（與 TodayPicks 組件相同邏輯）
           const topPicks = results
-            .filter(r => r.surgeScore != null && r.surgeScore >= 40)
-            .map(r => {
-              const aiBonus = r.aiRank != null && r.aiRank <= 5 ? (6 - r.aiRank) * 5 : 0;
-              const winBonus = (r.histWinRate ?? 50) >= 60 ? 15 : (r.histWinRate ?? 50) >= 50 ? 5 : -10;
-              return { ...r, _score: (r.surgeScore ?? 0) + aiBonus + winBonus };
-            })
-            .sort((a, b) => b._score - a._score)
+            .sort((a, b) => b.sixConditionsScore - a.sixConditionsScore || b.changePercent - a.changePercent)
             .slice(0, 3)
             .map(r => ({
               symbol: r.symbol, name: r.name,
-              surgeScore: r.surgeScore ?? 0, surgeGrade: r.surgeGrade ?? 'D',
               sixConditionsScore: r.sixConditionsScore,
               histWinRate: r.histWinRate, price: r.price, changePercent: r.changePercent,
               aiRank: r.aiRank, aiReason: r.aiReason,
@@ -310,11 +302,10 @@ export const useScannerStore = create<ScannerStore>()(
         const results = get()[mKey].results;
         if (results.length === 0) return;
 
-        // Take top 15 by surgeScore
+        // Take top 15 by sixConditionsScore
         const top = [...results]
-          .sort((a, b) => (b.surgeScore ?? 0) - (a.surgeScore ?? 0))
-          .slice(0, 15)
-          .filter(r => r.surgeScore != null && r.surgeComponents != null);
+          .sort((a, b) => b.sixConditionsScore - a.sixConditionsScore)
+          .slice(0, 15);
 
         if (top.length === 0) return;
 
@@ -326,13 +317,9 @@ export const useScannerStore = create<ScannerStore>()(
             name: r.name,
             price: r.price,
             changePercent: r.changePercent,
-            surgeScore: r.surgeScore ?? 0,
-            surgeGrade: r.surgeGrade ?? 'D',
-            surgeFlags: r.surgeFlags ?? [],
             sixConditionsScore: r.sixConditionsScore,
             trendState: r.trendState,
             trendPosition: r.trendPosition,
-            components: r.surgeComponents ?? {},
           }));
 
           const res = await fetch('/api/scanner/ai-rank', {

@@ -8,6 +8,7 @@ import { POLLING } from '@/lib/config';
 import { useWatchlistStore } from '@/store/watchlistStore';
 import { usePortfolioStore } from '@/store/portfolioStore';
 import { useSettingsStore } from '@/store/settingsStore';
+import { useReplayStore } from '@/store/replayStore';
 import { type MarketTab, filterByMarket, classifyMarket } from '@/lib/market/classify';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -293,10 +294,10 @@ function PortfolioContent({ holdings, prices, summary, totalReturnPct }: Portfol
           const dailyPnL = cur > 0 ? h.shares * cur * (p?.changePercent ?? 0) / 100 : 0;
 
           return (
-            <Link
+            <button
               key={h.id}
-              href={`/?load=${stripSuffix(h.symbol)}`}
-              className="flex items-center gap-2 px-3 py-2 hover:bg-muted/60 transition-colors"
+              onClick={() => useReplayStore.getState().loadStock(stripSuffix(h.symbol))}
+              className="flex items-center gap-2 px-3 py-2 hover:bg-muted/60 transition-colors w-full text-left"
             >
               {/* Name + Symbol */}
               <div className="shrink-0 w-14">
@@ -340,7 +341,7 @@ function PortfolioContent({ holdings, prices, summary, totalReturnPct }: Portfol
                   <span className="text-[10px] text-muted-foreground">—</span>
                 )}
               </div>
-            </Link>
+            </button>
           );
         })}
       </div>
@@ -380,10 +381,10 @@ function WatchlistContent({ watchlist, prices }: WatchlistContentProps) {
           const isUp = (p?.changePercent ?? 0) >= 0;
 
           return (
-            <Link
+            <button
               key={item.symbol}
-              href={`/?load=${stripSuffix(item.symbol)}`}
-              className="flex items-center gap-2 px-3 py-2 hover:bg-muted/60 transition-colors"
+              onClick={() => useReplayStore.getState().loadStock(stripSuffix(item.symbol))}
+              className="flex items-center gap-2 px-3 py-2 hover:bg-muted/60 transition-colors w-full text-left"
             >
               <div className="shrink-0 w-14">
                 <div className="text-xs font-bold text-foreground leading-tight">{p?.name ?? item.name}</div>
@@ -404,7 +405,7 @@ function WatchlistContent({ watchlist, prices }: WatchlistContentProps) {
               ) : (
                 <span className="text-[10px] text-muted-foreground">—</span>
               )}
-            </Link>
+            </button>
           );
         })}
       </div>

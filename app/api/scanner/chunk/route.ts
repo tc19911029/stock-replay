@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       scanResult = { results: candidates, marketTrend: mt };
     } else if (mode === 'sop') {
       // V2 做多版：六條件+戒律+淘汰法
-      scanResult = await scanner.scanSOP(stocks, asOfDate, thresholds, parsed.data.rankBy);
+      scanResult = await scanner.scanSOP(stocks, asOfDate, thresholds, parsed.data.rankBy as 'sixConditions' | 'histWinRate');
     } else if (mode === 'pure' && asOfDate) {
       scanResult = await scanner.scanListAtDatePure(stocks, asOfDate, thresholds);
     } else if (mode === 'pure') {

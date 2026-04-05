@@ -31,14 +31,7 @@ export interface TradeSignal {
   signalReasons: string[];  // 命中條件說明
   trendState:    string;    // 趨勢狀態
   trendPosition: string;    // 趨勢位置
-  surgeScore?:   number;    // 飆股潛力分數 0-100
-  surgeGrade?:   string;    // 飆股等級 S/A/B/C/D
   histWinRate?:  number;    // 歷史勝率 %
-  smartMoneyScore?: number; // 智慧資金分數 0-100
-  compositeScore?:  number; // 綜合排名分數 0-100
-  retailSentiment?: number; // 散戶情緒 0-100 (0=panic, 100=euphoria)
-  contrarianSignal?: 'bullish' | 'bearish' | null;
-  volatilityRegime?: 'LOW' | 'NORMAL' | 'HIGH' | 'EXTREME';
   // ── 《活用技術分析寶典》新增欄位 ──
   highWinRateTypes?: string[];     // 高勝率進場位置
   highWinRateScore?: number;       // 高勝率加分
@@ -73,14 +66,7 @@ export function scanResultToSignal(scanResult: StockScanResult): TradeSignal {
     signalReasons: reasons,
     trendState,
     trendPosition,
-    surgeScore:    scanResult.surgeScore,
-    surgeGrade:    scanResult.surgeGrade,
     histWinRate:   scanResult.histWinRate,
-    smartMoneyScore: scanResult.smartMoneyScore,
-    compositeScore:  scanResult.compositeScore,
-    retailSentiment: scanResult.retailSentiment,
-    contrarianSignal: scanResult.contrarianSignal,
-    volatilityRegime: scanResult.volatilityRegime,
     highWinRateTypes: scanResult.highWinRateTypes,
     highWinRateScore: scanResult.highWinRateScore,
     winnerBullishPatterns: scanResult.winnerBullishPatterns,
@@ -93,78 +79,13 @@ export function scanResultToSignal(scanResult: StockScanResult): TradeSignal {
 
 /**
  * Adaptive exit parameters based on signal quality.
- * Higher quality signals get longer hold + wider trailing stop.
- * Lower quality signals get tighter risk management.
- *
- * Research basis:
- * - S/A grade surge stocks benefit from longer holding (capture full trend)
- * - High composite scores correlate with institutional backing (sticky trends)
- * - Weak signals should cut losses faster
+ * Returns base strategy as-is (removed fields cleaned up).
  */
 export function resolveAdaptiveParams(
-  signal: TradeSignal,
+  _signal: TradeSignal,
   baseStrategy: BacktestStrategyParams,
 ): BacktestStrategyParams {
-  const grade = signal.surgeGrade ?? 'C';
-  const composite = signal.compositeScore ?? 50;
-
-  // Adaptive hold days: S=8, A=7, B=5, C/D=4
-  let holdDays = baseStrategy.holdDays;
-  if (grade === 'S') holdDays = Math.max(holdDays, 8);
-  else if (grade === 'A') holdDays = Math.max(holdDays, 7);
-  else if (grade === 'D') holdDays = Math.min(holdDays, 4);
-
-  // Adaptive trailing stop: wider for strong signals, tighter for weak
-  let trailingStop = baseStrategy.trailingStop;
-  let trailingActivate = baseStrategy.trailingActivate;
-  if (composite >= 70 && trailingStop !== null) {
-    trailingStop = Math.max(trailingStop, 0.05);     // wider 5% trailing
-    trailingActivate = trailingActivate !== null ? Math.max(trailingActivate, 0.07) : 0.07;
-  } else if (composite < 40 && trailingStop !== null) {
-    trailingStop = Math.min(trailingStop, 0.02);     // tight 2% trailing
-    trailingActivate = trailingActivate !== null ? Math.min(trailingActivate, 0.03) : 0.03;
-  }
-
-  // Adaptive stop loss: tighter for weak signals
-  let stopLoss = baseStrategy.stopLoss;
-  if (composite < 40 && stopLoss !== null) {
-    stopLoss = Math.max(stopLoss, -0.04); // tighter -4% stop
-  }
-
-  // Contrarian signal adjustments:
-  // Bearish (retail euphoria) → reduce hold days, tighten stops
-  // Bullish (panic capitulation) → can hold longer
-  if (signal.contrarianSignal === 'bearish') {
-    holdDays = Math.max(2, holdDays - 2);
-    if (stopLoss !== null) stopLoss = Math.max(stopLoss, -0.04);
-  } else if (signal.contrarianSignal === 'bullish') {
-    holdDays = Math.min(holdDays + 1, 10);
-  }
-
-  // Volatility regime adjustments:
-  // HIGH/EXTREME → wider stops, shorter holds
-  // LOW → tighter stops, can hold longer (cleaner trends)
-  const volRegime = signal.volatilityRegime;
-  if (volRegime === 'EXTREME') {
-    if (stopLoss !== null) stopLoss = stopLoss * 1.5; // wider
-    holdDays = Math.max(2, Math.round(holdDays * 0.6));
-  } else if (volRegime === 'HIGH') {
-    if (stopLoss !== null) stopLoss = stopLoss * 1.25;
-    holdDays = Math.max(2, Math.round(holdDays * 0.8));
-  } else if (volRegime === 'LOW') {
-    // Low volatility = strongest setup (Python optimization finding).
-    // Tighter stops work because noise is low; hold longer for follow-through.
-    if (stopLoss !== null) stopLoss = Math.max(stopLoss, stopLoss * 0.75);
-    holdDays = Math.min(12, Math.round(holdDays * 1.3));
-  }
-
-  return {
-    ...baseStrategy,
-    holdDays,
-    trailingStop,
-    trailingActivate,
-    stopLoss,
-  };
+  return { ...baseStrategy };
 }
 
 /** 回測進場方式 */
@@ -218,9 +139,7 @@ export interface BacktestTrade {
   exitReason: string;       // 出場原因（'holdDays' | 'stopLoss' | 'takeProfit' | 'dataEnd'）
   holdDays:   number;       // 實際持有天數（交易日）
 
-  // ── 飆股指標 ──
-  surgeScore?:  number;     // 飆股潛力分數 0-100
-  surgeGrade?:  string;     // 飆股等級 S/A/B/C/D
+  // ── 歷史指標 ──
   histWinRate?: number;     // 歷史勝率 %
   isGapUp?:     boolean;    // 隔日高開跳空 > 5%（實際難以開盤價買入）
   gapUpPct?:    number;     // 跳空幅度（%）
@@ -596,8 +515,6 @@ export function runSingleBacktest(
     signalReasons: signal.signalReasons,
     trendState:    signal.trendState,
     trendPosition: signal.trendPosition,
-    surgeScore:    signal.surgeScore,
-    surgeGrade:    signal.surgeGrade,
     histWinRate:   signal.histWinRate,
 
     entryDate:  entryCandle.date,
@@ -1092,8 +1009,6 @@ export function runSOPBacktest(
     signalReasons: signal.signalReasons,
     trendState:    signal.trendState,
     trendPosition: signal.trendPosition,
-    surgeScore:    signal.surgeScore,
-    surgeGrade:    signal.surgeGrade,
     histWinRate:   signal.histWinRate,
 
     entryDate:  entryCandle.date,
@@ -1303,8 +1218,6 @@ export function runShortSOPBacktest(
     signalReasons: signal.signalReasons,
     trendState:    signal.trendState,
     trendPosition: signal.trendPosition,
-    surgeScore:    signal.surgeScore,
-    surgeGrade:    signal.surgeGrade,
     histWinRate:   signal.histWinRate,
 
     entryDate:  entryCandle.date,
@@ -1577,20 +1490,9 @@ export function runBatchBacktestWithCapital(
   finalCapital:      number;   // 模擬結束後資金
   capitalReturn:     number;   // 整體資金報酬率 %
 } {
-  // 依綜合分排序：優先使用 compositeScore（含 smart money），否則 fallback 舊邏輯
-  function calcComposite(r: StockScanResult): number {
-    if (r.compositeScore != null) return r.compositeScore;
-    const sixCon = (r.sixConditionsScore / 6) * 100;
-    const surge  = r.surgeScore ?? 0;
-    const winR   = r.histWinRate ?? 50;
-    const posBonus = r.trendPosition?.includes('起漲') ? 100
-                   : r.trendPosition?.includes('主升') ? 70
-                   : r.trendPosition?.includes('末升') ? 20 : 50;
-    const volBonus = r.surgeComponents?.volume?.score ?? 50;
-    return sixCon * 0.35 + surge * 0.25 + winR * 0.20 + posBonus * 0.10 + volBonus * 0.10;
-  }
+  // 依六大條件分數排序（高→低）
   const sorted = [...scanResults].sort(
-    (a, b) => calcComposite(b) - calcComposite(a),
+    (a, b) => b.sixConditionsScore - a.sixConditionsScore,
   );
 
   // Apply sector concentration limit: pick top stocks but limit per-sector exposure
@@ -1627,13 +1529,8 @@ export function runBatchBacktestWithCapital(
       continue;
     }
 
-    // Dynamic position sizing: higher composite → larger allocation (±30%)
-    const composite = result.compositeScore ?? 50;
-    const sizeMult = composite >= 75 ? 1.3
-                   : composite >= 60 ? 1.1
-                   : composite < 40  ? 0.7
-                   : 1.0;
-    const positionNominal = constraints.initialCapital * constraints.positionSizePct * sizeMult;
+    // Fixed position sizing
+    const positionNominal = constraints.initialCapital * constraints.positionSizePct;
     const dollarPnL = (trade.netReturn / 100) * positionNominal;
     capital += dollarPnL;
 

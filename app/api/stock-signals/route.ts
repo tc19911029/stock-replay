@@ -1,9 +1,8 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
-import { fetchCandlesYahoo } from '@/lib/datasource/YahooFinanceDS';
+import { dataProvider } from '@/lib/datasource/MultiMarketProvider';
 import { evaluateSixConditions, detectTrendPosition } from '@/lib/analysis/trendAnalysis';
-import { computeSurgeScore } from '@/lib/analysis/surgeScore';
 import { resolveThresholds } from '@/lib/strategy/resolveThresholds';
 import { evaluateHighWinRateEntry } from '@/lib/analysis/highWinRateEntry';
 import { evaluateWinnerPatterns } from '@/lib/rules/winnerPatternRules';
@@ -19,8 +18,6 @@ export interface SignalDate {
   date: string;
   score: number;
   close: number;
-  surgeScore: number;
-  surgeGrade: string;
   position: string;
   d1Return: number | null;
   d5Return: number | null;
@@ -43,7 +40,7 @@ export async function GET(req: NextRequest) {
   const minScore = parseInt(parsed.data.minScore ?? String(thresholds.minScore));
 
   try {
-    const candles = await fetchCandlesYahoo(symbol, period, 30000);
+    const candles = await dataProvider.getHistoricalCandles(symbol, period);
     if (!candles || candles.length < 30) {
       return apiError('資料不足', 404);
     }
@@ -54,7 +51,6 @@ export async function GET(req: NextRequest) {
       const six = evaluateSixConditions(candles, i, thresholds);
       if (six.totalScore < minScore) continue;
 
-      const surge = computeSurgeScore(candles, i);
       const position = detectTrendPosition(candles, i);
       const hwre = evaluateHighWinRateEntry(candles, i);
       const wp = evaluateWinnerPatterns(candles, i);
@@ -62,7 +58,6 @@ export async function GET(req: NextRequest) {
       const get = (offset: number) => candles[i + offset]?.close ?? null;
       const ret = (c: number | null) => c != null ? +((c - entry) / entry * 100).toFixed(2) : null;
 
-      // Max gain/loss over next 5 and 20 candles
       let maxG5 = 0, maxL5 = 0, maxG20 = 0, maxL20 = 0;
       for (let k = 1; k <= 20 && i + k < candles.length; k++) {
         const pct = (candles[i + k].close - entry) / entry * 100;
@@ -74,8 +69,6 @@ export async function GET(req: NextRequest) {
         date: candles[i].date,
         score: six.totalScore,
         close: entry,
-        surgeScore: surge.totalScore,
-        surgeGrade: surge.grade,
         position,
         d1Return: ret(get(1)),
         d5Return: ret(get(5)),
@@ -91,29 +84,6 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Aggregate stats by surgeGrade
-    const gradeStats: Record<string, { n: number; d5Sum: number; d20Sum: number; maxG20Sum: number; winD5: number; winD20: number }> = {};
-    for (const s of signals) {
-      const g = s.surgeGrade;
-      if (!gradeStats[g]) gradeStats[g] = { n: 0, d5Sum: 0, d20Sum: 0, maxG20Sum: 0, winD5: 0, winD20: 0 };
-      gradeStats[g].n++;
-      if (s.d5Return != null) { gradeStats[g].d5Sum += s.d5Return; if (s.d5Return > 0) gradeStats[g].winD5++; }
-      if (s.d20Return != null) { gradeStats[g].d20Sum += s.d20Return; if (s.d20Return > 0) gradeStats[g].winD20++; }
-      if (s.maxGain20 != null) gradeStats[g].maxG20Sum += s.maxGain20;
-    }
-
-    const surgeGradePerformance: Record<string, { count: number; avgD5: string; avgD20: string; avgMaxGain20: string; winRateD5: string; winRateD20: string }> = {};
-    for (const [g, v] of Object.entries(gradeStats)) {
-      surgeGradePerformance[g] = {
-        count: v.n,
-        avgD5: (v.d5Sum / v.n).toFixed(2),
-        avgD20: (v.d20Sum / v.n).toFixed(2),
-        avgMaxGain20: (v.maxG20Sum / v.n).toFixed(2),
-        winRateD5: ((v.winD5 / v.n) * 100).toFixed(0) + '%',
-        winRateD20: ((v.winD20 / v.n) * 100).toFixed(0) + '%',
-      };
-    }
-
     // Overall stats
     const total = signals.length;
     const win5  = signals.filter(s => (s.d5Return ?? 0) > 0).length;
@@ -125,7 +95,6 @@ export async function GET(req: NextRequest) {
       symbol,
       signals: signals.reverse(),
       stats: { total, win5, win20, avg5, avg20 },
-      surgeGradePerformance,
     });
   } catch (err: unknown) {
     console.error('[stock-signals] error:', err);

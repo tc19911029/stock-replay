@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import {
   MarketId, StockScanResult, StockForwardPerformance, BacktestSession,
-  sanitizeScanResult,
+  ForwardCandle, sanitizeScanResult,
 } from '@/lib/scanner/types';
 import { TrendState } from '@/lib/analysis/trendAnalysis';
 import { calcBacktestSummary } from '@/lib/backtest/ForwardAnalyzer';
@@ -246,7 +246,7 @@ export const useBacktestStore = create<BacktestState>()(
             date: s.scanDate,
             scanResults: s.scanResults,
             forwardCandlesMap: Object.fromEntries(
-              s.performance.map(p => [p.symbol, p.forwardCandles]),
+              s.performance.map(p => [p.symbol, p.forwardCandles ?? []]),
             ),
           }));
 
@@ -292,7 +292,6 @@ export const useBacktestStore = create<BacktestState>()(
             .map(r => ({
               symbol: r.symbol, name: r.name, price: r.price,
               change: r.changePercent, score: r.sixConditionsScore,
-              surgeScore: r.surgeScore, surgeGrade: r.surgeGrade,
               histWinRate: r.histWinRate,
             }));
           const res = await fetch('/api/scanner/ai-rank', {
@@ -458,9 +457,9 @@ export const useBacktestStore = create<BacktestState>()(
 
           // ── Phase 4: Run strict BacktestEngine ────────────────────────────
           // Build forward candles map: symbol → ForwardCandle[]
-          const candlesMap: Record<string, typeof performance[0]['forwardCandles']> = {};
+          const candlesMap: Record<string, ForwardCandle[]> = {};
           for (const p of performance) {
-            candlesMap[p.symbol] = p.forwardCandles;
+            if (p.forwardCandles) candlesMap[p.symbol] = p.forwardCandles;
           }
 
           let trades: BacktestTrade[];
@@ -634,9 +633,9 @@ export const useBacktestStore = create<BacktestState>()(
           const performance = fwdJson.performance ?? [];
 
           // Phase 3: Run backtest engine
-          const candlesMap: Record<string, typeof performance[0]['forwardCandles']> = {};
+          const candlesMap: Record<string, ForwardCandle[]> = {};
           for (const p of performance) {
-            candlesMap[p.symbol] = p.forwardCandles;
+            if (p.forwardCandles) candlesMap[p.symbol] = p.forwardCandles;
           }
 
           let trades: BacktestTrade[];

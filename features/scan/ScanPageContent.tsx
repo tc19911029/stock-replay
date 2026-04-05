@@ -415,10 +415,6 @@ export default function ScanPageContent({ defaultMode = 'full' }: ScanPageConten
                                     className="text-[10px] text-sky-400 hover:text-sky-300 px-1.5 py-0.5 rounded border border-sky-700/50 hover:bg-sky-900/30 ml-1">
                                     走圖
                                   </Link>
-                                  <Link href={`/analysis/${r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}`}
-                                    className="text-[10px] text-violet-400 hover:text-violet-300 px-1.5 py-0.5 rounded border border-violet-700/50 hover:bg-violet-900/30 ml-1">
-                                    AI分析
-                                  </Link>
                                   <Button
                                     onClick={(e) => {
                                       useWatchlistStore.getState().add(r.symbol, r.name);
@@ -459,11 +455,11 @@ export default function ScanPageContent({ defaultMode = 'full' }: ScanPageConten
                                   ))}
                                   <div className="text-center">
                                     <div className="text-muted-foreground">最高</div>
-                                    <div className="font-mono font-bold text-bull">{p ? `+${p.maxGain.toFixed(1)}%` : '—'}</div>
+                                    <div className="font-mono font-bold text-bull">{p ? `+${(p.maxGain ?? 0).toFixed(1)}%` : '—'}</div>
                                   </div>
                                   <div className="text-center">
                                     <div className="text-muted-foreground">最低</div>
-                                    <div className="font-mono font-bold text-bear">{p ? `${p.maxLoss.toFixed(1)}%` : '—'}</div>
+                                    <div className="font-mono font-bold text-bear">{p ? `${(p.maxLoss ?? 0).toFixed(1)}%` : '—'}</div>
                                   </div>
                                 </div>}
                               </div>
@@ -527,9 +523,6 @@ export default function ScanPageContent({ defaultMode = 'full' }: ScanPageConten
                 >
                   {scanDirection === 'long' ? '切換做空掃描' : '切換做多掃描'}
                 </button>
-                <Link href="/strategies" className="text-xs px-3 py-1.5 rounded-lg bg-sky-900/40 hover:bg-sky-800/50 text-sky-300 transition-colors">
-                  調整策略門檻
-                </Link>
               </div>
             </div>
           ) : (

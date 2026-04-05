@@ -1,6 +1,5 @@
 export { calcComposite, chipTooltip, retColor, fmtRet, scoreColor, exportToCsv } from './utils';
 export { BacktestStatsPanel, EquityCurveMini } from './components/BacktestStatsPanel';
-export { CapitalPanel } from './components/CapitalPanel';
 export { ResearchAssumptions } from './components/ResearchAssumptions';
 export { SessionHistory } from './components/SessionHistory';
 export { WalkForwardPanel } from './components/WalkForwardPanel';
@@ -8,5 +7,4 @@ export { HorizonCard } from './components/HorizonCard';
 export { TradeRow, trendBadge, exitBadge, chipBadge, calcTradeComposite } from './components/TradeRow';
 export { ScanResultsTable } from './components/ScanResultsTable';
 export { BacktestSection } from './components/BacktestSection';
-export { ABTestPanel } from './components/ABTestPanel';
 export { default as ScanPageContent } from './ScanPageContent';

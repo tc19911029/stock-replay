@@ -22,7 +22,6 @@ import {
   TrendPosition,
   SixConditionsResult,
 } from '@/lib/analysis/trendAnalysis';
-import { SurgeScoreResult } from '@/lib/analysis/surgeScore';
 import { type ProhibitionResult } from '@/lib/rules/entryProhibitions';
 import { type ShortSixConditionsResult } from '@/lib/analysis/shortAnalysis';
 import { type WinnerPatternResult } from '@/lib/rules/winnerPatternRules';
@@ -71,7 +70,6 @@ interface ReplayStore {
   trendPosition: TrendPosition;
   sixConditions: SixConditionsResult | null;
   prevSixConditions: SixConditionsResult | null;  // 前一根K棒的六條件（用於偵測變化）
-  surgeScore: SurgeScoreResult | null;
   longProhibitions: ProhibitionResult | null;
   shortProhibitions: ProhibitionResult | null;
   shortConditions: ShortSixConditionsResult | null;
@@ -120,7 +118,6 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
   trendPosition: '盤整觀望' as TrendPosition,
   sixConditions: null,
   prevSixConditions: null,
-  surgeScore: null,
   longProhibitions: null,
   shortProhibitions: null,
   shortConditions: null,
@@ -151,6 +148,7 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
     }
 
     const defaultPeriod: Record<string, string> = {
+      '1m': '5d', '5m': '60d', '15m': '60d', '30m': '60d', '60m': '6mo',
       '1d': '2y', '1wk': '5y', '1mo': '10y',
     };
     const p = period ?? defaultPeriod[interval] ?? '2y';

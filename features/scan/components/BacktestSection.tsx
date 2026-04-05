@@ -9,7 +9,6 @@ import { generateBacktestPDF } from '@/lib/pdf/backtestReportGenerator';
 import { chipBadge, TradeRow, calcTradeComposite } from './TradeRow';
 import { HorizonCard } from './HorizonCard';
 import { BacktestStatsPanel } from './BacktestStatsPanel';
-import { CapitalPanel } from './CapitalPanel';
 import { Button } from '@/components/ui/button';
 
 export function BacktestSection() {
@@ -56,7 +55,7 @@ export function BacktestSection() {
     if (sortBy === 'composite')    return dir * (calcTradeComposite(b, scanResults) - calcTradeComposite(a, scanResults));
     if (sortBy === 'netReturn')    return dir * (b.netReturn - a.netReturn);
     if (sortBy === 'signalScore')  return dir * (b.signalScore - a.signalScore);
-    if (sortBy === 'surgeScore')   return dir * ((b.surgeScore ?? 0) - (a.surgeScore ?? 0));
+    if (sortBy === 'surgeScore')   return dir * ((b.signalScore ?? 0) - (a.signalScore ?? 0));
     if (sortBy === 'histWinRate')  return dir * ((b.histWinRate ?? 0) - (a.histWinRate ?? 0));
     if (sortBy === 'holdDays')     return dir * (a.holdDays - b.holdDays);
     return 0;
@@ -87,16 +86,6 @@ export function BacktestSection() {
       {trades.length > 0 && (
         <div className="space-y-4">
           {stats && <BacktestStatsPanel stats={stats} tradesCount={trades.length} trades={trades} />}
-          {useCapitalMode && trades.length > 0 && (
-            <CapitalPanel
-              trades={trades}
-              constraints={capitalConstraints}
-              finalCapital={finalCapital}
-              capitalReturn={capitalReturn}
-              skippedByCapital={skippedByCapital}
-            />
-          )}
-
           <div className="flex items-center justify-end gap-2 mb-2">
             <Button
               onClick={() => exportToCsv(sortedTrades, scanDate)}
@@ -325,9 +314,9 @@ export function BacktestSection() {
                             <td key={i} className={`py-1.5 px-1 text-right font-mono ${retColor(v)}`}>{fmtRet(v)}</td>
                           ))}
                           <td className="py-1.5 px-1 text-right whitespace-nowrap">
-                            <span className="text-red-400">+{p.maxGain.toFixed(1)}%</span>
+                            <span className="text-red-400">+{(p.maxGain ?? 0).toFixed(1)}%</span>
                             <span className="text-muted-foreground/60">/</span>
-                            <span className="text-green-500">{p.maxLoss.toFixed(1)}%</span>
+                            <span className="text-green-500">{(p.maxLoss ?? 0).toFixed(1)}%</span>
                           </td>
                         </>
                       ) : (
@@ -336,8 +325,6 @@ export function BacktestSection() {
                       <td className="py-1.5 px-2 text-center whitespace-nowrap">
                         <Link href={`/?load=${sym}&date=${scanDate}`}
                           className="text-[10px] text-sky-400 hover:text-sky-300 px-1.5 py-0.5 rounded border border-sky-700/50 hover:bg-sky-900/30 mr-1">走圖</Link>
-                        <Link href={`/analysis/${r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}`}
-                          className="text-[10px] text-violet-400 hover:text-violet-300 px-1.5 py-0.5 rounded border border-violet-700/50 hover:bg-violet-900/30 mr-1">AI分析</Link>
                         <Button onClick={() => { useWatchlistStore.getState().add(r.symbol, r.name); }}
                           variant="outline"
                           size="sm"

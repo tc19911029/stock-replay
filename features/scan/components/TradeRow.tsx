@@ -79,12 +79,11 @@ export function calcTradeComposite(t: BacktestTrade, scanResults?: ScanRow[]): n
     return Math.round((sixCon * 0.30 + surge * 0.20 + winR * 0.25 + posBonus * 0.10 + volBonus * 0.10 + Math.min(100, breakoutBonus) * 0.05) * 10) / 10;
   }
   const sixCon = (t.signalScore / 6) * 100;
-  const surge  = t.surgeScore ?? 0;
   const winR   = t.histWinRate ?? 50;
   const posBonus = t.trendPosition?.includes('起漲') ? 100
                  : t.trendPosition?.includes('主升') ? 70
                  : t.trendPosition?.includes('末升') ? 20 : 50;
-  return Math.round((sixCon * 0.30 + surge * 0.20 + winR * 0.25 + posBonus * 0.10 + 50 * 0.10 + 0 * 0.05) * 10) / 10;
+  return Math.round((sixCon * 0.40 + winR * 0.30 + posBonus * 0.15 + 50 * 0.10 + 0 * 0.05) * 10) / 10;
 }
 
 // ── TradeRow Component ─────────────────────────────────────────────────────────
@@ -123,17 +122,8 @@ export function TradeRow({ t, chip, composite }: { t: BacktestTrade; chip?: Chip
           {t.signalScore}/6
         </span>
       </td>
-      <td className="py-1.5 px-1 text-center">
-        {t.surgeGrade && (
-          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-            t.surgeGrade === 'S' ? 'bg-red-600 text-white' :
-            t.surgeGrade === 'A' ? 'bg-orange-500 text-white' :
-            t.surgeGrade === 'B' ? 'bg-yellow-500 text-black' :
-            'bg-muted text-foreground/80'
-          }`}>{t.surgeGrade}</span>
-        )}
-      </td>
-      <td className="py-1.5 px-1 text-center font-mono text-foreground/80">{t.surgeScore ?? '—'}</td>
+      <td className="py-1.5 px-1 text-center font-mono text-foreground/80">—</td>
+      <td className="py-1.5 px-1 text-center font-mono text-foreground/80">—</td>
       <td className="py-1.5 px-1 text-center">
         {t.histWinRate != null && (
           <span className={`text-[10px] px-1 rounded ${t.histWinRate >= 60 ? 'bg-green-900/60 text-green-300' : t.histWinRate >= 50 ? 'bg-yellow-900/60 text-yellow-300' : 'bg-red-900/60 text-red-300'}`}>

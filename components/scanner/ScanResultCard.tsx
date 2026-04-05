@@ -16,14 +16,6 @@ const COND_LABELS: Array<{ key: keyof StockScanResult['sixConditionsBreakdown'];
   { key: 'indicator', name: '指標' },
 ];
 
-const GRADE_STYLE: Record<string, string> = {
-  S: 'bg-red-600 text-foreground',
-  A: 'bg-orange-500 text-foreground',
-  B: 'bg-yellow-500 text-black',
-  C: 'bg-muted text-foreground',
-  D: 'bg-muted text-muted-foreground',
-};
-
 const FLAG_LABELS: Record<string, string> = {
   BB_SQUEEZE_BREAKOUT: 'BB壓縮突破',
   VOLUME_CLIMAX: '量能爆發',
@@ -71,13 +63,6 @@ export default function ScanResultCard({ result: r, actions }: { result: StockSc
     <div className="bg-secondary border border-border rounded-xl overflow-hidden">
       {/* Top row */}
       <div className="flex items-center gap-2 px-4 pt-3 pb-1">
-        {/* Surge grade badge */}
-        {r.surgeGrade && (
-          <span className={`text-sm font-black w-8 h-8 flex items-center justify-center rounded-lg shrink-0 ${GRADE_STYLE[r.surgeGrade]}`}>
-            {r.surgeGrade}
-          </span>
-        )}
-
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold text-foreground font-mono">{r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</span>
@@ -90,22 +75,8 @@ export default function ScanResultCard({ result: r, actions }: { result: StockSc
               </span>
             )}
           </div>
-          {/* Surge score bar + AI annotation */}
+          {/* AI annotation */}
           <div className="flex items-center gap-2 mt-0.5">
-            {r.surgeScore != null && (
-              <div className="flex items-center gap-1">
-                <span className="text-[10px] text-muted-foreground">飆股潛力</span>
-                <div className="w-20 bg-muted rounded-full h-1.5 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all ${
-                      r.surgeScore >= 65 ? 'bg-red-500' : r.surgeScore >= 50 ? 'bg-orange-500' : r.surgeScore >= 35 ? 'bg-yellow-500' : 'bg-muted'
-                    }`}
-                    style={{ width: `${r.surgeScore}%` }}
-                  />
-                </div>
-                <span className="text-[10px] font-mono text-muted-foreground">{r.surgeScore}</span>
-              </div>
-            )}
             {r.aiRank && (
               <span className={`text-[10px] px-1.5 py-0.5 rounded ${
                 r.aiConfidence === 'high' ? 'bg-red-900/60 text-red-300' :

@@ -1,5 +1,5 @@
 import { CandleWithIndicators } from '@/types';
-import { fetchCandlesYahoo } from '@/lib/datasource/YahooFinanceDS';
+import { dataProvider } from '@/lib/datasource/MultiMarketProvider';
 import { fetchCandlesTWSE } from '@/lib/datasource/TWSEDataSource';
 import { MarketScanner, StockEntry } from './MarketScanner';
 import { MarketConfig } from './types';
@@ -182,12 +182,12 @@ export class TaiwanScanner extends MarketScanner {
   }
 
   async fetchCandles(symbol: string, asOfDate?: string): Promise<CandleWithIndicators[]> {
-    // Primary: Yahoo Finance
+    // MultiMarketProvider: FinMind → TWSE/TPEx 備援 + 即時覆蓋
     try {
-      const candles = await fetchCandlesYahoo(symbol, '1y', 8000, asOfDate);
+      const candles = await dataProvider.getHistoricalCandles(symbol, '1y', asOfDate);
       if (candles.length >= 30) return candles;
     } catch {
-      // Yahoo failed, try fallback
+      // dataProvider failed, try TWSE direct as last resort
     }
 
     // Fallback: TWSE direct API (listed stocks only, no asOfDate support)
@@ -215,7 +215,7 @@ export class TaiwanScanner extends MarketScanner {
    */
   async getMarketTrend(asOfDate?: string): Promise<TrendState> {
     try {
-      const candles = await fetchCandlesYahoo('0050.TW', '1y', 8000, asOfDate);
+      const candles = await dataProvider.getHistoricalCandles('0050.TW', '1y', asOfDate);
       if (candles.length < 20) return '盤整'; // 資料不足，保守預設
 
       const lastIdx = candles.length - 1;

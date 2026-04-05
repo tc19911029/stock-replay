@@ -2,12 +2,11 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 import { evaluateSixConditions, detectTrend, detectTrendPosition } from '@/lib/analysis/trendAnalysis';
-import { computeSurgeScore } from '@/lib/analysis/surgeScore';
 import { RuleEngine, ruleEngine } from '@/lib/rules/ruleEngine';
 import { resolveThresholds } from '@/lib/strategy/resolveThresholds';
 import { BUILT_IN_STRATEGIES } from '@/lib/strategy/StrategyConfig';
 import { getTWChineseName, getCNChineseName } from '@/lib/datasource/TWSENames';
-import { yahooProvider } from '@/lib/datasource/YahooDataProvider';
+import { dataProvider } from '@/lib/datasource/MultiMarketProvider';
 import type { CandleWithIndicators } from '@/types';
 
 export const runtime = 'nodejs';
@@ -23,7 +22,7 @@ async function fetchCandles(symbol: string): Promise<{ candles: CandleWithIndica
 
   for (const ticker of candidates) {
     try {
-      const candles = await yahooProvider.getHistoricalCandles(ticker, '1y');
+      const candles = await dataProvider.getHistoricalCandles(ticker, '1y');
       if (candles.length > 0) {
         return { candles, name: ticker, ticker };
       }
@@ -61,8 +60,6 @@ export async function GET(req: NextRequest) {
       : ruleEngine;
     const signals = engine.evaluate(allCandles, lastIdx).filter(s => s.type !== 'WATCH');
 
-    const surge = computeSurgeScore(allCandles, lastIdx);
-
     // 嘗試取得中文名稱
     const code = symbol.replace(/\D/g, '');
     const cnName = await getCNChineseName(code) ?? await getTWChineseName(code);
@@ -77,9 +74,6 @@ export async function GET(req: NextRequest) {
       position,
       sixConditions,
       hasBuySignal: signals.some(s => s.type === 'BUY' || s.type === 'ADD'),
-      surgeScore: surge.totalScore,
-      surgeGrade: surge.grade,
-      surgeFlags: surge.flags,
     });
   } catch (err) {
     console.error('[watchlist/conditions] error:', err);
