@@ -46,6 +46,12 @@ export interface StrategyThresholds {
   bullMinScore:    number;   // 多頭時最低分數（預設 4）
   sidewaysMinScore: number;  // 盤整時最低分數（預設 5）
   bearMinScore:    number;   // 空頭時最低分數（預設 6）
+
+  // 長線保護短線（多時間框架過濾）
+  multiTimeframeFilter: boolean;  // 是否啟用（預設 false）
+  mtfWeeklyStrict: boolean;       // 週線嚴格模式：不通過=拒絕（預設 true）
+  mtfMonthlyStrict: boolean;      // 月線嚴格模式：不通過=拒絕（預設 false，只扣分）
+  mtfMinScore: number;            // MTF 最低通過分數 0-4（預設 2）
 }
 
 import type { RuleGroupId } from '@/lib/rules/ruleRegistry';
@@ -103,6 +109,11 @@ export const BASE_THRESHOLDS: StrategyThresholds = {
   bullMinScore:   4,    // 多頭正常篩選
   sidewaysMinScore: 4,  // 盤整也用 4（靠其他條件過濾品質）
   bearMinScore:   5,    // 空頭嚴格
+  // 長線保護短線（預設關閉，由 UI 開關控制）
+  multiTimeframeFilter: false,
+  mtfWeeklyStrict:  true,   // 週線不通過=拒絕
+  mtfMonthlyStrict: false,  // 月線不通過=只扣分
+  mtfMinScore:      2,      // 至少2/4分
 };
 
 const ALL_CONDITIONS_ON: StrategyConditionToggles = {
@@ -423,6 +434,11 @@ export const THRESHOLD_BOUNDS: Record<keyof StrategyThresholds, { min: number; m
   bullMinScore:      { min: 0,    max: 6,    label: '多頭最低分數' },
   sidewaysMinScore:  { min: 0,    max: 6,    label: '盤整最低分數' },
   bearMinScore:      { min: 0,    max: 6,    label: '空頭最低分數' },
+  // 長線保護短線
+  multiTimeframeFilter: { min: 0, max: 1,    label: '長線保護開關' },
+  mtfWeeklyStrict:      { min: 0, max: 1,    label: '週線嚴格模式' },
+  mtfMonthlyStrict:     { min: 0, max: 1,    label: '月線嚴格模式' },
+  mtfMinScore:          { min: 0, max: 4,    label: 'MTF 最低分數' },
 };
 
 export interface ThresholdValidationError {

@@ -35,7 +35,7 @@ function makeChart(container: HTMLElement, showTimeAxis: boolean): IChartApi {
       textColor: '#94a3b8',
     },
     grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
-    rightPriceScale: { borderColor: '#334155', minimumWidth: 60 },
+    rightPriceScale: { borderColor: '#334155', minimumWidth: 80, scaleMargins: { top: 0.08, bottom: 0.08 } },
     timeScale: { borderColor: '#334155', timeVisible: showTimeAxis, visible: true },
     crosshair: { mode: 1, vertLine: { labelVisible: false } },
     width: container.clientWidth,
@@ -118,8 +118,8 @@ function VolumeChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]
     <div className="relative h-full">
       <div className="absolute top-1 left-2 z-10 flex gap-3 text-xs font-mono pointer-events-none">
         <span className="text-muted-foreground">成交量</span>
-        <span className="text-blue-400">MV5 {display?.avgVol5 ? (display.avgVol5 / 1000).toFixed(0) + 'K' : '—'}</span>
-        <span className={`font-bold ${volColor}`}>量 {display ? (display.volume / 1000).toFixed(0) + 'K' : '—'} {volArrow}</span>
+        <span className="text-blue-400">MV5 {display?.avgVol5 ? display.avgVol5.toLocaleString() : '—'}</span>
+        <span className={`font-bold ${volColor}`}>量 {display ? display.volume.toLocaleString() : '—'} {volArrow}</span>
       </div>
       <div ref={containerRef} className="w-full h-full" />
     </div>
@@ -192,7 +192,7 @@ function MACDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; 
     <div className="relative h-full">
       <div className="absolute top-1 left-2 z-10 flex gap-3 text-xs font-mono pointer-events-none">
         <span className="text-muted-foreground">MACD</span>
-        <span className="text-amber-400">MACD9 {display?.macdSignal?.toFixed(2) ?? '—'}</span>
+        <span className="text-amber-400">MACD10 {display?.macdSignal?.toFixed(2) ?? '—'}</span>
         <span className="text-blue-400">DIF {display?.macdDIF?.toFixed(2) ?? '—'}</span>
         <span className={display?.macdOSC != null && display.macdOSC >= 0 ? 'text-bull' : 'text-bear'}>
           OSC {display?.macdOSC?.toFixed(2) ?? '—'} {oscArrow}
@@ -278,8 +278,8 @@ function KDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; ho
     <div className="relative h-full">
       <div className="absolute top-1 left-2 z-10 flex gap-3 text-xs font-mono pointer-events-none">
         <span className="text-muted-foreground">KD</span>
-        <span className="text-blue-400">K9 {display?.kdK?.toFixed(2) ?? '—'} {kArrow}</span>
-        <span className="text-orange-400">D9 {display?.kdD?.toFixed(2) ?? '—'} {dArrow}</span>
+        <span className="text-blue-400">K5 {display?.kdK?.toFixed(2) ?? '—'} {kArrow}</span>
+        <span className="text-orange-400">D5 {display?.kdD?.toFixed(2) ?? '—'} {dArrow}</span>
       </div>
       <div ref={containerRef} className="w-full h-full" />
     </div>
@@ -371,9 +371,9 @@ export default function IndicatorCharts({ candles, hoverCandle, indicators }: {
   const show = indicators ?? { macd: true, kd: true, volume: true, rsi: false };
   const panels = [
     show.volume && <div key="vol" className="flex-1 min-h-0 bg-card"><VolumeChart candles={candles} hoverCandle={hoverCandle} /></div>,
-    show.kd && <div key="kd" className="flex-1 min-h-0 bg-card"><KDChart candles={candles} hoverCandle={hoverCandle} /></div>,
-    show.rsi && <div key="rsi" className="flex-1 min-h-0 bg-card"><RSIChart candles={candles} hoverCandle={hoverCandle} /></div>,
-    show.macd && <div key="macd" className="flex-[1.4] min-h-0 bg-card"><MACDChart candles={candles} hoverCandle={hoverCandle} /></div>,
+    show.kd && <div key="kd" className="flex-[1.8] min-h-0 bg-card"><KDChart candles={candles} hoverCandle={hoverCandle} /></div>,
+    show.rsi && <div key="rsi" className="flex-[1.8] min-h-0 bg-card"><RSIChart candles={candles} hoverCandle={hoverCandle} /></div>,
+    show.macd && <div key="macd" className="flex-[2.2] min-h-0 bg-card"><MACDChart candles={candles} hoverCandle={hoverCandle} /></div>,
   ].filter(Boolean);
 
   if (panels.length === 0) return <div className="h-full bg-card flex items-center justify-center text-xs text-muted-foreground/60">請開啟至少一個指標面板</div>;

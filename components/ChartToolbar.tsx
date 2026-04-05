@@ -2,7 +2,7 @@
 
 import type { Candle } from '@/types';
 
-interface MaToggles { ma5: boolean; ma10: boolean; ma20: boolean; ma60: boolean }
+interface MaToggles { ma5: boolean; ma10: boolean; ma20: boolean; ma60: boolean; ma240: boolean }
 interface Indicators { macd: boolean; kd: boolean; volume: boolean; rsi: boolean }
 
 interface ChartToolbarProps {
@@ -22,6 +22,11 @@ interface ChartToolbarProps {
   onSignalStrengthChange: (v: number) => void;
   avgCost?: number;
   shares?: number;
+  onPrev?: () => void;
+  onNext?: () => void;
+  onReset?: () => void;
+  canPrev?: boolean;
+  canNext?: boolean;
 }
 
 const MA_CONFIGS = [
@@ -29,6 +34,7 @@ const MA_CONFIGS = [
   { key: 'ma10' as const, label: 'MA10' },
   { key: 'ma20' as const, label: 'MA20' },
   { key: 'ma60' as const, label: 'MA60' },
+  { key: 'ma240' as const, label: 'MA240' },
 ];
 
 const INDICATOR_CONFIGS = [
@@ -46,6 +52,8 @@ export default function ChartToolbar({
   showMarkers, onMarkersToggle,
   signalStrengthMin, onSignalStrengthChange,
   avgCost, shares,
+  onPrev, onNext, onReset,
+  canPrev = true, canNext = true,
 }: ChartToolbarProps) {
   const chg = prevCandle ? candle.close - prevCandle.close : 0;
   const chgPct = prevCandle ? (chg / prevCandle.close) * 100 : 0;
@@ -70,7 +78,7 @@ export default function ChartToolbar({
       <span className="text-muted-foreground">開<span className="text-foreground ml-0.5">{candle.open.toFixed(2)}</span></span>
       <span className="text-muted-foreground">高<span className="text-bull ml-0.5">{candle.high.toFixed(2)}</span></span>
       <span className="text-muted-foreground">低<span className="text-bear ml-0.5">{candle.low.toFixed(2)}</span></span>
-      <span className="text-muted-foreground">量<span className="text-foreground/80 ml-0.5">{(candle.volume / 1000).toFixed(0)}K</span></span>
+      <span className="text-muted-foreground">量<span className="text-foreground/80 ml-0.5">{candle.volume.toLocaleString()}</span></span>
 
       {/* Toolbar: MA toggles + BB + indicators + signals */}
       <div className="ml-auto flex items-center gap-1 shrink-0 flex-wrap">
@@ -127,6 +135,19 @@ export default function ChartToolbar({
             <option value={2}>共振≥2</option>
             <option value={3}>強≥3</option>
           </select>
+        )}
+        {onPrev && onNext && (
+          <>
+            <span className="w-px h-3 bg-border mx-0.5" />
+            <button onClick={onPrev} disabled={!canPrev} title="上一根 K 棒 (←)"
+              className="min-w-[1.5rem] min-h-[1.5rem] px-1 py-0.5 rounded text-[9px] font-bold transition bg-muted hover:bg-muted/80 text-foreground/80 disabled:opacity-30">◀</button>
+            <button onClick={onNext} disabled={!canNext} title="下一根 K 棒 (→)"
+              className="min-w-[1.5rem] min-h-[1.5rem] px-1 py-0.5 rounded text-[9px] font-bold transition bg-muted hover:bg-muted/80 text-foreground/80 disabled:opacity-30">▶</button>
+            {onReset && (
+              <button onClick={onReset} title="重置走圖（回到第一根）"
+                className="min-w-[1.5rem] min-h-[1.5rem] px-1 py-0.5 rounded text-[9px] font-medium transition bg-muted hover:bg-red-900/60 text-muted-foreground hover:text-red-300">↺</button>
+            )}
+          </>
         )}
       </div>
 

@@ -25,28 +25,27 @@ function mockResult(overrides?: Partial<StockScanResult>): StockScanResult {
 // ── calcComposite ────────────────────────────────────────────────────────────────
 
 describe('calcComposite', () => {
-  it('returns a number between 0 and 100', () => {
-    const score = calcComposite(mockResult());
+  it('returns a non-negative number', () => {
+    const score = calcComposite(mockResult({ resonanceScore: 5, highWinRateScore: 10 }));
     expect(score).toBeGreaterThanOrEqual(0);
-    expect(score).toBeLessThanOrEqual(100);
   });
 
-  it('gives higher score when all 6 conditions pass', () => {
-    const all6 = calcComposite(mockResult({ sixConditionsScore: 6, sixConditionsBreakdown: { trend: true, position: true, kbar: true, ma: true, volume: true, indicator: true } }));
-    const all0 = calcComposite(mockResult({ sixConditionsScore: 0, sixConditionsBreakdown: { trend: false, position: false, kbar: false, ma: false, volume: false, indicator: false } }));
-    expect(all6).toBeGreaterThan(all0);
-  });
-
-  it('gives higher score with higher surgeScore', () => {
-    const high = calcComposite(mockResult({ surgeScore: 100 }));
-    const low  = calcComposite(mockResult({ surgeScore: 0 }));
+  it('gives higher score with more resonance signals', () => {
+    const high = calcComposite(mockResult({ resonanceScore: 10, highWinRateScore: 0 }));
+    const low  = calcComposite(mockResult({ resonanceScore: 1, highWinRateScore: 0 }));
     expect(high).toBeGreaterThan(low);
+  });
+
+  it('ignores highWinRateScore (resonance 100% per backtest)', () => {
+    const high = calcComposite(mockResult({ resonanceScore: 0, highWinRateScore: 30 }));
+    const low  = calcComposite(mockResult({ resonanceScore: 0, highWinRateScore: 0 }));
+    expect(high).toBe(low);  // 共振100%: highWinRateScore 不影響排序
   });
 
   it('handles missing optional fields gracefully', () => {
     const base = mockResult();
-    delete (base as Partial<StockScanResult>).surgeScore;
-    delete (base as Partial<StockScanResult>).histWinRate;
+    delete (base as Partial<StockScanResult>).resonanceScore;
+    delete (base as Partial<StockScanResult>).highWinRateScore;
     expect(() => calcComposite(base as StockScanResult)).not.toThrow();
   });
 });

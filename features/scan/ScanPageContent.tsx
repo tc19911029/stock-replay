@@ -26,6 +26,7 @@ export default function ScanPageContent({ defaultMode = 'full' }: ScanPageConten
   const {
     market, scanDate, strategy,
     useCapitalMode, capitalConstraints,
+    useMultiTimeframe, toggleMultiTimeframe,
     sessions,
     setMarket, setScanDate, setStrategy,
     setCapitalConstraints, toggleCapitalMode,
@@ -222,6 +223,18 @@ export default function ScanPageContent({ defaultMode = 'full' }: ScanPageConten
                     <option value="0.15">+15%</option>
                     <option value="0.20">+20%</option>
                   </select>
+                </div>
+
+                {/* Multi-Timeframe Toggle (長線保護短線) */}
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground font-medium">長線保護</label>
+                  <Button
+                    onClick={toggleMultiTimeframe}
+                    variant={useMultiTimeframe ? 'default' : 'secondary'}
+                    className={`px-4 py-2 text-sm ${useMultiTimeframe ? 'bg-blue-700/60 hover:bg-blue-600/60 border border-blue-600 text-blue-200' : ''}`}
+                  >
+                    {useMultiTimeframe ? '週月線過濾' : '僅日線'}
+                  </Button>
                 </div>
 
                 {/* Capital Mode Toggle */}

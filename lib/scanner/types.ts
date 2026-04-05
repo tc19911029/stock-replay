@@ -33,7 +33,9 @@ export interface StockScanResult {
   // ── 歷史信號績效 ──────────────────────────────────────────────────────────
   histWinRate?: number;        // 歷史20日勝率 (%)
   histSignalCount?: number;    // 歷史信號次數
-  // ── 高勝率進場位置 (朱老師《活用技術分析寶典》) ────────────────────────
+  // ── 排序因子：共振 ─────────────────────────────────────────────────────
+  resonanceScore?: number;           // BUY/ADD 訊號數 + 跨群組共振數
+  // ── 排序因子：高勝率進場位置 (朱老師《活用技術分析寶典》) ─────────────────
   highWinRateTypes?: string[];       // 匹配的高勝率位置類型
   highWinRateScore?: number;         // 高勝率加分 0-30
   highWinRateDetails?: string[];     // 匹配說明
@@ -57,6 +59,15 @@ export interface StockScanResult {
     kbar: boolean;
     indicator: boolean;
   };
+  // ── 長線保護短線（多時間框架） ───────────────────────────────────────────
+  mtfScore?: number;                          // 0-4 多時間框架總分
+  mtfWeeklyTrend?: string;                    // '多頭'/'空頭'/'盤整'
+  mtfWeeklyPass?: boolean;
+  mtfWeeklyDetail?: string;
+  mtfMonthlyTrend?: string;
+  mtfMonthlyPass?: boolean;
+  mtfMonthlyDetail?: string;
+  mtfWeeklyNearResistance?: boolean;          // 週線接近前高壓力區
   // ── 10大戒律 ──────────────────────────────────────────────────────────────
   entryProhibitionReasons?: string[];        // 觸發的戒律說明（有值代表被禁止）
   // ── AI 排名 ───────────────────────────────────────────────────────────────

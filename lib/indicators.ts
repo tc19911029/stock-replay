@@ -23,11 +23,11 @@ function computeEMA(closes: number[], period: number): (number | undefined)[] {
 // ── MACD ──────────────────────────────────────────────────────────────────────
 /**
  * Compute MACD arrays.
- * 標準參數: fast=12, slow=26, signal=9 (市場主流設定)
+ * 書中推薦參數: fast=10, slow=20, signal=10 (朱家泓/林穎推薦)
  */
 function computeMACD(
   closes: number[],
-  fast = 12, slow = 26, signalPeriod = 9
+  fast = 10, slow = 20, signalPeriod = 10
 ): { dif: (number | undefined)[]; signal: (number | undefined)[]; osc: (number | undefined)[] } {
   const emaFast   = computeEMA(closes, fast);
   const emaSlow   = computeEMA(closes, slow);
@@ -72,12 +72,11 @@ function computeMACD(
 // ── KD Stochastic ─────────────────────────────────────────────────────────────
 /**
  * Compute KD stochastic indicator.
- * 書中推薦參數: RSV period=9 (調整後5日一週版: period=5), k smoothing=3, d smoothing=3
- * We use the classic 9,3,3 (最常見設定).
+ * 書中推薦參數: RSV period=5, k smoothing=3, d smoothing=3 (朱家泓/林穎推薦)
  */
 function computeKD(
   highs: number[], lows: number[], closes: number[],
-  period = 9, kSmooth = 3, dSmooth = 3
+  period = 5, kSmooth = 3, dSmooth = 3
 ): { k: (number | undefined)[]; d: (number | undefined)[] } {
   const kFactor = 1 / kSmooth;
   const dFactor = 1 / dSmooth;
@@ -246,6 +245,7 @@ export function computeIndicators(candles: Candle[]): CandleWithIndicators[] {
       ma10:    sma(closes, i, 10),
       ma20:    sma(closes, i, 20),
       ma60:    sma(closes, i, 60),
+      ma240:   sma(closes, i, 240),
       ma3:     sma(closes, i, 3),
       ma24:    sma(closes, i, 24),
       ma100:   sma(closes, i, 100),

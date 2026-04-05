@@ -18,10 +18,11 @@ import { CandleWithIndicators, RuleSignal, ChartSignalMarker } from '@/types';
 import { getBullBearColors } from '@/lib/chart/colors';
 
 const MA_COLORS = {
-  ma5:  '#facc15', // 黃（短線）
-  ma10: '#a78bfa', // 紫
-  ma20: '#38bdf8', // 天藍（中線）
-  ma60: '#f43f5e', // 玫紅（長線，明顯區別於 MA5 黃色）
+  ma5:   '#facc15', // 黃
+  ma10:  '#3b82f6', // 藍
+  ma20:  '#a855f7', // 紫
+  ma60:  '#e2e8f0', // 白
+  ma240: '#f97316', // 橘
 };
 
 /** Convert date string to lightweight-charts Time.
@@ -80,13 +81,13 @@ interface CandleChartProps {
   onDoubleClick?: (candle: CandleWithIndicators) => void;
   height?: number;
   fillContainer?: boolean;
-  maToggles?: { ma5: boolean; ma10: boolean; ma20: boolean; ma60: boolean };
+  maToggles?: { ma5: boolean; ma10: boolean; ma20: boolean; ma60: boolean; ma240: boolean };
   showBollinger?: boolean;
 }
 
 export default function CandleChart({
   candles, signals, chartMarkers = [], avgCost, stopLossPrice, onCrosshairMove, onDoubleClick, height = 400, fillContainer = false,
-  maToggles = { ma5: true, ma10: true, ma20: true, ma60: true },
+  maToggles = { ma5: true, ma10: true, ma20: true, ma60: true, ma240: false },
   showBollinger = false,
 }: CandleChartProps) {
   const containerRef   = useRef<HTMLDivElement>(null);
@@ -130,7 +131,7 @@ export default function CandleChart({
         horzLines: { color: '#1e293b' },
       },
       crosshair: { mode: 1, vertLine: { labelVisible: false } },
-      rightPriceScale: { borderColor: '#334155' },
+      rightPriceScale: { borderColor: '#334155', minimumWidth: 80 },
       timeScale: { borderColor: '#334155', timeVisible: true },
       width: containerRef.current.clientWidth,
       height: chartHeight,
@@ -143,7 +144,7 @@ export default function CandleChart({
       wickUpColor: bull, wickDownColor: bear,
     });
 
-    const maKeys = ['ma5', 'ma10', 'ma20', 'ma60'] as const;
+    const maKeys = ['ma5', 'ma10', 'ma20', 'ma60', 'ma240'] as const;
     const newMARef: Record<string, ISeriesApi<'Line'>> = {};
     for (const key of maKeys) {
       newMARef[key] = chart.addSeries(LineSeries, {
@@ -226,7 +227,7 @@ export default function CandleChart({
     candleRef.current.setData(candles.map(c => ({
       time: toTime(c.date), open: c.open, high: c.high, low: c.low, close: c.close,
     })));
-    const maKeys = ['ma5', 'ma10', 'ma20', 'ma60'] as const;
+    const maKeys = ['ma5', 'ma10', 'ma20', 'ma60', 'ma240'] as const;
     for (const key of maKeys) {
       maRefs.current[key]?.setData(
         candles.filter(c => c[key] != null).map(c => ({ time: toTime(c.date), value: c[key]! }))
@@ -258,7 +259,7 @@ export default function CandleChart({
 
   // ── MA visibility toggle ─────────────────────────────────────────────────
   useEffect(() => {
-    const maKeys = ['ma5', 'ma10', 'ma20', 'ma60'] as const;
+    const maKeys = ['ma5', 'ma10', 'ma20', 'ma60', 'ma240'] as const;
     for (const key of maKeys) {
       const series = maRefs.current[key];
       if (series) {
@@ -323,7 +324,7 @@ export default function CandleChart({
   const prevForLegend = candles[idxForLegend - 1];
 
   return (
-    <div className="relative w-full">
+    <div className="relative w-full h-full">
       {/* MA Legend — 跟著 crosshair 更新 */}
       <div className="absolute top-2 left-3 z-10 flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-mono pointer-events-none">
         {(Object.entries(MA_COLORS) as [keyof typeof MA_COLORS, string][]).map(([key, color]) => {

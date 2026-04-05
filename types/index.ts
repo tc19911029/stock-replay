@@ -19,6 +19,7 @@ export interface CandleWithIndicators extends Candle {
   ma10?: number;
   ma20?: number;
   ma60?: number;
+  ma240?: number;
   /** 3-day MA — 三條均線戰法用 */
   ma3?: number;
   /** 24-day MA — 三條/二條均線戰法用 */
@@ -28,12 +29,12 @@ export interface CandleWithIndicators extends Candle {
   /** Average volume over last 5 bars */
   avgVol5?: number;
 
-  // MACD (params: fast=10, slow=20, signal=10 — 書中推薦參數)
+  // MACD (params: fast=10, slow=20, signal=10 — 朱家泓/林穎書中推薦參數)
   macdDIF?: number;   // fast EMA - slow EMA
   macdSignal?: number; // signal line (EMA of DIF)
   macdOSC?: number;   // histogram (DIF - signal), positive=red bar, negative=green bar
 
-  // KD Stochastic (params: period=9, k=3, d=3)
+  // KD Stochastic (params: period=5, k=3, d=3 — 朱家泓/林穎書中推薦參數)
   kdK?: number;       // K value (0–100)
   kdD?: number;       // D value (0–100)
 

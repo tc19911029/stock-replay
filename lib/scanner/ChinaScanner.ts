@@ -30,7 +30,8 @@ export class ChinaScanner extends MarketScanner {
   }
 
   async fetchCandles(symbol: string, asOfDate?: string): Promise<CandleWithIndicators[]> {
-    return dataProvider.getHistoricalCandles(symbol, '1y', asOfDate);
+    // 取 2 年日K（~500根）以支援多時間框架分析（月K需要 MA10 = 24 根月K）
+    return dataProvider.getHistoricalCandles(symbol, '2y', asOfDate);
   }
 
   /**

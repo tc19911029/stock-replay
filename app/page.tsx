@@ -20,7 +20,6 @@ import { useReplayStore } from '@/store/replayStore';
 import StockSelector from '@/components/StockSelector';
 import { PageShell } from '@/components/shared';
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import ReplayControls from '@/components/ReplayControls';
 import RuleAlerts from '@/components/RuleAlerts';
 import ProhibitionAlerts from '@/components/ProhibitionAlerts';
 import WinnerPatternAlerts from '@/components/WinnerPatternAlerts';
@@ -53,6 +52,7 @@ export default function HomePage() {
     nextCandle, prevCandle, isPlaying, startPlay, stopPlay, metrics,
     loadStock, currentStock, sixConditions, longProhibitions,
     signalStrengthMin, setSignalStrengthMin,
+    resetReplay,
   } = useReplayStore();
 
   useEffect(() => { initData(); }, [initData]);
@@ -136,7 +136,7 @@ export default function HomePage() {
   const setSideTab = (tab: SideTab) => setSideTabPerInterval(prev => ({ ...prev, [currentInterval]: tab }));
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const [showMarkers, setShowMarkers] = useState(true);
-  const [maToggles, setMaToggles] = useState({ ma5: true, ma10: true, ma20: true, ma60: true });
+  const [maToggles, setMaToggles] = useState({ ma5: true, ma10: true, ma20: true, ma60: true, ma240: false });
   const [showBollinger, setShowBollinger] = useState(false);
   const [indicators, setIndicators] = useState({ macd: true, kd: true, volume: true, rsi: false });
   // P0-3: hide indicator subcharts by default on mobile
@@ -148,11 +148,13 @@ export default function HomePage() {
   const [showHelp, setShowHelp] = useState(false);
 
   // P1-5: 可拖拽分隔條 — K 線圖 vs 副圖指標
-  // 預設 0.48，mount 後再從 localStorage 讀取，避免 SSR hydration mismatch
-  const [chartSplit, setChartSplit] = useState(0.48);
+  // 預設 0.65，mount 後再從 localStorage 讀取，避免 SSR hydration mismatch
+  const [chartSplit, setChartSplit] = useState(0.65);
   useEffect(() => {
     const saved = localStorage.getItem('chartSplit');
-    if (saved) setChartSplit(parseFloat(saved));
+    // 如果舊值太小（< 0.5），清掉用新預設
+    if (saved && parseFloat(saved) >= 0.5) setChartSplit(parseFloat(saved));
+    else localStorage.removeItem('chartSplit');
   }, []);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const splitDraggingRef = useRef(false);
@@ -164,7 +166,7 @@ export default function HomePage() {
     const handleMove = (me: MouseEvent) => {
       if (!splitDraggingRef.current || !chartContainerRef.current) return;
       const rect = chartContainerRef.current.getBoundingClientRect();
-      const newSplit = Math.min(Math.max((me.clientY - rect.top) / rect.height, 0.2), 0.8);
+      const newSplit = Math.min(Math.max((me.clientY - rect.top) / rect.height, 0.2), 0.85);
       setChartSplit(newSplit);
       localStorage.setItem('chartSplit', String(newSplit));
     };
@@ -299,7 +301,7 @@ export default function HomePage() {
           <div
             ref={chartContainerRef}
             className={`relative flex flex-col rounded-xl border border-border overflow-hidden bg-card transition-opacity ${isLoadingStock ? 'opacity-40 pointer-events-none' : ''}`}
-            style={{ height: 'min(calc(100vh - 100px), 800px)' }}
+            style={{ height: 'calc(100vh - 60px)' }}
           >
             {isLoadingStock && (
               <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-card/90">
@@ -346,6 +348,11 @@ export default function HomePage() {
                 onSignalStrengthChange={setSignalStrengthMin}
                 avgCost={metrics.avgCost}
                 shares={metrics.shares}
+                onPrev={prevCandle}
+                onNext={nextCandle}
+                onReset={resetReplay}
+                canPrev={currentIndex > 0 && !isPlaying}
+                canNext={currentIndex < allCandles.length - 1 && !isPlaying}
               />
             )}
 
@@ -377,11 +384,11 @@ export default function HomePage() {
                   role="separator"
                   aria-orientation="horizontal"
                   aria-label="拖拽調整 K 線圖與副圖比例"
-                  className="flex-1 h-1.5 bg-secondary hover:bg-blue-500/60 cursor-row-resize flex items-center justify-center group select-none"
+                  className="flex-1 h-4 bg-border/60 hover:bg-blue-500/40 cursor-row-resize flex items-center justify-center group select-none"
                   onMouseDown={startSplitDrag}
-                  title="拖拽調整 K 線 / 副圖比例"
+                  title="拖拽調整 K 線 / 副圖比例（上下拖動）"
                 >
-                  <div className="w-8 h-px bg-muted-foreground/40 group-hover:bg-blue-400 rounded-full transition-colors" />
+                  <div className="w-12 h-1 bg-muted-foreground/50 group-hover:bg-blue-400 rounded-full transition-colors" />
                 </div>
               ) : (
                 <div className="flex-1 h-px bg-border" />
@@ -406,20 +413,6 @@ export default function HomePage() {
             )}
           </div>
 
-          {/* 趨勢狀態 + 播放控制 */}
-          <div className="shrink-0 space-y-1">
-            <div className="bg-secondary/60 rounded-lg border border-border px-2 py-1 flex items-center gap-2">
-              <button
-                onClick={() => setSoundEnabled(v => !v)}
-                title={soundEnabled ? '關閉訊號音效' : '開啟訊號音效（走圖出現買賣訊號時嗶一聲）'}
-                className={`shrink-0 ml-auto text-base leading-none px-1 rounded transition-opacity ${soundEnabled ? 'opacity-80 hover:opacity-100' : 'opacity-30 hover:opacity-60'}`}
-                aria-pressed={soundEnabled}
-              >
-                {soundEnabled ? '🔔' : '🔕'}
-              </button>
-            </div>
-            <ReplayControls />
-          </div>
 
         </div>
 

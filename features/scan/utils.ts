@@ -30,32 +30,14 @@ export function scoreColor(s: number): string {
 // ── Composite score ───────────────────────────────────────────────────────────
 
 /**
- * Composite score — 直接使用 Scanner 的完整評分（含智慧資金、市場寬度等12+維度）。
- * 若 Scanner 未提供 compositeScore，fallback 到簡化公式。
+ * Composite score — 台股回測結論：共振100%
+ * 回測數據：1947支×244天，共振100% 10日均報+3.23% 勝率45.7%（6組最高）
  */
 export function calcComposite(r: Pick<StockScanResult,
-  'compositeScore' | 'sixConditionsScore' | 'surgeScore' | 'histWinRate' | 'trendPosition' | 'surgeComponents' | 'surgeFlags'
+  'resonanceScore' | 'highWinRateScore' | 'compositeScore'
 >): number {
-  // 優先使用 Scanner 已計算的 compositeScore（包含智慧資金、板塊動能、壓力帶等完整分析）
   if (r.compositeScore != null) return r.compositeScore;
-
-  // Fallback: 簡化公式（相容舊資料）
-  const sixCon    = (r.sixConditionsScore / 6) * 100;
-  const surge     = (r.surgeScore ?? 0);
-  const winR      = r.histWinRate ?? 42;
-  const posBonus  = r.trendPosition?.includes('起漲') ? 100
-                  : r.trendPosition?.includes('主升') ? 70
-                  : r.trendPosition?.includes('末升') ? 20 : 50;
-  const volBonus  = (r.surgeComponents?.volume?.score ?? 50);
-  const flags     = r.surgeFlags ?? [];
-  const breakoutBonus = (
-    (flags.includes('BB_SQUEEZE_BREAKOUT') ? 30 : 0) +
-    (flags.includes('CONSOLIDATION_BREAKOUT') ? 30 : 0) +
-    (flags.includes('NEW_60D_HIGH') ? 20 : 0) +
-    (flags.includes('VOLUME_CLIMAX') ? 20 : 0)
-  );
-  const breakoutScore = Math.min(100, breakoutBonus);
-  return Math.round((sixCon * 0.30 + surge * 0.20 + winR * 0.25 + posBonus * 0.10 + volBonus * 0.10 + breakoutScore * 0.05) * 10) / 10;
+  return (r.resonanceScore ?? 0);
 }
 
 /** Chip tooltip text */

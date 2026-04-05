@@ -183,8 +183,9 @@ export class TaiwanScanner extends MarketScanner {
 
   async fetchCandles(symbol: string, asOfDate?: string): Promise<CandleWithIndicators[]> {
     // MultiMarketProvider: FinMind → TWSE/TPEx 備援 + 即時覆蓋
+    // 取 2 年日K（~500根）以支援多時間框架分析（月K需要 MA10 = 24 根月K）
     try {
-      const candles = await dataProvider.getHistoricalCandles(symbol, '1y', asOfDate);
+      const candles = await dataProvider.getHistoricalCandles(symbol, '2y', asOfDate);
       if (candles.length >= 30) return candles;
     } catch {
       // dataProvider failed, try TWSE direct as last resort
