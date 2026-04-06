@@ -56,7 +56,7 @@ export default function HomePage() {
     nextCandle, prevCandle, isPlaying, startPlay, stopPlay, metrics,
     loadStock, currentStock, sixConditions, longProhibitions,
     signalStrengthMin, setSignalStrengthMin,
-    resetReplay,
+    resetReplay, targetDate,
   } = useReplayStore();
 
   useEffect(() => { initData(); }, [initData]);
@@ -370,6 +370,7 @@ export default function HomePage() {
                   fillContainer
                   maToggles={maToggles}
                   showBollinger={showBollinger}
+                  highlightDate={targetDate ?? undefined}
                 />
               </ErrorBoundary>
             </div>

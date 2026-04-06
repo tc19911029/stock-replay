@@ -49,6 +49,8 @@ interface ReplayStore {
   visibleCandles: CandleWithIndicators[];
   currentStock: StockInfo | null;
   currentInterval: string;
+  /** 從掃描結果載入時的訊號日，切換週期時用來定位 */
+  targetDate: string | null;
   isLoadingStock: boolean;
 
   // ── Playback ──────────────────────────────────────────────
@@ -105,6 +107,7 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
   visibleCandles: [],
   currentStock: null,
   currentInterval: '1d',
+  targetDate: null,
   isLoadingStock: false,
   isPlaying: false,
   playSpeed: 800,
@@ -134,6 +137,7 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
       allCandles,
       currentIndex: index,
       currentInterval: '1d',
+      targetDate: null,
       account,
       currentStock: { ticker: 'DEMO', name: '範例資料（模擬）' },
       ...buildState(allCandles, index, account),
@@ -188,6 +192,7 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
         allCandles,
         currentIndex: index,
         currentInterval: interval,
+        targetDate: targetDate ?? null,
         account,
         currentStock: { ticker: json.ticker, name: json.name },
         isLoadingStock: false,

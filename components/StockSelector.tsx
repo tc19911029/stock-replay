@@ -51,7 +51,7 @@ function rawSymbol(ticker: string) {
 }
 
 export default function StockSelector() {
-  const { loadStock, isLoadingStock, currentStock } = useReplayStore();
+  const { loadStock, isLoadingStock, currentStock, targetDate } = useReplayStore();
   const [input,    setInput]    = useState('');
   const [interval, setInterval] = useState('1d');
   const [showDrop, setShowDrop] = useState(false);
@@ -67,21 +67,23 @@ export default function StockSelector() {
   }, [currentStock?.ticker]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const handleLoad = async (symbol: string, iv = interval) => {
+  const handleLoad = async (symbol: string, iv = interval, keepTarget = false) => {
     setError('');
     setShowDrop(false);
     const pd = DEFAULT_PERIODS[iv] ?? '2y';
     try {
-      await loadStock(symbol, iv, pd);
+      // 切換週期時保留訊號日定位
+      const td = keepTarget ? targetDate ?? undefined : undefined;
+      await loadStock(symbol, iv, pd, td);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '載入失敗');
     }
   };
 
-  // Auto-reload when interval changes
+  // Auto-reload when interval changes — 保留訊號日定位
   const handleIntervalChange = (newIv: string) => {
     setInterval(newIv);
-    if (currentStock) handleLoad(rawSymbol(currentStock.ticker), newIv);
+    if (currentStock) handleLoad(rawSymbol(currentStock.ticker), newIv, true);
   };
 
   // Close dropdown on outside click

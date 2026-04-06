@@ -5,6 +5,9 @@ import dynamic from 'next/dynamic';
 import { useReplayStore } from '@/store/replayStore';
 import type { CandleWithIndicators } from '@/types';
 import { ChevronUp, ChevronDown } from 'lucide-react';
+import type { ScanInterval } from '@/lib/datasource/findAnchorIndex';
+import { useScanTimeframe } from '../hooks/useScanTimeframe';
+import { IntervalSwitcher } from './IntervalSwitcher';
 
 const CandleChart = dynamic(() => import('@/components/CandleChart'), { ssr: false });
 const IndicatorCharts = dynamic(() => import('@/components/IndicatorCharts'), { ssr: false });
@@ -24,6 +27,7 @@ export function ScanChartPanel({ selectedStock, scanDate }: ScanChartPanelProps)
   const [collapsed, setCollapsed] = useState(false);
   const [hoverCandle, setHoverCandle] = useState<CandleWithIndicators | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [interval, setInterval] = useState<ScanInterval>('1d');
 
   const {
     allCandles, visibleCandles, currentSignals, chartMarkers,
@@ -32,7 +36,16 @@ export function ScanChartPanel({ selectedStock, scanDate }: ScanChartPanelProps)
 
   const prevKeyRef = useRef<string | null>(null);
 
-  // Load stock when selection or scanDate changes
+  // 切換股票時重置為日K
+  const prevSymbolRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (selectedStock && selectedStock.symbol !== prevSymbolRef.current) {
+      setInterval('1d');
+      prevSymbolRef.current = selectedStock.symbol;
+    }
+  }, [selectedStock]);
+
+  // Load stock when selection or scanDate changes (always daily)
   useEffect(() => {
     if (!selectedStock) return;
     const key = `${selectedStock.symbol}__${scanDate ?? ''}`;
@@ -69,6 +82,11 @@ export function ScanChartPanel({ selectedStock, scanDate }: ScanChartPanelProps)
     }
   }, [selectedStock, scanDate, loadStock, jumpToIndex, allCandles]);
 
+  // 根據 interval 聚合 K 棒 + 定位訊號日
+  const { displayCandles, anchorDate, signalDateLabel } = useScanTimeframe(
+    allCandles, scanDate, interval,
+  );
+
   const toggleCollapse = useCallback(() => setCollapsed(c => !c), []);
 
   if (!selectedStock) {
@@ -78,6 +96,9 @@ export function ScanChartPanel({ selectedStock, scanDate }: ScanChartPanelProps)
       </div>
     );
   }
+
+  // 週K/月K 時不顯示日線訊號標記，改用 highlightDate
+  const effectiveMarkers = interval === '1d' ? chartMarkers : [];
 
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden">
@@ -95,27 +116,39 @@ export function ScanChartPanel({ selectedStock, scanDate }: ScanChartPanelProps)
             <span className="w-3 h-3 border border-sky-500/30 border-t-sky-500 rounded-full animate-spin" />
           )}
         </div>
-        <button className="text-muted-foreground hover:text-foreground p-1">
-          {collapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-        </button>
+        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+          <IntervalSwitcher
+            value={interval}
+            onChange={setInterval}
+            signalDateLabel={signalDateLabel}
+          />
+          <button
+            className="text-muted-foreground hover:text-foreground p-1"
+            onClick={toggleCollapse}
+          >
+            {collapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+          </button>
+        </div>
       </div>
 
       {/* Chart area */}
-      {!collapsed && visibleCandles.length > 0 && (
+      {!collapsed && displayCandles.length > 0 && (
         <div className="space-y-0">
           <div style={{ height: 320 }}>
             <CandleChart
-              candles={visibleCandles}
-              signals={currentSignals}
-              chartMarkers={chartMarkers}
+              candles={displayCandles}
+              signals={interval === '1d' ? currentSignals : []}
+              chartMarkers={effectiveMarkers}
               onCrosshairMove={setHoverCandle}
               height={320}
               fillContainer
+              highlightDate={anchorDate ?? undefined}
+              centerOnDate={anchorDate ?? undefined}
             />
           </div>
           <div className="h-[180px] flex flex-col border-t border-border">
             <IndicatorCharts
-              candles={visibleCandles}
+              candles={displayCandles}
               hoverCandle={hoverCandle}
               indicators={{ macd: true, kd: true, volume: true }}
             />
@@ -123,14 +156,14 @@ export function ScanChartPanel({ selectedStock, scanDate }: ScanChartPanelProps)
         </div>
       )}
 
-      {!collapsed && isLoadingStock && visibleCandles.length === 0 && (
+      {!collapsed && isLoadingStock && displayCandles.length === 0 && (
         <div className="flex items-center justify-center h-[320px] text-muted-foreground">
           <span className="w-5 h-5 border-2 border-sky-500/30 border-t-sky-500 rounded-full animate-spin mr-2" />
           載入 K 線資料中…
         </div>
       )}
 
-      {!collapsed && loadError && !isLoadingStock && visibleCandles.length === 0 && (
+      {!collapsed && loadError && !isLoadingStock && displayCandles.length === 0 && (
         <div className="flex items-center justify-center h-[200px] text-red-400 text-sm">
           載入失敗：{loadError}
         </div>

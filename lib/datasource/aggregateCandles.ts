@@ -18,7 +18,7 @@ import type { Candle } from '@/types';
  * 取得 ISO 週的週一日期字串（用於週K分組 key）
  * 例如 2026-04-02 (週四) → 2026-03-30 (該週的週一)
  */
-function getWeekMonday(dateStr: string): string {
+export function getWeekMonday(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00');
   const day = d.getDay(); // 0=Sun, 1=Mon, ...
   const diff = day === 0 ? 6 : day - 1; // 距離週一的天數
@@ -27,7 +27,7 @@ function getWeekMonday(dateStr: string): string {
 }
 
 /** 取得月份 key（用於月K分組） — "YYYY-MM" */
-function getMonthKey(dateStr: string): string {
+export function getMonthKey(dateStr: string): string {
   return dateStr.substring(0, 7); // "2026-04"
 }
 

@@ -83,12 +83,18 @@ interface CandleChartProps {
   fillContainer?: boolean;
   maToggles?: { ma5: boolean; ma10: boolean; ma20: boolean; ma60: boolean; ma240: boolean };
   showBollinger?: boolean;
+  /** 高亮指定日期的 K 棒（黃色菱形標記） */
+  highlightDate?: string;
+  /** 將指定日期的 K 棒捲動至畫面中央 */
+  centerOnDate?: string;
 }
 
 export default function CandleChart({
   candles, signals, chartMarkers = [], avgCost, stopLossPrice, onCrosshairMove, onDoubleClick, height = 400, fillContainer = false,
   maToggles = { ma5: true, ma10: true, ma20: true, ma60: true, ma240: false },
   showBollinger = false,
+  highlightDate,
+  centerOnDate,
 }: CandleChartProps) {
   const containerRef   = useRef<HTMLDivElement>(null);
   const chartRef       = useRef<IChartApi | null>(null);
@@ -243,19 +249,37 @@ export default function CandleChart({
     // scrollToPosition 後稍等一個 tick 再廣播，確保 range 已更新
     const chart = chartRef.current;
     if (chart) {
-      // 預設顯示最近 80 根K棒（仿 WantGoo 6個月日線），讓K棒大小清晰
       const totalBars = candles.length;
       const visibleBars = 80;
-      chart.timeScale().setVisibleLogicalRange({
-        from: totalBars - visibleBars - 1,
-        to:   totalBars + 3,
-      });
+
+      if (centerOnDate) {
+        // 以指定日期為中心，前後各顯示 40 根
+        let centerIdx = candles.findIndex(c => c.date === centerOnDate);
+        if (centerIdx === -1) {
+          // fallback: 找最近前一根
+          for (let i = candles.length - 1; i >= 0; i--) {
+            if (candles[i].date <= centerOnDate) { centerIdx = i; break; }
+          }
+        }
+        if (centerIdx === -1) centerIdx = totalBars - 1;
+        const half = Math.floor(visibleBars / 2);
+        chart.timeScale().setVisibleLogicalRange({
+          from: centerIdx - half,
+          to:   centerIdx + half,
+        });
+      } else {
+        // 預設顯示最近 80 根K棒（仿 WantGoo 6個月日線），讓K棒大小清晰
+        chart.timeScale().setVisibleLogicalRange({
+          from: totalBars - visibleBars - 1,
+          to:   totalBars + 3,
+        });
+      }
       requestAnimationFrame(() => {
         const range = chart.timeScale().getVisibleLogicalRange();
         if (range) broadcastRange(range as { from: number; to: number });
       });
     }
-  }, [candles]);
+  }, [candles, centerOnDate]);
 
   // ── MA visibility toggle ─────────────────────────────────────────────────
   useEffect(() => {
@@ -312,8 +336,25 @@ export default function CandleChart({
       const cfg = markerCfg[m.type];
       return { time: toTime(m.date), position: cfg.position, shape: cfg.shape, color: cfg.color, text: m.label, size: 1 };
     });
+    // 加入訊號日高亮標記
+    if (highlightDate && candles.some(c => c.date === highlightDate)) {
+      converted.push({
+        time: toTime(highlightDate),
+        position: 'belowBar',
+        shape: 'circle',
+        color: '#facc15',
+        text: '訊號日',
+        size: 2,
+      });
+      // 依時間排序，lightweight-charts 要求 markers 按時間升序
+      converted.sort((a, b) => {
+        const ta = String(a.time);
+        const tb = String(b.time);
+        return ta < tb ? -1 : ta > tb ? 1 : 0;
+      });
+    }
     markersPlugRef.current.setMarkers(converted);
-  }, [chartMarkers]);
+  }, [chartMarkers, highlightDate, candles]);
 
   // MA legend: show hovered candle's values if hovering, else last candle
   const last = candles[candles.length - 1];
