@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useReplayStore } from '@/store/replayStore';
 
 const DEFAULT_QUICK_STOCKS = [
@@ -51,7 +51,7 @@ function rawSymbol(ticker: string) {
 }
 
 export default function StockSelector() {
-  const { loadStock, isLoadingStock, currentStock, targetDate } = useReplayStore();
+  const { loadStock, isLoadingStock, currentStock, targetDate, startPolling, stopPolling, isPolling } = useReplayStore();
   const [input,    setInput]    = useState('');
   const [interval, setInterval] = useState('1d');
   const [showDrop, setShowDrop] = useState(false);
@@ -67,18 +67,24 @@ export default function StockSelector() {
   }, [currentStock?.ticker]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const handleLoad = async (symbol: string, iv = interval, keepTarget = false) => {
+  // 組件 unmount 時停止 polling
+  useEffect(() => {
+    return () => { stopPolling(); };
+  }, [stopPolling]);
+
+  const handleLoad = useCallback(async (symbol: string, iv = interval, keepTarget = false) => {
     setError('');
     setShowDrop(false);
+    stopPolling(); // 切換股票/週期前先停止
     const pd = DEFAULT_PERIODS[iv] ?? '2y';
     try {
-      // 切換週期時保留訊號日定位
       const td = keepTarget ? targetDate ?? undefined : undefined;
       await loadStock(symbol, iv, pd, td);
+      startPolling(); // 載入成功後啟動 polling（內部判斷是否盤中）
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '載入失敗');
     }
-  };
+  }, [interval, targetDate, loadStock, startPolling, stopPolling]);
 
   // Auto-reload when interval changes — 保留訊號日定位
   const handleIntervalChange = (newIv: string) => {

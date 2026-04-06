@@ -77,9 +77,14 @@ interface ReplayStore {
   shortConditions: ShortSixConditionsResult | null;
   winnerPatterns: WinnerPatternResult | null;
 
+  // ── Polling（盤中自動刷新） ──────────────────────────────
+  isPolling: boolean;
+
   // ── Actions ───────────────────────────────────────────────
   initData: () => void;
   loadStock: (symbol: string, interval?: string, period?: string, targetDate?: string) => Promise<void>;
+  startPolling: () => void;
+  stopPolling: () => void;
   nextCandle: () => void;
   prevCandle: () => void;
   jumpToIndex: (index: number) => void;
@@ -101,6 +106,22 @@ function calcStartIndex(candles: CandleWithIndicators[]): number {
   return candles.length - 1;
 }
 
+// ── Polling（盤中自動刷新） ──────────────────────────────────
+let pollingTimer: ReturnType<typeof setInterval> | null = null;
+
+/** 根據 interval 決定 polling 頻率 (ms) */
+function getPollingInterval(interval: string): number {
+  switch (interval) {
+    case '1m':  return 30_000;  // 30 秒
+    case '5m':  return 60_000;  // 1 分鐘
+    case '15m': return 90_000;  // 1.5 分鐘
+    case '30m': return 120_000; // 2 分鐘
+    case '60m': return 180_000; // 3 分鐘
+    case '1d':  return 300_000; // 5 分鐘（日K 用即時報價 overlay）
+    default:    return 0;       // 週K/月K 不需要 polling
+  }
+}
+
 export const useReplayStore = create<ReplayStore>((set, get) => ({
   allCandles: [],
   currentIndex: 0,
@@ -109,6 +130,7 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
   currentInterval: '1d',
   targetDate: null,
   isLoadingStock: false,
+  isPolling: false,
   isPlaying: false,
   playSpeed: 800,
   account: createAccount(INITIAL_CAPITAL),
@@ -151,33 +173,31 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
       return;
     }
 
+    // 切換股票前先停止舊的 polling（ScanChartPanel 等外部呼叫路徑不經過 StockSelector）
+    get().stopPolling();
+
     const defaultPeriod: Record<string, string> = {
       '1m': '5d', '5m': '60d', '15m': '60d', '30m': '60d', '60m': '6mo',
       '1d': '2y', '1wk': '5y', '1mo': '10y',
     };
     const p = period ?? defaultPeriod[interval] ?? '2y';
+    const isMinuteInterval = ['1m', '5m', '15m', '30m', '60m'].includes(interval);
 
     set({ isLoadingStock: true, isPlaying: false });
     clearCachedMarkers();
-    try {
-      const res = await fetch(
-        `/api/stock?symbol=${encodeURIComponent(symbol)}&interval=${interval}&period=${p}`
-      );
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? '載入失敗');
 
-      const allCandles = computeIndicators(json.candles);
-      if (allCandles.length === 0) throw new Error('資料筆數為 0');
+    /** 共用：把 API 回傳的 json 塞進 store */
+    const applyData = (json: { ticker: string; name: string; candles: unknown[] }, showLoading: boolean) => {
+      const allCandles = computeIndicators(json.candles as { date: string; open: number; high: number; low: number; close: number; volume: number }[]);
+      if (allCandles.length === 0) return false;
 
       precomputeMarkers(allCandles);
       let index: number;
       if (targetDate) {
-        // Position chart at the target date (scan record date)
         const dateIdx = allCandles.findIndex(c => c.date === targetDate);
         if (dateIdx !== -1) {
           index = dateIdx;
         } else {
-          // Fallback: find the closest candle on or before targetDate
           let closest = -1;
           for (let i = allCandles.length - 1; i >= 0; i--) {
             if (allCandles[i].date <= targetDate) { closest = i; break; }
@@ -195,13 +215,116 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
         targetDate: targetDate ?? null,
         account,
         currentStock: { ticker: json.ticker, name: json.name },
-        isLoadingStock: false,
+        ...(showLoading ? { isLoadingStock: false } : {}),
         ...buildState(allCandles, index, account),
       });
+      return true;
+    };
+
+    try {
+      // ── 日K 混合模式：先讀本地秒開 → 背景 API 更新 ──
+      if (!isMinuteInterval) {
+        // Step 1: 嘗試本地檔案（瞬間回應）
+        let localLoaded = false;
+        try {
+          const localRes = await fetch(
+            `/api/stock?symbol=${encodeURIComponent(symbol)}&interval=${interval}&period=${p}&local=1`
+          );
+          if (localRes.ok) {
+            const localJson = await localRes.json();
+            if (localJson.candles?.length > 0) {
+              localLoaded = applyData(localJson, false);
+            }
+          }
+        } catch {
+          // 本地讀取失敗，不影響後續
+        }
+
+        // Step 2: 背景打 API 拿最新數據
+        const apiRes = await fetch(
+          `/api/stock?symbol=${encodeURIComponent(symbol)}&interval=${interval}&period=${p}`
+        );
+        const apiJson = await apiRes.json();
+        if (!apiRes.ok) {
+          if (!localLoaded) throw new Error(apiJson.error ?? '載入失敗');
+          // API 失敗但本地已載入 → 繼續用本地數據
+        } else {
+          applyData(apiJson, true);
+        }
+        if (localLoaded || apiRes.ok) {
+          set({ isLoadingStock: false });
+          return;
+        }
+        throw new Error('無法取得數據');
+      }
+
+      // ── 分鐘K：直接 API（本地沒有分鐘K數據） ──
+      const res = await fetch(
+        `/api/stock?symbol=${encodeURIComponent(symbol)}&interval=${interval}&period=${p}`
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? '載入失敗');
+
+      if (!applyData(json, true)) throw new Error('資料筆數為 0');
     } catch (err) {
       set({ isLoadingStock: false });
       throw err;
     }
+  },
+
+  // ── Polling（盤中自動刷新） ──────────────────────────────
+  startPolling: () => {
+    const { currentStock, currentInterval } = get();
+    if (!currentStock || currentStock.ticker === 'DEMO') return;
+
+    // 先清除舊 timer
+    if (pollingTimer) { clearInterval(pollingTimer); pollingTimer = null; }
+
+    const intervalMs = getPollingInterval(currentInterval);
+    if (intervalMs <= 0) return; // 週K/月K 不 poll
+
+    set({ isPolling: true });
+    const symbol = currentStock.ticker.replace(/\.(TW|TWO|SS|SZ)$/i, '');
+    const interval = currentInterval;
+    const defaultPeriod: Record<string, string> = {
+      '1m': '5d', '5m': '60d', '15m': '60d', '30m': '60d', '60m': '6mo',
+      '1d': '2y', '1wk': '5y', '1mo': '10y',
+    };
+    const period = defaultPeriod[interval] ?? '2y';
+
+    pollingTimer = setInterval(async () => {
+      try {
+        const res = await fetch(
+          `/api/stock?symbol=${encodeURIComponent(symbol)}&interval=${interval}&period=${period}`
+        );
+        if (!res.ok) return;
+        const json = await res.json();
+        const candles = computeIndicators(json.candles);
+        if (candles.length === 0) return;
+
+        // 保留當前位置：如果在最末尾則跟隨更新，否則保持不動
+        const { currentIndex, allCandles, account } = get();
+        const wasAtEnd = currentIndex >= allCandles.length - 1;
+        const newIndex = wasAtEnd ? candles.length - 1 : currentIndex;
+
+        precomputeMarkers(candles);
+        set({
+          allCandles: candles,
+          currentIndex: newIndex,
+          ...buildState(candles, newIndex, account),
+        });
+      } catch {
+        // polling 失敗不影響用戶體驗，靜默忽略
+      }
+    }, intervalMs);
+  },
+
+  stopPolling: () => {
+    if (pollingTimer) {
+      clearInterval(pollingTimer);
+      pollingTimer = null;
+    }
+    set({ isPolling: false });
   },
 
   // ── Replay controls ───────────────────────────────────────

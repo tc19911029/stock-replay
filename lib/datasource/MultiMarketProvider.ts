@@ -1,9 +1,12 @@
 /**
  * MultiMarketProvider — 多市場路由器 + 備援 + 盤前時段保護
  *
- * 台股 (.TW/.TWO) → EODHD → fallback: FinMind → TWSE/TPEx
- * 陸股 (.SS/.SZ)  → EODHD → fallback: 騰訊財經 → 東方財富
- * 美股            → 騰訊財經 → fallback: 東方財富
+ * 走圖路由（單檔速度優先，EODHD 降為備援）：
+ *   台股 (.TW/.TWO) → FinMind → EODHD → TWSE/TPEx
+ *   陸股 (.SS/.SZ)  → 東方財富 → 騰訊財經 → EODHD
+ *   美股            → 騰訊財經 → 東方財富
+ *
+ * EODHD（付費）的配額留給 cron 批量下載，走圖只有 1-3 檔用免費 API 即可。
  *
  * 即時覆蓋僅在「盤中」時段套用，盤前/盤後不會產生虛假的今日K棒。
  *
@@ -70,16 +73,10 @@ function getLocalTime(tz: string): { hour: number; min: number; dow: number } {
   }).split(':');
   const hour = parseInt(parts[0], 10);
   const min = parseInt(parts[1], 10);
-  const dow = parseInt(
-    now.toLocaleDateString('en-US', { timeZone: tz, weekday: 'narrow' })
-      .replace(/[^0-6]/g, ''),
-    10,
-  );
-  // fallback: 用 Date 物件的 getDay
-  const dowFallback = new Date(
-    now.toLocaleString('en-US', { timeZone: tz }),
-  ).getDay();
-  return { hour, min, dow: isNaN(dow) ? dowFallback : dow };
+  const DOW_MAP: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const dayStr = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(now);
+  const dow = DOW_MAP[dayStr] ?? 1;
+  return { hour, min, dow };
 }
 
 /** 台股是否在盤中（09:00–13:30，週一～五） */
@@ -362,14 +359,15 @@ export class MultiMarketProvider implements DataProvider {
     const isMinuteInterval = ['1m', '5m', '15m', '30m', '60m'].includes(interval ?? '');
 
     if (market === 'TW') {
+      // 走圖路由：FinMind 單檔快 → EODHD 備援 → TWSE 最後
       result = await tryProvidersWithRacing([
-        {
-          name: `EODHD ${symbol}`,
-          fn: () => eodhdHistProvider.getHistoricalCandles(symbol, period, asOfDate),
-        },
         {
           name: `FinMind ${symbol}`,
           fn: () => finmindHistProvider.getHistoricalCandles(symbol, period, asOfDate, interval),
+        },
+        {
+          name: `EODHD ${symbol}`,
+          fn: () => eodhdHistProvider.getHistoricalCandles(symbol, period, asOfDate),
         },
         {
           name: `TWSE ${symbol}`,
@@ -385,18 +383,19 @@ export class MultiMarketProvider implements DataProvider {
         },
       ]);
     } else {
+      // 陸股/美股走圖路由：EastMoney 單檔快 → Tencent 備援 → EODHD 最後
       result = await tryProvidersWithRacing([
         {
-          name: `EODHD ${symbol}`,
-          fn: () => eodhdHistProvider.getHistoricalCandles(symbol, period, asOfDate),
+          name: `EastMoney ${symbol}`,
+          fn: () => eastMoneyHistProvider.getHistoricalCandles(symbol, period, asOfDate, interval),
         },
         {
           name: `Tencent ${symbol}`,
           fn: () => tencentHistProvider.getHistoricalCandles(symbol, period, asOfDate, interval),
         },
         {
-          name: `EastMoney ${symbol}`,
-          fn: () => eastMoneyHistProvider.getHistoricalCandles(symbol, period, asOfDate, interval),
+          name: `EODHD ${symbol}`,
+          fn: () => eodhdHistProvider.getHistoricalCandles(symbol, period, asOfDate),
         },
       ]);
     }
@@ -453,12 +452,12 @@ export class MultiMarketProvider implements DataProvider {
     if (market === 'TW') {
       result = await tryProvidersWithRacing([
         {
-          name: `EODHD range ${symbol}`,
-          fn: () => eodhdHistProvider.getCandlesRange(symbol, startDate, endDate),
-        },
-        {
           name: `FinMind range ${symbol}`,
           fn: () => finmindHistProvider.getCandlesRange(symbol, startDate, endDate),
+        },
+        {
+          name: `EODHD range ${symbol}`,
+          fn: () => eodhdHistProvider.getCandlesRange(symbol, startDate, endDate),
         },
         {
           name: `TWSE range ${symbol}`,
@@ -468,16 +467,16 @@ export class MultiMarketProvider implements DataProvider {
     } else {
       result = await tryProvidersWithRacing([
         {
-          name: `EODHD range ${symbol}`,
-          fn: () => eodhdHistProvider.getCandlesRange(symbol, startDate, endDate),
+          name: `EastMoney range ${symbol}`,
+          fn: () => eastMoneyHistProvider.getCandlesRange(symbol, startDate, endDate),
         },
         {
           name: `Tencent range ${symbol}`,
           fn: () => tencentHistProvider.getCandlesRange(symbol, startDate, endDate),
         },
         {
-          name: `EastMoney range ${symbol}`,
-          fn: () => eastMoneyHistProvider.getCandlesRange(symbol, startDate, endDate),
+          name: `EODHD range ${symbol}`,
+          fn: () => eodhdHistProvider.getCandlesRange(symbol, startDate, endDate),
         },
       ]);
     }

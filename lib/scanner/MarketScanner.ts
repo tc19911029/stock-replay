@@ -12,18 +12,37 @@ import { evaluateMultiTimeframe, MultiTimeframeResult } from '@/lib/analysis/mul
 import { getScannerCache, setScannerCache, getScannerCacheStats } from '@/lib/datasource/ScannerCache';
 import { loadLocalCandlesWithTolerance, saveLocalCandles } from '@/lib/datasource/LocalCandleStore';
 
-const CONCURRENCY = 8; // parallel requests per chunk (降低避免打爆外部 API)
-const BATCH_DELAY_MS = 300; // 每批次間隔 ms
+// 掃描只讀本地檔案（L1 記憶體 + L2 本地），不打外部 API
+// 因此可以高並發且無需延遲
+const CONCURRENCY = 50;
+const BATCH_DELAY_MS = 0;
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
 export type StockEntry = { symbol: string; name: string; industry?: string };
+
+/** 即時報價（批量拿全市場後傳入 scanner） */
+export interface RealtimeQuoteForScan {
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
 
 export abstract class MarketScanner {
   abstract getMarketConfig(): MarketConfig;
   abstract getStockList(): Promise<StockEntry[]>;
   abstract fetchCandles(symbol: string, asOfDate?: string): Promise<CandleWithIndicators[]>;
   abstract getMarketTrend(asOfDate?: string): Promise<TrendState>;
+
+  /** 即時報價 Map（code → quote），由 chunk route 在今日掃描前設置 */
+  protected _realtimeQuotes: Map<string, RealtimeQuoteForScan> | null = null;
+
+  /** 設置全市場即時報價（今日掃描用） */
+  setRealtimeQuotes(quotes: Map<string, RealtimeQuoteForScan>): void {
+    this._realtimeQuotes = quotes;
+  }
 
   /**
    * 掃描專用 fetchCandles — 三層快取：記憶體 → 本地檔案 → API
@@ -59,8 +78,7 @@ export abstract class MarketScanner {
         }
       } catch { /* 本地讀取失敗，fallback 到 API */ }
     } else {
-      // 今日掃描：也先嘗試本地檔案（容忍 3 個交易日，即週末/假日差距）
-      // 本地數據通常是昨天或前幾天的，差距很小，對均線策略影響可忽略
+      // 今日掃描：本地歷史 + 即時報價合併今日 K 棒
       try {
         const local = await loadLocalCandlesWithTolerance(symbol, market, today, 3);
         if (local && local.candles.length > 0) {
@@ -68,10 +86,42 @@ export abstract class MarketScanner {
             diag.localCacheHits++;
             if (local.staleDays > 0) diag.localCacheStale++;
           }
-          // 今日不寫入 L1 記憶體快取，每次掃描取最新本地數據
+
+          // 如果有即時報價，合併今日 K 棒
+          if (this._realtimeQuotes) {
+            const code = symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
+            const quote = this._realtimeQuotes.get(code);
+            if (quote && quote.close > 0) {
+              const rawCandles = local.candles.map(c => ({
+                date: c.date, open: c.open, high: c.high,
+                low: c.low, close: c.close, volume: c.volume,
+              }));
+              const last = rawCandles[rawCandles.length - 1];
+              if (last.date === today) {
+                // 更新今日已有的 K 棒
+                last.close = quote.close;
+                last.high = Math.max(quote.high, last.high);
+                last.low = Math.min(quote.low, last.low);
+                last.volume = quote.volume || last.volume;
+              } else {
+                // Append 今日即時 K 棒
+                rawCandles.push({
+                  date: today,
+                  open: quote.open,
+                  high: quote.high,
+                  low: quote.low,
+                  close: quote.close,
+                  volume: quote.volume,
+                });
+              }
+              const { computeIndicators } = await import('@/lib/indicators');
+              return computeIndicators(rawCandles);
+            }
+          }
+
           return local.candles;
         }
-      } catch { /* 本地讀取失敗，fallback 到 API */ }
+      } catch { /* 本地讀取失敗，fallback */ }
     }
 
     // L3: 不再在掃描時打外部 API — 記錄缺失，回傳空陣列

@@ -44,7 +44,8 @@ async function saveCachedStockList(stocks: StockEntry[]): Promise<void> {
  *
  * API: push2.eastmoney.com → 全市場 A 股即時行情
  * f12=代碼, f14=名稱, f3=漲跌幅, f6=成交額
- * fs: m:0+t:6(滬A主板), m:0+t:80(滬A科創板), m:1+t:2(深A主板), m:1+t:23(深A創業板)
+ * fs: m:0+t:6(滬A主板), m:1+t:2(深A主板)
+ * 不含科創板(688xxx)和創業板(300xxx)
  */
 export async function fetchEastMoneyStockList(): Promise<StockEntry[]> {
   // 優先讀取本地快取
@@ -53,12 +54,12 @@ export async function fetchEastMoneyStockList(): Promise<StockEntry[]> {
   const all: StockEntry[] = [];
   const pageSize = 5000;
   let page = 1;
-  const maxPages = 3; // 安全上限，A股約5000檔，3頁足夠
+  const maxPages = 3; // 安全上限，滬深主板約3100檔，3頁足夠
 
   while (page <= maxPages) {
     const url = 'https://push2.eastmoney.com/api/qt/clist/get?' +
       `pn=${page}&pz=${pageSize}&po=1&np=1&fltt=2&invt=2&fid=f6` +
-      '&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23' +
+      '&fs=m:0+t:6,m:1+t:2' +
       '&fields=f12,f14,f3,f100';
 
     const res = await fetch(url, {
@@ -79,6 +80,8 @@ export async function fetchEastMoneyStockList(): Promise<StockEntry[]> {
         if (/ST|退市/.test(item.f14)) return false;
         // 排除 B 股（900xxx, 200xxx）
         if (code.startsWith('900') || code.startsWith('200')) return false;
+        // 排除創業板（300xxx）和科創板（688xxx）
+        if (code.startsWith('300') || code.startsWith('688')) return false;
         // 只保留有效 A 股代碼（6位數字）
         if (!/^\d{6}$/.test(code)) return false;
         return true;

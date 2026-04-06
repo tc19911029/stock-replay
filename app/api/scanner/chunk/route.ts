@@ -9,6 +9,7 @@ import { TaiwanScanner } from '@/lib/scanner/TaiwanScanner';
 import { ChinaScanner } from '@/lib/scanner/ChinaScanner';
 import { MarketId, ScanDiagnostics } from '@/lib/scanner/types';
 import { resolveThresholds } from '@/lib/strategy/resolveThresholds';
+import type { RealtimeQuoteForScan } from '@/lib/scanner/MarketScanner';
 
 const scannerChunkSchema = z.object({
   market:     z.enum(['TW', 'CN']).default('TW'),
@@ -52,6 +53,34 @@ export async function POST(req: NextRequest) {
   try {
     const scanner = market === 'CN' ? new ChinaScanner() : new TaiwanScanner();
     const mode = parsed.data.mode;
+
+    // 今日掃描（無 asOfDate）：預取全市場即時報價
+    if (!asOfDate) {
+      try {
+        let quotes: Map<string, RealtimeQuoteForScan>;
+        if (market === 'TW') {
+          const { getTWSERealtime } = await import('@/lib/datasource/TWSERealtime');
+          const twseMap = await getTWSERealtime();
+          quotes = new Map();
+          for (const [code, q] of twseMap) {
+            quotes.set(code, { open: q.open, high: q.high, low: q.low, close: q.close, volume: q.volume });
+          }
+        } else {
+          const { getEastMoneyRealtime } = await import('@/lib/datasource/EastMoneyRealtime');
+          const emMap = await getEastMoneyRealtime();
+          quotes = new Map();
+          for (const [code, q] of emMap) {
+            quotes.set(code, { open: q.open, high: q.high, low: q.low, close: q.close, volume: q.volume });
+          }
+        }
+        if (quotes.size > 0) {
+          scanner.setRealtimeQuotes(quotes);
+        }
+      } catch (err) {
+        console.warn('[scanner/chunk] 即時報價預取失敗，使用本地數據:', err);
+        // Fallback: 不設置即時報價，掃描用本地歷史數據
+      }
+    }
 
     let scanResult: { results: unknown[]; marketTrend: unknown; diagnostics?: ScanDiagnostics };
     if (mode === 'sop' && parsed.data.direction === 'short') {
