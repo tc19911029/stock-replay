@@ -158,10 +158,54 @@ export const useScannerStore = create<ScannerStore>()(
           : { thresholds: activeStrategy.thresholds };
 
         set(s => ({
-          [mKey]: { ...s[mKey], isScanning: true, progress: 0, scanningStock: '取得股票清單中...', scanningIndex: 0, scanningTotal: 0, error: null },
+          [mKey]: { ...s[mKey], isScanning: true, progress: 0, scanningStock: '載入掃描結果...', scanningIndex: 0, scanningTotal: 0, error: null },
         }));
 
         try {
+          // ── Step 0: Try loading pre-computed cron results ─────────────────
+          const targetDate = scanDate || new Date().toISOString().split('T')[0];
+          try {
+            const savedRes = await fetch(
+              `/api/scanner/results?market=${market}&direction=long&date=${targetDate}`,
+              { signal },
+            );
+            if (savedRes.ok) {
+              const savedJson = await savedRes.json() as {
+                sessions?: Array<{
+                  results?: StockScanResult[];
+                  scanTime?: string;
+                  resultCount?: number;
+                }>;
+              };
+              const session = savedJson.sessions?.[0];
+              if (session && session.results && session.results.length > 0) {
+                const results = session.results.map(sanitizeScanResult);
+                const now = session.scanTime || new Date().toISOString();
+                set(s => ({
+                  [mKey]: {
+                    ...s[mKey],
+                    isScanning: false,
+                    progress: 100,
+                    scanningStock: '',
+                    results,
+                    lastScanTime: now,
+                    marketTrend: '多頭',
+                    error: null,
+                    scanningTotal: results.length,
+                  },
+                }));
+                abortControllers[market] = null;
+                return;
+              }
+            }
+          } catch {
+            // Pre-computed results unavailable, fall back to real-time scan
+          }
+
+          set(s => ({
+            [mKey]: { ...s[mKey], scanningStock: '取得股票清單中...' },
+          }));
+
           // ── Step 1: Fetch complete stock list ──────────────────────────────
           const listRes = await fetch(`/api/scanner/list?market=${market}`, { signal });
           if (!listRes.ok) throw new Error('無法取得股票清單');
@@ -314,8 +358,14 @@ export const useScannerStore = create<ScannerStore>()(
         } catch (err) {
           // Don't show error if user cancelled
           if (err instanceof DOMException && err.name === 'AbortError') return;
+          const msg = err instanceof Error ? err.message : '未知錯誤';
+          // Provide actionable message for common Vercel timeout / network errors
+          const isTimeout = msg.includes('Failed to fetch') || msg.includes('timeout') || msg.includes('network') || msg.includes('504') || msg.includes('502');
+          const userMsg = isTimeout
+            ? '即時掃描逾時，請從歷史紀錄選擇日期查看結果'
+            : msg;
           set(s => ({
-            [mKey]: { ...s[mKey], isScanning: false, error: err instanceof Error ? err.message : '未知錯誤' },
+            [mKey]: { ...s[mKey], isScanning: false, error: userMsg },
           }));
         } finally {
           abortControllers[market] = null;
