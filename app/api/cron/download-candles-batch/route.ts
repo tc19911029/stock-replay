@@ -18,6 +18,7 @@ import { TaiwanScanner } from '@/lib/scanner/TaiwanScanner';
 import { ChinaScanner } from '@/lib/scanner/ChinaScanner';
 import { saveLocalCandles, isLocalDataFresh } from '@/lib/datasource/LocalCandleStore';
 import { saveDownloadManifest } from '@/lib/datasource/DownloadManifest';
+import { getLastTradingDay } from '@/lib/datasource/marketHours';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -25,14 +26,6 @@ export const maxDuration = 300;
 const CONCURRENCY = 8;
 const BATCH_DELAY_MS = 300;
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
-
-function getLastTradingDate(): string {
-  const now = new Date();
-  const dow = now.getDay();
-  if (dow === 0) now.setDate(now.getDate() - 2);
-  else if (dow === 6) now.setDate(now.getDate() - 1);
-  return now.toISOString().split('T')[0];
-}
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization');
@@ -53,7 +46,7 @@ export async function GET(req: NextRequest) {
 
   const startTime = Date.now();
   const scanner = market === 'CN' ? new ChinaScanner() : new TaiwanScanner();
-  const lastTradingDate = getLastTradingDate();
+  const lastTradingDate = getLastTradingDay(market);
 
   let succeeded = 0;
   let failed = 0;
@@ -98,6 +91,25 @@ export async function GET(req: NextRequest) {
 
       if ((i + CONCURRENCY) % 100 < CONCURRENCY) {
         console.info(`[download-batch] ${market} batch ${batch}: ${i + CONCURRENCY}/${myStocks.length} (ok=${succeeded}, skip=${skipped}, fail=${failed})`);
+      }
+    }
+
+    // ── 大盤代理 ETF 下載（只在 batch 1 執行，避免重複）──────────────
+    if (batch === 1) {
+      const proxySymbols = market === 'TW' ? ['0050.TW'] : ['000300.SS'];
+      for (const proxy of proxySymbols) {
+        try {
+          const fresh = await isLocalDataFresh(proxy, market, lastTradingDate);
+          if (!fresh) {
+            const candles = await scanner.fetchCandles(proxy);
+            if (candles.length > 0) {
+              await saveLocalCandles(proxy, market, candles);
+              console.info(`[download-batch] ${market} proxy ${proxy}: ${candles.length} candles saved`);
+            }
+          }
+        } catch (err) {
+          console.warn(`[download-batch] ${market} proxy ${proxy} failed:`, err);
+        }
       }
     }
 

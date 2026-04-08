@@ -62,11 +62,32 @@ export async function POST(req: NextRequest) {
     // 判斷是否為「今日掃描」：沒傳日期 或 傳的日期 >= 今天
     const todayStr = new Date().toISOString().split('T')[0];
     const isToday = !asOfDate || asOfDate >= todayStr;
-    // 今日掃描不傳 asOfDate，讓 fetchCandlesForScan 走「今日路徑」合併即時報價
-    const effectiveDate = isToday ? undefined : asOfDate;
 
-    // 今日掃描：預取全市場即時報價
-    if (isToday) {
+    // 市場開盤檢查
+    const { isMarketOpen, getLastTradingDay } = await import('@/lib/datasource/marketHours');
+    const marketOpen = isToday && isMarketOpen(market);
+
+    // effectiveDate 決定掃描目標日期：
+    //   盤中 → undefined（今日路徑，合併即時報價）
+    //   盤前/盤後 → 最後交易日（歷史路徑，避免假的今日 K 棒）
+    //   指定歷史日期 → 用該日期
+    let effectiveDate: string | undefined;
+    let dataDate: string; // 回傳給前端的實際資料日期
+    if (!isToday) {
+      effectiveDate = asOfDate;
+      dataDate = asOfDate!;
+    } else if (marketOpen) {
+      effectiveDate = undefined; // 今日路徑
+      dataDate = todayStr;
+    } else {
+      // 盤前/盤後：降級為最後交易日的歷史掃描
+      const lastDay = getLastTradingDay(market);
+      effectiveDate = lastDay;
+      dataDate = lastDay;
+    }
+
+    // 盤中掃描：預取全市場即時報價
+    if (marketOpen) {
       try {
         let quotes: Map<string, RealtimeQuoteForScan>;
         if (market === 'TW') {
@@ -74,7 +95,7 @@ export async function POST(req: NextRequest) {
           const twseMap = await getTWSERealtime();
           quotes = new Map();
           for (const [code, q] of twseMap) {
-            quotes.set(code, { open: q.open, high: q.high, low: q.low, close: q.close, volume: q.volume });
+            quotes.set(code, { open: q.open, high: q.high, low: q.low, close: q.close, volume: q.volume, date: q.date });
           }
         } else {
           const { getEastMoneyRealtime } = await import('@/lib/datasource/EastMoneyRealtime');
@@ -89,7 +110,6 @@ export async function POST(req: NextRequest) {
         }
       } catch (err) {
         console.warn('[scanner/chunk] 即時報價預取失敗，使用本地數據:', err);
-        // Fallback: 不設置即時報價，掃描用本地歷史數據
       }
     }
 
@@ -112,7 +132,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { results, marketTrend, diagnostics } = scanResult;
-    return apiOk({ results, marketTrend, mode: parsed.data.mode, diagnostics });
+    return apiOk({ results, marketTrend, mode: parsed.data.mode, diagnostics, dataDate });
   } catch (err) {
     console.error('[scanner/chunk] error:', err);
     return apiError('掃描服務暫時無法使用');

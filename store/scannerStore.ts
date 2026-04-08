@@ -242,11 +242,12 @@ export const useScannerStore = create<ScannerStore>()(
               const j = await res.json().catch(() => ({}));
               throw new Error((j as { error?: string }).error ?? '掃描失敗');
             }
-            const j = await res.json() as { results?: StockScanResult[]; marketTrend?: TrendState; diagnostics?: ScanDiagnostics };
+            const j = await res.json() as { results?: StockScanResult[]; marketTrend?: TrendState; diagnostics?: ScanDiagnostics; dataDate?: string };
             return {
               results: (j.results ?? []).map(sanitizeScanResult),
               marketTrend: j.marketTrend ?? null,
               diagnostics: j.diagnostics ?? createEmptyDiagnostics(),
+              dataDate: j.dataDate ?? undefined,
             };
           };
 
@@ -257,11 +258,16 @@ export const useScannerStore = create<ScannerStore>()(
             scanChunk(chunk2).then(r => { completedChunks++; updateProgress(completedChunks === 1 ? 50 : 88, `第${completedChunks}批完成`, total); return r; }),
           ]);
 
-          // Use market trend from whichever chunk succeeded (should be the same)
+          // Use market trend and dataDate from whichever chunk succeeded (should be the same)
           const marketTrend: TrendState =
             (r1.status === 'fulfilled' ? r1.value.marketTrend : null) ??
             (r2.status === 'fulfilled' ? r2.value.marketTrend : null) ??
             '多頭';
+
+          // 實際資料日期（由 API 回傳，盤前會自動降級為最後交易日）
+          const dataDate: string | undefined =
+            (r1.status === 'fulfilled' ? r1.value.dataDate : undefined) ??
+            (r2.status === 'fulfilled' ? r2.value.dataDate : undefined);
 
           // Merge diagnostics from both chunks
           const combinedDiag = mergeDiagnostics(
@@ -310,7 +316,7 @@ export const useScannerStore = create<ScannerStore>()(
           const session: ScanSession = {
             id:          `${market}-${now}`,
             market,
-            date:        now.split('T')[0],
+            date:        dataDate || scanDate || now.split('T')[0],
             scanTime:    now,
             resultCount: results.length,
             results,
@@ -454,6 +460,22 @@ export const useScannerStore = create<ScannerStore>()(
         const cnLastScan = typeof p.cnLastScan === 'string' ? p.cnLastScan : null;
         state.tw = { ...DEFAULT_TW, results: twResults, lastScanTime: twLastScan };
         state.cn = { ...DEFAULT_CN, results: cnResults, lastScanTime: cnLastScan };
+
+        // 清理假紀錄：刪除 date > 最後交易日的掃描歷史
+        // （盤前舊 bug 會用「今天」當 date，但市場還沒開盤，實際數據是上一個交易日的）
+        // 保守邏輯：只跳過週末，工作日一律視為有效（避免因時區/時間差誤刪紀錄）
+        const getClientLastTradingDay = (): string => {
+          const now = new Date();
+          const dow = now.getDay(); // 0=Sun, 6=Sat
+          if (dow === 0) { now.setDate(now.getDate() - 2); }
+          else if (dow === 6) { now.setDate(now.getDate() - 1); }
+          return now.toISOString().split('T')[0];
+        };
+        const lastTradeDay = getClientLastTradingDay();
+        const cleanHistory = (sessions: ScanSession[]) =>
+          sessions.filter(s => s.date <= lastTradeDay);
+        if (state.twHistory) state.twHistory = cleanHistory(state.twHistory);
+        if (state.cnHistory) state.cnHistory = cleanHistory(state.cnHistory);
       },
     }
   )

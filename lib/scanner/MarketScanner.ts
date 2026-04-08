@@ -28,6 +28,8 @@ export interface RealtimeQuoteForScan {
   low: number;
   close: number;
   volume: number;
+  /** 報價資料日期 YYYY-MM-DD（用於判斷是否為今日數據，避免盤前用昨日數據假造今日 K 棒） */
+  date?: string;
 }
 
 export abstract class MarketScanner {
@@ -87,8 +89,9 @@ export abstract class MarketScanner {
       } catch { /* 本地讀取失敗，fallback 到 API */ }
     } else {
       // 今日掃描：本地歷史 + 即時報價合併今日 K 棒
+      // 容忍 5 個交易日（與歷史掃描一致），因為今日 K 棒會由即時報價合併補上
       try {
-        const local = await loadLocalCandlesWithTolerance(symbol, market, today, 3);
+        const local = await loadLocalCandlesWithTolerance(symbol, market, today, 5);
         if (local && local.candles.length > 0) {
           if (diag) {
             diag.localCacheHits++;
@@ -100,19 +103,26 @@ export abstract class MarketScanner {
             const code = symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
             const quote = this._realtimeQuotes.get(code);
             if (quote && quote.close > 0) {
+              // 盤前防護：如果報價日期不是今天，表示市場未開盤，不建立假的今日 K 棒
+              // TWSE 有 date 欄位；EastMoney 無 date 時用 OHLCV 比對判斷
+              const quoteIsToday = quote.date
+                ? quote.date === today
+                : true; // EastMoney 無日期，依賴開盤時間判斷（已在 API 層處理）
+
               const rawCandles = local.candles.map(c => ({
                 date: c.date, open: c.open, high: c.high,
                 low: c.low, close: c.close, volume: c.volume,
               }));
               const last = rawCandles[rawCandles.length - 1];
+
               if (last.date === today) {
                 // 更新今日已有的 K 棒
                 last.close = quote.close;
                 last.high = Math.max(quote.high, last.high);
                 last.low = Math.min(quote.low, last.low);
                 last.volume = quote.volume || last.volume;
-              } else {
-                // Append 今日即時 K 棒
+              } else if (quoteIsToday && last.date < today) {
+                // Append 今日即時 K 棒（僅在確認報價是今日數據時）
                 rawCandles.push({
                   date: today,
                   open: quote.open,
@@ -122,6 +132,8 @@ export abstract class MarketScanner {
                   volume: quote.volume,
                 });
               }
+              // else: 盤前報價是昨日數據 → 不 append，直接用本地歷史數據掃描
+
               const { computeIndicators } = await import('@/lib/indicators');
               return computeIndicators(rawCandles);
             }
@@ -648,14 +660,14 @@ export abstract class MarketScanner {
   }
 
   /**
-   * 候選股排序層 — 高勝率優先（回測最佳：F 高勝100%，1日均報+0.92%）
+   * 候選股排序層 — 加總排序（高勝率+共振合算）
    */
   rankCandidates(
     candidates: StockScanResult[],
     _rankBy?: string,
   ): StockScanResult[] {
     return [...candidates].sort((a, b) =>
-      (b.highWinRateScore ?? 0) - (a.highWinRateScore ?? 0) || (b.resonanceScore ?? 0) - (a.resonanceScore ?? 0) || b.changePercent - a.changePercent
+      (b.resonanceScore ?? 0) + (b.highWinRateScore ?? 0) - (a.resonanceScore ?? 0) - (a.highWinRateScore ?? 0) || b.changePercent - a.changePercent
     );
   }
 

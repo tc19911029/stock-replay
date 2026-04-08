@@ -216,7 +216,21 @@ export class TaiwanScanner extends MarketScanner {
    */
   async getMarketTrend(asOfDate?: string): Promise<TrendState> {
     try {
-      const candles = await dataProvider.getHistoricalCandles('0050.TW', '1y', asOfDate);
+      // 優先讀本地快取（避免每次掃描都打 API）
+      let candles: CandleWithIndicators[] = [];
+      try {
+        const { loadLocalCandlesWithTolerance } = await import('@/lib/datasource/LocalCandleStore');
+        const targetDate = asOfDate || new Date().toISOString().split('T')[0];
+        const local = await loadLocalCandlesWithTolerance('0050.TW', 'TW', targetDate, 5);
+        if (local && local.candles.length >= 20) {
+          candles = local.candles;
+        }
+      } catch { /* local read failed, fallback to API */ }
+
+      // 本地無數據時才走 API
+      if (candles.length < 20) {
+        candles = await dataProvider.getHistoricalCandles('0050.TW', '1y', asOfDate);
+      }
       if (candles.length < 20) return '盤整'; // 資料不足，保守預設
 
       const lastIdx = candles.length - 1;
