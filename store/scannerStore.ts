@@ -254,7 +254,7 @@ export const useScannerStore = create<ScannerStore>()(
           // ── Step 3: Run both chunks in parallel ────────────────────────────
           updateProgress(10, `掃描第1批 (${chunk1.length}檔)`, 0);
           const [r1, r2] = await Promise.allSettled([
-            scanChunk(chunk1).then(r => { completedChunks++; updateProgress(completedChunks === 1 ? 50 : 88, `第${completedChunks}批完成`, half * completedChunks); return r; }),
+            scanChunk(chunk1).then(r => { completedChunks++; updateProgress(completedChunks === 1 ? 50 : 88, `第${completedChunks}批完成`, total * completedChunks); return r; }),
             scanChunk(chunk2).then(r => { completedChunks++; updateProgress(completedChunks === 1 ? 50 : 88, `第${completedChunks}批完成`, total); return r; }),
           ]);
 
