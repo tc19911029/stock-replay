@@ -32,6 +32,7 @@ export function ScanChartPanel({ selectedStock, scanDate }: ScanChartPanelProps)
   const {
     allCandles, visibleCandles, currentSignals, chartMarkers,
     isLoadingStock, loadStock, currentStock, jumpToIndex,
+    startPolling, stopPolling,
   } = useReplayStore();
 
   const prevKeyRef = useRef<string | null>(null);
@@ -76,11 +77,17 @@ export function ScanChartPanel({ selectedStock, scanDate }: ScanChartPanelProps)
             currentStock: { ...current, name: selectedStock.name },
           });
         }
+        // 盤中 polling：scanDate 為今天或未指定時才啟動
+        const today = new Date().toISOString().split('T')[0];
+        if (!scanDate || scanDate === today) {
+          startPolling();
+        }
       }).catch((err: unknown) => {
         setLoadError(err instanceof Error ? err.message : String(err));
       });
     }
-  }, [selectedStock, scanDate, loadStock, jumpToIndex, allCandles]);
+    return () => { stopPolling(); };
+  }, [selectedStock, scanDate, loadStock, jumpToIndex, allCandles, startPolling, stopPolling]);
 
   // 根據 interval 聚合 K 棒 + 定位訊號日
   const { displayCandles, anchorDate, signalDateLabel } = useScanTimeframe(

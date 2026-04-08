@@ -54,9 +54,12 @@ export async function POST(req: NextRequest) {
     const scanner = market === 'CN' ? new ChinaScanner() : new TaiwanScanner();
     const mode = parsed.data.mode;
 
-    // Vercel 無本地檔案：啟用 L3 API fallback（預算上限 50 次）
+    // Vercel 無本地檔案：啟用 L3 API fallback
     if (process.env.VERCEL) {
-      scanner.setL3Budget(50);
+      // Blob 可用時大部分 K 線從 Blob 讀取，L3 僅填補空缺；
+      // Blob 不可用時需要更多 API 呼叫來取得基本數據
+      const blobOk = !!process.env.BLOB_READ_WRITE_TOKEN;
+      scanner.setL3Budget(blobOk ? 50 : Math.min(stocks.length, 200));
     }
 
     // 判斷是否為「今日掃描」：沒傳日期 或 傳的日期 >= 今天
@@ -91,8 +94,9 @@ export async function POST(req: NextRequest) {
       try {
         let quotes: Map<string, RealtimeQuoteForScan>;
         if (market === 'TW') {
-          const { getTWSERealtime } = await import('@/lib/datasource/TWSERealtime');
-          const twseMap = await getTWSERealtime();
+          // 使用 mis.twse.com.tw 即時報價（非 STOCK_DAY_ALL 收盤統計）
+          const { getTWSERealtimeIntraday } = await import('@/lib/datasource/TWSERealtime');
+          const twseMap = await getTWSERealtimeIntraday();
           quotes = new Map();
           for (const [code, q] of twseMap) {
             quotes.set(code, { open: q.open, high: q.high, low: q.low, close: q.close, volume: q.volume, date: q.date });

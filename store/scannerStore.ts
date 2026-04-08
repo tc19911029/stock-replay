@@ -284,15 +284,26 @@ export const useScannerStore = create<ScannerStore>()(
               : b.changePercent - a.changePercent
           );
 
-          // 結果為空時：提供診斷信息（而非泛用錯誤）
-          if (results.length === 0 && combinedDiag.totalStocks > 0) {
+          // 結果為空時：多態區分原因
+          if (results.length === 0) {
             const diagMsg = diagnosticsSummary(combinedDiag);
-            if (combinedDiag.filteredOut > 0 && combinedDiag.apiFailed === 0) {
+            if (combinedDiag.totalStocks === 0 || combinedDiag.processedCount === 0) {
+              // 兩個 chunk 都完全失敗（伺服器問題或 API 超時）
+              set(s => ({
+                [mKey]: { ...s[mKey], isScanning: false, progress: 100, scanningStock: '', results: [], marketTrend, error: '掃描服務暫時無法使用，請稍後再試' },
+              }));
+            } else if (combinedDiag.dataMissing > combinedDiag.totalStocks * 0.3) {
+              // 超過 30% 股票缺資料 → 資料庫/Blob 問題
+              set(s => ({
+                [mKey]: { ...s[mKey], isScanning: false, progress: 100, scanningStock: '', results: [], marketTrend, error: `伺服器資料不足（${combinedDiag.dataMissing}/${combinedDiag.totalStocks} 檔缺資料），請等待每日排程完成` },
+              }));
+            } else if (combinedDiag.filteredOut > 0 && combinedDiag.apiFailed === 0) {
               // 正常：全被過濾但不是 API 錯誤
               set(s => ({
                 [mKey]: { ...s[mKey], isScanning: false, progress: 100, scanningStock: '', results: [], lastScanTime: new Date().toISOString(), marketTrend, error: `無符合條件的股票（${diagMsg}）` },
               }));
             } else {
+              // 真正的異常
               set(s => ({
                 [mKey]: { ...s[mKey], isScanning: false, progress: 100, scanningStock: '', results: [], marketTrend, error: `掃描異常（${diagMsg}）` },
               }));

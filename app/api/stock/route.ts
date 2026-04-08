@@ -74,6 +74,8 @@ export async function GET(req: NextRequest) {
       // 容忍 5 個交易日差距（涵蓋週末 + 假日）
       const result = await loadLocalCandlesWithTolerance(candidates[0], market, today, 5);
       if (result && result.candles.length > 0) {
+        // local=1 路徑不做即時覆蓋 — 保持秒開
+        // 今日 K 棒由後續 Step 2（non-local API → MultiMarketProvider 內建 overlay）提供
         const withIndicators = computeIndicators(
           result.candles.map(c => ({ date: c.date, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume }))
         );

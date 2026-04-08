@@ -23,7 +23,7 @@ import { finmindHistProvider } from './FinMindHistProvider';
 import { eastMoneyHistProvider } from './EastMoneyHistProvider';
 import { tencentHistProvider } from './TencentHistProvider';
 import { eodhdHistProvider } from './EODHDHistProvider';
-import { getTWSEQuote, getTWSERealtime } from './TWSERealtime';
+import { getTWSEQuote, getTWSERealtimeIntraday } from './TWSERealtime';
 import { getEastMoneyQuote, getUSStockQuote } from './EastMoneyRealtime';
 
 // ── 市場判斷 ──────────────────────────────────────────────────────────────────
@@ -105,7 +105,7 @@ function isUSMarketOpen(): boolean {
 
 // ── 即時報價覆蓋（僅盤中） ──────────────────────────────────────────────────
 
-async function overlayRealtimeQuote(
+export async function overlayRealtimeQuote(
   symbol: string,
   candles: Candle[],
   dateRangeStart?: string,
@@ -123,7 +123,7 @@ async function overlayRealtimeQuote(
 
   try {
     const quote = twCode
-      ? ((await getTWSERealtime()).get(twCode) ?? await getTWSEQuote(twCode))
+      ? ((await getTWSERealtimeIntraday()).get(twCode) ?? await getTWSEQuote(twCode))
       : cnCode
         ? await getEastMoneyQuote(cnCode)
         : await getUSStockQuote(usTicker!);
@@ -186,7 +186,7 @@ function prefetchRealtimeQuote(
   const usTicker = extractUSTicker(symbol);
 
   if (twCode && isTWMarketOpen()) {
-    return getTWSERealtime()
+    return getTWSERealtimeIntraday()
       .then((map) => (map.get(twCode) as QuoteResult | undefined) ?? getTWSEQuote(twCode))
       .catch(() => null);
   }

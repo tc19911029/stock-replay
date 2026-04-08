@@ -7,6 +7,10 @@ import { isWeekday } from '@/lib/utils/tradingDay';
 
 const IS_VERCEL = !!process.env.VERCEL;
 
+if (IS_VERCEL && !process.env.BLOB_READ_WRITE_TOKEN) {
+  console.error('[scanStorage] BLOB_READ_WRITE_TOKEN 未設定，Blob 操作將失敗。請至 Vercel Dashboard → Storage 建立 Blob Store 並連接專案');
+}
+
 /** Summary entry returned by listScanDates */
 export interface ScanDateEntry {
   market: MarketId;

@@ -579,18 +579,24 @@ export const useBacktestStore = create<BacktestState>()(
         }
 
         if (results1.length === 0 && results2.length === 0) {
-          // 三態區分：No Signal / Data Unavailable / Partial Coverage
-          if (combinedDiag.dataStatus === 'insufficient') {
-            // 資料嚴重不足
+          // 多態區分：Server Error / Data Unavailable / Partial / No Signal / Anomaly
+          if (combinedDiag.totalStocks === 0 || combinedDiag.processedCount === 0) {
+            // 兩個 chunk 都完全失敗（伺服器問題或 API 超時）
+            set({ isScanning: false, scanError: '掃描服務暫時無法使用，請稍後再試' });
+          } else if (combinedDiag.dataStatus === 'insufficient') {
+            // 資料嚴重不足（覆蓋率 < 70%）
             set({ isScanning: false, scanError: `資料不足（覆蓋率 ${combinedDiag.coverageRate}%），請先執行盤後資料下載` });
           } else if (combinedDiag.dataStatus === 'partial') {
-            // 部分覆蓋，結果可能不完整
+            // 部分覆蓋（70-95%），結果可能不完整
             set({ isScanning: false, scanError: `部分覆蓋 (${combinedDiag.coverageRate}%)，無符合條件的股票（${diagnosticsSummary(combinedDiag)}）` });
+          } else if (combinedDiag.dataMissing > combinedDiag.totalStocks * 0.3) {
+            // 超過 30% 股票缺資料 → 資料庫/Blob 問題
+            set({ isScanning: false, scanError: `伺服器資料不足（${combinedDiag.dataMissing}/${combinedDiag.totalStocks} 檔缺資料），請等待每日排程完成` });
           } else if (combinedDiag.filteredOut > 0 && combinedDiag.dataMissing === 0) {
             // 正常：資料完整，有股票被處理但全被六條件過濾掉了
             set({ isScanning: false, scanError: `掃描完成，無符合條件的股票（${diagnosticsSummary(combinedDiag)}）` });
           } else {
-            // 異常：資料缺失或其他錯誤
+            // 真正的異常：少量資料缺失或其他未預期錯誤
             set({ isScanning: false, scanError: `掃描異常（${diagnosticsSummary(combinedDiag)}）` });
           }
           return;

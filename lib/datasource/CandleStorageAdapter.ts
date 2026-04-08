@@ -11,6 +11,10 @@ import type { Candle } from '@/types';
 
 const IS_VERCEL = !!process.env.VERCEL;
 
+if (IS_VERCEL && !process.env.BLOB_READ_WRITE_TOKEN) {
+  console.error('[CandleStorage] BLOB_READ_WRITE_TOKEN 未設定，K 線 Blob 讀寫將失敗');
+}
+
 interface CandleFileData {
   symbol: string;
   lastDate: string;
@@ -77,6 +81,11 @@ export async function readCandleFile(
     if (!raw) return null;
     const data: CandleFileData = JSON.parse(raw);
     if (!data.candles || data.candles.length === 0) return null;
+    // 清除 TWSE 除權息日標記（如 "2025-11-17*" → "2025-11-17"）
+    for (const c of data.candles) {
+      if (c.date.endsWith('*')) c.date = c.date.slice(0, -1);
+    }
+    if (data.lastDate.endsWith('*')) data.lastDate = data.lastDate.slice(0, -1);
     return data;
   } catch {
     return null;

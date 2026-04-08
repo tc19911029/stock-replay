@@ -23,10 +23,12 @@ export interface TWSEQuote {
 }
 
 const REALTIME_CACHE_KEY = 'twse:realtime:all';
+const INTRADAY_CACHE_KEY = 'twse:realtime:intraday';
 const REALTIME_TTL = 30 * 1000; // 30 秒
 
 /** 正在進行中的 fetch promise（避免同時多次請求） */
 let inflightPromise: Promise<Map<string, TWSEQuote>> | null = null;
+let intradayInflight: Promise<Map<string, TWSEQuote>> | null = null;
 
 /**
  * 取得全市場即時報價 Map（code → TWSEQuote）
@@ -178,5 +180,140 @@ async function fetchAllQuotes(): Promise<Map<string, TWSEQuote>> {
     }
   }
 
+  return map;
+}
+
+// ── 盤中即時報價（mis.twse.com.tw）─────────────────────────────────────────
+
+/**
+ * 盤中即時報價 — 從 mis.twse.com.tw 批量取得全市場今日 OHLCV
+ *
+ * 與 getTWSERealtime() 的差別：
+ *   - getTWSERealtime()     → STOCK_DAY_ALL（收盤統計，盤中回傳昨天數據）
+ *   - getTWSERealtimeIntraday() → mis.twse.com.tw（真正的盤中即時報價）
+ *
+ * 步驟：
+ *   1. 先用 STOCK_DAY_ALL / TPEx 取全市場代碼清單（區分上市/上櫃）
+ *   2. 再用 mis.twse.com.tw 批量查詢即時 OHLCV
+ *
+ * 快取 30 秒，防止併發重複請求。
+ */
+export async function getTWSERealtimeIntraday(): Promise<Map<string, TWSEQuote>> {
+  const cached = globalCache.get<Map<string, TWSEQuote>>(INTRADAY_CACHE_KEY);
+  if (cached) return cached;
+
+  if (intradayInflight) return intradayInflight;
+
+  intradayInflight = fetchIntradayQuotes();
+  try {
+    const result = await intradayInflight;
+    if (result.size > 0) {
+      globalCache.set(INTRADAY_CACHE_KEY, result, REALTIME_TTL);
+    }
+    return result;
+  } finally {
+    intradayInflight = null;
+  }
+}
+
+function parseMisPrice(s: string | undefined): number {
+  if (!s || s === '-') return 0;
+  const v = parseFloat(s);
+  return isNaN(v) ? 0 : v;
+}
+
+const MIS_BATCH_SIZE = 80;     // 每次查詢的股票數量上限（mis.twse 實測 100 可用、200 失敗）
+const MIS_CONCURRENCY = 4;     // 並行請求數（避免 rate limit）
+
+async function fetchIntradayQuotes(): Promise<Map<string, TWSEQuote>> {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
+  const map = new Map<string, TWSEQuote>();
+
+  // ── Step 1: 取全市場代碼清單（區分上市/上櫃）──
+  const [twseRes, tpexRes] = await Promise.allSettled([
+    fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL', {
+      signal: AbortSignal.timeout(10000),
+    }),
+    fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes', {
+      signal: AbortSignal.timeout(10000),
+    }),
+  ]);
+
+  const tseCodes: string[] = [];
+  const otcCodes: string[] = [];
+
+  if (twseRes.status === 'fulfilled' && twseRes.value.ok) {
+    try {
+      const data = await twseRes.value.json() as TWSERawRow[];
+      for (const row of data) {
+        if (/^\d{4,5}$/.test(row.Code)) tseCodes.push(row.Code);
+      }
+    } catch { /* parse error */ }
+  }
+
+  if (tpexRes.status === 'fulfilled' && tpexRes.value.ok) {
+    try {
+      const data = await tpexRes.value.json() as TPExRawRow[];
+      for (const row of data) {
+        if (/^\d{4,5}$/.test(row.SecuritiesCompanyCode)) otcCodes.push(row.SecuritiesCompanyCode);
+      }
+    } catch { /* parse error */ }
+  }
+
+  if (tseCodes.length === 0 && otcCodes.length === 0) {
+    console.warn('[TWSERealtimeIntraday] 無法取得代碼清單，fallback 到 STOCK_DAY_ALL');
+    return fetchAllQuotes(); // 降級回 STOCK_DAY_ALL
+  }
+
+  // ── Step 2: 批量查詢 mis.twse.com.tw ──
+  async function fetchMisBatch(codes: string[], exchange: 'tse' | 'otc'): Promise<void> {
+    try {
+      const exCh = codes.map(c => `${exchange}_${c}.tw`).join('|');
+      const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${exCh}&json=1&delay=0&_=${Date.now()}`;
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+        signal: AbortSignal.timeout(15000),
+      });
+      const json = await res.json();
+      for (const d of json?.msgArray ?? []) {
+        const code = d.c;
+        if (!code) continue;
+        const close = parseMisPrice(d.z) || parseMisPrice(d.l); // 最新成交 or 最低價 fallback
+        if (close <= 0) continue; // 今日無交易
+        const prevClose = parseMisPrice(d.y);
+        map.set(code, {
+          code,
+          name: d.n?.trim() || code,
+          open:  parseMisPrice(d.o) || close,
+          high:  parseMisPrice(d.h) || close,
+          low:   parseMisPrice(d.l) || close,
+          close,
+          volume: parseInt((d.v || '0').replace(/,/g, ''), 10) * 1000, // 張 → 股
+          previousClose: prevClose > 0 ? prevClose : undefined,
+          date: today, // 確實是今天的即時數據
+        });
+      }
+    } catch {
+      // 單批次失敗不影響其他批次
+    }
+  }
+
+  async function batchFetch(codes: string[], exchange: 'tse' | 'otc'): Promise<void> {
+    for (let i = 0; i < codes.length; i += MIS_BATCH_SIZE * MIS_CONCURRENCY) {
+      const promises: Promise<void>[] = [];
+      for (let j = i; j < Math.min(i + MIS_BATCH_SIZE * MIS_CONCURRENCY, codes.length); j += MIS_BATCH_SIZE) {
+        promises.push(fetchMisBatch(codes.slice(j, j + MIS_BATCH_SIZE), exchange));
+      }
+      await Promise.allSettled(promises);
+    }
+  }
+
+  // 上市 + 上櫃 並行
+  await Promise.allSettled([
+    batchFetch(tseCodes, 'tse'),
+    batchFetch(otcCodes, 'otc'),
+  ]);
+
+  console.info(`[TWSERealtimeIntraday] 取得 ${map.size} 筆即時報價 (TSE:${tseCodes.length} OTC:${otcCodes.length})`);
   return map;
 }

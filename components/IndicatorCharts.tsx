@@ -25,7 +25,8 @@ function toTime(date: string): Time {
     const d = new Date(date.replace(' ', 'T') + '+08:00');
     return Math.floor(d.getTime() / 1000) as unknown as Time;
   }
-  return date as Time;
+  // 清除 TWSE 除權息日標記（如 "2025-11-17*" → "2025-11-17"）
+  return date.replace(/\*$/, '') as Time;
 }
 
 function makeChart(container: HTMLElement, showTimeAxis: boolean): IChartApi {
