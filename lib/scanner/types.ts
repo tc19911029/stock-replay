@@ -232,10 +232,18 @@ export interface StockForwardPerformance {
   d3Return?: number | null;
   d4Return?: number | null;
   d5Return?: number | null;
+  d6Return?: number | null;
+  d7Return?: number | null;
+  d8Return?: number | null;
+  d9Return?: number | null;
   d10Return?: number | null;
   d20Return?: number | null;
   d1ReturnFromOpen?: number | null;
   d5ReturnFromOpen?: number | null;
+  d6ReturnFromOpen?: number | null;
+  d7ReturnFromOpen?: number | null;
+  d8ReturnFromOpen?: number | null;
+  d9ReturnFromOpen?: number | null;
   d10ReturnFromOpen?: number | null;
   d20ReturnFromOpen?: number | null;
   ret1d?: number | null;

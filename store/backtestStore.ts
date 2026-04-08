@@ -10,7 +10,7 @@ import { getMissingTradingDays } from '@/lib/utils/tradingDay';
 // Inline calcBacktestSummary to avoid pulling server-only ForwardAnalyzer → LocalCandleStore (fs)
 function calcBacktestSummary(
   perf: StockForwardPerformance[],
-  horizon: 'open' | 'd1' | 'd2' | 'd3' | 'd4' | 'd5' | 'd10' | 'd20',
+  horizon: 'open' | 'd1' | 'd2' | 'd3' | 'd4' | 'd5' | 'd6' | 'd7' | 'd8' | 'd9' | 'd10' | 'd20',
 ) {
   const key = (horizon === 'open' ? 'openReturn' : `${horizon}Return`) as keyof StockForwardPerformance;
   const returns = perf
@@ -49,7 +49,7 @@ let scanAbortController: AbortController | null = null;
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-export type BacktestHorizon = 'open' | 'd1' | 'd2' | 'd3' | 'd4' | 'd5' | 'd10' | 'd20';
+export type BacktestHorizon = 'open' | 'd1' | 'd2' | 'd3' | 'd4' | 'd5' | 'd6' | 'd7' | 'd8' | 'd9' | 'd10' | 'd20';
 
 export interface BacktestSummary {
   count: number; wins: number; losses: number;
@@ -70,6 +70,11 @@ interface ScanCacheEntry {
   scanResults: StockScanResult[];
   performance: StockForwardPerformance[];
   marketTrend: TrendState | null;
+}
+
+/** Narrow scanDirection for APIs that only accept 'long' | 'short' */
+function effectiveDirection(dir: 'long' | 'short' | 'daban'): 'long' | 'short' {
+  return dir === 'daban' ? 'long' : dir;
 }
 
 /** Build cache key for scan results */
@@ -313,7 +318,7 @@ export const useBacktestStore = create<BacktestState>()(
               if (results.length > 0 && get().useMultiTimeframe === newMtf) {
                 set({ scanResults: results, isLoadingCronSession: false });
                 // Also fetch forward performance
-                get().loadCronSession(market, scanDate, { scanOnly: true, direction: scanDirection });
+                get().loadCronSession(market, scanDate, { scanOnly: true, direction: effectiveDirection(scanDirection) });
               }
             })
             .catch(() => { /* silent */ });
@@ -670,7 +675,7 @@ export const useBacktestStore = create<BacktestState>()(
               body: JSON.stringify({ market, date: scanDate, direction: dir }),
             }).then(() => {
               // 存檔成功後更新日期列表
-              get().fetchCronDates(market, dir);
+              get().fetchCronDates(market, effectiveDirection(dir));
             }).catch(() => { /* non-fatal */ });
 
             return;
@@ -962,7 +967,7 @@ export const useBacktestStore = create<BacktestState>()(
         if (scanResults.length > 0 || isScanning || isFetchingForward || isLoadingCronSession) return;
 
         // 先取得可用日期
-        await get().fetchCronDates(market, scanDirection);
+        await get().fetchCronDates(market, effectiveDirection(scanDirection));
         const { cronDates } = get();
 
         // 計算缺漏的交易日（最近 5 個交易日內）
@@ -977,14 +982,14 @@ export const useBacktestStore = create<BacktestState>()(
               await fetch('/api/scanner/backfill', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ market, date: missingDays[i], direction: scanDirection }),
+                body: JSON.stringify({ market, date: missingDays[i], direction: effectiveDirection(scanDirection) }),
               });
             } catch { /* 單筆失敗不中斷 */ }
             set({ backfillProgress: { done: i + 1, total: missingDays.length } });
           }
           set({ isBackfilling: false });
           // 重新取得日期列表
-          await get().fetchCronDates(market, scanDirection);
+          await get().fetchCronDates(market, effectiveDirection(scanDirection));
         }
 
         const { cronDates: updated } = get();
@@ -992,7 +997,7 @@ export const useBacktestStore = create<BacktestState>()(
 
         // 載入最新一天（scanOnly mode，不跑回測）
         const latestDate = updated[0].date;
-        await get().loadCronSession(market, latestDate, { scanOnly: true, direction: scanDirection });
+        await get().loadCronSession(market, latestDate, { scanOnly: true, direction: effectiveDirection(scanDirection) });
       },
     }),
     {

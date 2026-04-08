@@ -14,9 +14,30 @@ function detectMarket(symbol: string): 'TW' | 'CN' {
   return 'TW';
 }
 
+/** 取得下一個曆日的日期字串 */
+function nextDay(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00');
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().split('T')[0];
+}
+
+/** 計算兩個日期字串之間的天數差 */
+function daysBetween(a: string, b: string): number {
+  return (Date.parse(b) - Date.parse(a)) / 86400_000;
+}
+
+/** 取得市場時區的今日日期 */
+function getMarketToday(market: 'TW' | 'CN'): string {
+  const tz = market === 'CN' ? 'Asia/Shanghai' : 'Asia/Taipei';
+  return new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
+}
+
 /**
  * 從本地 K 線檔案提取指定日期範圍的 candles
  * 本地檔案存的是完整歷史（2年+），只需要 filter 出 scanDate 之後的部分
+ *
+ * 注意：回傳的數據可能不完整（如連假後本地尚未更新），
+ * 呼叫端應檢查 lastDate 是否涵蓋到 safeEndStr，不足時用 API 補足。
  */
 async function loadForwardFromLocal(
   symbol: string,
@@ -50,27 +71,38 @@ async function analyzeOne(
     const startStr = new Date(startMs).toISOString().split('T')[0];
     const endStr   = new Date(endMs).toISOString().split('T')[0];
 
-    // 今天的日期（用台灣/中國時區 UTC+8，防止取到未來數據）
-    const now = new Date();
-    const utc8 = new Date(now.getTime() + 8 * 3600_000);
-    const todayStr = utc8.toISOString().split('T')[0];
+    // 今天的日期（用市場時區，防止取到未來數據）
+    const market = detectMarket(symbol);
+    const todayStr = getMarketToday(market);
     const safeEndStr = endStr > todayStr ? todayStr : endStr;
 
-    // 優先讀本地 K 線
+    // 優先讀本地 K 線（可能不完整，下方 needSupplement 會檢查並用 API 補足）
     let candles = await loadForwardFromLocal(symbol, startStr, safeEndStr);
 
-    // 本地沒有才打 API（帶限流 + retry）
-    if (candles.length === 0) {
-      const market = detectMarket(symbol);
+    // 檢查本地數據是否涵蓋到最新交易日
+    // 若最後一根 K 棒日期 < safeEndStr 且距今超過 1 天，用 API 補足缺口
+    const lastLocalDate = candles.length > 0 ? candles[candles.length - 1].date : '';
+    const needSupplement = candles.length === 0
+      || (lastLocalDate < safeEndStr && daysBetween(lastLocalDate, safeEndStr) > 1);
+
+    if (needSupplement) {
+      const fetchStart = candles.length > 0 ? nextDay(lastLocalDate) : startStr;
       const provider = market === 'TW' ? 'finmind' : 'eastmoney';
       await rateLimiter.acquire(provider);
-      candles = await fetchCandlesRange(symbol, startStr, safeEndStr, 8000);
-      if (candles.length === 0) {
+      const extra = await fetchCandlesRange(symbol, fetchStart, safeEndStr, 8000);
+      if (extra.length === 0 && candles.length === 0) {
+        // 完全沒數據時 retry 一次
         await new Promise(r => setTimeout(r, 2000));
         await rateLimiter.acquire(provider);
-        candles = await fetchCandlesRange(symbol, startStr, safeEndStr, 8000);
+        const retry = await fetchCandlesRange(symbol, fetchStart, safeEndStr, 8000);
+        if (retry.length > 0) {
+          candles = [...candles, ...retry];
+          rateLimiter.reportSuccess(provider);
+        }
+      } else if (extra.length > 0) {
+        candles = [...candles, ...extra];
+        rateLimiter.reportSuccess(provider);
       }
-      if (candles.length > 0) rateLimiter.reportSuccess(provider);
     }
 
     // P0-4: 若 scanDate 距今不超過 3 個曆天（週五掃描、長假前），
@@ -82,10 +114,13 @@ async function analyzeOne(
         return {
           symbol, name, scanDate, scanPrice,
           openReturn: null, d1Return: null, d2Return: null, d3Return: null,
-          d4Return: null, d5Return: null, d10Return: null, d20Return: null,
+          d4Return: null, d5Return: null, d6Return: null, d7Return: null,
+          d8Return: null, d9Return: null, d10Return: null, d20Return: null,
           maxGain: 0, maxLoss: 0, forwardCandles: [],
           nextOpenPrice: null,
           d1ReturnFromOpen: null, d5ReturnFromOpen: null,
+          d6ReturnFromOpen: null, d7ReturnFromOpen: null,
+          d8ReturnFromOpen: null, d9ReturnFromOpen: null,
           d10ReturnFromOpen: null, d20ReturnFromOpen: null,
         };
       }
@@ -148,6 +183,10 @@ async function analyzeOne(
       d3Return:  retFromScan(2),
       d4Return:  retFromScan(3),
       d5Return:  retFromScan(4),
+      d6Return:  retFromScan(5),
+      d7Return:  retFromScan(6),
+      d8Return:  retFromScan(7),
+      d9Return:  retFromScan(8),
       d10Return: retFromScan(9),
       d20Return: retFromScan(19),
       maxGain:   +maxGain.toFixed(2),
@@ -157,6 +196,10 @@ async function analyzeOne(
       nextOpenPrice,
       d1ReturnFromOpen:  retFromOpen(0),
       d5ReturnFromOpen:  retFromOpen(4),
+      d6ReturnFromOpen:  retFromOpen(5),
+      d7ReturnFromOpen:  retFromOpen(6),
+      d8ReturnFromOpen:  retFromOpen(7),
+      d9ReturnFromOpen:  retFromOpen(8),
       d10ReturnFromOpen: retFromOpen(9),
       d20ReturnFromOpen: retFromOpen(19),
     };

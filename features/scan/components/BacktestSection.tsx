@@ -45,6 +45,8 @@ export function BacktestSection() {
     { key: 'open', label: '隔日開' }, { key: 'd1', label: '1日' },
     { key: 'd2', label: '2日' },     { key: 'd3', label: '3日' },
     { key: 'd4', label: '4日' },     { key: 'd5', label: '5日' },
+    { key: 'd6', label: '6日' },     { key: 'd7', label: '7日' },
+    { key: 'd8', label: '8日' },     { key: 'd9', label: '9日' },
     { key: 'd10', label: '10日' },   { key: 'd20', label: '20日' },
   ];
 
@@ -192,7 +194,7 @@ export function BacktestSection() {
       {/* ── Horizon Performance ── */}
       {performance.length > 0 && (
         <div className="space-y-4">
-          <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
+          <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
             {horizonLabels.map(({ key, label }) => (
               <HorizonCard key={key} label={label} horizon={key} performance={performance} scanDate={scanDate} />
             ))}

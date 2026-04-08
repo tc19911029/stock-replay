@@ -67,14 +67,15 @@ async function networkFirst(request, maxAge) {
     const response = await fetch(request);
     if (response.ok) {
       const cache = await caches.open(RUNTIME_CACHE);
-      const headers = new Headers(response.headers);
+      const clone = response.clone();
+      const headers = new Headers(clone.headers);
       headers.set("sw-cache-time", String(Date.now()));
-      const cloned = new Response(await response.blob(), {
-        status: response.status,
-        statusText: response.statusText,
+      const cached = new Response(clone.body, {
+        status: clone.status,
+        statusText: clone.statusText,
         headers,
       });
-      cache.put(request, cloned);
+      cache.put(request, cached);
     }
     return response;
   } catch {
