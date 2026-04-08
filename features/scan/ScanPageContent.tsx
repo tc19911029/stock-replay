@@ -41,7 +41,22 @@ export function ScanPanel({ onSelectStock }: ScanPanelProps) {
   useEffect(() => { setMaxDate(new Date().toISOString().split('T')[0]); }, []);
 
   // 載入歷史日期
-  useEffect(() => { if (scanDirection !== 'daban') fetchCronDates(market, scanDirection); }, [market, scanDirection, fetchCronDates]);
+  useEffect(() => {
+    if (scanDirection === 'daban') {
+      // 打板有獨立的日期列表 API
+      fetch('/api/scanner/daban').then(r => r.json()).then(data => {
+        if (data.dates) {
+          useBacktestStore.setState({
+            cronDates: data.dates.map((d: { date: string; resultCount: number }) => ({
+              market: 'CN' as const, date: d.date, resultCount: d.resultCount, scanTime: '',
+            })),
+          });
+        }
+      }).catch(() => {});
+    } else {
+      fetchCronDates(market, scanDirection);
+    }
+  }, [market, scanDirection, fetchCronDates]);
 
   // 自動載入最新掃描結果
   const [autoLoaded, setAutoLoaded] = useState(false);
@@ -138,7 +153,11 @@ export function ScanPanel({ onSelectStock }: ScanPanelProps) {
                 key={c.date}
                 onClick={() => {
                   if (isBusy || isLoadingCronSession) return;
-                  useBacktestStore.getState().loadCronSession(c.market, c.date, { scanOnly: true, direction: scanDirection === 'daban' ? 'long' : scanDirection });
+                  if (scanDirection === 'daban') {
+                    useBacktestStore.setState({ scanDate: c.date });
+                  } else {
+                    useBacktestStore.getState().loadCronSession(c.market, c.date, { scanOnly: true, direction: scanDirection });
+                  }
                 }}
                 disabled={isBusy || isLoadingCronSession}
                 className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors ${
@@ -240,7 +259,21 @@ export default function ScanPageContent({ defaultMode = 'full' }: ScanPageConten
 
   /* eslint-disable react-hooks/set-state-in-effect */
   // 載入 cron 歷史日期（market/direction/MTF 切換時重新取得）
-  useEffect(() => { if (scanDirection !== 'daban') fetchCronDates(market, scanDirection); }, [market, scanDirection, useMultiTimeframe, fetchCronDates]);
+  useEffect(() => {
+    if (scanDirection === 'daban') {
+      fetch('/api/scanner/daban').then(r => r.json()).then(data => {
+        if (data.dates) {
+          useBacktestStore.setState({
+            cronDates: data.dates.map((d: { date: string; resultCount: number }) => ({
+              market: 'CN' as const, date: d.date, resultCount: d.resultCount, scanTime: '',
+            })),
+          });
+        }
+      }).catch(() => {});
+    } else {
+      fetchCronDates(market, scanDirection);
+    }
+  }, [market, scanDirection, useMultiTimeframe, fetchCronDates]);
 
   // 用 state 避免 SSR hydration mismatch
   const [maxDate, setMaxDate] = useState('2099-12-31');
@@ -261,7 +294,10 @@ export default function ScanPageContent({ defaultMode = 'full' }: ScanPageConten
   useEffect(() => {
     if (!conditionInitRef.current) { conditionInitRef.current = true; return; }
     if (!scanDate) return;
-    useBacktestStore.getState().loadCronSession(market, scanDate, { scanOnly: true, direction: scanDirection === 'daban' ? 'long' : scanDirection });
+    if (scanDirection !== 'daban') {
+      useBacktestStore.getState().loadCronSession(market, scanDate, { scanOnly: true, direction: scanDirection });
+    }
+    // daban 模式由 DabanResultsTable 自行載入
   }, [market, scanDirection, scanDate, useMultiTimeframe]);
 
   // ── Chart selection state ──

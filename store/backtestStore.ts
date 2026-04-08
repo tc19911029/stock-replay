@@ -966,6 +966,9 @@ export const useBacktestStore = create<BacktestState>()(
         // 如果已有結果或正在載入中，不重複載入
         if (scanResults.length > 0 || isScanning || isFetchingForward || isLoadingCronSession) return;
 
+        // 打板模式由 ScanPanel useEffect 負責載入日期，不走 autoLoadLatest
+        if (scanDirection === 'daban') return;
+
         // 先取得可用日期
         await get().fetchCronDates(market, effectiveDirection(scanDirection));
         const { cronDates } = get();

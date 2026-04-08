@@ -36,7 +36,7 @@ function retColor(val: number | null | undefined): string {
 
 // 打板專用前瞻欄位（短線策略，聚焦 1-3 日）
 const FWD_COLS = [
-  { key: 'openReturn' as const, label: '隔日開' },
+  { key: 'openReturn' as const, label: '隔日開%' },
   { key: 'd1Return' as const, label: '1日' },
   { key: 'd2Return' as const, label: '2日' },
   { key: 'd3Return' as const, label: '3日' },
@@ -206,7 +206,7 @@ export function DabanResultsTable({ date }: DabanResultsTableProps) {
             {/* Group header row */}
             <tr className="text-[10px] text-muted-foreground/60 border-b border-border/30">
               <th colSpan={10} className="text-left py-1 px-2">掃描當日</th>
-              <th colSpan={FWD_COLS.length} className="text-center py-1 px-2 border-l border-border/30">掃描後表現</th>
+              <th colSpan={FWD_COLS.length + 1} className="text-center py-1 px-2 border-l border-border/30">掃描後表現</th>
             </tr>
             <tr className="text-xs text-muted-foreground border-b border-border">
               <th className="text-left py-2 px-2 w-8">#</th>
@@ -219,6 +219,10 @@ export function DabanResultsTable({ date }: DabanResultsTableProps) {
               <th className="text-right py-2 px-2">量比</th>
               <th className="text-right py-2 px-2">買入門檻</th>
               <th className="text-right py-2 px-2">分數</th>
+              <th className="text-right py-2 px-1 whitespace-nowrap text-[10px] border-l border-border/20"
+                title="隔日開盤價（可對照買入門檻判斷是否可進場）">
+                隔日開價
+              </th>
               {FWD_COLS.map(({ key, label }) => (
                 <th key={key}
                   className="text-right py-2 px-1 whitespace-nowrap text-[10px] border-l border-border/20"
@@ -254,6 +258,18 @@ export function DabanResultsTable({ date }: DabanResultsTableProps) {
                     {r.buyThresholdPrice.toFixed(2)}
                   </td>
                   <td className="py-2 px-2 text-right font-mono">{r.rankScore.toFixed(1)}</td>
+                  {/* 隔日開盤價 */}
+                  <td className="py-2 px-1 text-right font-mono text-[10px] whitespace-nowrap border-l border-border/10">
+                    {isFetchingForward && !perf ? (
+                      <span className="text-muted-foreground/40">…</span>
+                    ) : perf?.nextOpenPrice != null ? (
+                      <span className={perf.nextOpenPrice >= r.buyThresholdPrice ? 'text-amber-400 font-bold' : 'text-muted-foreground'}>
+                        {perf.nextOpenPrice.toFixed(2)}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground/50">—</span>
+                    )}
+                  </td>
                   {/* Forward performance columns */}
                   {FWD_COLS.map(({ key }) => {
                     const val = perf ? perf[key] : undefined;
