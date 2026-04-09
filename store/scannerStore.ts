@@ -158,7 +158,7 @@ export const useScannerStore = create<ScannerStore>()(
           : { thresholds: activeStrategy.thresholds };
 
         set(s => ({
-          [mKey]: { ...s[mKey], isScanning: true, progress: 0, scanningStock: '載入掃描結果...', scanningIndex: 0, scanningTotal: 0, error: null },
+          [mKey]: { ...s[mKey], isScanning: true, progress: 0, scanningStock: '正在檢查是否有收盤後掃描結果...', scanningIndex: 0, scanningTotal: 0, error: null },
         }));
 
         try {
@@ -204,7 +204,7 @@ export const useScannerStore = create<ScannerStore>()(
 
           // ── Step 1: 粗掃（全市場快照，< 3 秒） ─────────────────────────
           set(s => ({
-            [mKey]: { ...s[mKey], scanningStock: '全市場粗掃中...' },
+            [mKey]: { ...s[mKey], progress: 5, scanningStock: `Step 1/3：讀取${market === 'TW' ? '台股' : '陸股'}全市場即時快照...` },
           }));
 
           const coarseRes = await fetch('/api/scanner/coarse', {
@@ -230,11 +230,12 @@ export const useScannerStore = create<ScannerStore>()(
           const coarseCandidates = coarseJson.candidates ?? [];
           const coarseTotal = coarseJson.total ?? 0;
 
+          const coarseMs = coarseJson.scanTimeMs ?? 0;
           set(s => ({
             [mKey]: {
               ...s[mKey],
               progress: 15,
-              scanningStock: `粗掃完成：${coarseTotal} 檔中找到 ${coarseCandidates.length} 檔候選`,
+              scanningStock: `Step 1/3 完成：全市場 ${coarseTotal} 檔 → 篩出 ${coarseCandidates.length} 檔候選（${coarseMs}ms）`,
               scanningTotal: coarseCandidates.length,
             },
           }));
@@ -246,7 +247,10 @@ export const useScannerStore = create<ScannerStore>()(
                 ...s[mKey],
                 isScanning: false, progress: 100, scanningStock: '',
                 results: [], lastScanTime: new Date().toISOString(),
-                marketTrend: '多頭', error: `無符合粗篩條件的股票（共掃描 ${coarseTotal} 檔）`,
+                marketTrend: '多頭',
+                error: `全市場 ${coarseTotal} 檔粗掃後無候選股票。\n`
+                  + '可能原因：目前無股票同時滿足「站穩MA20 + 有量 + 上漲」等基本條件。\n'
+                  + '這是正常現象，表示盤面整體偏弱或無明確方向。',
               },
             }));
             abortControllers[market] = null;
@@ -255,7 +259,7 @@ export const useScannerStore = create<ScannerStore>()(
 
           // ── Step 2: 精掃（候選池，讀完整 K 線跑六條件） ─────────────────
           set(s => ({
-            [mKey]: { ...s[mKey], progress: 20, scanningStock: `精掃 ${coarseCandidates.length} 檔候選中...` },
+            [mKey]: { ...s[mKey], progress: 20, scanningStock: `Step 2/3：精掃 ${coarseCandidates.length} 檔候選（讀取K線 + 六條件 + 戒律 + 淘汰法）...` },
           }));
 
           const stocks = coarseCandidates.map(c => ({ symbol: c.symbol, name: c.name }));
@@ -283,10 +287,6 @@ export const useScannerStore = create<ScannerStore>()(
           // 候選池通常 30-100 檔，可以一次送（不需拆分）
           const fineResult = await scanChunk(stocks);
 
-          set(s => ({
-            [mKey]: { ...s[mKey], progress: 88, scanningStock: '精掃完成' },
-          }));
-
           const marketTrend: TrendState = fineResult.marketTrend ?? '多頭';
           const dataDate: string | undefined = fineResult.dataDate;
           const combinedDiag = fineResult.diagnostics;
@@ -297,6 +297,14 @@ export const useScannerStore = create<ScannerStore>()(
                 ? b.sixConditionsScore - a.sixConditionsScore
                 : b.changePercent - a.changePercent
             );
+
+          set(s => ({
+            [mKey]: {
+              ...s[mKey],
+              progress: 88,
+              scanningStock: `Step 3/3：整理結果（${results.length} 檔通過六條件，大盤趨勢: ${marketTrend}）`,
+            },
+          }));
 
           // 結果為空時：多態區分原因，顯示具體原因+建議
           if (results.length === 0) {

@@ -131,7 +131,7 @@ export function ScanPanel({ onSelectStock }: ScanPanelProps) {
         <div className="flex items-center gap-1.5 ml-auto">
           <button onClick={handleScan} disabled={isBusy || !scanDate}
             className="px-3 py-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-foreground text-[11px] font-semibold rounded whitespace-nowrap">
-            {isScanning ? `掃描中 ${Math.round(scanProgress)}%` : '補掃'}
+            {isScanning ? `掃描中 ${Math.round(scanProgress)}%` : '掃描'}
           </button>
           {isBusy && (
             <button onClick={cancelScan}
@@ -414,7 +414,7 @@ export default function ScanPageContent({ defaultMode = 'full' }: ScanPageConten
                     <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     {isScanning ? `掃描中 ${Math.round(scanProgress)}%` : '計算績效…'}
                   </span>
-                ) : '補掃'}
+                ) : '掃描'}
               </Button>
               {isBusy && (
                 <Button
