@@ -13,7 +13,7 @@ import { readdir, readFile } from 'fs/promises';
 import path from 'path';
 
 const SECRET = process.env.UPLOAD_SECRET ?? '607570edf11c0e1fcd2a9311c8832a0c820938d5';
-const BASE_URL = process.env.UPLOAD_URL ?? 'https://stock-replay-tau.vercel.app';
+const BASE_URL = process.env.UPLOAD_URL ?? 'https://stock-replay-5f24.vercel.app';
 const ENDPOINT = `${BASE_URL}/api/admin/upload-candles`;
 
 const DATA_ROOT = path.join(process.cwd(), 'data', 'candles');

@@ -32,7 +32,11 @@ async function blobGet(pathname: string): Promise<string | null> {
   const { list: blobList } = await import('@vercel/blob');
   const { blobs } = await blobList({ prefix: pathname, limit: 1 });
   if (blobs.length === 0) return null;
-  const res = await fetch(blobs[0].url);
+  const headers: Record<string, string> = {};
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    headers['Authorization'] = `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`;
+  }
+  const res = await fetch(blobs[0].url, { headers });
   if (!res.ok) return null;
   return res.text();
 }
