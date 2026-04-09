@@ -25,7 +25,7 @@ export interface ScanDateEntry {
 
 async function blobPut(pathname: string, data: string): Promise<void> {
   const { put } = await import('@vercel/blob');
-  await put(pathname, data, { access: 'public', addRandomSuffix: false });
+  await put(pathname, data, { access: 'private', addRandomSuffix: false, allowOverwrite: true });
 }
 
 async function blobGet(pathname: string): Promise<string | null> {

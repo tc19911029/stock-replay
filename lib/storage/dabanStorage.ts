@@ -37,7 +37,7 @@ export async function saveDabanSession(session: DabanScanSession): Promise<void>
 
   if (IS_VERCEL) {
     const { put } = await import('@vercel/blob');
-    await put(`daban/CN/${session.date}.json`, data, { access: 'public', addRandomSuffix: false });
+    await put(`daban/CN/${session.date}.json`, data, { access: 'private', addRandomSuffix: false, allowOverwrite: true });
   } else {
     await fsPut(filename, data);
   }

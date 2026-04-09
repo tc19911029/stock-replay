@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   }
 
   const results = await Promise.allSettled(
-    files.map(f => put(f.key, f.content, { access: 'public', addRandomSuffix: false }))
+    files.map(f => put(f.key, f.content, { access: 'private', addRandomSuffix: false, allowOverwrite: true }))
   );
 
   const ok = results.filter(r => r.status === 'fulfilled').length;
