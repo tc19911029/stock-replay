@@ -415,21 +415,29 @@ export const useScannerStore = create<ScannerStore>()(
             set(s => ({ [mKey]: { ...s[mKey], isScanning: false, error: msg } }));
           } else {
             // 通用錯誤分類
-            const isTimeout = msg.includes('Failed to fetch') || msg.includes('timeout') || msg.includes('504') || msg.includes('502');
-            const isNetwork = msg.includes('network') || msg.includes('NetworkError') || msg.includes('ERR_');
+            const lowerMsg = msg.toLowerCase();
+            // Timeout / Network 統一處理：
+            //   Chrome: "Failed to fetch", Firefox: "NetworkError when attempting to fetch resource"
+            //   都可能是 Vercel function 300s 超時、行動網路中斷、或 CORS 問題
+            const isConnectionError = lowerMsg.includes('failed to fetch')
+              || lowerMsg.includes('networkerror')
+              || lowerMsg.includes('network error')
+              || lowerMsg.includes('timeout')
+              || lowerMsg.includes('etimedout')
+              || lowerMsg.includes('err_')
+              || msg.includes('504') || msg.includes('502') || msg.includes('503');
             const is404 = msg.includes('404') || msg.includes('尚無');
 
             let userMsg: string;
-            if (isTimeout) {
-              userMsg = '掃描請求逾時。\n'
-                + '可能原因：網路較慢或伺服器繁忙。\n'
-                + '建議：等待 30 秒後重試，或切換到「歷史紀錄」查看收盤後結果。';
-            } else if (isNetwork) {
-              userMsg = '無法連線到掃描伺服器。\n'
-                + '可能原因：網路中斷或行動網路不穩。\n'
-                + '建議：檢查網路連線後重試。';
+            if (isConnectionError) {
+              userMsg = '掃描請求失敗（伺服器無回應）。\n'
+                + '可能原因：伺服器處理逾時、行動網路不穩、或系統正在部署中。\n'
+                + '建議：\n'
+                + '① 等待 30 秒後重試\n'
+                + '② 若持續失敗，切換到「歷史紀錄」查看收盤後結果\n'
+                + '③ 檢查網路連線是否正常';
             } else if (is404) {
-              userMsg = msg; // 404 通常已有具體說明
+              userMsg = msg;
             } else {
               userMsg = `掃描異常：${msg.slice(0, 150)}\n建議：重試一次，若持續失敗請稍後再試。`;
             }
