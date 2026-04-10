@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import type { DabanScanResult, DabanScanSession, StockForwardPerformance } from '@/lib/scanner/types';
+import type { DabanScanResult, DabanScanSession, DabanSentiment, StockForwardPerformance } from '@/lib/scanner/types';
 import type { SelectedStock } from './ScanChartPanel';
 
 interface RealtimePrice {
@@ -254,10 +254,38 @@ export function DabanResultsTable({ date, onSelectStock }: DabanResultsTableProp
 
   return (
     <div className="space-y-4">
+      {/* Sentiment indicator */}
+      {session.sentiment && (
+        <div className={`border rounded-lg p-3 ${
+          session.sentiment.isCold
+            ? 'bg-blue-500/10 border-blue-500/30'
+            : 'bg-green-500/10 border-green-500/30'
+        }`}>
+          <div className="flex items-center gap-3 mb-1">
+            <span className={`font-bold text-sm ${
+              session.sentiment.isCold ? 'text-blue-400' : 'text-green-400'
+            }`}>
+              {session.sentiment.isCold ? '❄️ 情緒冰點 — 不建議進場' : '✅ 情緒正常 — 可進場'}
+            </span>
+          </div>
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <span>漲停 <span className={`font-mono font-bold ${
+              session.sentiment.limitUpCount >= 15 ? 'text-green-400' : 'text-blue-400'
+            }`}>{session.sentiment.limitUpCount}</span> 家</span>
+            <span>昨漲停 {session.sentiment.yesterdayLimitUpCount} 支今均 <span className={`font-mono font-bold ${
+              session.sentiment.yesterdayAvgReturn >= -3 ? 'text-green-400' : 'text-blue-400'
+            }`}>{session.sentiment.yesterdayAvgReturn >= 0 ? '+' : ''}{session.sentiment.yesterdayAvgReturn}%</span></span>
+            {session.sentiment.isCold && session.sentiment.reason && (
+              <span className="text-blue-400">({session.sentiment.reason})</span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Strategy rules banner */}
       <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-amber-400 font-bold text-sm">打板戰法</span>
+          <span className="text-amber-400 font-bold text-sm">打板戰法（情緒增強版）</span>
           <span className="text-xs text-muted-foreground">
             漲停股 {session.results.length} 檔 | 可買入 {buyable.length} 檔
           </span>
@@ -266,7 +294,7 @@ export function DabanResultsTable({ date, onSelectStock }: DabanResultsTableProp
           )}
         </div>
         <div className="text-xs text-muted-foreground">
-          操作：明天 09:25 找高開 ≥ 買入門檻的排名第一檔買入 →
+          操作：情緒正常時，明天 09:25 找高開 ≥ 買入門檻的排名第一檔買入 →
           止盈 +5% / 止損 -3% / 收黑隔日走 / 最多持 2 天
         </div>
       </div>

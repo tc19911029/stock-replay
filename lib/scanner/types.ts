@@ -311,6 +311,14 @@ export interface DabanScanResult {
   scanDate: string;             // 掃描日期
 }
 
+export interface DabanSentiment {
+  limitUpCount: number;          // 今日漲停家數
+  yesterdayLimitUpCount: number;  // 昨日漲停家數
+  yesterdayAvgReturn: number;     // 昨日漲停股今日平均漲跌 %
+  isCold: boolean;               // 情緒冰點（不建議進場）
+  reason?: string;               // 冰點原因
+}
+
 export interface DabanScanSession {
   id: string;
   market: 'CN';
@@ -318,6 +326,7 @@ export interface DabanScanSession {
   scanTime: string;
   resultCount: number;
   results: DabanScanResult[];
+  sentiment?: DabanSentiment;     // 市場情緒指標
 }
 
 /** 掃描時段類型：盤中快照 vs 收盤後正式結果 */

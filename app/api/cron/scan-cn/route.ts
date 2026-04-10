@@ -84,10 +84,17 @@ export async function GET(req: NextRequest) {
     } catch { counts.shortMtf = 0; }
 
     // ── 打板掃描 ──
+    // 安全檢查：漲停股通常 20-100 支/天。如果掃出 < 5 支
+    // 可能是 K 線不完整（Blob 資料過舊），不儲存以免污染歷史資料。
     try {
       const dabanSession = await scanDabanFromLocalCandles(date);
-      await saveDabanSession(dabanSession);
-      counts.daban = dabanSession.resultCount;
+      if (dabanSession.resultCount >= 5) {
+        await saveDabanSession(dabanSession);
+        counts.daban = dabanSession.resultCount;
+      } else {
+        console.warn(`[cron/scan-cn] 打板掃描僅找到 ${dabanSession.resultCount} 檔，疑似資料不完整，不儲存`);
+        counts.daban = -1; // 標記為資料不完整
+      }
     } catch { counts.daban = 0; }
 
     const notifyEmail = process.env.NOTIFY_EMAIL;

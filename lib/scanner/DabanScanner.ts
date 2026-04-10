@@ -9,7 +9,7 @@
 
 import { computeIndicators } from '@/lib/indicators';
 import type { CandleWithIndicators } from '@/types';
-import type { DabanScanResult, DabanScanSession, LimitUpType } from './types';
+import type { DabanScanResult, DabanScanSession, DabanSentiment, LimitUpType } from './types';
 import type { EastMoneyQuote } from '@/lib/datasource/EastMoneyRealtime';
 
 // ── 參數 ────────────────────────────────────────────────────────────────────
@@ -62,6 +62,10 @@ function getAvgVolume(candles: CandleWithIndicators[], idx: number, period: numb
   return sum / (idx - start + 1);
 }
 
+// ── 情緒過濾參數 ────────────────────────────────────────────────────────────
+const SENTIMENT_MIN_LIMIT_UP = 15;   // 漲停家數 < 15 視為冰點
+const SENTIMENT_MIN_YEST_AVG = -3;   // 昨漲停今均 < -3% 視為冰點
+
 // ── Main Scanner ────────────────────────────────────────────────────────────
 
 export interface DabanScanInput {
@@ -70,10 +74,60 @@ export interface DabanScanInput {
 }
 
 /**
- * 掃描指定日期的漲停股
+ * 計算全市場情緒指標
+ */
+function computeSentiment(
+  stocks: Map<string, { name: string; candles: CandleWithIndicators[] }>,
+  date: string,
+): DabanSentiment {
+  let limitUpCount = 0;
+  let yesterdayLimitUpCount = 0;
+  let yesterdayAvgReturn = 0;
+
+  for (const [symbol, stockData] of stocks) {
+    const candles = stockData.candles;
+    const idx = candles.findIndex(c => c.date?.slice(0, 10) === date);
+    if (idx < 2) continue;
+
+    const threshold = getLimitUpThreshold(symbol);
+    const todayReturn = getDayReturn(candles, idx);
+    const yesterdayReturn = getDayReturn(candles, idx - 1);
+
+    if (todayReturn >= threshold) limitUpCount++;
+    if (yesterdayReturn >= threshold) {
+      yesterdayLimitUpCount++;
+      yesterdayAvgReturn += todayReturn;
+    }
+  }
+
+  if (yesterdayLimitUpCount > 0) {
+    yesterdayAvgReturn /= yesterdayLimitUpCount;
+  }
+
+  const isCold = limitUpCount < SENTIMENT_MIN_LIMIT_UP || yesterdayAvgReturn < SENTIMENT_MIN_YEST_AVG;
+  let reason: string | undefined;
+  if (isCold) {
+    const reasons: string[] = [];
+    if (limitUpCount < SENTIMENT_MIN_LIMIT_UP) reasons.push(`漲停${limitUpCount}家<${SENTIMENT_MIN_LIMIT_UP}`);
+    if (yesterdayAvgReturn < SENTIMENT_MIN_YEST_AVG) reasons.push(`昨漲停今均${yesterdayAvgReturn.toFixed(1)}%<${SENTIMENT_MIN_YEST_AVG}%`);
+    reason = reasons.join('、');
+  }
+
+  return {
+    limitUpCount,
+    yesterdayLimitUpCount,
+    yesterdayAvgReturn: +yesterdayAvgReturn.toFixed(2),
+    isCold,
+    reason,
+  };
+}
+
+/**
+ * 掃描指定日期的漲停股（含情緒過濾）
  */
 export function scanDaban(input: DabanScanInput): DabanScanSession {
   const { stocks, date } = input;
+  const sentiment = computeSentiment(stocks, date);
   const results: DabanScanResult[] = [];
 
   for (const [symbol, stockData] of stocks) {
@@ -145,6 +199,7 @@ export function scanDaban(input: DabanScanInput): DabanScanSession {
     scanTime: new Date().toISOString(),
     resultCount: results.length,
     results,
+    sentiment,
   };
 }
 
@@ -180,8 +235,11 @@ const CONCURRENCY = 50;
 /**
  * 從 per-symbol 本地快取讀取 K 線並掃描（支援近期資料）
  *
- * 讀取 data/candles/CN/{symbol}.json，透過 loadLocalCandlesWithTolerance
- * 允許 5 個交易日的容忍度，適用於 cron 或盤後手動觸發。
+ * 讀取 data/candles/CN/{symbol}.json，透過 loadLocalCandlesWithTolerance。
+ *
+ * 重要：打板掃描需要精確的日漲跌幅，容忍度必須 ≤ 1 天。
+ * 如果 K 線差距 > 1 天，算出的「漲跌幅」會跨越多天累計，
+ * 導致非漲停股被誤判為漲停（例如 +22%）。
  */
 export async function scanDabanFromLocalCandles(date: string): Promise<DabanScanSession> {
   const { ChinaScanner } = await import('./ChinaScanner');
@@ -193,19 +251,25 @@ export async function scanDabanFromLocalCandles(date: string): Promise<DabanScan
 
   let loaded = 0;
   let skipped = 0;
+  let staleSkipped = 0;
 
   for (let i = 0; i < stockList.length; i += CONCURRENCY) {
     const batch = stockList.slice(i, i + CONCURRENCY);
     const results = await Promise.allSettled(
       batch.map(async (entry) => {
-        const local = await loadLocalCandlesWithTolerance(entry.symbol, 'CN', date, 5);
+        // 容忍度 1 天：確保漲跌幅計算不會跨越多天
+        const local = await loadLocalCandlesWithTolerance(entry.symbol, 'CN', date, 1);
         if (!local || local.candles.length < 30) return null;
+        // staleDays > 0 表示 K 線沒有掃描日當天的資料，漲跌幅會錯位
+        if (local.staleDays > 0) return 'stale';
         return { symbol: entry.symbol, name: entry.name, candles: local.candles };
       }),
     );
 
     for (const r of results) {
-      if (r.status === 'fulfilled' && r.value) {
+      if (r.status === 'fulfilled' && r.value === 'stale') {
+        staleSkipped++;
+      } else if (r.status === 'fulfilled' && r.value && r.value !== 'stale') {
         stocks.set(r.value.symbol, { name: r.value.name, candles: r.value.candles });
         loaded++;
       } else {
@@ -214,7 +278,14 @@ export async function scanDabanFromLocalCandles(date: string): Promise<DabanScan
     }
   }
 
-  console.log(`[DabanScanner] 從本地快取載入 ${loaded}/${stockList.length} 檔（跳過 ${skipped}）`);
+  console.log(`[DabanScanner] 從本地快取載入 ${loaded}/${stockList.length} 檔（跳過 ${skipped}, 資料過舊 ${staleSkipped}）`);
+
+  // 警告：如果載入率太低，掃描結果可能不完整
+  const loadRate = loaded / stockList.length;
+  if (loadRate < 0.5) {
+    console.warn(`[DabanScanner] ⚠️ 載入率僅 ${(loadRate * 100).toFixed(0)}%，掃描結果可能不完整。請確保 K 線已下載到最新。`);
+  }
+
   return scanDaban({ stocks, date });
 }
 
@@ -249,7 +320,8 @@ export async function scanDabanRealtime(date: string): Promise<DabanScanSession>
     const batch = stockList.slice(i, i + CONCURRENCY);
     const results = await Promise.allSettled(
       batch.map(async (entry) => {
-        const local = await loadLocalCandlesWithTolerance(entry.symbol, 'CN', date, 5);
+        // 即時模式：容忍 2 天（因為即時報價會補上今天的 K 棒）
+        const local = await loadLocalCandlesWithTolerance(entry.symbol, 'CN', date, 2);
         if (!local || local.candles.length < 10) return null;
 
         let candles = local.candles;
