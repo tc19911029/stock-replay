@@ -188,7 +188,7 @@ export abstract class MarketScanner {
     symbol: string,
     rawName: string,
     config: MarketConfig,
-    _minScore: number,
+    minScore: number,
     thresholds: StrategyThresholds,
     asOfDate?: string,
     industry?: string,
@@ -231,6 +231,9 @@ export abstract class MarketScanner {
       // ── 1. 六大條件（前5個=核心門檻，第6個 KD/MACD=候補加分）──────────
       const sixConds = evaluateSixConditions(candles, lastIdx, thresholds);
       if (!sixConds.isCoreReady) { if (diag) diag.filteredOut++; return null; }
+
+      // ── 1b. minScore 門檻（盤整/空頭市場可能要求 6/6 含指標條件）────────
+      if (sixConds.totalScore < minScore) { if (diag) diag.filteredOut++; return null; }
 
       // ── 2. 短線第9條：KD值向下時不買 ─────────────────────────────────
       if (last.kdK != null && lastIdx > 0) {

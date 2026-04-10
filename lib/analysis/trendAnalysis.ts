@@ -206,8 +206,10 @@ export function evaluateSixConditions(
   const ma20Dev = ma20 && ma20 > 0 ? (c.close - ma20) / ma20 : null;
 
   // Scenario A：近5日曾回測到MA10附近（低點 ≤ MA10 × 1.03），今日已回站MA5
+  // 朱老師：末升段乖離過大不宜追高，即使回測MA10後反彈也不行
   const pulledBackToMA10 = (() => {
     if (!ma10c || !c.ma5) return false;
+    if (ma20Dev !== null && ma20Dev >= devMax) return false; // 乖離過大禁追高
     const aboveMA5Now = c.close >= c.ma5;
     if (!aboveMA5Now) return false;
     for (let i = Math.max(0, index - 5); i < index; i++) {
