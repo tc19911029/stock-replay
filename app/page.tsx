@@ -350,6 +350,7 @@ export default function HomePage() {
                 onReset={resetReplay}
                 canPrev={currentIndex > 0 && !isPlaying}
                 canNext={currentIndex < allCandles.length - 1 && !isPlaying}
+                ticker={currentStock?.ticker}
               />
             )}
 
@@ -405,7 +406,7 @@ export default function HomePage() {
             {showIndicators && (
               <div className="flex-1 min-h-0 overflow-hidden">
                 <ErrorBoundary>
-                  <IndicatorCharts candles={visibleCandles} hoverCandle={hoverCandle} indicators={indicators} />
+                  <IndicatorCharts candles={visibleCandles} hoverCandle={hoverCandle} indicators={indicators} ticker={currentStock?.ticker} />
                 </ErrorBoundary>
               </div>
             )}

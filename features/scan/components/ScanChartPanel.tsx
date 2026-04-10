@@ -158,6 +158,7 @@ export function ScanChartPanel({ selectedStock, scanDate }: ScanChartPanelProps)
               candles={displayCandles}
               hoverCandle={hoverCandle}
               indicators={{ macd: true, kd: true, volume: true }}
+              ticker={selectedStock?.symbol}
             />
           </div>
         </div>

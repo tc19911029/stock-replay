@@ -27,6 +27,8 @@ interface ChartToolbarProps {
   onReset?: () => void;
   canPrev?: boolean;
   canNext?: boolean;
+  /** 股票代碼，用於判斷市場（.TW/.TWO=台股，量顯示為張） */
+  ticker?: string;
 }
 
 const MA_CONFIGS = [
@@ -54,10 +56,12 @@ export default function ChartToolbar({
   avgCost, shares,
   onPrev, onNext, onReset,
   canPrev = true, canNext = true,
+  ticker,
 }: ChartToolbarProps) {
   const chg = prevCandle ? candle.close - prevCandle.close : 0;
   const chgPct = prevCandle ? (chg / prevCandle.close) * 100 : 0;
   const isUp = chg >= 0;
+  const isTW = ticker ? /\.(TW|TWO)$/i.test(ticker) : false;
 
   const unrealizedPct = shares && shares > 0 && avgCost && avgCost > 0
     ? ((candle.close - avgCost) / avgCost) * 100
@@ -78,7 +82,7 @@ export default function ChartToolbar({
       <span className="text-muted-foreground">開<span className="text-foreground ml-0.5">{candle.open.toFixed(2)}</span></span>
       <span className="text-muted-foreground">高<span className="text-bull ml-0.5">{candle.high.toFixed(2)}</span></span>
       <span className="text-muted-foreground">低<span className="text-bear ml-0.5">{candle.low.toFixed(2)}</span></span>
-      <span className="text-muted-foreground">量<span className="text-foreground/80 ml-0.5">{candle.volume.toLocaleString()}</span></span>
+      <span className="text-muted-foreground">量{isTW ? '(張)' : ''}<span className="text-foreground/80 ml-0.5">{isTW ? Math.round(candle.volume / 1000).toLocaleString() : candle.volume.toLocaleString()}</span></span>
 
       {/* Toolbar: MA toggles + BB + indicators + signals */}
       <div className="ml-auto flex items-center gap-1 shrink-0 flex-wrap">

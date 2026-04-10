@@ -44,8 +44,17 @@ function makeChart(container: HTMLElement, showTimeAxis: boolean): IChartApi {
   });
 }
 
+/** 台股量顯示為「張」(1張=1000股)，其他市場顯示「股」 */
+function formatVolume(vol: number, isTW: boolean): string {
+  if (isTW) {
+    const lots = Math.round(vol / 1000);
+    return lots.toLocaleString();
+  }
+  return vol.toLocaleString();
+}
+
 // ── Volume ────────────────────────────────────────────────────────────────────
-function VolumeChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; hoverCandle?: CandleWithIndicators | null }) {
+function VolumeChart({ candles, hoverCandle, isTW }: { candles: CandleWithIndicators[]; hoverCandle?: CandleWithIndicators | null; isTW?: boolean }) {
   const containerRef  = useRef<HTMLDivElement>(null);
   const chartRef      = useRef<IChartApi | null>(null);
   const volRef        = useRef<ISeriesApi<'Histogram'> | null>(null);
@@ -118,9 +127,9 @@ function VolumeChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]
   return (
     <div className="relative h-full">
       <div className="absolute top-1 left-2 z-10 flex gap-3 text-xs font-mono pointer-events-none">
-        <span className="text-muted-foreground">成交量</span>
-        <span className="text-blue-400">MV5 {display?.avgVol5 ? display.avgVol5.toLocaleString() : '—'}</span>
-        <span className={`font-bold ${volColor}`}>量 {display ? display.volume.toLocaleString() : '—'} {volArrow}</span>
+        <span className="text-muted-foreground">成交量{isTW ? '(張)' : ''}</span>
+        <span className="text-blue-400">MV5 {display?.avgVol5 ? formatVolume(display.avgVol5, !!isTW) : '—'}</span>
+        <span className={`font-bold ${volColor}`}>量 {display ? formatVolume(display.volume, !!isTW) : '—'} {volArrow}</span>
       </div>
       <div ref={containerRef} className="w-full h-full" />
     </div>
@@ -363,15 +372,18 @@ function RSIChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; h
 }
 
 // ── Combined ──────────────────────────────────────────────────────────────────
-export default function IndicatorCharts({ candles, hoverCandle, indicators }: {
+export default function IndicatorCharts({ candles, hoverCandle, indicators, ticker }: {
   candles: CandleWithIndicators[];
   hoverCandle?: CandleWithIndicators | null;
   indicators?: { macd: boolean; kd: boolean; volume: boolean; rsi?: boolean };
+  /** 股票代碼，用於判斷市場（.TW/.TWO=台股，量顯示為張） */
+  ticker?: string;
 }) {
   if (candles.length === 0) return null;
+  const isTW = ticker ? /\.(TW|TWO)$/i.test(ticker) : false;
   const show = indicators ?? { macd: true, kd: true, volume: true, rsi: false };
   const panels = [
-    show.volume && <div key="vol" className="flex-1 min-h-0 bg-card"><VolumeChart candles={candles} hoverCandle={hoverCandle} /></div>,
+    show.volume && <div key="vol" className="flex-1 min-h-0 bg-card"><VolumeChart candles={candles} hoverCandle={hoverCandle} isTW={isTW} /></div>,
     show.kd && <div key="kd" className="flex-[1.8] min-h-0 bg-card"><KDChart candles={candles} hoverCandle={hoverCandle} /></div>,
     show.rsi && <div key="rsi" className="flex-[1.8] min-h-0 bg-card"><RSIChart candles={candles} hoverCandle={hoverCandle} /></div>,
     show.macd && <div key="macd" className="flex-[2.2] min-h-0 bg-card"><MACDChart candles={candles} hoverCandle={hoverCandle} /></div>,
