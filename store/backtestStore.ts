@@ -673,12 +673,17 @@ export const useBacktestStore = create<BacktestState>()(
               },
             });
 
-            // 背景存檔：新日期會寫入紀錄，舊日期已存在則跳過不覆蓋
-            const { scanDirection: dir } = get();
-            fetch('/api/scanner/backfill', {
+            // 背景存檔：將畫面上的掃描結果直接寫入 storage，永遠覆蓋同日結果
+            const { scanDirection: dir, scanResults: currentResults } = get();
+            fetch('/api/scanner/save-session', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ market, date: scanDate, direction: dir }),
+              body: JSON.stringify({
+                market, date: scanDate, direction: effectiveDirection(dir),
+                multiTimeframeEnabled: useMultiTimeframe,
+                results: currentResults,
+                scanTime: new Date().toISOString(),
+              }),
             }).then(() => {
               // 存檔成功後更新日期列表
               get().fetchCronDates(market, effectiveDirection(dir));
