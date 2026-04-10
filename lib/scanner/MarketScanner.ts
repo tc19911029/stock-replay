@@ -10,7 +10,7 @@ import { evaluateHighWinRateEntry } from '@/lib/analysis/highWinRateEntry';
 import { evaluateElimination } from '@/lib/scanner/eliminationFilter';
 import { evaluateMultiTimeframe, MultiTimeframeResult } from '@/lib/analysis/multiTimeframeFilter';
 import { getScannerCache, setScannerCache, getScannerCacheStats } from '@/lib/datasource/ScannerCache';
-import { loadLocalCandlesWithTolerance, saveLocalCandles } from '@/lib/datasource/LocalCandleStore';
+import { loadLocalCandlesWithTolerance, saveLocalCandles, batchCheckFreshness } from '@/lib/datasource/LocalCandleStore';
 
 // 掃描只讀本地檔案（L1 記憶體 + L2 本地），不打外部 API
 // 因此可以高並發且無需延遲
@@ -20,6 +20,24 @@ const BATCH_DELAY_MS = 0;
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
 export type StockEntry = { symbol: string; name: string; industry?: string };
+
+/** fetchCandlesForScan 回傳的帶新鮮度資訊結果 */
+interface CandleFetchResult {
+  candles: CandleWithIndicators[];
+  staleDays: number;
+  lastCandleDate: string;
+  source: 'memory' | 'local' | 'api';
+}
+
+/** Session 層級數據新鮮度摘要 */
+export interface SessionFreshness {
+  avgStaleDays: number;
+  maxStaleDays: number;
+  staleCount: number;
+  totalScanned: number;
+  coverageRate: number;
+  dataStatus: 'complete' | 'partial' | 'insufficient';
+}
 
 /** 即時報價（批量拿全市場後傳入 scanner） */
 export interface RealtimeQuoteForScan {
@@ -55,6 +73,88 @@ export abstract class MarketScanner {
   }
 
   /**
+   * 掃描前批次確保 K 線數據是最新的。
+   * 檢查所有股票的本地 K 線，過期的自動下載更新。
+   * @param symbols  股票代碼列表
+   * @param asOfDate 掃描目標日期（undefined = 今天）
+   * @param budget   最多下載幾支（避免超時），預設 100
+   */
+  protected async ensureFreshCandles(
+    symbols: string[],
+    asOfDate?: string,
+    budget = 100,
+  ): Promise<{ updated: number; failed: number; skipped: number }> {
+    // 確保 .env.local 已載入（Next.js 環境自動載入，但 tsx/node 直接執行時不會）
+    if (!process.env.__DOTENV_LOADED) {
+      try {
+        const fs = await import('fs');
+        const path = await import('path');
+        const envPath = path.join(process.cwd(), '.env.local');
+        if (fs.existsSync(envPath)) {
+          const content = fs.readFileSync(envPath, 'utf-8');
+          for (const line of content.split('\n')) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('#')) continue;
+            const eqIdx = trimmed.indexOf('=');
+            if (eqIdx === -1) continue;
+            const key = trimmed.slice(0, eqIdx).trim();
+            const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '');
+            if (!process.env[key]) process.env[key] = val;
+          }
+        }
+        process.env.__DOTENV_LOADED = '1';
+      } catch { /* 無 .env.local 或讀取失敗 */ }
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    const targetDate = asOfDate ?? today;
+    const market = this.getMarketConfig().marketId as 'TW' | 'CN';
+
+    // 歷史掃描不需要更新（容忍舊數據）
+    if (asOfDate && asOfDate < today) {
+      return { updated: 0, failed: 0, skipped: symbols.length };
+    }
+
+    const { stale, missing } = await batchCheckFreshness(symbols, market, targetDate, 1);
+    const toUpdate = [...stale, ...missing].slice(0, budget);
+
+    if (toUpdate.length === 0) {
+      return { updated: 0, failed: 0, skipped: 0 };
+    }
+
+    console.info(`[ensureFreshCandles] ${market} ${targetDate}: ${stale.length} stale + ${missing.length} missing，更新前 ${toUpdate.length} 支...`);
+
+    let updated = 0;
+    let failed = 0;
+
+    // 分批下載（每批 10 支並行）
+    for (let i = 0; i < toUpdate.length; i += 10) {
+      const batch = toUpdate.slice(i, i + 10);
+      const settled = await Promise.allSettled(
+        batch.map(async (sym) => {
+          const candles = await this.fetchCandles(sym, targetDate);
+          if (candles.length >= 30) {
+            const raw = candles.map(c => ({
+              date: c.date, open: c.open, high: c.high,
+              low: c.low, close: c.close, volume: c.volume,
+            }));
+            await saveLocalCandles(sym, market, raw);
+            return true;
+          }
+          return false;
+        })
+      );
+      for (const r of settled) {
+        if (r.status === 'fulfilled' && r.value) updated++;
+        else failed++;
+      }
+    }
+
+    console.info(`[ensureFreshCandles] 完成：更新 ${updated}，失敗 ${failed}，略過 ${toUpdate.length - updated - failed}`);
+    return { updated, failed, skipped: symbols.length - toUpdate.length };
+  }
+
+  /**
    * 掃描專用 fetchCandles — 三層快取：記憶體 → 本地檔案 → API
    * 走圖（單股即時）不經過這裡，直接用 fetchCandles()
    */
@@ -62,7 +162,7 @@ export abstract class MarketScanner {
     symbol: string,
     asOfDate?: string,
     diag?: ScanDiagnostics,
-  ): Promise<CandleWithIndicators[]> {
+  ): Promise<CandleFetchResult> {
     const today = new Date().toISOString().split('T')[0];
     const isHistorical = !!asOfDate && asOfDate < today;
     const market = this.getMarketConfig().marketId as 'TW' | 'CN';
@@ -72,7 +172,8 @@ export abstract class MarketScanner {
       const memCached = getScannerCache(symbol, asOfDate);
       if (memCached) {
         if (diag) diag.memoryCacheHits++;
-        return memCached;
+        const lastDate = memCached.length > 0 ? memCached[memCached.length - 1].date : '';
+        return { candles: memCached, staleDays: 0, lastCandleDate: lastDate, source: 'memory' };
       }
 
       // L2: 本地檔案（容忍 5 個交易日差距）
@@ -84,7 +185,8 @@ export abstract class MarketScanner {
             diag.localCacheHits++;
             if (local.staleDays > 0) diag.localCacheStale++;
           }
-          return local.candles;
+          const lastDate = local.candles[local.candles.length - 1].date;
+          return { candles: local.candles, staleDays: local.staleDays, lastCandleDate: lastDate, source: 'local' };
         }
       } catch { /* 本地讀取失敗，fallback 到 API */ }
     } else {
@@ -135,11 +237,14 @@ export abstract class MarketScanner {
               // else: 盤前報價是昨日數據 → 不 append，直接用本地歷史數據掃描
 
               const { computeIndicators } = await import('@/lib/indicators');
-              return computeIndicators(rawCandles);
+              const merged = computeIndicators(rawCandles);
+              const mergedLast = merged[merged.length - 1];
+              return { candles: merged, staleDays: mergedLast.date === today ? 0 : local.staleDays, lastCandleDate: mergedLast.date, source: 'local' };
             }
           }
 
-          return local.candles;
+          const lastDate = local.candles[local.candles.length - 1].date;
+          return { candles: local.candles, staleDays: local.staleDays, lastCandleDate: lastDate, source: 'local' };
         }
       } catch { /* 本地讀取失敗，fallback */ }
     }
@@ -157,7 +262,8 @@ export abstract class MarketScanner {
           const raw = candles.map(c => ({ date: c.date, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume }));
           saveLocalCandles(symbol, market, raw).catch(() => {});
           if (diag) diag.localCacheHits++; // 算作成功取得
-          return candles;
+          const lastDate = candles[candles.length - 1].date;
+          return { candles, staleDays: 0, lastCandleDate: lastDate, source: 'api' };
         }
       } catch {
         // L3 timeout or API error — fallthrough to missing
@@ -171,7 +277,7 @@ export abstract class MarketScanner {
         diag.missingSymbols.push(symbol);
       }
     }
-    return [];
+    return { candles: [], staleDays: -1, lastCandleDate: '', source: 'local' };
   }
 
   /**
@@ -205,11 +311,23 @@ export abstract class MarketScanner {
         } catch { /* 查不到就用東方財富的名字 */ }
       }
 
-      const candles = await this.fetchCandlesForScan(symbol, asOfDate, diag);
-      if (candles.length < 30) {
+      const fetchResult = await this.fetchCandlesForScan(symbol, asOfDate, diag);
+      if (fetchResult.candles.length < 30) {
         if (diag) diag.tooFewCandles++;
         return null;
       }
+
+      // 避免凍結價格：今日掃描若 K 線未更新到掃描日，略過此股
+      // （ensureFreshCandles 下載失敗時的防護，不顯示過時價格）
+      if (asOfDate && fetchResult.staleDays > 0 && fetchResult.lastCandleDate !== asOfDate) {
+        const today = new Date().toISOString().split('T')[0];
+        if (asOfDate === today) {
+          if (diag) diag.filteredOut++;
+          return null;
+        }
+      }
+
+      const candles = fetchResult.candles;
 
       const lastIdx = candles.length - 1;
       const last = candles[lastIdx];
@@ -323,6 +441,12 @@ export abstract class MarketScanner {
           mtfMonthlyDetail: mtfResult.monthly.detail,
           mtfWeeklyNearResistance: mtfResult.weeklyNearResistance,
         } : {}),
+        // ── 數據新鮮度 ──────────────────────────────────────────────────
+        dataFreshness: {
+          lastCandleDate: fetchResult.lastCandleDate,
+          daysStale: fetchResult.staleDays,
+          source: fetchResult.source,
+        },
       };
     } catch (err) {
       if (diag && diag.errorSamples.length < 5) {
@@ -513,8 +637,9 @@ export abstract class MarketScanner {
         } catch { /* fallback */ }
       }
 
-      const candles = await this.fetchCandlesForScan(symbol, asOfDate, diag);
-      if (candles.length < 30) { if (diag) diag.tooFewCandles++; return null; }
+      const fetchResult = await this.fetchCandlesForScan(symbol, asOfDate, diag);
+      if (fetchResult.candles.length < 30) { if (diag) diag.tooFewCandles++; return null; }
+      const candles = fetchResult.candles;
 
       const lastIdx = candles.length - 1;
       const last = candles[lastIdx];
@@ -578,6 +703,12 @@ export abstract class MarketScanner {
         trendState: '空頭',
         trendPosition: shortConds.position.stage ?? '',
         scanTime: asOfDate ? `${asOfDate}T00:00:00.000Z` : new Date().toISOString(),
+        // ── 數據新鮮度 ──────────────────────────────────────────────────
+        dataFreshness: {
+          lastCandleDate: fetchResult.lastCandleDate,
+          daysStale: fetchResult.staleDays,
+          source: fetchResult.source,
+        },
       };
     } catch {
       return null;
@@ -591,7 +722,12 @@ export abstract class MarketScanner {
     stocks: StockEntry[],
     asOfDate?: string,
     thresholds?: StrategyThresholds,
-  ): Promise<{ candidates: StockScanResult[]; marketTrend: TrendState; diagnostics: ScanDiagnostics }> {
+  ): Promise<{ candidates: StockScanResult[]; marketTrend: TrendState; diagnostics: ScanDiagnostics; sessionFreshness: SessionFreshness }> {
+    // ── 掃描前確保 K 線數據是最新的 ──
+    try {
+      await this.ensureFreshCandles(stocks.map(s => s.symbol), asOfDate);
+    } catch { /* non-fatal */ }
+
     const config = this.getMarketConfig();
     const th = thresholds ?? ZHU_V1.thresholds;
     const candidates: StockScanResult[] = [];
@@ -623,8 +759,22 @@ export abstract class MarketScanner {
     diag.dataStatus = diag.coverageRate >= 95 ? 'complete' : diag.coverageRate >= 70 ? 'partial' : 'insufficient';
 
     candidates.sort((a, b) => (b.shortSixConditionsScore ?? 0) - (a.shortSixConditionsScore ?? 0));
+
+    // 聚合 dataFreshness 摘要
+    const freshnessItems = candidates.filter(r => r.dataFreshness);
+    const sessionFreshness = {
+      avgStaleDays: freshnessItems.length > 0
+        ? +(freshnessItems.reduce((s, r) => s + (r.dataFreshness?.daysStale ?? 0), 0) / freshnessItems.length).toFixed(1)
+        : 0,
+      maxStaleDays: Math.max(0, ...freshnessItems.map(r => r.dataFreshness?.daysStale ?? 0)),
+      staleCount: freshnessItems.filter(r => (r.dataFreshness?.daysStale ?? 0) > 0).length,
+      totalScanned: diag.totalStocks,
+      coverageRate: diag.coverageRate,
+      dataStatus: diag.dataStatus,
+    };
+
     console.info('[ScanShort Diagnostics]', JSON.stringify(diag));
-    return { candidates, marketTrend, diagnostics: diag };
+    return { candidates, marketTrend, diagnostics: diag, sessionFreshness };
   }
 
   /**
@@ -701,7 +851,17 @@ export abstract class MarketScanner {
     asOfDate?: string,
     thresholds?: StrategyThresholds,
     rankBy: 'sixConditions' | 'histWinRate' = 'sixConditions',
-  ): Promise<{ results: StockScanResult[]; marketTrend: TrendState; diagnostics: ScanDiagnostics }> {
+  ): Promise<{ results: StockScanResult[]; marketTrend: TrendState; diagnostics: ScanDiagnostics; sessionFreshness: SessionFreshness }> {
+    // ── 掃描前確保 K 線數據是最新的 ──
+    try {
+      const freshResult = await this.ensureFreshCandles(stocks.map(s => s.symbol), asOfDate);
+      if (freshResult.updated > 0) {
+        console.info(`[scanSOP] 已更新 ${freshResult.updated} 支 K 線後開始掃描`);
+      }
+    } catch (e) {
+      console.warn('[scanSOP] ensureFreshCandles 失敗，使用現有數據繼續:', e);
+    }
+
     const config = this.getMarketConfig();
     const th = thresholds ?? ZHU_V1.thresholds;
     const candidates: StockScanResult[] = [];
@@ -738,11 +898,28 @@ export abstract class MarketScanner {
 
     const sorted = this.rankCandidates(candidates, rankBy);
 
+    // 聚合 dataFreshness 摘要
+    const freshnessItems = sorted.filter(r => r.dataFreshness);
+    const sessionFreshness = {
+      avgStaleDays: freshnessItems.length > 0
+        ? +(freshnessItems.reduce((s, r) => s + (r.dataFreshness?.daysStale ?? 0), 0) / freshnessItems.length).toFixed(1)
+        : 0,
+      maxStaleDays: Math.max(0, ...freshnessItems.map(r => r.dataFreshness?.daysStale ?? 0)),
+      staleCount: freshnessItems.filter(r => (r.dataFreshness?.daysStale ?? 0) > 0).length,
+      totalScanned: diag.totalStocks,
+      coverageRate: diag.coverageRate,
+      dataStatus: diag.dataStatus,
+    };
+
     console.info('[ScanSOP Diagnostics]', JSON.stringify(diag));
+    if (sessionFreshness.staleCount > 0) {
+      console.warn(`[ScanSOP Freshness] ${sessionFreshness.staleCount} 支股票使用過期數據（最大落後 ${sessionFreshness.maxStaleDays} 天）`);
+    }
     return {
       results: sorted,
       marketTrend,
       diagnostics: diag,
+      sessionFreshness,
     };
   }
 
@@ -751,6 +928,11 @@ export abstract class MarketScanner {
     asOfDate: string | undefined,
     thresholds?: StrategyThresholds,
   ): Promise<{ results: StockScanResult[]; marketTrend: TrendState; diagnostics: ScanDiagnostics }> {
+    // ── 掃描前確保 K 線數據是最新的 ──
+    try {
+      await this.ensureFreshCandles(stocks.map(s => s.symbol), asOfDate);
+    } catch { /* non-fatal */ }
+
     const config = this.getMarketConfig();
     const th = thresholds ?? ZHU_V1.thresholds;
     const results: StockScanResult[] = [];
@@ -792,6 +974,12 @@ export abstract class MarketScanner {
     const config = this.getMarketConfig();
     const th = thresholds ?? ZHU_V1.thresholds;
     const stocks = await this.getStockList();
+
+    // ── 掃描前確保 K 線數據是最新的 ──
+    try {
+      await this.ensureFreshCandles(stocks.map(s => s.symbol));
+    } catch { /* non-fatal */ }
+
     const results: StockScanResult[] = [];
     const DEADLINE = Date.now() + 240_000;
 

@@ -304,7 +304,14 @@ export function ScanResultsTable({ onSelectStock }: ScanResultsTableProps = {}) 
                 </td>
                 {/* 名稱 + six-conditions badges — sticky */}
                 <td className="py-1.5 px-2 sticky left-[72px] bg-card group-hover:bg-secondary/40 z-10 transition-colors">
-                  <div className="text-foreground/90">{r.name}</div>
+                  <div className="text-foreground/90 flex items-center gap-1">
+                    {r.name}
+                    {r.dataFreshness && r.dataFreshness.daysStale > 0 && (
+                      <span className="text-[8px] px-1 py-0.5 rounded bg-amber-900/60 text-amber-400 whitespace-nowrap" title={`K線最後日期: ${r.dataFreshness.lastCandleDate}`}>
+                        落後{r.dataFreshness.daysStale}天
+                      </span>
+                    )}
+                  </div>
                   <div className="flex gap-0.5 mt-0.5">
                     {[
                       { pass: r.sixConditionsBreakdown.trend, label: '趨' },

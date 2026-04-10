@@ -98,6 +98,13 @@ export interface StockScanResult {
   surgeFlags?: string[];         // 潛力標記
   surgeComponents?: Record<string, { score: number; detail: string }>;
   compositeScore?: number;       // 綜合評分
+  // ── 數據新鮮度 ────────────────────────────────────────────────────────────
+  /** 掃描時使用的 K 線數據新鮮度 */
+  dataFreshness?: {
+    lastCandleDate: string;               // K線最後日期（如 "2026-04-09"）
+    daysStale: number;                    // 落後幾個交易日（0=最新）
+    source: 'memory' | 'local' | 'api';  // 數據來源
+  };
 }
 
 /**
@@ -344,4 +351,13 @@ export interface ScanSession {
   resultCount: number;
   results: StockScanResult[];
   topPicks?: ScanSessionTopPick[];
+  /** 掃描時數據新鮮度摘要 */
+  dataFreshness?: {
+    avgStaleDays: number;       // 平均落後天數
+    maxStaleDays: number;       // 最大落後天數
+    staleCount: number;         // 使用過期數據的股票數
+    totalScanned: number;       // 總掃描數
+    coverageRate: number;       // 0-100%
+    dataStatus: 'complete' | 'partial' | 'insufficient';
+  };
 }

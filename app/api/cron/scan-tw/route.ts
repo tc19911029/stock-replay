@@ -29,26 +29,28 @@ export async function GET(req: NextRequest) {
     const counts: Record<string, number> = {};
 
     // ── Long scan (daily — no MTF filter) ──
-    const { results, marketTrend } = await scanner.scanSOP(stocks, date);
+    const { results, marketTrend, sessionFreshness } = await scanner.scanSOP(stocks, date);
     const longDailySession: ScanSession = {
       id: `TW-long-daily-${date}-${Date.now()}`,
       market: 'TW', date, direction: 'long',
       multiTimeframeEnabled: false,
       scanTime: new Date().toISOString(),
       resultCount: results.length, results,
+      dataFreshness: sessionFreshness,
     };
     try { await saveScanSession(longDailySession); } catch { /* non-fatal */ }
     counts.longDaily = results.length;
 
     // ── Long scan (MTF — with weekly/monthly filter) ──
     try {
-      const { results: mtfResults } = await scanner.scanSOP(stocks, date, { ...ZHU_V1.thresholds, multiTimeframeFilter: true });
+      const { results: mtfResults, sessionFreshness: mtfFreshness } = await scanner.scanSOP(stocks, date, { ...ZHU_V1.thresholds, multiTimeframeFilter: true });
       const longMtfSession: ScanSession = {
         id: `TW-long-mtf-${date}-${Date.now()}`,
         market: 'TW', date, direction: 'long',
         multiTimeframeEnabled: true,
         scanTime: new Date().toISOString(),
         resultCount: mtfResults.length, results: mtfResults,
+        dataFreshness: mtfFreshness,
       };
       await saveScanSession(longMtfSession);
       counts.longMtf = mtfResults.length;
@@ -56,13 +58,14 @@ export async function GET(req: NextRequest) {
 
     // ── Short scan (daily) ──
     try {
-      const { candidates: shortResults } = await scanner.scanShortCandidates(stocks, date);
+      const { candidates: shortResults, sessionFreshness: shortFreshness } = await scanner.scanShortCandidates(stocks, date);
       const shortDailySession: ScanSession = {
         id: `TW-short-daily-${date}-${Date.now()}`,
         market: 'TW', date, direction: 'short',
         multiTimeframeEnabled: false,
         scanTime: new Date().toISOString(),
         resultCount: shortResults.length, results: shortResults,
+        dataFreshness: shortFreshness,
       };
       await saveScanSession(shortDailySession);
       counts.shortDaily = shortResults.length;
@@ -70,13 +73,14 @@ export async function GET(req: NextRequest) {
 
     // ── Short scan (MTF) ──
     try {
-      const { candidates: shortMtfResults } = await scanner.scanShortCandidates(stocks, date, { ...ZHU_V1.thresholds, multiTimeframeFilter: true });
+      const { candidates: shortMtfResults, sessionFreshness: shortMtfFreshness } = await scanner.scanShortCandidates(stocks, date, { ...ZHU_V1.thresholds, multiTimeframeFilter: true });
       const shortMtfSession: ScanSession = {
         id: `TW-short-mtf-${date}-${Date.now()}`,
         market: 'TW', date, direction: 'short',
         multiTimeframeEnabled: true,
         scanTime: new Date().toISOString(),
         resultCount: shortMtfResults.length, results: shortMtfResults,
+        dataFreshness: shortMtfFreshness,
       };
       await saveScanSession(shortMtfSession);
       counts.shortMtf = shortMtfResults.length;

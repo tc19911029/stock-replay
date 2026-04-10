@@ -35,6 +35,7 @@ export function ScanPanel({ onSelectStock }: ScanPanelProps) {
     cronDates, fetchCronDates,
     isLoadingCronSession,
     autoLoadLatest,
+    sessionDataFreshness,
   } = useBacktestStore();
 
   const [maxDate, setMaxDate] = useState('2099-12-31');
@@ -258,6 +259,7 @@ export default function ScanPageContent({ defaultMode = 'full' }: ScanPageConten
     cancelScan,
     cronDates, fetchCronDates,
     isLoadingCronSession,
+    sessionDataFreshness,
   } = useBacktestStore();
 
   const autoLoadLatest = useBacktestStore(s => s.autoLoadLatest);
@@ -466,6 +468,13 @@ export default function ScanPageContent({ defaultMode = 'full' }: ScanPageConten
             );
           })()}
         </div>
+
+        {/* Data Freshness Warning */}
+        {sessionDataFreshness && sessionDataFreshness.maxStaleDays > 0 && scanResults.length > 0 && (
+          <div className="mx-5 mb-4 px-4 py-3 rounded-lg text-sm leading-relaxed bg-amber-950/60 border border-amber-900 text-amber-300">
+            K 線數據落後警告：有 {sessionDataFreshness.staleCount} 支股票使用了最多 {sessionDataFreshness.maxStaleDays} 天前的數據，掃描結果可能不反映最新行情
+          </div>
+        )}
 
         {/* Date Navigator — 歷史紀錄日期列表（主導航） */}
         <DateNavigator />

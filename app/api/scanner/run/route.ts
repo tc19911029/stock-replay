@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const scanner = market === 'TW' ? new TaiwanScanner() : new ChinaScanner();
+    // ensureFreshCandles 已內建在 scanner.scan() 中，無需額外呼叫
     const { results, partial, marketTrend } = await scanner.scan(thresholds);
 
     return apiOk({ count: results.length, results, partial, marketTrend });

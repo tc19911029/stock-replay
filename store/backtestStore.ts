@@ -109,6 +109,8 @@ interface BacktestState {
   scanError:     string | null;
   scanResults:   StockScanResult[];
   marketTrend:   TrendState | null;   // 大盤趨勢（掃描時取得）
+  /** 掃描 session 的數據新鮮度摘要（從 ScanSession.dataFreshness 取得） */
+  sessionDataFreshness: { avgStaleDays: number; maxStaleDays: number; staleCount: number; totalScanned: number; coverageRate: number; dataStatus: string } | null;
   scanTiming:    { listMs: number; ingestMs: number; chunkMs: number; forwardMs: number; totalMs: number } | null;
 
   // ── 前瞻績效階段 ──
@@ -226,6 +228,7 @@ export const useBacktestStore = create<BacktestState>()(
       scanResults:  [],
       marketTrend:  null,
       scanTiming:   null,
+      sessionDataFreshness: null,
 
       isFetchingForward: false,
       forwardError:  null,
@@ -876,14 +879,15 @@ export const useBacktestStore = create<BacktestState>()(
           // Phase 1: Load scan results from server (with MTF dimension)
           const res = await fetch(`/api/scanner/results?market=${market}&date=${date}&direction=${direction}&mtf=${mtfParam}`);
           if (!res.ok) throw new Error('無法載入歷史掃描結果');
-          const json = await res.json() as { sessions?: Array<{ results: StockScanResult[] }> };
-          const scanResults = json.sessions?.[0]?.results ?? [];
+          const json = await res.json() as { sessions?: Array<{ results: StockScanResult[]; dataFreshness?: { avgStaleDays: number; maxStaleDays: number; staleCount: number; totalScanned: number; coverageRate: number; dataStatus: string } }> };
+          const session0 = json.sessions?.[0];
+          const scanResults = session0?.results ?? [];
           if (scanResults.length === 0) {
             set({ isLoadingCronSession: false });
             return;
           }
 
-          set({ scanResults });
+          set({ scanResults, sessionDataFreshness: session0?.dataFreshness ?? null });
 
           // Phase 2: Fetch forward performance
           set({ isFetchingForward: true });
