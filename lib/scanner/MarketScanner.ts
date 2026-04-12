@@ -645,6 +645,16 @@ export abstract class MarketScanner {
       const last = candles[lastIdx];
 
       // ══════════════════════════════════════════════════════════════════
+      // 第零層：長線保護短線（多時間框架前置過濾）
+      // ══════════════════════════════════════════════════════════════════
+
+      let mtfResult: MultiTimeframeResult | undefined;
+      if (thresholds.multiTimeframeFilter) {
+        mtfResult = evaluateMultiTimeframe(candles, thresholds);
+        if (!mtfResult.pass) { if (diag) diag.filteredOut++; return null; }
+      }
+
+      // ══════════════════════════════════════════════════════════════════
       // 第一層：選股（純朱家泓書本體系 — 做空版）
       // ══════════════════════════════════════════════════════════════════
 
