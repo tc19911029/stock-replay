@@ -42,6 +42,7 @@ export function ScanPanel({ onSelectStock }: ScanPanelProps) {
 
   // 載入歷史日期
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (scanDirection === 'daban') {
       // 打板有獨立的日期列表 API
       fetch('/api/scanner/daban').then(r => r.json()).then(data => {
