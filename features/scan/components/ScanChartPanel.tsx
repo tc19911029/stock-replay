@@ -36,15 +36,15 @@ export function ScanChartPanel({ selectedStock, scanDate }: ScanChartPanelProps)
   } = useReplayStore();
 
   const prevKeyRef = useRef<string | null>(null);
+  const prevSymbolRef = useRef<string | null>(null);
 
   // 切換股票時重置為日K
-  const prevSymbolRef = useRef<string | null>(null);
   useEffect(() => {
     if (selectedStock && selectedStock.symbol !== prevSymbolRef.current) {
       setInterval('1d');
       prevSymbolRef.current = selectedStock.symbol;
     }
-  }, [selectedStock]);
+  }, [selectedStock, setInterval]);
 
   // Load stock when selection or scanDate changes (always daily)
   useEffect(() => {
@@ -54,10 +54,10 @@ export function ScanChartPanel({ selectedStock, scanDate }: ScanChartPanelProps)
 
     const prevSymbol = prevKeyRef.current?.split('__')[0];
     prevKeyRef.current = key;
-    setLoadError(null);
 
     if (prevSymbol === selectedStock.symbol && scanDate && allCandles.length > 0) {
       // Same stock, different scanDate — just reposition without reloading
+      setLoadError(null);
       const dateIdx = allCandles.findIndex(c => c.date === scanDate);
       if (dateIdx !== -1) {
         jumpToIndex(dateIdx);
@@ -70,6 +70,7 @@ export function ScanChartPanel({ selectedStock, scanDate }: ScanChartPanelProps)
     } else {
       // Different stock or first load — full reload with targetDate
       loadStock(selectedStock.symbol, '1d', '2y', scanDate).then(() => {
+        setLoadError(null);
         // API 可能查不到中文名（回傳 ticker），用掃描結果的名字覆蓋
         const current = useReplayStore.getState().currentStock;
         if (current && selectedStock.name && (!current.name || /\.(TW|TWO|SS|SZ)$/i.test(current.name))) {

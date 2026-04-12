@@ -68,7 +68,6 @@ export default function HomePage() {
     const sym = params.get('load');
     const date = params.get('date');
     if (sym) {
-      setLoadError(null);
       loadStock(sym, '1d', '2y', date ?? undefined).catch((e: Error) => {
         const msg = `載入 ${sym} 失敗：${e.message || '請稍後再試'}`;
         setLoadError(msg);
@@ -79,6 +78,18 @@ export default function HomePage() {
       loadStock('2330', '1d', '2y').catch(() => {});
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const currentInterval = useReplayStore(s => s.currentInterval);
+  // P1-2: remember last tab per interval (declared before handleKey to avoid TDZ errors)
+  const [sideTabPerInterval, setSideTabPerInterval] = useState<Record<string, SideTab>>({});
+  const sideTab: SideTab = sideTabPerInterval[currentInterval] ?? 'conditions';
+  const setSideTab = (tab: SideTab) => setSideTabPerInterval(prev => ({ ...prev, [currentInterval]: tab }));
+  // P0-3: hide indicator subcharts by default on mobile
+  const [showIndicators, setShowIndicators] = useState(true);
+  // P1-5: keyboard shortcut help overlay
+  const [showHelp, setShowHelp] = useState(false);
+  // Scanner bottom panel
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   // Keyboard: ← → Space B S Q
   const handleKey = useCallback((e: KeyboardEvent) => {
@@ -108,33 +119,25 @@ export default function HomePage() {
       const { metrics } = useReplayStore.getState();
       if (metrics.shares > 0) useReplayStore.getState().sell(metrics.shares);
     }
-  }, [nextCandle, prevCandle, isPlaying, startPlay, stopPlay]);
+  }, [nextCandle, prevCandle, isPlaying, startPlay, stopPlay, setSideTab, setScannerOpen, setShowIndicators, setShowHelp]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [handleKey]);
 
+  // Mobile check for indicators (runs after mount)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (typeof window !== 'undefined' && window.innerWidth < 768) setShowIndicators(false);
+  }, []);
+
   const [hoverCandle, setHoverCandle] = useState<typeof allCandles[0] | null>(null);
-  const currentInterval = useReplayStore(s => s.currentInterval);
-  // P1-2: remember last tab per interval
-  const [sideTabPerInterval, setSideTabPerInterval] = useState<Record<string, SideTab>>({});
-  const sideTab: SideTab = sideTabPerInterval[currentInterval] ?? 'conditions';
-  const setSideTab = (tab: SideTab) => setSideTabPerInterval(prev => ({ ...prev, [currentInterval]: tab }));
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const [showMarkers, setShowMarkers] = useState(true);
   const [maToggles, setMaToggles] = useState({ ma5: true, ma10: true, ma20: true, ma60: true, ma240: false });
   const [showBollinger, setShowBollinger] = useState(false);
   const [indicators, setIndicators] = useState({ macd: true, kd: true, volume: true, rsi: false });
-  // P0-3: hide indicator subcharts by default on mobile
-  const [showIndicators, setShowIndicators] = useState(true);
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth < 768) setShowIndicators(false);
-  }, []);
-  // P1-5: keyboard shortcut help overlay
-  const [showHelp, setShowHelp] = useState(false);
-  // Scanner bottom panel
-  const [scannerOpen, setScannerOpen] = useState(false);
   const handleScanSelectStock = useCallback((stock: SelectedStock) => {
     const scanDate = useBacktestStore.getState().scanDate;
     loadStock(stock.symbol, '1d', '2y', scanDate || undefined).catch((e: Error) => {
@@ -148,6 +151,7 @@ export default function HomePage() {
   useEffect(() => {
     const saved = localStorage.getItem('chartSplit');
     // 如果舊值太小（< 0.5），清掉用新預設
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (saved && parseFloat(saved) >= 0.5) setChartSplit(parseFloat(saved));
     else localStorage.removeItem('chartSplit');
   }, []);
@@ -307,7 +311,7 @@ export default function HomePage() {
                   <div className="flex items-end gap-[2px] h-24 justify-center">
                     {Array.from({ length: 30 }).map((_, i) => (
                       <div key={i} className="w-1.5 bg-muted/60 rounded-sm animate-pulse"
-                        style={{ height: `${20 + Math.sin(i * 0.4) * 40 + Math.random() * 20}%`, animationDelay: `${i * 30}ms` }} />
+                        style={{ height: `${20 + Math.sin(i * 0.4) * 40 + 10}%`, animationDelay: `${i * 30}ms` }} />
                     ))}
                   </div>
                 </div>

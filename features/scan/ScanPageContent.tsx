@@ -38,8 +38,7 @@ export function ScanPanel({ onSelectStock }: ScanPanelProps) {
     sessionDataFreshness,
   } = useBacktestStore();
 
-  const [maxDate, setMaxDate] = useState('2099-12-31');
-  useEffect(() => { setMaxDate(new Date().toISOString().split('T')[0]); }, []);
+  const [maxDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   // 載入歷史日期
   useEffect(() => {
@@ -60,13 +59,13 @@ export function ScanPanel({ onSelectStock }: ScanPanelProps) {
   }, [market, scanDirection, fetchCronDates]);
 
   // 自動載入最新掃描結果
-  const [autoLoaded, setAutoLoaded] = useState(false);
+  const autoLoadedRef = useRef(false);
   useEffect(() => {
-    if (!autoLoaded) {
-      setAutoLoaded(true);
+    if (!autoLoadedRef.current) {
+      autoLoadedRef.current = true;
       autoLoadLatest();
     }
-  }, [autoLoaded, autoLoadLatest]);
+  }, [autoLoadLatest]);
 
   const isBusy = isScanning || isFetchingForward;
 
@@ -284,18 +283,16 @@ export default function ScanPageContent({ defaultMode = 'full' }: ScanPageConten
   }, [market, scanDirection, useMultiTimeframe, fetchCronDates]);
 
   // 用 state 避免 SSR hydration mismatch
-  const [maxDate, setMaxDate] = useState('2099-12-31');
-  useEffect(() => { setMaxDate(new Date().toISOString().split('T')[0]); }, []);
+  const [maxDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   // 自動載入最新掃描結果（進頁時）
-  const [autoLoaded, setAutoLoaded] = useState(false);
+  const autoLoadedRef = useRef(false);
   useEffect(() => {
-    if (!autoLoaded) {
-      setAutoLoaded(true);
+    if (!autoLoadedRef.current) {
+      autoLoadedRef.current = true;
       autoLoadLatest();
     }
-  }, [autoLoaded, autoLoadLatest]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  }, [autoLoadLatest]);
 
   // Auto-load when condition changes (market / direction / date / MTF) — skip initial render
   const conditionInitRef = useRef(false);

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
+import { flushSync } from 'react-dom';
 
 /**
  * Thin top progress bar that animates during route transitions.
@@ -19,9 +20,11 @@ export default function NavigationProgress() {
     if (pathname === prevPathRef.current) return;
     prevPathRef.current = pathname;
 
-    // Start animation
-    setVisible(true);
-    setWidth(30);
+    // Start animation - flushSync ensures immediate visual update before timers
+    flushSync(() => {
+      setVisible(true);
+      setWidth(30);
+    });
 
     if (timerRef.current) clearTimeout(timerRef.current);
 
