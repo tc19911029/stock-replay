@@ -32,16 +32,17 @@ async function blobPut(pathname: string, data: string): Promise<void> {
 }
 
 async function blobGet(pathname: string): Promise<string | null> {
-  const { list: blobList } = await import('@vercel/blob');
-  const { blobs } = await blobList({ prefix: pathname, limit: 1 });
-  if (blobs.length === 0) return null;
-  const headers: Record<string, string> = {};
-  if (process.env.BLOB_READ_WRITE_TOKEN) {
-    headers['Authorization'] = `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`;
+  const { get } = await import('@vercel/blob');
+  const result = await get(pathname, { access: 'private' });
+  if (!result || !result.stream) return null;
+  const reader = result.stream.getReader();
+  const chunks: Uint8Array[] = [];
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) chunks.push(value);
   }
-  const res = await fetch(blobs[0].url, { headers });
-  if (!res.ok) return null;
-  return res.text();
+  return new TextDecoder().decode(Buffer.concat(chunks));
 }
 
 // ── Filesystem helpers ───────────────────────────────────────────────────────

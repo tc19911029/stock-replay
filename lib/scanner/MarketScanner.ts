@@ -12,9 +12,9 @@ import { evaluateMultiTimeframe, MultiTimeframeResult } from '@/lib/analysis/mul
 import { getScannerCache, setScannerCache, getScannerCacheStats } from '@/lib/datasource/ScannerCache';
 import { loadLocalCandlesWithTolerance, saveLocalCandles, batchCheckFreshness } from '@/lib/datasource/LocalCandleStore';
 
-// 掃描只讀本地檔案（L1 記憶體 + L2 本地），不打外部 API
-// 因此可以高並發且無需延遲
-const CONCURRENCY = 50;
+// 掃描以本地檔案為主（L1 記憶體 + L2 本地），L3 API 嚴格限制
+// 降低並發避免 API 限流（歷史掃描為 pure-local，今日掃描最多 20 次 API）
+const CONCURRENCY = 30;
 const BATCH_DELAY_MS = 0;
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
@@ -339,10 +339,15 @@ export abstract class MarketScanner {
       // 第零層：長線保護短線（多時間框架前置過濾）
       // ══════════════════════════════════════════════════════════════════
 
+      // ALWAYS 計算 MTF 分數（支援前端 client-side toggle），
+      // 但只在 multiTimeframeFilter=true 時才做前置過濾
       let mtfResult: MultiTimeframeResult | undefined;
-      if (thresholds.multiTimeframeFilter) {
+      try {
         mtfResult = evaluateMultiTimeframe(candles, thresholds);
-        if (!mtfResult.pass) { if (diag) diag.filteredOut++; return null; }
+      } catch { /* MTF 計算失敗不影響主流程 */ }
+      if (thresholds.multiTimeframeFilter && mtfResult && !mtfResult.pass) {
+        if (diag) diag.filteredOut++;
+        return null;
       }
 
       // ══════════════════════════════════════════════════════════════════
@@ -651,10 +656,14 @@ export abstract class MarketScanner {
       // 第零層：長線保護短線（多時間框架前置過濾）
       // ══════════════════════════════════════════════════════════════════
 
+      // ALWAYS 計算 MTF 分數（支援前端 client-side toggle）
       let mtfResult: MultiTimeframeResult | undefined;
-      if (thresholds.multiTimeframeFilter) {
+      try {
         mtfResult = evaluateMultiTimeframe(candles, thresholds);
-        if (!mtfResult.pass) { if (diag) diag.filteredOut++; return null; }
+      } catch { /* MTF 計算失敗不影響主流程 */ }
+      if (thresholds.multiTimeframeFilter && mtfResult && !mtfResult.pass) {
+        if (diag) diag.filteredOut++;
+        return null;
       }
 
       // ══════════════════════════════════════════════════════════════════

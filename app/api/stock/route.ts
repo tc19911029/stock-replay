@@ -7,8 +7,12 @@ import { loadLocalCandlesWithTolerance } from '@/lib/datasource/LocalCandleStore
 import { aggregateCandles } from '@/lib/datasource/aggregateCandles';
 import { computeIndicators } from '@/lib/indicators';
 import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
-import { getTWSERealtimeIntraday, getTWSEQuote } from '@/lib/datasource/TWSERealtime';
-import { getEastMoneyQuote } from '@/lib/datasource/EastMoneyRealtime';
+import { getTWSESingleIntraday, getTWSEQuote } from '@/lib/datasource/TWSERealtime';
+import { getEastMoneySingleQuote } from '@/lib/datasource/EastMoneyRealtime';
+
+// ── 週K/月K 聚合結果快取（避免重複聚合 + computeIndicators） ──
+const aggregateCache = new Map<string, { data: unknown; expires: number }>();
+const AGGREGATE_CACHE_TTL = 5 * 60 * 1000; // 5 分鐘
 
 /**
  * API Route: /api/stock?symbol=2330&interval=1d&period=2y
@@ -76,7 +80,12 @@ export async function GET(req: NextRequest) {
       const market = isTW ? 'TW' as const : 'CN' as const;
       const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
       // 容忍 5 個交易日差距（涵蓋週末 + 假日）
-      const result = await loadLocalCandlesWithTolerance(candidates[0], market, today, 5);
+      // 遍歷所有候選（如 2330.TW → 2330.TWO），避免只試第一個就 fallthrough 到 API
+      let result: Awaited<ReturnType<typeof loadLocalCandlesWithTolerance>> = null;
+      for (const candidate of candidates) {
+        result = await loadLocalCandlesWithTolerance(candidate, market, today, 5);
+        if (result && result.candles.length > 0) break;
+      }
       if (result && result.candles.length > 0) {
         // ── 盤中即時覆蓋：若 lastDate < today，主動拉即時報價湊今日 K 棒 ──
         const lastCandle = result.candles[result.candles.length - 1];
@@ -84,8 +93,7 @@ export async function GET(req: NextRequest) {
           try {
             if (isTW) {
               const twCode = pureCode;
-              const realtimeMap = await getTWSERealtimeIntraday();
-              const quote = (realtimeMap.get(twCode) as { open: number; high: number; low: number; close: number; volume: number; date?: string } | undefined) ?? await getTWSEQuote(twCode);
+              const quote = await getTWSESingleIntraday(twCode) ?? await getTWSEQuote(twCode);
               if (quote && quote.close > 0) {
                 if (!quote.date || quote.date === today) {
                   result.candles.push({
@@ -99,7 +107,7 @@ export async function GET(req: NextRequest) {
                 }
               }
             } else if (isCN) {
-              const quote = await getEastMoneyQuote(pureCode);
+              const quote = await getEastMoneySingleQuote(pureCode);
               if (quote && quote.close > 0) {
                 result.candles.push({
                   date: today,
@@ -120,11 +128,18 @@ export async function GET(req: NextRequest) {
           result.candles.map(c => ({ date: c.date, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume }))
         );
 
-        // 週K/月K：本地日K聚合（省去 API 請求）
+        // 週K/月K：本地日K聚合（省去 API 請求）+ memory cache
         if (interval === '1wk' || interval === '1mo') {
-          const rawDaily = result.candles.map(c => ({ date: c.date, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume }));
-          const aggregated = aggregateCandles(rawDaily, interval);
-          withIndicators = computeIndicators(aggregated);
+          const cacheKey = `${symbol}:${interval}`;
+          const cached = aggregateCache.get(cacheKey);
+          if (cached && cached.expires > Date.now()) {
+            withIndicators = cached.data as typeof withIndicators;
+          } else {
+            const rawDaily = result.candles.map(c => ({ date: c.date, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume }));
+            const aggregated = aggregateCandles(rawDaily, interval);
+            withIndicators = computeIndicators(aggregated);
+            aggregateCache.set(cacheKey, { data: withIndicators, expires: Date.now() + AGGREGATE_CACHE_TTL });
+          }
         }
 
         let name = candidates[0];
@@ -146,8 +161,9 @@ export async function GET(req: NextRequest) {
           staleDays: result.staleDays,
         });
       }
-    } catch {
+    } catch (localErr) {
       // 本地讀取失敗，fallthrough 到正常 API 路徑
+      console.warn(`[stock] 本地資料載入失敗 (${symbol}):`, localErr instanceof Error ? localErr.message : localErr);
     }
   }
 
@@ -211,6 +227,15 @@ export async function GET(req: NextRequest) {
     return apiOk({ ticker, name, currency: '', interval, candles, totalBars: candles.length });
   } catch (err: unknown) {
     console.error('[stock] error:', err);
-    return apiError('股票資料暫時無法取得');
+    const msg = err instanceof Error ? err.message : String(err);
+    const isTimeout = msg.includes('timeout') || msg.includes('ETIMEDOUT') || msg.includes('abort');
+    const isRateLimit = msg.includes('429') || msg.includes('rate') || msg.includes('limit');
+    if (isTimeout) {
+      return apiError(`${symbol} 資料請求逾時，請稍後重試`, 504);
+    }
+    if (isRateLimit) {
+      return apiError(`${symbol} 資料來源限流中，請等待 1-2 分鐘後重試`, 429);
+    }
+    return apiError(`${symbol} 資料暫時無法取得：${msg.slice(0, 100)}`);
   }
 }

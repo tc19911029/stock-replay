@@ -183,6 +183,48 @@ async function fetchAllQuotes(): Promise<Map<string, TWSEQuote>> {
   return map;
 }
 
+/**
+ * 取得單一股票的盤中即時報價（優化版）
+ * 先查 memory cache，命中就 O(1)；miss 則用 mis.twse.com.tw 單股查詢（< 200ms）
+ * 避免為了 1 檔走圖而拉全市場 1900 檔報價
+ */
+export async function getTWSESingleIntraday(code: string): Promise<TWSEQuote | null> {
+  // 先查全市場快取（若 cron 或掃描剛跑過，30s 內可命中）
+  const cached = globalCache.get<Map<string, TWSEQuote>>(INTRADAY_CACHE_KEY);
+  if (cached) return cached.get(code) ?? null;
+
+  // 快取 miss：只查這一檔，不拉全市場
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
+  try {
+    // 嘗試上市(tse)和上櫃(otc)兩種
+    const exCh = `tse_${code}.tw|otc_${code}.tw`;
+    const url = `http://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${exCh}&json=1&delay=0&_=${Date.now()}`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(5000),
+    });
+    const json = await res.json();
+    const d = json?.msgArray?.[0];
+    if (!d) return null;
+    const close = parseMisPrice(d.z) || parseMisPrice(d.l);
+    if (close <= 0) return null;
+    const prevClose = parseMisPrice(d.y);
+    return {
+      code: d.c || code,
+      name: d.n?.trim() || code,
+      open: parseMisPrice(d.o) || close,
+      high: parseMisPrice(d.h) || close,
+      low: parseMisPrice(d.l) || close,
+      close,
+      volume: Math.round(parseInt((d.v || '0').replace(/,/g, ''), 10) / 1000),
+      previousClose: prevClose > 0 ? prevClose : undefined,
+      date: today,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ── 盤中即時報價（mis.twse.com.tw）─────────────────────────────────────────
 
 /**

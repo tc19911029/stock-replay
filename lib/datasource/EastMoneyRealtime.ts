@@ -62,6 +62,43 @@ export async function getEastMoneyQuote(code: string): Promise<EastMoneyQuote | 
   return map.get(code) ?? null;
 }
 
+/**
+ * 取得單一 A 股的盤中即時報價（優化版）
+ * 先查 memory cache，命中就 O(1)；miss 則用 push2 API 單股查詢
+ * 避免為了 1 檔走圖而拉全市場 4000 檔報價
+ */
+export async function getEastMoneySingleQuote(code: string): Promise<EastMoneyQuote | null> {
+  // 先查全市場快取
+  const cached = globalCache.get<Map<string, EastMoneyQuote>>(CN_CACHE_KEY);
+  if (cached) return cached.get(code) ?? null;
+
+  // 快取 miss：只查這一檔
+  try {
+    // 判斷市場：6/9 開頭 = 上海(m:1)，其他 = 深圳(m:0)
+    const secId = code[0] === '6' || code[0] === '9' ? `1.${code}` : `0.${code}`;
+    const url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${secId}&fields=f2,f5,f12,f14,f15,f16,f17&ut=fa5fd1943c7b386f172d6893dbfba10b`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://quote.eastmoney.com/' },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const item = json?.data;
+    if (!item || !item.f2 || item.f2 <= 0) return null;
+    return {
+      code: item.f12 || code,
+      name: (item.f14 && item.f14 !== '-') ? item.f14 : code,
+      open: (item.f17 != null && item.f17 > 0) ? item.f17 : item.f2,
+      high: (item.f15 != null && item.f15 > 0) ? item.f15 : item.f2,
+      low: (item.f16 != null && item.f16 > 0) ? item.f16 : item.f2,
+      close: item.f2,
+      volume: (item.f5 ?? 0) * 100, // 手 → 股
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ── 美股 ──────────────────────────────────────────────────────────────────────
 
 /**

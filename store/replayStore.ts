@@ -9,6 +9,7 @@ import {
   ChartSignalMarker,
 } from '@/types';
 import { computeIndicators } from '@/lib/indicators';
+import { detectCandleGaps } from '@/lib/datasource/validateCandles';
 import { loadMockData } from '@/lib/data/mockData';
 import {
   createAccount,
@@ -80,6 +81,10 @@ interface ReplayStore {
   // ── Polling（盤中自動刷新） ──────────────────────────────
   isPolling: boolean;
 
+  // ── Data Integrity ───────────────────────────────────────
+  /** K線資料斷層（日曆天數 > 10 天的gap） */
+  dataGaps: Array<{ fromDate: string; toDate: string; calendarDays: number }>;
+
   // ── Actions ───────────────────────────────────────────────
   initData: () => void;
   loadStock: (symbol: string, interval?: string, period?: string, targetDate?: string) => Promise<void>;
@@ -129,6 +134,7 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
   currentStock: null,
   currentInterval: '1d',
   targetDate: null,
+  dataGaps: [],
   isLoadingStock: false,
   isPolling: false,
   isPlaying: false,
@@ -223,6 +229,19 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
       } else {
         index = calcStartIndex(allCandles);
       }
+      // 偵測資料斷層（日K限定，週/月K不檢查因為聚合後自然有gap）
+      const gaps = interval === '1d' ? detectCandleGaps(allCandles, 15) : [];
+      // 末端斷層：最後一根 K 棒距今超過 15 天（資料過舊，容忍農曆新年/國慶等長假）
+      if (interval === '1d' && allCandles.length > 0) {
+        const lastDate = allCandles[allCandles.length - 1].date;
+        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
+        const diffMs = new Date(todayStr + 'T12:00:00').getTime() - new Date(lastDate + 'T12:00:00').getTime();
+        const diffDays = Math.round(diffMs / 86400000);
+        if (diffDays > 15) {
+          gaps.push({ fromDate: lastDate, toDate: todayStr, calendarDays: diffDays });
+        }
+      }
+
       const account = createAccount(INITIAL_CAPITAL);
       set({
         allCandles,
@@ -230,6 +249,7 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
         currentInterval: interval,
         targetDate: targetDate ?? null,
         account,
+        dataGaps: gaps,
         currentStock: { ticker: json.ticker, name: json.name },
         ...(showLoading ? { isLoadingStock: false } : {}),
         ...buildState(allCandles, index, account),
@@ -249,29 +269,25 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
           if (localRes.ok) {
             const localJson = await localRes.json();
             if (localJson.candles?.length > 0) {
-              localLoaded = applyData(localJson, false);
+              localLoaded = applyData(localJson, true); // 本地載入成功立即清除 loading
             }
           }
         } catch {
           // 本地讀取失敗，不影響後續
         }
 
-        // Step 2: 背景打 API 拿最新數據
+        // 本地載入成功 → 直接完成，不等 API（避免 30s timeout 阻塞 UI）
+        if (localLoaded) {
+          return;
+        }
+
+        // 本地無資料 → 走 API 路徑
         const apiRes = await fetch(
           `/api/stock?symbol=${encodeURIComponent(symbol)}&interval=${interval}&period=${p}`
         );
         const apiJson = await apiRes.json();
-        if (!apiRes.ok) {
-          if (!localLoaded) throw new Error(apiJson.error ?? '載入失敗');
-          // API 失敗但本地已載入 → 繼續用本地數據
-        } else {
-          applyData(apiJson, true);
-        }
-        if (localLoaded || apiRes.ok) {
-          set({ isLoadingStock: false });
-          return;
-        }
-        throw new Error('無法取得數據');
+        if (!apiRes.ok) throw new Error(apiJson.error ?? '載入失敗');
+        if (!applyData(apiJson, true)) throw new Error('資料筆數為 0');
       }
 
       // ── 分鐘K：直接 API（本地沒有分鐘K數據） ──

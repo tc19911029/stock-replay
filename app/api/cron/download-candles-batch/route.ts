@@ -94,6 +94,37 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // ── 失敗重試（單次，2秒間隔，不並發）──────────────────────────────
+    if (failed > 0) {
+      const failedStocks = myStocks.filter((_, idx) => {
+        // 重新掃描失敗的股票（簡化：最後一批檢查本地資料是否已更新）
+        return true; // 簡化：全部重試一遍有失敗的就再試
+      });
+      let retrySucceeded = 0;
+      // 只重試失敗數量的股票（不重新跑全量）
+      const retryLimit = Math.min(failed, 50); // 最多重試50檔
+      let retryCount = 0;
+      for (const stock of failedStocks) {
+        if (retryCount >= retryLimit) break;
+        const fresh = await isLocalDataFresh(stock.symbol, market, lastTradingDate);
+        if (fresh) continue; // 已成功，跳過
+        retryCount++;
+        try {
+          await sleep(2000); // 2秒間隔避免限流
+          const candles = await scanner.fetchCandles(stock.symbol);
+          if (candles.length > 0) {
+            await saveLocalCandles(stock.symbol, market, candles);
+            retrySucceeded++;
+            failed--;
+            succeeded++;
+          }
+        } catch { /* retry failed, give up */ }
+      }
+      if (retrySucceeded > 0) {
+        console.info(`[download-batch] ${market} batch ${batch}: 重試成功 ${retrySucceeded} 檔`);
+      }
+    }
+
     // ── 大盤代理 ETF 下載（只在 batch 1 執行，避免重複）──────────────
     if (batch === 1) {
       const proxySymbols = market === 'TW' ? ['0050.TW'] : ['000300.SS'];

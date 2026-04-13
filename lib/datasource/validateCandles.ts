@@ -92,3 +92,42 @@ export function validateCandles(
 
   return { candles: deduped, removed, issues };
 }
+
+// ── Gap Detection ─────────────────────────────────────────────────────────────
+
+export interface CandleGap {
+  /** 斷層前最後一根K線日期 */
+  fromDate: string;
+  /** 斷層後第一根K線日期 */
+  toDate: string;
+  /** 兩根K線間的日曆天數 */
+  calendarDays: number;
+}
+
+/**
+ * 偵測 K 線資料中的大型日期斷層。
+ * 正常週末/假日間隔 ~3-4 天，超過 maxGapDays 天視為資料缺失。
+ *
+ * @param candles 已排序的K線陣列
+ * @param maxGapDays 允許的最大日曆天數間隔（預設 10 天，涵蓋長假）
+ */
+export function detectCandleGaps(
+  candles: Array<{ date: string }>,
+  maxGapDays = 10,
+): CandleGap[] {
+  const gaps: CandleGap[] = [];
+  for (let i = 1; i < candles.length; i++) {
+    const prev = new Date(candles[i - 1].date + 'T12:00:00');
+    const curr = new Date(candles[i].date + 'T12:00:00');
+    const diffMs = curr.getTime() - prev.getTime();
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays > maxGapDays) {
+      gaps.push({
+        fromDate: candles[i - 1].date,
+        toDate: candles[i].date,
+        calendarDays: diffDays,
+      });
+    }
+  }
+  return gaps;
+}

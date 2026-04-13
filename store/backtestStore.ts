@@ -291,43 +291,40 @@ export const useBacktestStore = create<BacktestState>()(
       setCapitalConstraints: (partial)  => set(s => ({ capitalConstraints: { ...s.capitalConstraints, ...partial } })),
       toggleCapitalMode:     ()         => set(s => ({ useCapitalMode: !s.useCapitalMode })),
       toggleMultiTimeframe: () => {
-        const { market, scanDirection, useMultiTimeframe, scanDate, scanResults, performance, marketTrend, scanCache } = get();
+        const { useMultiTimeframe, scanResults, performance, marketTrend, scanCache } = get();
         const newMtf = !useMultiTimeframe;
 
-        // Save current results to cache before switching
-        if (scanResults.length > 0) {
-          const currentKey = scanCacheKey(market, scanDirection, useMultiTimeframe, scanDate);
-          scanCache.set(currentKey, { scanResults, performance, marketTrend });
-        }
+        if (newMtf) {
+          // MTF ON → client-side 過濾當前結果（結果必為子集，不會跑出新股票）
+          // 先存原始未過濾結果以便還原
+          scanCache.set('_unfilteredResults', { scanResults, performance, marketTrend });
 
-        // Check if the new version is in cache
-        const newKey = scanCacheKey(market, scanDirection, newMtf, scanDate);
-        const cached = scanCache.get(newKey);
+          // 過濾：只保留 MTF 週線 + 月線都通過的股票
+          // （scan 時已 ALWAYS 計算 mtfWeeklyPass/mtfMonthlyPass，即使 MTF flag=off）
+          const filtered = scanResults.filter(r =>
+            r.mtfWeeklyPass !== false && r.mtfMonthlyPass !== false,
+          );
+          const filteredSymbols = new Set(filtered.map(r => r.symbol));
+          const filteredPerf = performance.filter(p => filteredSymbols.has(p.symbol));
 
-        if (cached) {
-          // Instant swap from cache — no API call
           set({
-            useMultiTimeframe: newMtf,
-            scanResults: cached.scanResults,
-            performance: cached.performance,
-            marketTrend: cached.marketTrend,
+            useMultiTimeframe: true,
+            scanResults: filtered,
+            performance: filteredPerf,
           });
         } else {
-          // No cache hit — toggle and trigger background load
-          set({ useMultiTimeframe: newMtf });
-          const mtfParam = newMtf ? 'mtf' : 'daily';
-          // Background fetch (non-blocking)
-          fetch(`/api/scanner/results?market=${market}&date=${scanDate}&direction=${effectiveDirection(scanDirection)}&mtf=${mtfParam}`)
-            .then(r => r.json())
-            .then((json: { sessions?: Array<{ results: StockScanResult[] }> }) => {
-              const results = json.sessions?.[0]?.results ?? [];
-              if (results.length > 0 && get().useMultiTimeframe === newMtf) {
-                set({ scanResults: results, isLoadingCronSession: false });
-                // Also fetch forward performance
-                get().loadCronSession(market, scanDate, { scanOnly: true, direction: effectiveDirection(scanDirection) });
-              }
-            })
-            .catch(() => { /* silent */ });
+          // MTF OFF → 還原原始未過濾結果
+          const cached = scanCache.get('_unfilteredResults');
+          if (cached) {
+            set({
+              useMultiTimeframe: false,
+              scanResults: cached.scanResults,
+              performance: cached.performance,
+              marketTrend: cached.marketTrend,
+            });
+          } else {
+            set({ useMultiTimeframe: false });
+          }
         }
       },
       setWalkForwardConfig:  (partial)  => set(s => ({ walkForwardConfig: { ...s.walkForwardConfig, ...partial } })),
@@ -457,6 +454,38 @@ export const useBacktestStore = create<BacktestState>()(
         }
 
         // Skip ingest pre-check — scan uses LocalCandleStore internally, no extra round-trip needed
+        set({ scanProgress: 10, scanningStock: `粗掃中...`, scanningCount: '' });
+
+        // ── Phase 1.5: 盤中粗掃前置（只對今日掃描 + 交易時段生效） ──
+        // 盤後/週末/假日：skip 粗掃（快照可能過期，chunk route 會自動降級為歷史掃描）
+        const todayStrPre = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
+        const isHistoricalPre = scanDate < todayStrPre;
+        const dayOfWeek = new Date().getDay(); // 0=Sun, 6=Sat
+        const isWeekendPre = dayOfWeek === 0 || dayOfWeek === 6;
+        if (!isHistoricalPre && !isWeekendPre && get().scanDirection !== 'daban') {
+          try {
+            const coarseRes = await fetch('/api/scanner/coarse', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                market,
+                direction: effectiveDirection(get().scanDirection),
+              }),
+              signal,
+            });
+            if (coarseRes.ok) {
+              const coarseJson = await coarseRes.json();
+              const candidates = coarseJson?.data?.candidates;
+              if (Array.isArray(candidates) && candidates.length > 0) {
+                stocks = candidates;
+                set({ scanProgress: 15, scanningStock: `粗掃完成（${candidates.length} 檔候選）`, scanningCount: `${candidates.length}/${candidates.length}` });
+              }
+            }
+          } catch {
+            // 粗掃失敗，走全量掃描
+          }
+        }
+
         set({ scanProgress: 15, scanningStock: `分析中（${stocks.length} 檔）...`, scanningCount: `0/${stocks.length}` });
 
         // ── Phase 2: Split into 2 chunks, scan ──────────────────────────────

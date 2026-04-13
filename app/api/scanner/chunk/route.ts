@@ -54,14 +54,6 @@ export async function POST(req: NextRequest) {
     const scanner = market === 'CN' ? new ChinaScanner() : new TaiwanScanner();
     const mode = parsed.data.mode;
 
-    // Vercel 無本地檔案：啟用 L3 API fallback
-    if (process.env.VERCEL) {
-      // Blob 可用時大部分 K 線從 Blob 讀取，L3 僅填補空缺；
-      // Blob 不可用時需要更多 API 呼叫來取得基本數據
-      const blobOk = !!process.env.BLOB_READ_WRITE_TOKEN;
-      scanner.setL3Budget(blobOk ? 50 : Math.min(stocks.length, 200));
-    }
-
     // 判斷是否為「今日掃描」：沒傳日期 或 傳的日期 >= 今天
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
     const isToday = !asOfDate || asOfDate >= todayStr;
@@ -87,6 +79,17 @@ export async function POST(req: NextRequest) {
       const lastDay = getLastTradingDay(market);
       effectiveDate = lastDay;
       dataDate = lastDay;
+    }
+
+    // L3 API fallback 預算控制
+    // 歷史掃描：完全 local-only，零 API 呼叫（避免大量請求撞限流）
+    // 今日掃描：嚴格限制 budget，最多 20 次 API 呼叫
+    const isHistorical = effectiveDate && effectiveDate < todayStr;
+    if (isHistorical) {
+      scanner.setL3Budget(0); // 歷史掃描：pure local，不打任何 API
+    } else if (process.env.VERCEL) {
+      // 今日掃描：限制 API 呼叫數量，避免限流
+      scanner.setL3Budget(20);
     }
 
     // 盤中粗篩：直接用 IntradayCache 快照過濾候選股，不走昂貴的 scanSOP

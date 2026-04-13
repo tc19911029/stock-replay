@@ -5,6 +5,8 @@
  * 防止盤前/盤後使用昨日即時報價建立假的今日 K 棒。
  */
 
+import { isTradingDay } from '@/lib/utils/tradingDay';
+
 function getLocalTime(tz: string): { hour: number; min: number; dow: number } {
   const now = new Date();
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -56,34 +58,40 @@ export function getLastTradingDay(market: 'TW' | 'CN'): string {
   const { hour, min, dow } = getLocalTime(tz);
   const timeMin = hour * 60 + min;
 
-  // 收盤時間（含一小時緩衝）
-  const closeTime = market === 'TW' ? 870 : 960; // TW: 14:30, CN: 16:00
+  // 精確收盤時間（不加緩衝，收盤後立即認定為當日最後交易日）
+  const closeTime = market === 'TW' ? 810 : 900; // TW: 13:30, CN: 15:00
 
   const now = new Date();
   // 取得市場時區的「今天」日期字串
   const localDate = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(now); // YYYY-MM-DD
 
-  // 如果是工作日且已收盤 → 今天就是最後交易日
-  if (dow >= 1 && dow <= 5 && timeMin >= closeTime) {
+  // 如果是交易日且已收盤 → 今天就是最後交易日
+  if (dow >= 1 && dow <= 5 && timeMin >= closeTime && isTradingDay(localDate, market)) {
     return localDate;
   }
 
-  // 否則回推到上一個工作日
+  // 否則回推到上一個交易日（跳過週末 + 假日）
   const d = new Date(localDate + 'T12:00:00'); // noon to avoid DST edge cases
   if (dow === 0) {
-    // 週日 → 上週五
-    d.setDate(d.getDate() - 2);
+    d.setDate(d.getDate() - 2); // 週日 → 上週五
   } else if (dow === 6) {
-    // 週六 → 上週五
-    d.setDate(d.getDate() - 1);
+    d.setDate(d.getDate() - 1); // 週六 → 上週五
   } else if (timeMin < closeTime) {
     // 工作日盤前 → 上一個工作日
     if (dow === 1) {
-      d.setDate(d.getDate() - 3); // 週一盤前 → 上週五
+      d.setDate(d.getDate() - 3);
     } else {
-      d.setDate(d.getDate() - 1); // 其他 → 昨天
+      d.setDate(d.getDate() - 1);
     }
   }
 
-  return new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(d);
+  // 持續回退直到找到交易日（跳過假日）
+  let result = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(d);
+  let safety = 10; // 防止無窮迴圈（最多回退10天）
+  while (!isTradingDay(result, market) && safety-- > 0) {
+    d.setDate(d.getDate() - 1);
+    result = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(d);
+  }
+
+  return result;
 }

@@ -47,15 +47,17 @@ export async function loadDabanSession(date: string): Promise<DabanScanSession |
   let raw: string | null = null;
 
   if (IS_VERCEL) {
-    const { list: blobList } = await import('@vercel/blob');
-    const { blobs } = await blobList({ prefix: `daban/CN/${date}.json`, limit: 1 });
-    if (blobs.length > 0) {
-      const headers: Record<string, string> = {};
-      if (process.env.BLOB_READ_WRITE_TOKEN) {
-        headers['Authorization'] = `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`;
+    const { get } = await import('@vercel/blob');
+    const result = await get(`daban/CN/${date}.json`, { access: 'private' });
+    if (result && result.stream) {
+      const reader = result.stream.getReader();
+      const chunks: Uint8Array[] = [];
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) chunks.push(value);
       }
-      const res = await fetch(blobs[0].url, { headers });
-      if (res.ok) raw = await res.text();
+      raw = new TextDecoder().decode(Buffer.concat(chunks));
     }
   } else {
     raw = await fsGet(`daban-CN-${date}.json`);

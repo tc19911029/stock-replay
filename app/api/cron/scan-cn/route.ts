@@ -6,7 +6,7 @@ import { scanDabanFromLocalCandles } from '@/lib/scanner/DabanScanner';
 import { saveDabanSession } from '@/lib/storage/dabanStorage';
 import { apiOk, apiError } from '@/lib/api/response';
 import { ZHU_V1 } from '@/lib/strategy/StrategyConfig';
-import { isWeekday } from '@/lib/utils/tradingDay';
+import { isTradingDay } from '@/lib/utils/tradingDay';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -22,8 +22,8 @@ export async function GET(req: NextRequest) {
     const { getLastTradingDay } = await import('@/lib/datasource/marketHours');
     const date = getLastTradingDay('CN');
 
-    if (!isWeekday(date, 'CN')) {
-      return apiOk({ skipped: true, reason: 'non-trading day (weekend)', date });
+    if (!isTradingDay(date, 'CN')) {
+      return apiOk({ skipped: true, reason: 'non-trading day', date });
     }
 
     const stocks = await scanner.getStockList();

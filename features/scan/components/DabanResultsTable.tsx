@@ -330,9 +330,8 @@ export function DabanResultsTable({ date, onSelectStock }: DabanResultsTableProp
         )}
       </div>
 
-      {/* Results table — 水平與垂直滾動分離，避免 macOS scrollbar 吃掉垂直空間 */}
-      <div className="overflow-x-auto" style={{ maxHeight: 480 }}>
-        <div className="overflow-y-auto" style={{ maxHeight: 480 }}>
+      {/* Results table — 單一 overflow-auto 容器，高度由父層控制 */}
+      <div className="overflow-auto">
           <table className="w-full text-sm" style={{ tableLayout: 'fixed', minWidth: 1100 }}>
           <thead>
             {/* Group header row */}
@@ -444,7 +443,6 @@ export function DabanResultsTable({ date, onSelectStock }: DabanResultsTableProp
             })}
           </tbody>
         </table>
-        </div>
       </div>
 
       {/* Locked boards */}

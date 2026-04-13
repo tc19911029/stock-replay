@@ -32,7 +32,7 @@ export function ScanChartPanel({ selectedStock, scanDate }: ScanChartPanelProps)
   const {
     allCandles, currentSignals, chartMarkers,
     isLoadingStock, loadStock, jumpToIndex,
-    startPolling, stopPolling,
+    startPolling, stopPolling, dataGaps,
   } = useReplayStore();
 
   // 用兩個獨立的 ref 追蹤，避免 symbol 改變時被 scanDate 變化覆蓋
@@ -134,6 +134,24 @@ export function ScanChartPanel({ selectedStock, scanDate }: ScanChartPanelProps)
         </div>
       </div>
 
+      {/* Data gap warning */}
+      {!collapsed && dataGaps.length > 0 && interval === '1d' && (
+        <div className="px-4 py-1.5 bg-yellow-500/10 border-b border-yellow-500/30 text-yellow-400 text-xs flex items-center justify-between">
+          <span>
+            資料斷層：{dataGaps.map(g => `${g.fromDate} → ${g.toDate}（${g.calendarDays}天）`).join('、')}
+          </span>
+          <button
+            className="ml-2 px-2 py-0.5 rounded bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 text-xs whitespace-nowrap"
+            onClick={() => {
+              if (!selectedStock) return;
+              loadStock(selectedStock.symbol, '1d', '2y').catch(() => {});
+            }}
+          >
+            重新下載
+          </button>
+        </div>
+      )}
+
       {/* Chart area */}
       {!collapsed && displayCandles.length > 0 && (
         <div className="space-y-0">
@@ -168,8 +186,9 @@ export function ScanChartPanel({ selectedStock, scanDate }: ScanChartPanelProps)
       )}
 
       {!collapsed && loadError && !isLoadingStock && displayCandles.length === 0 && (
-        <div className="flex items-center justify-center h-[200px] text-red-400 text-sm">
-          載入失敗：{loadError}
+        <div className="flex flex-col items-center justify-center h-[200px] text-red-400 text-sm gap-1">
+          <div>載入 {selectedStock?.name || selectedStock?.symbol} 的數據失敗</div>
+          <div className="text-xs text-red-400/70 max-w-md text-center">{loadError}</div>
         </div>
       )}
     </div>

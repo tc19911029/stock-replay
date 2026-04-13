@@ -220,7 +220,7 @@ export function ScanPanel({ onSelectStock }: ScanPanelProps) {
       })()}
 
       {/* Results table */}
-      <div className="overflow-y-auto" style={{ maxHeight: 'calc(40vh - 60px)' }}>
+      <div className="overflow-y-auto" style={{ maxHeight: 'calc(55vh - 60px)' }}>
         <div className="px-3 py-2">
           {scanDirection === 'daban' ? (
             <SectionBoundary section="打板掃描結果">

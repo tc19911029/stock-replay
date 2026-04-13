@@ -21,7 +21,16 @@ export async function GET(req: NextRequest) {
 
   try {
     if (parsed.data.date) {
-      const session = await loadDabanSession(parsed.data.date);
+      let session = await loadDabanSession(parsed.data.date);
+      if (!session) {
+        // 找不到該日期 → 自動 fallback 到最近有資料的日期
+        const dates = await listDabanDates();
+        // dates 已按日期降序排列，找第一個 <= 請求日期的
+        const nearest = dates.find(d => d.date <= parsed.data.date!);
+        if (nearest) {
+          session = await loadDabanSession(nearest.date);
+        }
+      }
       if (!session) return apiOk({ session: null });
       return apiOk({ session });
     }
