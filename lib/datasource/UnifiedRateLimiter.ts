@@ -11,7 +11,7 @@
  *  - 提供統計資訊供 diagnostics 使用
  */
 
-type ProviderId = 'finmind' | 'eastmoney' | 'tencent' | 'fugle' | 'twse';
+type ProviderId = 'finmind' | 'eastmoney' | 'tencent' | 'fugle' | 'twse' | 'eodhd' | 'yahoo';
 
 interface BucketConfig {
   /** 桶最大容量 */
@@ -60,6 +60,21 @@ const PROVIDER_CONFIGS: Record<ProviderId, BucketConfig> = {
     refillRate: 0.3, // ~18/min
     backoffMs: 5_000,
     maxBackoffMs: 60_000,
+  },
+  // EODHD: 付費配額，僅供 cron 批次下載，極保守限流
+  // 402 = 配額耗盡，需長時間退避（1hr）
+  eodhd: {
+    maxTokens: 2,
+    refillRate: 0.01, // ~0.6/min，極保守
+    backoffMs: 3_600_000, // 402 退避 1 小時
+    maxBackoffMs: 3_600_000,
+  },
+  // Yahoo Finance: 無明確限制，保守估計 ~90/min
+  yahoo: {
+    maxTokens: 10,
+    refillRate: 1.5, // ~90/min
+    backoffMs: 5_000,
+    maxBackoffMs: 120_000,
   },
 };
 

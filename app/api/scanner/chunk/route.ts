@@ -88,8 +88,8 @@ export async function POST(req: NextRequest) {
     if (isHistorical) {
       scanner.setL3Budget(0); // 歷史掃描：pure local，不打任何 API
     } else if (process.env.VERCEL) {
-      // 今日掃描：限制 API 呼叫數量，避免限流
-      scanner.setL3Budget(20);
+      // 今日掃描：嚴格限制 API 呼叫（P1A: 20→5，配合移除 ensureFreshCandles）
+      scanner.setL3Budget(5);
     }
 
     // 盤中粗篩：直接用 IntradayCache 快照過濾候選股，不走昂貴的 scanSOP
@@ -99,20 +99,20 @@ export async function POST(req: NextRequest) {
       const { readIntradaySnapshot, isSnapshotFresh } = await import('@/lib/datasource/IntradayCache');
       const snapshot = await readIntradaySnapshot(market, todayStr);
       if (snapshot && isSnapshotFresh(snapshot, 300_000)) {
-        // 核心條件粗篩（只用快照即時欄位）：
-        // 1. 缺口：開盤偏離昨收 ≥ 2%（朱家泓核心條件之一）
-        // 2. 幅度：漲幅絕對值 ≥ 5%（動能強）
-        // 3. 有效報價：收盤 > 0 且成交量 > 0
-        // 注意：此粗篩不回傳完整候選物件，只回傳 symbol/name 前端再做精篩
+        // P3A: 粗篩條件放寬（AND → OR）
+        // 避免符合六條件但盤中漲幅溫和的股票被遺漏
+        // 條件：缺口 OR 動能強 OR 漲幅正向（放寬門檻以覆蓋更多候選）
+        // 候選池擴大但仍遠小於全市場，不影響精掃效能
         const coarse = snapshot.quotes
           .filter(q => {
             if (q.close <= 0 || q.volume <= 0 || q.prevClose <= 0) return false;
             const gapPct = Math.abs(q.open - q.prevClose) / q.prevClose * 100;
-            const isGap = gapPct >= 2; // 缺口 ≥ 2%
-            const isSurge = Math.abs(q.changePercent) >= 5; // 動能強
-            return isGap && isSurge;
+            const isGap = gapPct >= 2;                       // 缺口 ≥ 2%
+            const isSurge = Math.abs(q.changePercent) >= 5;  // 動能強
+            const isPositive = q.changePercent >= 1;         // 至少微漲 1%
+            return isGap || isSurge || isPositive;
           })
-          .slice(0, 200)
+          .slice(0, 300)
           .map(q => ({ symbol: q.symbol, name: q.name }));
         if (coarse.length > 0) {
           return apiOk({

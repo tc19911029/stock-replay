@@ -15,6 +15,7 @@ import type { Candle, CandleWithIndicators } from '@/types';
 import { computeIndicators } from '@/lib/indicators';
 import { DataProvider } from './DataProvider';
 import { globalCache } from './MemoryCache';
+import { rateLimiter } from './UnifiedRateLimiter';
 
 const EODHD_BASE = 'https://eodhd.com/api/eod';
 
@@ -67,15 +68,28 @@ async function fetchEODHDCandles(
     `${EODHD_BASE}/${encodeURIComponent(eodhTicker)}` +
     `?api_token=${EODHD_TOKEN}&fmt=json&from=${from}&to=${to}`;
 
+  // P1B: 限流保護 — 等待 token 後才發請求
+  await rateLimiter.acquire('eodhd');
+
   const res = await fetch(url, {
     signal: AbortSignal.timeout(20_000),
     headers: { Accept: 'application/json' },
   });
 
   if (res.status === 401 || res.status === 403) {
+    rateLimiter.reportError('eodhd', res.status, 'auth failed');
     throw new Error(`EODHD auth failed: ${res.status}`);
   }
-  if (!res.ok) throw new Error(`EODHD ${res.status}`);
+  if (res.status === 402) {
+    rateLimiter.reportError('eodhd', 402, 'quota exhausted');
+    throw new Error('EODHD 402: quota exhausted — 配額耗盡，退避 1 小時');
+  }
+  if (!res.ok) {
+    rateLimiter.reportError('eodhd', res.status);
+    throw new Error(`EODHD ${res.status}`);
+  }
+
+  rateLimiter.reportSuccess('eodhd');
 
   const text = await res.text();
   // EODHD returns plain text "Ticker Not Found." for unknown tickers

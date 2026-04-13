@@ -283,7 +283,12 @@ export const useBacktestStore = create<BacktestState>()(
       },
 
       setMarket:             (market)   => set({ market }),
-      setScanDate:           (scanDate) => set({ scanDate }),
+      setScanDate: (scanDate) => {
+        // P3C: 切換日期時清除 MTF unfiltered 快取，避免 toggle 時還原舊日期結果
+        const { scanCache } = get();
+        scanCache.delete('_unfilteredResults');
+        set({ scanDate, useMultiTimeframe: false });
+      },
       setScanOnly:           (scanOnly) => set({ scanOnly }),
       setScanMode:           (scanMode) => set({ scanMode }),
       setScanDirection:      (scanDirection) => set({ scanDirection }),
@@ -291,13 +296,15 @@ export const useBacktestStore = create<BacktestState>()(
       setCapitalConstraints: (partial)  => set(s => ({ capitalConstraints: { ...s.capitalConstraints, ...partial } })),
       toggleCapitalMode:     ()         => set(s => ({ useCapitalMode: !s.useCapitalMode })),
       toggleMultiTimeframe: () => {
-        const { useMultiTimeframe, scanResults, performance, marketTrend, scanCache } = get();
+        const { useMultiTimeframe, scanResults, performance, marketTrend, scanCache, scanDate } = get();
         const newMtf = !useMultiTimeframe;
+        // P3C: 使用日期限定 key，避免切換日期後還原到舊日期結果
+        const cacheKey = `_unfilteredResults:${scanDate}`;
 
         if (newMtf) {
           // MTF ON → client-side 過濾當前結果（結果必為子集，不會跑出新股票）
           // 先存原始未過濾結果以便還原
-          scanCache.set('_unfilteredResults', { scanResults, performance, marketTrend });
+          scanCache.set(cacheKey, { scanResults, performance, marketTrend });
 
           // 過濾：只保留 MTF 週線 + 月線都通過的股票
           // （scan 時已 ALWAYS 計算 mtfWeeklyPass/mtfMonthlyPass，即使 MTF flag=off）
@@ -314,7 +321,7 @@ export const useBacktestStore = create<BacktestState>()(
           });
         } else {
           // MTF OFF → 還原原始未過濾結果
-          const cached = scanCache.get('_unfilteredResults');
+          const cached = scanCache.get(cacheKey);
           if (cached) {
             set({
               useMultiTimeframe: false,
@@ -860,8 +867,13 @@ export const useBacktestStore = create<BacktestState>()(
           return;
         }
 
+        // P3C: 載入新日期時清除 MTF 快取，確保 toggle 基於新日期結果
+        scanCache.delete('_unfilteredResults');
+        scanCache.delete(`_unfilteredResults:${date}`);
+
         set({
           isLoadingCronSession: true,
+          useMultiTimeframe: false,
           scanResults: [], performance: [], trades: [], stats: null,
           scanError: null, forwardError: null, marketTrend: null,
           market, scanDate: date, scanOnly: true,

@@ -288,16 +288,16 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
         const apiJson = await apiRes.json();
         if (!apiRes.ok) throw new Error(apiJson.error ?? '載入失敗');
         if (!applyData(apiJson, true)) throw new Error('資料筆數為 0');
+      } else {
+        // ── 分鐘K：直接 API（本地沒有分鐘K數據） ──
+        const res = await fetch(
+          `/api/stock?symbol=${encodeURIComponent(symbol)}&interval=${interval}&period=${p}`
+        );
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error ?? '載入失敗');
+
+        if (!applyData(json, true)) throw new Error('資料筆數為 0');
       }
-
-      // ── 分鐘K：直接 API（本地沒有分鐘K數據） ──
-      const res = await fetch(
-        `/api/stock?symbol=${encodeURIComponent(symbol)}&interval=${interval}&period=${p}`
-      );
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? '載入失敗');
-
-      if (!applyData(json, true)) throw new Error('資料筆數為 0');
     } catch (err) {
       set({ isLoadingStock: false });
       throw err;

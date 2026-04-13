@@ -176,6 +176,43 @@ function checkMonthly(monthlyCandles: CandleWithIndicators[]): {
   return { score, trend, detail: parts.join('，') };
 }
 
+// ── P2B: 聚合快取（同一掃描內，相同輸入直接返回）───────────────────────────
+// key = `${lastCandleDate}:${candleCount}:${interval}`
+// 聚合是確定性的（同輸入 → 同輸出），所以同一批掃描內可安全快取。
+// 用 WeakRef 或定期清除避免記憶體洩漏。
+
+const _aggregationCache = new Map<string, CandleWithIndicators[]>();
+let _aggregationCacheEpoch = Date.now();
+
+function getCachedAggregation(
+  dailyCandles: CandleWithIndicators[],
+  interval: '1wk' | '1mo',
+): CandleWithIndicators[] {
+  // 每 5 分鐘清除快取，避免記憶體洩漏
+  const now = Date.now();
+  if (now - _aggregationCacheEpoch > 300_000) {
+    _aggregationCache.clear();
+    _aggregationCacheEpoch = now;
+  }
+
+  const last = dailyCandles[dailyCandles.length - 1];
+  if (!last) return computeIndicators(aggregateCandles(dailyCandles, interval));
+
+  const key = `${last.date}:${dailyCandles.length}:${interval}`;
+  const cached = _aggregationCache.get(key);
+  if (cached) return cached;
+
+  const result = computeIndicators(aggregateCandles(dailyCandles, interval));
+  _aggregationCache.set(key, result);
+  return result;
+}
+
+/** 手動清除快取（掃描結束後呼叫） */
+export function clearAggregationCache(): void {
+  _aggregationCache.clear();
+  _aggregationCacheEpoch = Date.now();
+}
+
 // ── Main evaluator ────────────────────────────────────────────────────────────
 
 /**
@@ -189,12 +226,9 @@ export function evaluateMultiTimeframe(
   dailyCandles: CandleWithIndicators[],
   thresholds: StrategyThresholds,
 ): MultiTimeframeResult {
-  // 聚合日K為週K/月K，再計算指標
-  const weeklyRaw = aggregateCandles(dailyCandles, '1wk');
-  const weeklyCandles = computeIndicators(weeklyRaw);
-
-  const monthlyRaw = aggregateCandles(dailyCandles, '1mo');
-  const monthlyCandles = computeIndicators(monthlyRaw);
+  // P2B: 使用快取的聚合結果（同一掃描內相同輸入直接返回）
+  const weeklyCandles = getCachedAggregation(dailyCandles, '1wk');
+  const monthlyCandles = getCachedAggregation(dailyCandles, '1mo');
 
   const weekly = checkWeekly(weeklyCandles);
   const monthly = checkMonthly(monthlyCandles);

@@ -56,10 +56,11 @@ export function findPivots(
     const prev = candles[i - 1];
     const curr = candles[i];
     const next = candles[i + 1];
-    if (curr.high > prev.high && curr.high > next.high) {
-      pivots.push({ index: i, price: curr.high, type: 'high' });
-    } else if (curr.low < prev.low && curr.low < next.low) {
-      pivots.push({ index: i, price: curr.low, type: 'low' });
+    // 朱老師用收盤價判斷頭頭高/底底高（不用最高/最低，避免單日恐慌或假突破干擾）
+    if (curr.close > prev.close && curr.close > next.close) {
+      pivots.push({ index: i, price: curr.close, type: 'high' });
+    } else if (curr.close < prev.close && curr.close < next.close) {
+      pivots.push({ index: i, price: curr.close, type: 'low' });
     }
   }
   return pivots;
@@ -105,9 +106,16 @@ export function detectTrend(
 
     if (higherHighs && higherLows && bullishMA) return '多頭';
     if (lowerHighs  && lowerLows  && bearishMA) return '空頭';
-    // 矛盾型轉折（頭高底低，或頭低底高）才是真正的盤整
+    // 矛盾型轉折（頭高底低，或頭低底高）
     const contradictoryPivots = (higherHighs && lowerLows) || (lowerHighs && higherLows);
-    if (contradictoryPivots) return '盤整';
+    if (contradictoryPivots) {
+      // 若 MA 完全四線多排（5/MA20/MA60全對齊），恐慌性急跌後快速收復，
+      // 信任均線結構勝過單一低點的破底（避免漏掉「市場恐慌後反彈」的飆股）
+      const strongBullish = ma5 != null && ma20 != null && ma60 != null
+        && ma5 > ma20 && ma20 > ma60 && ma20NonDeclining;
+      if (strongBullish) return '多頭';
+      return '盤整';
+    }
     // 其餘（MA 與轉折方向一致但不夠強）→ 交給下面 MA 判斷
   }
 

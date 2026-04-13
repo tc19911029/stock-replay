@@ -320,9 +320,12 @@ export abstract class MarketScanner {
         return null;
       }
 
-      // 避免凍結價格：今日掃描若 K 線未更新到掃描日，略過此股
-      // （ensureFreshCandles 下載失敗時的防護，不顯示過時價格）
-      if (asOfDate && fetchResult.staleDays > 0 && fetchResult.lastCandleDate !== asOfDate) {
+      // P3B: 放寬 stale-skip — 容忍 5 個交易日差距
+      // 原邏輯：staleDays > 0 且 lastCandleDate !== today 就跳過
+      // 問題：移除 ensureFreshCandles 後，大部分股票的 staleDays 可能 > 0（等待 cron 更新），
+      // 但 fetchCandlesForScan 已用即時報價合成今日 K 棒（此時 staleDays=0）。
+      // 若即時報價合併失敗（盤前/無報價），容忍最多 5 天差距（避免跳過太多股票）。
+      if (asOfDate && fetchResult.staleDays > 5 && fetchResult.lastCandleDate !== asOfDate) {
         const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
         if (asOfDate === today) {
           if (diag) diag.filteredOut++;
@@ -745,10 +748,7 @@ export abstract class MarketScanner {
     asOfDate?: string,
     thresholds?: StrategyThresholds,
   ): Promise<{ candidates: StockScanResult[]; marketTrend: TrendState; diagnostics: ScanDiagnostics; sessionFreshness: SessionFreshness }> {
-    // ── 掃描前確保 K 線數據是最新的 ──
-    try {
-      await this.ensureFreshCandles(stocks.map(s => s.symbol), asOfDate);
-    } catch { /* non-fatal */ }
+    // P1A: 移除 ensureFreshCandles（避免批次下載打爆 API 配額）
 
     const config = this.getMarketConfig();
     const th = thresholds ?? ZHU_V1.thresholds;
@@ -874,15 +874,10 @@ export abstract class MarketScanner {
     thresholds?: StrategyThresholds,
     rankBy: 'sixConditions' | 'histWinRate' = 'sixConditions',
   ): Promise<{ results: StockScanResult[]; marketTrend: TrendState; diagnostics: ScanDiagnostics; sessionFreshness: SessionFreshness }> {
-    // ── 掃描前確保 K 線數據是最新的 ──
-    try {
-      const freshResult = await this.ensureFreshCandles(stocks.map(s => s.symbol), asOfDate);
-      if (freshResult.updated > 0) {
-        console.info(`[scanSOP] 已更新 ${freshResult.updated} 支 K 線後開始掃描`);
-      }
-    } catch (e) {
-      console.warn('[scanSOP] ensureFreshCandles 失敗，使用現有數據繼續:', e);
-    }
+    // ── P1A: 移除掃描入口的 ensureFreshCandles ──
+    // 掃描路徑已有 fetchCandlesForScan() 做 memory → local → API 三層快取，
+    // 不需要前置批次下載（會打爆 FinMind/EODHD 配額）。
+    // ensureFreshCandles 保留給 cron 批次用。
 
     const config = this.getMarketConfig();
     const th = thresholds ?? ZHU_V1.thresholds;
@@ -950,10 +945,7 @@ export abstract class MarketScanner {
     asOfDate: string | undefined,
     thresholds?: StrategyThresholds,
   ): Promise<{ results: StockScanResult[]; marketTrend: TrendState; diagnostics: ScanDiagnostics }> {
-    // ── 掃描前確保 K 線數據是最新的 ──
-    try {
-      await this.ensureFreshCandles(stocks.map(s => s.symbol), asOfDate);
-    } catch { /* non-fatal */ }
+    // P1A: 移除 ensureFreshCandles（避免批次下載打爆 API 配額）
 
     const config = this.getMarketConfig();
     const th = thresholds ?? ZHU_V1.thresholds;
@@ -997,10 +989,7 @@ export abstract class MarketScanner {
     const th = thresholds ?? ZHU_V1.thresholds;
     const stocks = await this.getStockList();
 
-    // ── 掃描前確保 K 線數據是最新的 ──
-    try {
-      await this.ensureFreshCandles(stocks.map(s => s.symbol));
-    } catch { /* non-fatal */ }
+    // P1A: 移除 ensureFreshCandles（避免批次下載打爆 API 配額）
 
     const results: StockScanResult[] = [];
     const DEADLINE = Date.now() + 240_000;

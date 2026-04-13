@@ -290,16 +290,97 @@ export async function scanDabanFromLocalCandles(date: string): Promise<DabanScan
 }
 
 /**
+ * P2A: 打板掃描用 IntradayCache 預篩
+ *
+ * 先讀 IntradayCache CN 快照（1 次 Blob read），篩選 changePercent >= 9.5%
+ * 的候選股（~50-200支），再只對這些讀 per-symbol K 線。
+ * 預期從 2-3 分鐘（5000 支）降到 10-20 秒（50-200 支）。
+ *
+ * Fallback: 若 IntradayCache 不存在或候選為空，降級為全量掃描。
+ */
+export async function scanDabanWithPrefilter(date: string): Promise<DabanScanSession> {
+  const { readIntradaySnapshot } = await import('@/lib/datasource/IntradayCache');
+  const { loadLocalCandlesWithTolerance } = await import('@/lib/datasource/LocalCandleStore');
+
+  const snapshot = await readIntradaySnapshot('CN', date);
+  if (!snapshot || snapshot.quotes.length === 0) {
+    // 無快照 → fallback 全量掃描
+    return scanDabanFromLocalCandles(date);
+  }
+
+  // 預篩：只取漲幅 >= 主板漲停閾值的候選股
+  const candidates = snapshot.quotes.filter(q => {
+    if (q.close <= 0 || q.volume <= 0 || q.prevClose <= 0) return false;
+    const threshold = isGemOrStar(q.symbol + '.SZ') || isGemOrStar(q.symbol + '.SS')
+      ? LIMIT_UP_GEM : LIMIT_UP_MAIN;
+    return q.changePercent >= threshold;
+  });
+
+  if (candidates.length === 0) {
+    // 無漲停股 → 返回空結果而非全量掃描
+    return {
+      id: `daban-CN-${date}`,
+      market: 'CN',
+      date,
+      scanTime: new Date().toISOString(),
+      resultCount: 0,
+      results: [],
+      sentiment: { limitUpCount: 0, yesterdayLimitUpCount: 0, yesterdayAvgReturn: 0, isCold: true },
+    };
+  }
+
+  console.log(`[DabanScanner] 預篩候選：${candidates.length}/${snapshot.count} 支`);
+
+  // 對候選股讀取 K 線（遠少於全量 5000 支）
+  const stocks = new Map<string, { name: string; candles: CandleWithIndicators[] }>();
+  let loaded = 0;
+  let staleSkipped = 0;
+
+  // 需要從 stockList 取得完整 symbol（帶 .SS/.SZ 後綴）
+  const { ChinaScanner } = await import('./ChinaScanner');
+  const scanner = new ChinaScanner();
+  const stockList = await scanner.getStockList();
+  const stockMap = new Map(stockList.map(s => [s.symbol.replace(/\.(SS|SZ)$/, ''), s]));
+
+  for (let i = 0; i < candidates.length; i += CONCURRENCY) {
+    const batch = candidates.slice(i, i + CONCURRENCY);
+    const results = await Promise.allSettled(
+      batch.map(async (q) => {
+        const entry = stockMap.get(q.symbol);
+        if (!entry) return null;
+        const local = await loadLocalCandlesWithTolerance(entry.symbol, 'CN', date, 1);
+        if (!local || local.candles.length < 30) return null;
+        if (local.staleDays > 0) return 'stale';
+        return { symbol: entry.symbol, name: entry.name, candles: local.candles };
+      }),
+    );
+
+    for (const r of results) {
+      if (r.status === 'fulfilled' && r.value === 'stale') {
+        staleSkipped++;
+      } else if (r.status === 'fulfilled' && r.value && r.value !== 'stale') {
+        stocks.set(r.value.symbol, { name: r.value.name, candles: r.value.candles });
+        loaded++;
+      }
+    }
+  }
+
+  console.log(`[DabanScanner] 預篩後載入 ${loaded}/${candidates.length} 檔（資料過舊 ${staleSkipped}）`);
+
+  return scanDaban({ stocks, date });
+}
+
+/**
  * 即時打板掃描：合併本地 K 線 + 東方財富即時報價
  *
  * 盤中使用：即時報價作為今日 K 棒，合併到歷史 K 線後掃描。
- * 盤後使用：自動降級為 scanDabanFromLocalCandles。
+ * 盤後使用：自動降級為 scanDabanWithPrefilter（先預篩再讀 K 線）。
  */
 export async function scanDabanRealtime(date: string): Promise<DabanScanSession> {
   const { isMarketOpen } = await import('@/lib/datasource/marketHours');
 
   if (!isMarketOpen('CN')) {
-    return scanDabanFromLocalCandles(date);
+    return scanDabanWithPrefilter(date);
   }
 
   const { ChinaScanner } = await import('./ChinaScanner');
