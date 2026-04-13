@@ -100,12 +100,18 @@ export async function POST(req: NextRequest) {
     // ── 執行粗掃 ──
     const result = coarseScan(snapshot, maBase, { direction });
 
+    const snapshotAgeSeconds = Math.round(
+      (Date.now() - new Date(snapshot.updatedAt).getTime()) / 1000,
+    );
+
     return apiOk({
       ...result,
       maBaseAvailable: !!maBase,
       snapshotDate: snapshot.date,
       snapshotUpdatedAt: snapshot.updatedAt,
       snapshotFresh,
+      /** 快照距今秒數，前端可顯示「數據延遲 X 分鐘」 */
+      snapshotAgeSeconds,
     });
   } catch (err) {
     console.error('[scanner/coarse] error:', err);

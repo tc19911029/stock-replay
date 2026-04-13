@@ -182,9 +182,9 @@ export function evaluateSixConditions(
   index: number,
   params?: Partial<StrategyThresholds>,
 ): SixConditionsResult {
-  const kdMax     = params?.kdMaxEntry      ?? 85;
-  const devMax    = params?.deviationMax    ?? 0.12;
-  const volMin    = params?.volumeRatioMin  ?? 1.3; // 書上p.54：前一日×1.3
+  const kdMax     = params?.kdMaxEntry      ?? 88;   // 與 BASE_THRESHOLDS 一致
+  const devMax    = params?.deviationMax    ?? 0.20; // 與 BASE_THRESHOLDS 一致（20%）
+  const volMin    = params?.volumeRatioMin  ?? 1.3;  // 書上p.54：前一日×1.3
   const shadowMax = params?.upperShadowMax  ?? 0.20;
 
   const c    = candles[index];

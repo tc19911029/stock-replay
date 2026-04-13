@@ -99,15 +99,16 @@ export function checkLongProhibitions(
   // ── 戒律6：回檔跌破前低，再上漲勿進場做多 ───────────────────────────
   // 邏輯：若近20根K棒中，最近的轉折低點（波谷）低於更早的轉折低點
   //       代表多頭結構可能轉弱，此波上漲不宜進場
+  // 注意：用 close 判斷波谷（與 findPivots 一致，朱老師用收盤價判斷頭底）
   {
     const lookback = Math.min(20, index);
     const segment = candles.slice(index - lookback, index + 1);
 
-    // 找近期兩個波谷（3點局部低點）
+    // 找近期兩個波谷（3點局部低點，用收盤價）
     const troughs: number[] = [];
     for (let i = 1; i < segment.length - 1; i++) {
-      if (segment[i].low < segment[i - 1].low && segment[i].low < segment[i + 1].low) {
-        troughs.push(segment[i].low);
+      if (segment[i].close < segment[i - 1].close && segment[i].close < segment[i + 1].close) {
+        troughs.push(segment[i].close);
       }
     }
 

@@ -370,12 +370,9 @@ export abstract class MarketScanner {
         if (prevKdK != null && last.kdK < prevKdK) { if (diag) diag.filteredOut++; return null; }
       }
 
-      // ── 3. 短線第10條：進場紅K線上影線超過二分之一 → 不買進 ───────────
-      const dayRange = last.high - last.low;
-      const entryUpperShadow = last.high - last.close;
-      if (dayRange > 0 && entryUpperShadow / dayRange > 0.5) { if (diag) diag.filteredOut++; return null; }
+      // 短線第10條（上影線>50%不買）已由六條件⑤覆蓋（upperShadowMax 預設20%），不再重複檢查
 
-      // ── 4. 10大戒律：硬性禁忌過濾（朱老師 p.54）─────────────────────
+      // ── 3. 10大戒律：硬性禁忌過濾（朱老師 p.54）─────────────────────
       const prohib = checkLongProhibitions(candles, lastIdx);
       if (prohib.prohibited) { if (diag) diag.filteredOut++; return null; }
 

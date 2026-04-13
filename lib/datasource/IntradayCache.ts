@@ -218,8 +218,9 @@ export async function refreshIntradaySnapshot(market: 'TW' | 'CN'): Promise<Intr
 
     quotes = [];
     for (const [, q] of emMap) {
+      // 優先使用 API 的 f18 昨收 → 其次 MA Base 最後一根收盤 → 最後降級為 close（漲跌=0%）
       const ma = maBaseMap[q.code];
-      const prevClose = ma?.closes[ma.closes.length - 1] ?? q.close; // 沒有MA base就用close本身（等於不算漲跌）
+      const prevClose = q.prevClose ?? ma?.closes[ma.closes.length - 1] ?? q.close;
       const changePercent = prevClose > 0
         ? Math.round(((q.close - prevClose) / prevClose) * 10000) / 100
         : 0;

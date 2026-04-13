@@ -20,18 +20,22 @@ function getLocalTime(tz: string): { hour: number; min: number; dow: number } {
   return { hour, min, dow };
 }
 
-/** 台股是否在盤中（09:00–13:30，週一～五） */
+/** 台股是否在盤中（09:00–13:30，週一～五，且非假日） */
 export function isTWMarketOpen(): boolean {
   const { hour, min, dow } = getLocalTime('Asia/Taipei');
   if (dow === 0 || dow === 6) return false;
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
+  if (!isTradingDay(today, 'TW')) return false;
   const timeMin = hour * 60 + min;
   return timeMin >= 540 && timeMin <= 810; // 09:00 ~ 13:30
 }
 
-/** A 股是否在盤中（09:15–15:00，週一～五） */
+/** A 股是否在盤中（09:15–15:00，週一～五，且非假日） */
 export function isCNMarketOpen(): boolean {
   const { hour, min, dow } = getLocalTime('Asia/Shanghai');
   if (dow === 0 || dow === 6) return false;
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
+  if (!isTradingDay(today, 'CN')) return false;
   const timeMin = hour * 60 + min;
   return timeMin >= 555 && timeMin <= 900; // 09:15 ~ 15:00
 }

@@ -106,9 +106,12 @@ export const BASE_THRESHOLDS: StrategyThresholds = {
   deviationMax:   0.20,
   minScore:       4,    // 基本門檻 4 分
   marketTrendFilter: true,
-  bullMinScore:   4,    // 多頭正常篩選
-  sidewaysMinScore: 4,  // 盤整也用 4（靠其他條件過濾品質）
-  bearMinScore:   5,    // 空頭嚴格
+  // 注意：scanOne() 中 isCoreReady 要求前5個核心條件全過（coreScore=5），
+  // 因此 bullMinScore/sidewaysMinScore < 5 實際等於 5。
+  // minScore = 6 才有額外效果（要求指標條件也過）。
+  bullMinScore:   5,    // 多頭：核心5條件全過
+  sidewaysMinScore: 5,  // 盤整：核心5條件全過
+  bearMinScore:   6,    // 空頭嚴格：6條件全過（含指標）
   // 長線保護短線（預設關閉，由 UI 開關控制）
   multiTimeframeFilter: false,
   mtfWeeklyStrict:  true,   // 週線不通過=拒絕
@@ -201,9 +204,10 @@ export const ZHU_V3_MULTIFACTOR: StrategyConfig = {
     kdMaxEntry:     90,     // 放寬：高動能股 KD 本來就高
     deviationMax:   0.25,   // 放寬：由 composite score 把關
     minScore:       3,      // 放寬：多因子排名會篩掉弱股
-    bullMinScore:   3,      // 多頭時更寬鬆（靠排名篩選）
-    sidewaysMinScore: 4,    // 盤整時維持
-    bearMinScore:   5,      // 空頭時嚴格
+    // 注意：isCoreReady 門檻使實際最低為 5（見 BASE_THRESHOLDS 說明）
+    bullMinScore:   5,      // 多頭：核心5條件全過
+    sidewaysMinScore: 5,    // 盤整：核心5條件全過
+    bearMinScore:   6,      // 空頭嚴格
   },
   // 多因子策略：全開所有群組（不限制，靠排名篩選）
 };
@@ -230,9 +234,10 @@ export const ZHU_V3_TW: StrategyConfig = {
     kdMaxEntry:     88,     // 台股 KD 超買較敏感
     deviationMax:   0.22,   // 台股乖離容忍度
     minScore:       3,
-    bullMinScore:   3,
-    sidewaysMinScore: 4,
-    bearMinScore:   5,
+    // 注意：isCoreReady 門檻使實際最低為 5（見 BASE_THRESHOLDS 說明）
+    bullMinScore:   5,
+    sidewaysMinScore: 5,
+    bearMinScore:   6,
   },
   // 台股：全開所有群組
 };
@@ -259,8 +264,9 @@ export const ZHU_V3_CN: StrategyConfig = {
     kdMaxEntry:     92,     // A 股波動大，KD 容忍度更高
     deviationMax:   0.28,   // A 股乖離容忍度更高
     minScore:       3,
-    bullMinScore:   3,
-    sidewaysMinScore: 4,
+    // 注意：isCoreReady 門檻使實際最低為 5（見 BASE_THRESHOLDS 說明）
+    bullMinScore:   5,
+    sidewaysMinScore: 5,
     bearMinScore:   6,      // A 股空頭更危險，門檻更嚴
   },
   // 陸股：全開所有群組
@@ -296,7 +302,8 @@ export const MASTER_CONSENSUS: StrategyConfig = {
     deviationMax:   0.25,   // 放寬乖離（突破時可能偏離較大）
     minScore:       4,      // 基本門檻
     marketTrendFilter: true,
-    bullMinScore:   4,
+    // 注意：isCoreReady 門檻使實際最低為 5（見 BASE_THRESHOLDS 說明）
+    bullMinScore:   5,
     sidewaysMinScore: 5,
     bearMinScore:   6,
   },
@@ -331,7 +338,8 @@ export const ZHU_5STEPS: StrategyConfig = {
     deviationMax:   0.15,   // 書中：乖離15%要注意停利
     minScore:       4,      // 基本門檻
     marketTrendFilter: true,
-    bullMinScore:   4,      // 順勢操作勝率80%
+    // 注意：isCoreReady 門檻使實際最低為 5（見 BASE_THRESHOLDS 說明）
+    bullMinScore:   5,      // 順勢操作：核心5條件全過
     sidewaysMinScore: 5,    // 盤整加嚴
     bearMinScore:   6,      // 逆勢操作勝率僅10%，極嚴格
   },
@@ -370,7 +378,8 @@ export const CHART_WALKING_SOP: StrategyConfig = {
     deviationMax:   1.0,      // 書中：漲幅1倍＝高檔，由規則內部判斷
     minScore:       4,        // 至少4/6條件通過
     marketTrendFilter: true,
-    bullMinScore:   4,
+    // 注意：isCoreReady 門檻使實際最低為 5（見 BASE_THRESHOLDS 說明）
+    bullMinScore:   5,
     sidewaysMinScore: 5,
     bearMinScore:   5,        // 空頭操作門檻（書中空頭不需量能，條件較寬）
   },

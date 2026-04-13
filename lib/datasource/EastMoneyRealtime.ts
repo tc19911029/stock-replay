@@ -23,6 +23,8 @@ export interface EastMoneyQuote {
   low: number;
   close: number;      // 最新價
   volume: number;     // 成交量（股）
+  /** 昨收（A股從 f18 取得，美股可能無） */
+  prevClose?: number;
 }
 
 // ── A 股 ──────────────────────────────────────────────────────────────────────
@@ -139,6 +141,7 @@ interface EastMoneyItem {
   f15: number;  // 最高
   f16: number;  // 最低
   f17: number;  // 開盤
+  f18: number;  // 昨收
 }
 
 // A 股市場代碼
@@ -157,7 +160,7 @@ async function fetchMarketQuotes(market: 'cn' | 'us'): Promise<Map<string, EastM
       const url = 'https://push2.eastmoney.com/api/qt/clist/get?' +
         `pn=${page}&pz=${pageSize}&po=1&np=1&fltt=2&invt=2&fid=f6` +
         `&fs=${fs}` +
-        '&fields=f2,f5,f12,f14,f15,f16,f17';
+        '&fields=f2,f5,f12,f14,f15,f16,f17,f18';
 
       const res = await fetch(url, {
         headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://quote.eastmoney.com/' },
@@ -193,6 +196,7 @@ async function fetchMarketQuotes(market: 'cn' | 'us'): Promise<Map<string, EastM
             low:    (item.f16 != null && item.f16 > 0) ? item.f16 : close,
             close,
             volume: (item.f5 ?? 0) * 100, // 手 → 股
+            prevClose: (item.f18 != null && item.f18 > 0) ? item.f18 : undefined,
           });
         } else {
           // 美股：ticker 為英文字母，東方財富美股成交量單位是股（不是手）
