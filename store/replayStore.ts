@@ -202,17 +202,21 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
           for (let i = allCandles.length - 1; i >= 0; i--) {
             if (allCandles[i].date <= targetDate) { closest = i; break; }
           }
-          // 找不到時：若候選的最後一根 K 棒比 targetDate 還新，代表資料其實包含，只是沒精確 match → 接受
-          // 但若最後一根 K 棒比 targetDate 還舊超過 30 天，代表資料嚴重落後，拒絕並拋錯
+          // 找不到精確日期時：若候選的最後一根 K 棒比 targetDate 還舊超過 30 天，
+          // 代表本地資料嚴重落後（可能下載 cron 失敗），拋出明確錯誤而非默默顯示過時資料
           if (closest === -1) {
             const lastDate = allCandles[allCandles.length - 1]?.date;
             if (lastDate && lastDate < targetDate) {
               const daysGap = (new Date(targetDate).getTime() - new Date(lastDate).getTime()) / 86400000;
               if (daysGap > 30) {
-                throw new Error(`K線資料僅到 ${lastDate}，落後目標日期 ${Math.round(daysGap)} 天，無法顯示 ${targetDate} 的走圖`);
+                throw new Error(`K線本地資料僅到 ${lastDate}（落後 ${Math.round(daysGap)} 天），可能是每日下載尚未完成。請至「歷史資料」確認資料完整性，或等待下一個交易日自動更新。`);
               }
             }
-            closest = 0;
+            // 差距 <= 30 天時（如週末），往回找最接近的 K 棒
+            for (let i = allCandles.length - 1; i >= 0; i--) {
+              if (allCandles[i].date <= targetDate) { closest = i; break; }
+            }
+            if (closest === -1) closest = 0;
           }
           index = closest;
         }
