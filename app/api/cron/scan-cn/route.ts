@@ -41,6 +41,30 @@ export async function GET(req: NextRequest) {
     const stocks = await scanner.getStockList();
     const counts: Record<string, number> = {};
 
+    // ── L2 即時報價注入（確保今日K棒可用，即使 L1 尚未下載）──
+    try {
+      const { readIntradaySnapshot } = await import('@/lib/datasource/IntradayCache');
+      const snap = await readIntradaySnapshot('CN', date);
+      if (snap && snap.quotes.length > 0) {
+        const realtimeQuotes = new Map<string, { open: number; high: number; low: number; close: number; volume: number; date?: string }>();
+        for (const q of snap.quotes) {
+          const code = q.symbol.replace(/\.(SS|SZ)$/i, '');
+          if (q.close > 0) {
+            realtimeQuotes.set(code, {
+              open: q.open, high: q.high, low: q.low,
+              close: q.close, volume: q.volume, date: snap.date,
+            });
+          }
+        }
+        if (realtimeQuotes.size > 0) {
+          scanner.setRealtimeQuotes(realtimeQuotes);
+          console.log(`[cron/scan-cn] 注入 L2 報價: ${realtimeQuotes.size} 支 (${snap.date})`);
+        }
+      }
+    } catch {
+      console.warn('[cron/scan-cn] L2 注入失敗，掃描將使用 L1 數據');
+    }
+
     // ── Long scan (daily — no MTF filter) ──
     const { results, marketTrend, sessionFreshness } = await scanner.scanSOP(stocks, date);
     const longDailySession: ScanSession = {

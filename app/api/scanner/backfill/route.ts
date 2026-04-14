@@ -41,30 +41,32 @@ export async function POST(req: NextRequest) {
     const stocks = await scanner.getStockList();
     let marketTrend: unknown;
 
-    // 今日掃描：注入 L2 快照的收盤報價，讓 fetchCandlesForScan 能合併今日 K 棒（staleDays=0）
+    // L2 即時報價注入：讀取掃描日期的 L2 快照，確保 K 棒為當日數據
+    // 不限「今日」— 補掃過去日期時也需要 L2（L1 可能未及時下載）
     const todayStr = new Intl.DateTimeFormat('en-CA', {
       timeZone: market === 'TW' ? 'Asia/Taipei' : 'Asia/Shanghai',
     }).format(new Date());
-    if (date >= todayStr) {
-      try {
-        const { readIntradaySnapshot } = await import('@/lib/datasource/IntradayCache');
-        const snap = await readIntradaySnapshot(market as 'TW' | 'CN', todayStr);
-        if (snap && snap.quotes.length > 0) {
-          const quotes = new Map<string, { open: number; high: number; low: number; close: number; volume: number; date?: string }>();
-          for (const q of snap.quotes) {
-            const code = q.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
-            if (q.close > 0) {
-              quotes.set(code, { open: q.open, high: q.high, low: q.low, close: q.close, volume: q.volume, date: snap.date });
-            }
-          }
-          if (quotes.size > 0) {
-            scanner.setRealtimeQuotes(quotes);
-            console.log(`[scanner/backfill] 注入 L2 今日報價: ${quotes.size} 支 (${snap.date})`);
+    try {
+      const { readIntradaySnapshot } = await import('@/lib/datasource/IntradayCache');
+      // 優先讀掃描日期的 L2，若不存在則嘗試今日
+      const snapDate = await readIntradaySnapshot(market as 'TW' | 'CN', date);
+      const snap = (snapDate && snapDate.quotes.length > 0) ? snapDate
+        : (date !== todayStr ? await readIntradaySnapshot(market as 'TW' | 'CN', todayStr) : null);
+      if (snap && snap.quotes.length > 0) {
+        const quotes = new Map<string, { open: number; high: number; low: number; close: number; volume: number; date?: string }>();
+        for (const q of snap.quotes) {
+          const code = q.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
+          if (q.close > 0) {
+            quotes.set(code, { open: q.open, high: q.high, low: q.low, close: q.close, volume: q.volume, date: snap.date });
           }
         }
-      } catch {
-        // L2 注入失敗不影響掃描，只是結果可能落後一天
+        if (quotes.size > 0) {
+          scanner.setRealtimeQuotes(quotes);
+          console.log(`[scanner/backfill] 注入 L2 報價: ${quotes.size} 支 (${snap.date})`);
+        }
       }
+    } catch {
+      // L2 注入失敗不影響掃描，只是結果可能落後一天
     }
 
     for (const mode of modes) {

@@ -166,8 +166,12 @@ export abstract class MarketScanner {
     asOfDate?: string,
     diag?: ScanDiagnostics,
   ): Promise<CandleFetchResult> {
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
-    const isHistorical = !!asOfDate && asOfDate < today;
+    const tz = this.getMarketConfig().marketId === 'CN' ? 'Asia/Shanghai' : 'Asia/Taipei';
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
+    // 有 L2 報價且日期匹配 asOfDate 時，視為「今日掃描」而非純歷史
+    const hasL2ForDate = this._realtimeQuotes && this._realtimeQuotes.size > 0 &&
+      asOfDate && (() => { const first = this._realtimeQuotes!.values().next().value; return first?.date === asOfDate; })();
+    const isHistorical = !!asOfDate && asOfDate < today && !hasL2ForDate;
     const market = this.getMarketConfig().marketId as 'TW' | 'CN';
 
     if (isHistorical) {
@@ -193,17 +197,19 @@ export abstract class MarketScanner {
         }
       } catch { /* 本地讀取失敗，fallback 到 API */ }
     } else {
-      // 今日掃描：本地歷史 + 即時報價合併今日 K 棒
-      // 容忍 5 個交易日（與歷史掃描一致），因為今日 K 棒會由即時報價合併補上
+      // 今日掃描（含 L2 補掃過去日期）：本地歷史 + 即時報價合併 K 棒
+      // targetDate: L2 補掃用 asOfDate（如 0414），真正盤中用 today（0415）
+      const targetDate = hasL2ForDate ? asOfDate! : today;
+      // 容忍 5 個交易日（與歷史掃描一致），因為 K 棒會由即時報價合併補上
       try {
-        const local = await loadLocalCandlesWithTolerance(symbol, market, today, 5);
+        const local = await loadLocalCandlesWithTolerance(symbol, market, targetDate, 5);
         if (local && local.candles.length > 0) {
           if (diag) {
             diag.localCacheHits++;
             if (local.staleDays > 0) diag.localCacheStale++;
           }
 
-          // 如果有即時報價，合併今日 K 棒
+          // 如果有即時報價，合併 K 棒
           if (this._realtimeQuotes) {
             const code = symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
             const quote = this._realtimeQuotes.get(code);
@@ -211,10 +217,9 @@ export abstract class MarketScanner {
               console.warn(`[fetchCandlesForScan] L2 miss: ${symbol} code=${code} mapSize=${this._realtimeQuotes.size} found=${!!quote} close=${quote?.close ?? 'N/A'}`);
             }
             if (quote && quote.close > 0) {
-              // 盤前防護：如果報價日期不是今天，表示市場未開盤，不建立假的今日 K 棒
-              // TWSE 有 date 欄位；EastMoney 無 date 時用 OHLCV 比對判斷
-              const quoteIsToday = quote.date
-                ? quote.date === today
+              // 盤前防護：如果報價日期不是目標日，表示市場未開盤，不建立假的 K 棒
+              const quoteIsTarget = quote.date
+                ? quote.date === targetDate
                 : true; // EastMoney 無日期，依賴開盤時間判斷（已在 API 層處理）
 
               const rawCandles = local.candles.map(c => ({
@@ -223,16 +228,16 @@ export abstract class MarketScanner {
               }));
               const last = rawCandles[rawCandles.length - 1];
 
-              if (last.date === today) {
-                // 更新今日已有的 K 棒
+              if (last.date === targetDate) {
+                // 更新目標日已有的 K 棒
                 last.close = quote.close;
                 last.high = Math.max(quote.high, last.high);
                 last.low = Math.min(quote.low, last.low);
                 last.volume = quote.volume || last.volume;
-              } else if (quoteIsToday && last.date < today) {
-                // Append 今日即時 K 棒（僅在確認報價是今日數據時）
+              } else if (quoteIsTarget && last.date < targetDate) {
+                // Append 即時 K 棒（僅在確認報價是目標日數據時）
                 rawCandles.push({
-                  date: today,
+                  date: targetDate,
                   open: quote.open,
                   high: quote.high,
                   low: quote.low,
@@ -240,12 +245,12 @@ export abstract class MarketScanner {
                   volume: quote.volume,
                 });
               }
-              // else: 盤前報價是昨日數據 → 不 append，直接用本地歷史數據掃描
+              // else: 報價非目標日 → 不 append，直接用本地歷史數據掃描
 
               const { computeIndicators } = await import('@/lib/indicators');
               const merged = computeIndicators(rawCandles);
               const mergedLast = merged[merged.length - 1];
-              return { candles: merged, staleDays: mergedLast.date === today ? 0 : local.staleDays, lastCandleDate: mergedLast.date, source: 'local' };
+              return { candles: merged, staleDays: mergedLast.date === targetDate ? 0 : local.staleDays, lastCandleDate: mergedLast.date, source: 'local' };
             }
           }
 
