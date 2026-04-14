@@ -20,7 +20,9 @@ export async function GET(req: NextRequest) {
   try {
     const scanner = new ChinaScanner();
     const { getLastTradingDay } = await import('@/lib/datasource/marketHours');
-    const date = getLastTradingDay('CN');
+    // 支援手動補掃：?date=YYYY-MM-DD
+    const dateParam = req.nextUrl.searchParams.get('date');
+    const date = dateParam ?? getLastTradingDay('CN');
 
     if (!isTradingDay(date, 'CN')) {
       return apiOk({ skipped: true, reason: 'non-trading day', date });
