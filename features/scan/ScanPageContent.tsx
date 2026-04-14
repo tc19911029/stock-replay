@@ -13,6 +13,7 @@ import type { SelectedStock } from '@/features/scan';
 import { PageShell } from '@/components/shared';
 import { SectionBoundary } from '@/components/ErrorBoundary';
 import { Button } from '@/components/ui/button';
+import { DataHealthBadge } from '@/features/scan/components/DataHealthBadge';
 
 // ── Compact Scan Panel (embeddable in other pages) ───────────────────────────
 
@@ -156,6 +157,9 @@ export function ScanPanel({ onSelectStock }: ScanPanelProps) {
             )}
           </span>
         )}
+
+        {/* Data health badge */}
+        <DataHealthBadge market={market} />
 
         {/* Scan button */}
         <div className="flex items-center gap-1.5 ml-auto">

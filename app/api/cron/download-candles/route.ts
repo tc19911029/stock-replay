@@ -16,6 +16,7 @@ import { TaiwanScanner } from '@/lib/scanner/TaiwanScanner';
 import { ChinaScanner } from '@/lib/scanner/ChinaScanner';
 import { saveLocalCandles } from '@/lib/datasource/LocalCandleStore';
 import { saveDownloadManifest } from '@/lib/datasource/DownloadManifest';
+import { verifyDownload } from '@/lib/datasource/DownloadVerifier';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -110,6 +111,21 @@ export async function GET(req: NextRequest) {
       console.warn('[download-candles] MA Base generation failed:', err);
     }
 
+    // ── 校驗下載結果（gap + lastDate + 覆蓋率報告）──
+    let verifyResult: { health: string; coverageRate: number; stocksWithGaps: number; stocksStale: number } | undefined;
+    try {
+      const allSymbols = stocks.map(s => s.symbol);
+      const report = await verifyDownload(market, lastTradingDate, allSymbols, { succeeded, failed, skipped });
+      verifyResult = {
+        health: report.health,
+        coverageRate: report.summary.coverageRate,
+        stocksWithGaps: report.summary.stocksWithGaps,
+        stocksStale: report.summary.stocksStale,
+      };
+    } catch (err) {
+      console.warn('[download-candles] verify failed:', err);
+    }
+
     return apiOk({
       market,
       totalStocks: stocks.length,
@@ -118,6 +134,7 @@ export async function GET(req: NextRequest) {
       failed,
       durationSec: parseFloat(duration),
       maBase: maBaseResult,
+      verify: verifyResult,
     });
   } catch (err) {
     console.error(`[download-candles] ${market}: 錯誤`, err);

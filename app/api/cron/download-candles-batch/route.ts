@@ -19,6 +19,7 @@ import { ChinaScanner } from '@/lib/scanner/ChinaScanner';
 import { saveLocalCandles, isLocalDataFresh } from '@/lib/datasource/LocalCandleStore';
 import { saveDownloadManifest } from '@/lib/datasource/DownloadManifest';
 import { getLastTradingDay } from '@/lib/datasource/marketHours';
+import { verifyDownload } from '@/lib/datasource/DownloadVerifier';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -170,6 +171,23 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // ── 最後一批完成後跑校驗報告 ──
+    let verifyResult: { health: string; coverageRate: number; stocksWithGaps: number; stocksStale: number } | undefined;
+    if (batch === totalBatches) {
+      try {
+        const allSymbols = sorted.map(s => s.symbol);
+        const report = await verifyDownload(market, lastTradingDate, allSymbols, { succeeded, failed, skipped });
+        verifyResult = {
+          health: report.health,
+          coverageRate: report.summary.coverageRate,
+          stocksWithGaps: report.summary.stocksWithGaps,
+          stocksStale: report.summary.stocksStale,
+        };
+      } catch (err) {
+        console.warn('[download-batch] verify failed:', err);
+      }
+    }
+
     return apiOk({
       market,
       batch,
@@ -181,6 +199,7 @@ export async function GET(req: NextRequest) {
       failed,
       durationSec: parseFloat(duration),
       maBase: batch === totalBatches ? maBaseResult : undefined,
+      verify: verifyResult,
     });
   } catch (err) {
     console.error(`[download-batch] ${market} batch ${batch}: 錯誤`, err);

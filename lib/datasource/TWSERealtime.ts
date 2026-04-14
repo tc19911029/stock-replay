@@ -17,7 +17,7 @@ export interface TWSEQuote {
   high: number;
   low: number;
   close: number;
-  volume: number;     // 成交量（股數），TWSE/TPEx 原始單位為張(1張=1000股)，已轉換
+  volume: number;     // 成交量（張），mis.twse d.v 欄位已是張，直接使用
   previousClose?: number; // 昨收（由 Change 欄位推算），可用於驗證資料是否為今日
   date?: string;      // 資料日期 YYYY-MM-DD（由 API 的民國日期欄位解析）
 }
@@ -170,7 +170,7 @@ async function fetchAllQuotes(): Promise<Map<string, TWSEQuote>> {
           high: parseNum(row.High),
           low: parseNum(row.Low),
           close,
-          volume: parseNum(row.TradingShares),
+          volume: Math.round(parseNum(row.TradingShares) / 1000), // 股→張
           previousClose,
           date: parseROCDate(row.Date),
         });
@@ -216,7 +216,7 @@ export async function getTWSESingleIntraday(code: string): Promise<TWSEQuote | n
       high: parseMisPrice(d.h) || close,
       low: parseMisPrice(d.l) || close,
       close,
-      volume: Math.round(parseInt((d.v || '0').replace(/,/g, ''), 10) / 1000),
+      volume: parseInt((d.v || '0').replace(/,/g, ''), 10),
       previousClose: prevClose > 0 ? prevClose : undefined,
       date: today,
     };
@@ -330,7 +330,7 @@ async function fetchIntradayQuotes(): Promise<Map<string, TWSEQuote>> {
           high:  parseMisPrice(d.h) || close,
           low:   parseMisPrice(d.l) || close,
           close,
-          volume: Math.round(parseInt((d.v || '0').replace(/,/g, ''), 10) / 1000), // 股→張
+          volume: parseInt((d.v || '0').replace(/,/g, ''), 10), // mis.twse d.v 已是張
           previousClose: prevClose > 0 ? prevClose : undefined,
           date: today, // 確實是今天的即時數據
         });

@@ -9,6 +9,7 @@ export { TradeRow, trendBadge, exitBadge, chipBadge, calcTradeComposite } from '
 export { ScanResultsTable } from './components/ScanResultsTable';
 export { DabanResultsTable } from './components/DabanResultsTable';
 export { ScanChartPanel } from './components/ScanChartPanel';
+export { DataHealthBadge } from './components/DataHealthBadge';
 export type { SelectedStock } from './components/ScanChartPanel';
 export { ScanPanel } from './ScanPageContent';
 export { default as ScanPageContent } from './ScanPageContent';

@@ -95,6 +95,17 @@ export async function POST(req: NextRequest) {
         marketTrend = out.marketTrend;
       }
 
+      // 資料品質守門：若今日掃描結果全部落後≥1天（L2 注入失敗），不覆蓋已有的 L4 好數據
+      const avgStaleDays = scanResults.length > 0
+        ? scanResults.reduce((s, r) => s + ((r as { dataFreshness?: { daysStale?: number } }).dataFreshness?.daysStale ?? 0), 0) / scanResults.length
+        : 0;
+      if (date >= todayStr && avgStaleDays >= 1) {
+        console.warn(`[scanner/backfill] 今日掃描落後 ${avgStaleDays.toFixed(1)} 天（L2 注入失敗），不覆蓋 L4`);
+        const existing = await loadScanSession(marketId, date, direction, mode);
+        results[`${direction}-${mode}`] = existing?.resultCount ?? 0;
+        continue;
+      }
+
       const session: ScanSession = {
         id: `${market}-${direction}-${mode}-${date}-backfill`,
         market: marketId, date, direction,
