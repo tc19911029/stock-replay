@@ -67,6 +67,106 @@ function isMAClustered(c: CandleWithIndicators, threshold = 0.025): boolean {
   return (maxMA - minMA) / minMA < threshold;
 }
 
+// ── Flat Bottom (一字底) Detection ─────────────────────────────────────────────
+
+/** 一字底偵測結果 */
+interface FlatBottomResult {
+  isFlatBottom: boolean;
+  consolidationDays: number;
+  detail: string;
+}
+
+/**
+ * 一字底型態偵測（均線糾結底）
+ *
+ * 朱家泓《抓住飆股》25種型態 #9：
+ * 1. 底部盤整≥2個月(40天)，上下幅度很小
+ * 2. 至少MA5/MA10/MA20糾結在一起
+ * 3. 盤整期間量極少，突破後量才放大
+ * 4. 等大量突破確認後再買進
+ */
+function detectFlatBottom(
+  candles: CandleWithIndicators[],
+  idx: number,
+): FlatBottomResult | null {
+  // 至少需要 60 根K線（40天盤整 + 20天前期參考）
+  if (idx < 60) return null;
+  const c = candles[idx];
+
+  // ── 步驟1: 突破K線基本條件 ──
+  if (!isStrongRedCandle(c)) return null;
+  const { ma5, ma10, ma20 } = c;
+  if (ma5 == null || ma10 == null || ma20 == null) return null;
+  // 收盤必須突破所有均線
+  if (c.close <= ma5 || c.close <= ma10 || c.close <= ma20) return null;
+
+  // ── 步驟2: 往前掃描盤整區間 ──
+  // 從 idx-1 往前，用滾動20天窗口檢查收盤價高低差 < 8%
+  const MAX_LOOKBACK = 120;
+  const MIN_CONSOLIDATION = 40;
+  let consolStart = idx - 1; // 盤整起始索引（往前推）
+
+  for (let i = idx - 1; i >= Math.max(1, idx - MAX_LOOKBACK); i--) {
+    // 滾動窗口：從 i 往前看 20 天
+    const windowStart = Math.max(0, i - 19);
+    const window = candles.slice(windowStart, i + 1);
+    if (window.length < 10) break;
+
+    const closes = window.map(x => x.close);
+    const maxC = Math.max(...closes);
+    const minC = Math.min(...closes);
+    if (minC <= 0) break;
+    const spread = (maxC - minC) / minC;
+
+    if (spread >= 0.08) break; // 超出窄幅範圍，盤整到此為止
+    consolStart = i;
+  }
+
+  const consolidationDays = (idx - 1) - consolStart + 1;
+  if (consolidationDays < MIN_CONSOLIDATION) return null;
+
+  // ── 步驟3: 計算上下頸線 ──
+  const consolCandles = candles.slice(consolStart, idx);
+  const consolCloses = consolCandles.map(x => x.close);
+  const necklineHigh = Math.max(...consolCloses);
+  const necklineLow = Math.min(...consolCloses);
+
+  // 收盤必須突破上頸線
+  if (c.close <= necklineHigh) return null;
+
+  // ── 步驟4: 均線糾結確認（盤整末段10天內至少5天糾結） ──
+  const tailStart = Math.max(consolStart, idx - 10);
+  const tailCandles = candles.slice(tailStart, idx);
+  const clusteredCount = tailCandles.filter(x => isMAClustered(x)).length;
+  if (clusteredCount < 5) return null;
+
+  // ── 步驟5: 量縮確認 ──
+  // 盤整期間平均量
+  const consolVols = consolCandles.map(x => x.volume).filter(v => v > 0);
+  if (consolVols.length === 0) return null;
+  const consolAvgVol = consolVols.reduce((a, b) => a + b, 0) / consolVols.length;
+
+  // 盤整前20天平均量（作為基準）
+  const preStart = Math.max(0, consolStart - 20);
+  const preCandles = candles.slice(preStart, consolStart);
+  const preVols = preCandles.map(x => x.volume).filter(v => v > 0);
+  if (preVols.length >= 5) {
+    const preAvgVol = preVols.reduce((a, b) => a + b, 0) / preVols.length;
+    // 盤整期量必須 < 前期的 60%
+    if (preAvgVol > 0 && consolAvgVol >= preAvgVol * 0.6) return null;
+  }
+
+  // ── 步驟6: 突破量確認 ──
+  // 突破日成交量 ≥ 盤整期平均量的 2 倍
+  if (consolAvgVol > 0 && c.volume < consolAvgVol * 2) return null;
+
+  return {
+    isFlatBottom: true,
+    consolidationDays,
+    detail: `一字底型態突破（盤整${consolidationDays}天+均線糾結+量縮→大量突破，頸線${necklineLow.toFixed(1)}~${necklineHigh.toFixed(1)}）`,
+  };
+}
+
 // ── Entry Position Detection ───────────────────────────────────────────────────
 
 /**
@@ -164,21 +264,32 @@ function checkNecklineBreak(
 
 /**
  * 位置4: 均線糾結突破 (一字底)
- * 紅K突破均線3線或4線糾結 + 大量
+ * 優先偵測完整一字底型態（盤整≥40天+量縮+均線糾結+大量突破）
+ * fallback 為原有的簡單均線糾結突破
  */
+let _lastFlatBottomDetail: string | null = null;
+
 function checkMAClusterBreak(
   candles: CandleWithIndicators[],
   idx: number,
 ): boolean {
+  _lastFlatBottomDetail = null;
+
+  // 優先：完整一字底型態偵測
+  const flatBottom = detectFlatBottom(candles, idx);
+  if (flatBottom?.isFlatBottom) {
+    _lastFlatBottomDetail = flatBottom.detail;
+    return true;
+  }
+
+  // Fallback：簡單均線糾結突破（向後相容）
   if (idx < 5) return false;
   const c = candles[idx];
   if (!isStrongRedCandle(c) || !isHighVolume(c)) return false;
 
-  // 前一天均線糾結
   const prev = candles[idx - 1];
   if (!isMAClustered(prev)) return false;
 
-  // 今天紅K突破所有均線
   const { ma5, ma10, ma20 } = c;
   if (ma5 == null || ma10 == null || ma20 == null) return false;
   return c.close > ma5 && c.close > ma10 && c.close > ma20;
@@ -272,7 +383,9 @@ export function evaluateHighWinRateEntry(
   }
   if (checkMAClusterBreak(candles, idx)) {
     types.push('maClusterBreak');
-    details.push('高勝率位置4: 均線糾結突破');
+    details.push(_lastFlatBottomDetail
+      ? `高勝率位置4: ${_lastFlatBottomDetail}`
+      : '高勝率位置4: 均線糾結突破');
   }
   if (checkStrongResume(candles, idx)) {
     types.push('strongResume');
