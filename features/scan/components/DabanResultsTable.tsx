@@ -219,14 +219,6 @@ export function DabanResultsTable({ date, onSelectStock }: DabanResultsTableProp
     return <div className="text-center py-8 text-muted-foreground">載入打板掃描結果...</div>;
   }
 
-  if (scanning) {
-    return (
-      <div className="text-center py-8 text-muted-foreground">
-        <div className="animate-pulse">即時掃描中... 約需 10-30 秒</div>
-      </div>
-    );
-  }
-
   if (error && !session) {
     return (
       <div className="text-center py-8 space-y-3">
@@ -301,6 +293,13 @@ export function DabanResultsTable({ date, onSelectStock }: DabanResultsTableProp
 
       {/* Real-time opening price controls */}
       <div className="flex items-center gap-2 flex-wrap">
+        <button
+          onClick={handleRealtimeScan}
+          disabled={scanning}
+          className="px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30 text-xs font-medium disabled:opacity-50"
+        >
+          {scanning ? '掃描中…' : '重新掃描'}
+        </button>
         <button
           onClick={fetchRealtimeOpenPrices}
           disabled={isFetchingRealtime}
