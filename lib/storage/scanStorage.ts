@@ -319,6 +319,45 @@ export async function listScanDates(
     }
   }
 
+  // ── 盤中 intraday session 也納入清單（若該日尚無 post_close）──
+  const existingDates = new Set(entries.map(e => `${e.date}-${e.mtfMode}`));
+
+  if (IS_VERCEL) {
+    try {
+      for (const m of modes) {
+        const blobs = await blobListPrefix(`scans/${market}/${direction}/${m}/`);
+        for (const blob of blobs) {
+          // 匹配 intraday 路徑: {date}/intraday/{HHMM}.json
+          const intradayMatch = blob.pathname.match(/(\d{4}-\d{2}-\d{2})\/intraday\/\d{4}\.json$/);
+          if (!intradayMatch) continue;
+          const dateStr = intradayMatch[1];
+          if (existingDates.has(`${dateStr}-${m}`)) continue; // 已有 post_close，跳過
+          existingDates.add(`${dateStr}-${m}`);
+          entries.push({
+            market, direction, mtfMode: m,
+            date: dateStr, resultCount: -1,
+            scanTime: blob.uploadedAt.toISOString(),
+          });
+        }
+      }
+    } catch { /* non-critical */ }
+  } else {
+    for (const m of modes) {
+      const intradayFiles = await fsListPrefix(`scan-${market}-${direction}-${m}-`);
+      for (const file of intradayFiles) {
+        const intradayMatch = file.match(/(\d{4}-\d{2}-\d{2})-intraday-\d{4}\.json$/);
+        if (!intradayMatch) continue;
+        const dateStr = intradayMatch[1];
+        if (existingDates.has(`${dateStr}-${m}`)) continue;
+        existingDates.add(`${dateStr}-${m}`);
+        entries.push({
+          market, direction, mtfMode: m,
+          date: dateStr, resultCount: -1, scanTime: '',
+        });
+      }
+    }
+  }
+
   // Deduplicate by date+mtfMode (keep latest scanTime)
   const seen = new Map<string, ScanDateEntry>();
   for (const e of entries) {
@@ -375,6 +414,11 @@ export async function loadScanSession(
     raw = await fsGet(`scan-${market}-${date}.json`);
   }
 
+  // Fallback: 若無 post_close session，嘗試載入最新的 intraday session
+  if (!raw) {
+    raw = await loadLatestIntradayRaw(market, date, direction, mtfMode);
+  }
+
   if (!raw) return null;
 
   try {
@@ -382,4 +426,36 @@ export async function loadScanSession(
   } catch {
     return null;
   }
+}
+
+/**
+ * 載入指定日期最新的 intraday session 原始 JSON
+ * 路徑: scans/{market}/{dir}/{mtf}/{date}/intraday/{HHMM}.json
+ * 取最大 HHMM（最新一筆）
+ */
+async function loadLatestIntradayRaw(
+  market: MarketId,
+  date: string,
+  direction: ScanDirection,
+  mtfMode: MtfMode,
+): Promise<string | null> {
+  if (IS_VERCEL) {
+    try {
+      const prefix = `scans/${market}/${direction}/${mtfMode}/${date}/intraday/`;
+      const blobs = await blobListPrefix(prefix);
+      if (blobs.length === 0) return null;
+      // 取最新的（按 pathname 排序，HHMM 越大越新）
+      const sorted = blobs.sort((a, b) => b.pathname.localeCompare(a.pathname));
+      return await blobGet(sorted[0].pathname);
+    } catch {
+      return null;
+    }
+  }
+
+  // Local dev
+  const prefix = `scan-${market}-${direction}-${mtfMode}-${date}-intraday-`;
+  const files = await fsListPrefix(prefix);
+  if (files.length === 0) return null;
+  const sorted = files.sort((a, b) => b.localeCompare(a));
+  return await fsGet(sorted[0]);
 }

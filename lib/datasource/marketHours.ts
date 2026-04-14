@@ -46,6 +46,39 @@ export function isMarketOpen(market: 'TW' | 'CN'): boolean {
 }
 
 /**
+ * 取得當前交易日
+ * 盤中 → 今天（即使還沒收盤）；盤後 → 今天；休市 → 上一個交易日
+ * 用於盤中掃描：L2 更新時需要以「今天」的日期存入 L4
+ */
+export function getCurrentTradingDay(market: 'TW' | 'CN'): string {
+  const tz = market === 'TW' ? 'Asia/Taipei' : 'Asia/Shanghai';
+  const { dow } = getLocalTime(tz);
+  const localDate = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
+
+  // 工作日且是交易日 → 今天
+  if (dow >= 1 && dow <= 5 && isTradingDay(localDate, market)) {
+    return localDate;
+  }
+
+  // 週末或假日 → 回退到上一個交易日
+  const d = new Date(localDate + 'T12:00:00');
+  if (dow === 0) {
+    d.setDate(d.getDate() - 2);
+  } else if (dow === 6) {
+    d.setDate(d.getDate() - 1);
+  }
+
+  let result = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(d);
+  let safety = 10;
+  while (!isTradingDay(result, market) && safety-- > 0) {
+    d.setDate(d.getDate() - 1);
+    result = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(d);
+  }
+
+  return result;
+}
+
+/**
  * 取得最後一個交易日（跳過週末）
  * 用於盤前/盤後掃描時降級為歷史掃描
  *

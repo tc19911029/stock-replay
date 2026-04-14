@@ -284,9 +284,14 @@ export const useBacktestStore = create<BacktestState>()(
 
       setMarket:             (market)   => set({ market }),
       setScanDate: (scanDate) => {
-        // P3C: 切換日期時清除 MTF unfiltered 快取，避免 toggle 時還原舊日期結果
+        // P3C: 切換日期時清除所有 MTF unfiltered 快取（含 date-specific keys），
+        // 避免 toggle 時還原舊日期結果
         const { scanCache } = get();
-        scanCache.delete('_unfilteredResults');
+        for (const key of scanCache.keys()) {
+          if (key.startsWith('_unfilteredResults')) {
+            scanCache.delete(key);
+          }
+        }
         set({ scanDate, useMultiTimeframe: false });
       },
       setScanOnly:           (scanOnly) => set({ scanOnly }),

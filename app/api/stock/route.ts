@@ -9,6 +9,7 @@ import { computeIndicators } from '@/lib/indicators';
 import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 import { getTWSESingleIntraday, getTWSEQuote } from '@/lib/datasource/TWSERealtime';
 import { getEastMoneySingleQuote } from '@/lib/datasource/EastMoneyRealtime';
+import { readIntradaySnapshot } from '@/lib/datasource/IntradayCache';
 
 // ── 週K/月K 聚合結果快取（避免重複聚合 + computeIndicators） ──
 const aggregateCache = new Map<string, { data: unknown; expires: number }>();
@@ -90,37 +91,48 @@ export async function GET(req: NextRequest) {
         // ── 盤中即時覆蓋：若 lastDate < today，主動拉即時報價湊今日 K 棒 ──
         const lastCandle = result.candles[result.candles.length - 1];
         if (lastCandle && lastCandle.date < today) {
+          let todayQuote: { open: number; high: number; low: number; close: number; volume: number } | null = null;
           try {
             if (isTW) {
               const twCode = pureCode;
-              const quote = await getTWSESingleIntraday(twCode) ?? await getTWSEQuote(twCode);
-              if (quote && quote.close > 0) {
-                if (!quote.date || quote.date === today) {
-                  result.candles.push({
-                    date: today,
-                    open: quote.open,
-                    high: quote.high,
-                    low: quote.low,
-                    close: quote.close,
-                    volume: quote.volume,
-                  });
-                }
+              const q = await getTWSESingleIntraday(twCode) ?? await getTWSEQuote(twCode);
+              if (q && q.close > 0 && (!q.date || q.date === today)) {
+                todayQuote = q;
               }
             } else if (isCN) {
-              const quote = await getEastMoneySingleQuote(pureCode);
-              if (quote && quote.close > 0) {
-                result.candles.push({
-                  date: today,
-                  open: quote.open,
-                  high: quote.high,
-                  low: quote.low,
-                  close: quote.close,
-                  volume: quote.volume,
-                });
+              const q = await getEastMoneySingleQuote(pureCode);
+              if (q && q.close > 0) {
+                todayQuote = q;
               }
             }
-          } catch {
-            // 即時報價失敗不影響主流程
+          } catch (err) {
+            console.warn(`[stock] 即時報價失敗 ${symbol}:`, err instanceof Error ? err.message : err);
+          }
+
+          // fallback: 從 L2 全市場快照中找該股報價
+          if (!todayQuote) {
+            try {
+              const snapshot = await readIntradaySnapshot(market as 'TW' | 'CN', today);
+              if (snapshot) {
+                const sq = snapshot.quotes.find(q => q.symbol === pureCode);
+                if (sq && sq.close > 0) {
+                  todayQuote = { open: sq.open, high: sq.high, low: sq.low, close: sq.close, volume: sq.volume };
+                }
+              }
+            } catch (err) {
+              console.warn(`[stock] L2 fallback 失敗 ${symbol}:`, err instanceof Error ? err.message : err);
+            }
+          }
+
+          if (todayQuote) {
+            result.candles.push({
+              date: today,
+              open: todayQuote.open,
+              high: todayQuote.high,
+              low: todayQuote.low,
+              close: todayQuote.close,
+              volume: todayQuote.volume,
+            });
           }
         }
 
