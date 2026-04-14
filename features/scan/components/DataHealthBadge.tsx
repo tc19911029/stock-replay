@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 
 interface L2Status {
   status: 'fresh' | 'stale' | 'missing';
@@ -78,6 +78,48 @@ export function DataHealthBadge({ market }: DataHealthProps) {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
+
+  // 點擊外部關閉面板
+  useEffect(() => {
+    if (!expanded) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (containerRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setExpanded(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [expanded]);
+
+  // 展開時用 fixed 定位，動態計算面板位置（避免被 overflow:hidden 截斷）
+  useLayoutEffect(() => {
+    if (!expanded || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const panelH = 440; // 估計面板高度
+    const spaceBelow = window.innerHeight - rect.bottom - 8;
+    const spaceAbove = rect.top - 8;
+
+    if (spaceBelow >= panelH) {
+      // 向下展開
+      setPanelStyle({ position: 'fixed', top: rect.bottom + 4, left: rect.left, maxHeight: spaceBelow });
+    } else if (spaceAbove >= panelH) {
+      // 向上展開
+      setPanelStyle({ position: 'fixed', bottom: window.innerHeight - rect.top + 4, left: rect.left, maxHeight: spaceAbove });
+    } else {
+      // 空間都不夠，取較大的那邊
+      const bigger = spaceBelow >= spaceAbove ? 'below' : 'above';
+      if (bigger === 'below') {
+        setPanelStyle({ position: 'fixed', top: rect.bottom + 4, left: rect.left, maxHeight: spaceBelow });
+      } else {
+        setPanelStyle({ position: 'fixed', bottom: window.innerHeight - rect.top + 4, left: rect.left, maxHeight: spaceAbove });
+      }
+    }
+  }, [expanded]);
+
   useEffect(() => {
     setLoading(true);
     fetch(`/api/health/data?market=${market}`)
@@ -97,7 +139,7 @@ export function DataHealthBadge({ market }: DataHealthProps) {
   const l1Color = statusColorMap[health.health] ?? statusColorMap.warning;
   const l1Label = statusLabelMap[health.health] ?? '未知';
   const coverage = health.coverageRate != null ? `${(health.coverageRate * 100).toFixed(0)}%` : '?';
-  const l1Age = health.generatedAt ? formatAge(health.generatedAt) : '未知';
+  const l1TimeText = health.generatedAt ? formatAbsoluteTime(health.generatedAt) : '未知';
 
   // ── L2 ──
   const l2Status = l2?.status ?? 'missing';
@@ -131,11 +173,11 @@ export function DataHealthBadge({ market }: DataHealthProps) {
   const toggle = () => setExpanded(prev => !prev);
 
   return (
-    <div className="relative inline-flex gap-1">
+    <div ref={containerRef} className="relative inline-flex gap-1">
       {/* L1 */}
       <button onClick={toggle}
         className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${l1Color} cursor-pointer`}
-        title={`L1 歷史K線 | 覆蓋率 ${coverage} | ${l1Age}`}
+        title={`L1 歷史K線 | 覆蓋率 ${coverage} | ${l1TimeText}`}
       >
         L1 {l1Label}
       </button>
@@ -166,19 +208,19 @@ export function DataHealthBadge({ market }: DataHealthProps) {
 
       {/* 展開詳情面板 */}
       {expanded && (
-        <div className="absolute top-full left-0 mt-1 z-50 bg-popover border border-border rounded-md shadow-lg p-3 min-w-[240px] text-[11px] max-h-[60vh] overflow-y-auto">
+        <div ref={panelRef} style={panelStyle} className="z-[9999] bg-popover border border-border rounded-md shadow-lg p-3 min-w-[240px] text-[11px] overflow-y-auto">
           <div className="font-semibold mb-2">{market} 數據健康報告</div>
 
           {/* L1 */}
           <div className="text-muted-foreground mb-2">
             <div className="font-medium text-foreground mb-1">L1 歷史K線</div>
             <div className="space-y-0.5 pl-2">
-              <div>覆蓋率：<span className="text-foreground">{coverage}</span></div>
-              <div>Gap 股票：<span className="text-foreground">{health.stocksWithGaps ?? '?'}</span> 支</div>
-              <div>過期股票：<span className="text-foreground">{health.stocksStale ?? '?'}</span> 支</div>
-              <div>下載失敗：<span className="text-foreground">{health.downloadFailed ?? '?'}</span> 支</div>
-              <div>報告日期：<span className="text-foreground">{health.reportDate ?? '無'}</span></div>
-              <div>校驗時間：<span className="text-foreground">{l1Age}</span></div>
+              <Row label="狀態"><StatusSpan status={health.health}>{l1Label}</StatusSpan></Row>
+              <Row label="覆蓋率">{coverage}</Row>
+              <Row label="Gap 股票">{health.stocksWithGaps ?? '?'} 支</Row>
+              <Row label="過期股票">{health.stocksStale ?? '?'} 支</Row>
+              <Row label="下載失敗">{health.downloadFailed ?? '?'} 支</Row>
+              <Row label="校驗時間">{l1TimeText}</Row>
             </div>
           </div>
 
@@ -186,11 +228,9 @@ export function DataHealthBadge({ market }: DataHealthProps) {
           <div className="text-muted-foreground border-t border-border pt-2 mb-2">
             <div className="font-medium text-foreground mb-1">L2 盤中快照</div>
             <div className="space-y-0.5 pl-2">
-              <div>報價數量：<span className="text-foreground">{l2?.quoteCount ?? 0}</span> 筆</div>
-              <div>快照時間：<span className="text-foreground">{l2TimeText}</span></div>
-              <div>狀態：<span className={`font-medium ${l2DisplayStatus === 'fresh' ? 'text-green-400' : l2DisplayStatus === 'closed' ? 'text-blue-400' : l2DisplayStatus === 'stale' ? 'text-yellow-400' : 'text-red-400'}`}>
-                {l2Label}
-              </span></div>
+              <Row label="狀態"><StatusSpan status={l2DisplayStatus}>{l2Label}</StatusSpan></Row>
+              <Row label="報價數量">{l2?.quoteCount ?? 0} 筆</Row>
+              <Row label="快照時間">{l2TimeText}</Row>
             </div>
 
             {showL2Alert && (
@@ -200,31 +240,13 @@ export function DataHealthBadge({ market }: DataHealthProps) {
                   : `數據源連續失敗 ${l2EmptyCount} 次`}
               </div>
             )}
-
-            {health.l2Sources?.sources && health.l2Sources.sources.length > 0 && (
-              <div className="mt-1.5 space-y-0.5 pl-2">
-                <div className="text-[10px] text-muted-foreground">數據源：</div>
-                {health.l2Sources.sources.map((s, i) => (
-                  <div key={i} className="text-[10px]">
-                    <span className={s.success ? 'text-green-400' : 'text-red-400'}>
-                      {s.success ? '\u2713' : '\u2717'}
-                    </span>{' '}
-                    {s.source}: {s.quoteCount} 筆
-                    {s.responseTimeMs > 0 && ` (${(s.responseTimeMs / 1000).toFixed(1)}s)`}
-                    {s.errorMessage && <span className="text-red-400"> {s.errorMessage.slice(0, 40)}</span>}
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* L3 */}
           <div className="text-muted-foreground border-t border-border pt-2 mb-2">
             <div className="font-medium text-foreground mb-1">L3 即時報價</div>
             <div className="space-y-0.5 pl-2">
-              <div>狀態：<span className={`font-medium ${l3DisplayStatus === 'fresh' ? 'text-green-400' : l3DisplayStatus === 'closed' ? 'text-blue-400' : l3DisplayStatus === 'stale' ? 'text-yellow-400' : 'text-red-400'}`}>
-                {l3Label}
-              </span></div>
+              <Row label="狀態"><StatusSpan status={l3DisplayStatus}>{l3Label}</StatusSpan></Row>
               <div className="text-[10px] text-muted-foreground">依賴 L2 快照 + 即時 API fallback</div>
             </div>
           </div>
@@ -233,15 +255,11 @@ export function DataHealthBadge({ market }: DataHealthProps) {
           <div className="text-muted-foreground border-t border-border pt-2">
             <div className="font-medium text-foreground mb-1">L4 掃描結果</div>
             <div className="space-y-0.5 pl-2">
-              <div>結果數：<span className="text-foreground">{l4?.lastScanCount ?? 0}</span> 檔</div>
-              <div>掃描時間：<span className="text-foreground">{l4TimeText}</span></div>
-              <div>歷史天數：<span className="text-foreground">{l4?.totalDatesAvailable ?? 0}</span>/20</div>
-              <div>今日盤中：<span className={`font-medium ${l4?.todayHasIntraday ? 'text-green-400' : 'text-red-400'}`}>
-                {l4?.todayHasIntraday ? '有' : '無'}
-              </span></div>
-              <div>狀態：<span className={`font-medium ${l4DisplayStatus === 'fresh' ? 'text-green-400' : l4DisplayStatus === 'closed' ? 'text-blue-400' : l4DisplayStatus === 'stale' ? 'text-yellow-400' : 'text-red-400'}`}>
-                {l4Label}
-              </span></div>
+              <Row label="狀態"><StatusSpan status={l4DisplayStatus}>{l4Label}</StatusSpan></Row>
+              <Row label="今日盤中"><span className={`font-medium ${l4?.todayHasIntraday ? 'text-green-400' : 'text-red-400'}`}>{l4?.todayHasIntraday ? '有' : '無'}</span></Row>
+              <Row label="結果數">{l4?.lastScanCount ?? 0} 檔</Row>
+              <Row label="歷史天數">{l4?.totalDatesAvailable ?? 0}/20</Row>
+              <Row label="掃描時間">{l4TimeText}</Row>
             </div>
           </div>
         </div>
@@ -264,7 +282,28 @@ function formatSeconds(sec: number): string {
   return `${Math.floor(sec / 3600)} 小時前`;
 }
 
-/** ISO 時間字串 → 台灣時間 "MM-DD HH:mm" */
+// ── 展開面板子元件 ──────────────────────────────────────────────────────────
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      {label}：<span className="text-foreground">{children}</span>
+    </div>
+  );
+}
+
+const statusSpanColor: Record<string, string> = {
+  fresh: 'text-green-400', good: 'text-green-400',
+  closed: 'text-blue-400',
+  stale: 'text-yellow-400', warning: 'text-yellow-400',
+  missing: 'text-red-400', critical: 'text-red-400',
+};
+
+function StatusSpan({ status, children }: { status: string; children: React.ReactNode }) {
+  return <span className={`font-medium ${statusSpanColor[status] ?? 'text-foreground'}`}>{children}</span>;
+}
+
+/** ISO 時間字串 → 台灣時間 "MM/DD HH:mm" */
 function formatAbsoluteTime(isoStr: string): string {
   try {
     const d = new Date(isoStr);
