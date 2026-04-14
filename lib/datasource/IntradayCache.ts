@@ -263,7 +263,7 @@ export async function refreshIntradaySnapshot(market: 'TW' | 'CN'): Promise<Intr
     }
   }
 
-  // ── 空快照保護：API 失敗時不覆蓋既有有效數據 ──
+  // ── 空快照保護：API 失敗時不覆蓋既有有效數據，且不寫入空檔案 ──
   if (quotes.length === 0) {
     console.warn(`[IntradayCache] ${market} API 返回 0 筆報價，檢查現有快照...`);
     const existing = await readIntradaySnapshot(market, today);
@@ -271,8 +271,10 @@ export async function refreshIntradaySnapshot(market: 'TW' | 'CN'): Promise<Intr
       console.warn(`[IntradayCache] 保留現有快照 (${existing.quotes.length} 筆)，不覆蓋空數據`);
       return existing;
     }
-    // 現有快照也是空的，寫入空快照（首次刷新的情況）
-    console.warn(`[IntradayCache] ${market} 現有快照也為空，寫入空快照`);
+    // API 返回 0 + 無既有快照 → 不寫入磁碟（可能是盤後啟動、市場休市、或 API 暫時故障）
+    // 避免在本地 dev 盤後啟動時把空檔覆蓋掉之後有效的快照
+    console.warn(`[IntradayCache] ${market} 無現有快照且 API 返回 0，跳過寫入磁碟`);
+    return { market, date: today, updatedAt: new Date().toISOString(), count: 0, quotes: [] };
   }
 
   const snapshot: IntradaySnapshot = {
