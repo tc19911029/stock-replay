@@ -68,6 +68,7 @@ export interface StockScanResult {
   mtfMonthlyPass?: boolean;
   mtfMonthlyDetail?: string;
   mtfWeeklyNearResistance?: boolean;          // 週線接近前高壓力區
+  mtfWeeklyChecks?: { trend: boolean; ma: boolean; resistance: boolean }; // 週線3項個別得分
   // ── 10大戒律 ──────────────────────────────────────────────────────────────
   entryProhibitionReasons?: string[];        // 觸發的戒律說明（有值代表被禁止）
   // ── AI 排名 ───────────────────────────────────────────────────────────────

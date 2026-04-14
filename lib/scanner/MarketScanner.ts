@@ -451,6 +451,7 @@ export abstract class MarketScanner {
           mtfMonthlyPass: mtfResult.monthly.pass,
           mtfMonthlyDetail: mtfResult.monthly.detail,
           mtfWeeklyNearResistance: mtfResult.weeklyNearResistance,
+          mtfWeeklyChecks: mtfResult.weeklyChecks,
         } : {}),
         // ── 數據新鮮度 ──────────────────────────────────────────────────
         dataFreshness: {

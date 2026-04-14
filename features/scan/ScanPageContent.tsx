@@ -141,7 +141,7 @@ export function ScanPanel({ onSelectStock }: ScanPanelProps) {
         {/* 長線保護 */}
         <button onClick={toggleMultiTimeframe}
           className={`px-2 py-1 rounded text-[11px] font-medium border ${useMultiTimeframe ? 'bg-blue-700/60 border-blue-600 text-blue-200' : 'bg-secondary border-border text-muted-foreground hover:bg-muted'}`}>
-          {useMultiTimeframe ? '週月線' : '僅日線'}
+          長線保護短線
         </button>
 
         {/* Result badge */}
@@ -410,7 +410,7 @@ export default function ScanPageContent({ defaultMode: _defaultMode = 'full' }: 
                 variant={useMultiTimeframe ? 'default' : 'secondary'}
                 className={`px-4 py-2 text-sm ${useMultiTimeframe ? 'bg-blue-700/60 hover:bg-blue-600/60 border border-blue-600 text-blue-200' : ''}`}
               >
-                {useMultiTimeframe ? '週月線過濾' : '僅日線'}
+                長線保護短線
               </Button>
             </div>
 

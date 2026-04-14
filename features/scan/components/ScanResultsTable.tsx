@@ -58,6 +58,7 @@ export function ScanResultsTable({ onSelectStock }: ScanResultsTableProps = {}) 
     scanOnly,
     performance,
     isFetchingForward,
+    useMultiTimeframe,
   } = useBacktestStore();
 
   const [expandedStock, setExpandedStock] = useState<string | null>(null);
@@ -474,6 +475,45 @@ export function ScanResultsTable({ onSelectStock }: ScanResultsTableProps = {}) 
                           </div>
                         )}
                       </div>
+                      {/* 長線保護短線（MTF） */}
+                      {useMultiTimeframe && r.mtfScore != null && (
+                        <div className="space-y-1.5">
+                          <div className="text-muted-foreground font-medium flex items-center gap-2">
+                            長線保護短線
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                              r.mtfScore >= 4 ? 'bg-sky-900/50 text-sky-300' :
+                              r.mtfScore >= 3 ? 'bg-sky-900/50 text-sky-300' :
+                              r.mtfScore >= 2 ? 'bg-amber-900/50 text-amber-300' :
+                              'bg-red-900/50 text-red-300'
+                            }`}>
+                              {r.mtfScore}/4
+                            </span>
+                          </div>
+                          <div className="text-[11px] space-y-1 mt-1">
+                            {([
+                              { num: 1, label: '週線趨勢', score: r.mtfWeeklyChecks?.trend ?? (r.mtfWeeklyTrend !== '空頭'), desc: '趨勢不是「空頭」即得分' },
+                              { num: 2, label: '週線均線', score: r.mtfWeeklyChecks?.ma ?? (r.mtfWeeklyPass ?? false), desc: 'MA排列多頭 + 收盤站穩週MA20 + MA20上升' },
+                              { num: 3, label: '週線壓力', score: r.mtfWeeklyChecks?.resistance ?? !(r.mtfWeeklyNearResistance), desc: '收盤價不在前高下方3%以內' },
+                              { num: 4, label: '月線趨勢', score: r.mtfMonthlyPass ?? false, desc: '趨勢不是「空頭」即得分' },
+                            ]).map(({ num, label, score, desc }) => (
+                              <div key={num} className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full shrink-0 ${score ? 'bg-green-400' : 'bg-red-500'}`} />
+                                <span className="text-muted-foreground font-medium shrink-0">{label}</span>
+                                <span className={`shrink-0 font-bold ${score ? 'text-green-400' : 'text-red-400'}`}>
+                                  {score ? '1分' : '0分'}
+                                </span>
+                                <span className="text-muted-foreground/50">{desc}</span>
+                              </div>
+                            ))}
+                            {r.mtfWeeklyNearResistance && (
+                              <div className="flex items-center gap-2 text-orange-400 mt-0.5">
+                                <span className="w-2 h-2 rounded-full shrink-0 bg-orange-400" />
+                                <span>⚠ 接近週線前高壓力區</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                       {/* 新聞情緒 */}
                       {(() => {
                         const tk = r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');

@@ -32,9 +32,16 @@ export interface TimeframeCheckResult {
   detail: string;
 }
 
+export interface WeeklyChecks {
+  trend: boolean;       // #1 週線趨勢不是空頭
+  ma: boolean;          // #2 MA排列多頭+站穩MA20
+  resistance: boolean;  // #3 不在前高壓力區
+}
+
 export interface MultiTimeframeResult {
   weekly: TimeframeCheckResult;
   monthly: TimeframeCheckResult;
+  weeklyChecks: WeeklyChecks;
   totalScore: number;              // 0-4
   pass: boolean;
   weeklyNearResistance: boolean;
@@ -56,6 +63,7 @@ function checkWeekly(weeklyCandles: CandleWithIndicators[]): {
   nearResistance: boolean;
   resistanceDetail?: string;
   detail: string;
+  checks: WeeklyChecks;
 } {
   // 取倒數第2根（排除未完成的當週）
   const evalIdx = weeklyCandles.length - 2;
@@ -65,6 +73,7 @@ function checkWeekly(weeklyCandles: CandleWithIndicators[]): {
       trend: '盤整',
       nearResistance: false,
       detail: '週線數據不足，跳過檢查',
+      checks: { trend: true, ma: true, resistance: true },
     };
   }
 
@@ -136,6 +145,7 @@ function checkWeekly(weeklyCandles: CandleWithIndicators[]): {
     nearResistance,
     resistanceDetail,
     detail: parts.join('，'),
+    checks: { trend: trendScore === 1, ma: maScore === 1, resistance: resistanceScore === 1 },
   };
 }
 
@@ -262,6 +272,7 @@ export function evaluateMultiTimeframe(
       score: monthly.score,
       detail: monthly.detail,
     },
+    weeklyChecks: weekly.checks,
     totalScore,
     pass,
     weeklyNearResistance: weekly.nearResistance,
