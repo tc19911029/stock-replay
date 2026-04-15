@@ -24,12 +24,21 @@ export async function GET(req: NextRequest) {
   try {
     // 今日（開盤確認日）
     const openDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
-    // 上一個交易日（打板掃描日）— 9:25 盤前，getLastTradingDay 返回昨天
+    // 上一個交易日（打板掃描日）— 9:27 盤前，getLastTradingDay 返回昨天
     const scanDate = getLastTradingDay('CN');
 
     if (scanDate === openDate) {
       // 防禦：若 scanDate 等於今天，表示市場已收盤，無需確認
       return apiOk({ skipped: true, reason: 'scanDate equals openDate', scanDate, openDate });
+    }
+
+    // 強制即時刷新 L2（確保拿到集合競價 9:25 成交價，不依賴 update-intraday 跑完）
+    try {
+      const { refreshIntradaySnapshot } = await import('@/lib/datasource/IntradayCache');
+      await refreshIntradaySnapshot('CN');
+      console.log('[confirm-daban-open] L2 強制刷新完成');
+    } catch (e) {
+      console.warn('[confirm-daban-open] L2 刷新失敗，使用現有快照:', e);
     }
 
     const result = await confirmDabanAtOpen(scanDate, openDate);
