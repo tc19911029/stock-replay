@@ -34,7 +34,7 @@
     },
     {
       "path": "/api/cron/confirm-daban-open",
-      "schedule": "25 1 * * 1-5"
+      "schedule": "27 1 * * 1-5"
     },
     {
       "path": "/api/cron/scan-intraday?market=TW",
