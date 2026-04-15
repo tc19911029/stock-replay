@@ -123,8 +123,13 @@ async function fetchEMKlines(
   // 統一限流
   await rateLimiter.acquire('eastmoney');
 
+  // 分鐘K（klt≤60）用 push2（即時端），日K以上用 push2his（歷史端）
+  const host = klt <= 60
+    ? 'https://push2.eastmoney.com'
+    : 'https://push2his.eastmoney.com';
+
   const url =
-    `https://push2his.eastmoney.com/api/qt/stock/kline/get` +
+    `${host}/api/qt/stock/kline/get` +
     `?secid=${secid}` +
     `&fields1=f1,f2,f3,f4,f5,f6` +
     `&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61` +
