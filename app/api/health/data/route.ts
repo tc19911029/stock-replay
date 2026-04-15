@@ -15,6 +15,7 @@ import {
   readIntradaySnapshot,
   getDataSourceStatus,
   getConsecutiveEmptyCount,
+  getLastRefreshAttempt,
   type DataSourceStatus,
 } from '@/lib/datasource/IntradayCache';
 import { getLastTradingDay, isMarketOpen, isPostCloseWindow } from '@/lib/datasource/marketHours';
@@ -30,8 +31,12 @@ interface L2Status {
   quoteCount: number | null;
   /** 快照年齡（秒） */
   ageSeconds: number | null;
-  /** 快照更新時間 */
+  /** 快照更新時間（數據實際更新時間） */
   updatedAt: string | null;
+  /** 最近一次嘗試刷新時間（不論成功或失敗，區分 cron 沒跑 vs API 掛了） */
+  lastCheckedAt: string | null;
+  /** lastCheckedAt 距今秒數 */
+  lastCheckedAgeSeconds: number | null;
 }
 
 interface L2SourceInfo {
@@ -98,8 +103,14 @@ async function getL2Status(market: 'TW' | 'CN'): Promise<L2Status> {
   const today = getTodayDate(market);
   const snapshot = await readIntradaySnapshot(market, today);
 
+  // 取得最近一次嘗試刷新時間（不論成功或失敗）
+  const lastCheckedAt = getLastRefreshAttempt(market);
+  const lastCheckedAgeSeconds = lastCheckedAt
+    ? Math.round((Date.now() - new Date(lastCheckedAt).getTime()) / 1000)
+    : null;
+
   if (!snapshot || snapshot.count === 0) {
-    return { status: 'missing', quoteCount: null, ageSeconds: null, updatedAt: null };
+    return { status: 'missing', quoteCount: null, ageSeconds: null, updatedAt: null, lastCheckedAt, lastCheckedAgeSeconds };
   }
 
   const ageMs = Date.now() - new Date(snapshot.updatedAt).getTime();
@@ -114,6 +125,8 @@ async function getL2Status(market: 'TW' | 'CN'): Promise<L2Status> {
       quoteCount: snapshot.count,
       ageSeconds,
       updatedAt: snapshot.updatedAt,
+      lastCheckedAt,
+      lastCheckedAgeSeconds,
     };
   }
 
@@ -126,11 +139,18 @@ async function getL2Status(market: 'TW' | 'CN'): Promise<L2Status> {
     status = 'stale';
   }
 
+  // 有快照數據時，最差也是 stale（不該是 missing/無數據）
+  if (status === 'missing' && snapshot.count > 0) {
+    status = 'stale';
+  }
+
   return {
     status,
     quoteCount: snapshot.count,
     ageSeconds,
     updatedAt: snapshot.updatedAt,
+    lastCheckedAt,
+    lastCheckedAgeSeconds,
   };
 }
 
@@ -171,6 +191,12 @@ async function getL4Status(market: 'TW' | 'CN'): Promise<L4Status> {
       if (ageSeconds < 10 * 60) status = 'fresh';
       else if (ageSeconds < 30 * 60) status = 'stale';
       else status = 'missing';
+    }
+
+    // 有今天的掃描結果時，最差也是 stale（不該是 missing/無數據）
+    // 例如：CN post_close 在盤前 06:53 跑過且有 4 筆結果，盤中 age > 30 min 但數據仍有效
+    if (status === 'missing' && latest.date === today && latest.resultCount > 0) {
+      status = 'stale';
     }
 
     return {

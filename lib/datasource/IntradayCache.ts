@@ -75,6 +75,9 @@ const _lastSourceStatus: Record<string, DataSourceStatus[]> = {};
 /** 每個市場連續空快照計數（API 都返回 0） */
 const _consecutiveEmptyCount: Record<string, number> = { TW: 0, CN: 0 };
 
+/** 每個市場最近一次嘗試刷新的時間（不論成功或失敗） */
+const _lastRefreshAttempt: Record<string, string> = {};
+
 /** 取得指定市場最近一次刷新的數據源狀態 */
 export function getDataSourceStatus(market: 'TW' | 'CN'): DataSourceStatus[] {
   return _lastSourceStatus[market] ?? [];
@@ -83,6 +86,11 @@ export function getDataSourceStatus(market: 'TW' | 'CN'): DataSourceStatus[] {
 /** 取得指定市場連續空快照次數 */
 export function getConsecutiveEmptyCount(market: 'TW' | 'CN'): number {
   return _consecutiveEmptyCount[market] ?? 0;
+}
+
+/** 取得指定市場最近一次嘗試刷新的時間（區分「cron 沒跑」vs「API 掛了用快取」） */
+export function getLastRefreshAttempt(market: 'TW' | 'CN'): string | null {
+  return _lastRefreshAttempt[market] ?? null;
 }
 
 /** 計時工具 */
@@ -217,6 +225,9 @@ export function isSnapshotFresh(snapshot: IntradaySnapshot | null, maxAgeMs = 12
  * CN: EastMoney push2
  */
 export async function refreshIntradaySnapshot(market: 'TW' | 'CN'): Promise<IntradaySnapshot> {
+  // 記錄嘗試時間（不論成功或失敗），讓 health API 區分 cron 沒跑 vs API 掛了
+  _lastRefreshAttempt[market] = new Date().toISOString();
+
   const today = new Intl.DateTimeFormat('en-CA', {
     timeZone: market === 'TW' ? 'Asia/Taipei' : 'Asia/Shanghai',
   }).format(new Date());
@@ -330,20 +341,58 @@ export function getLastRefreshSummary(market: 'TW' | 'CN'): L2RefreshSummary {
 
 // ── 內部：TW 報價抓取 ─────────────────────────────────────────────────────
 
+/** mis.twse 盤中即時回傳的最低預期數量，低於此值視為失敗，降級到 OpenAPI */
+const TW_MIN_EXPECTED = 500;
+
 async function _fetchTWQuotes(sources: DataSourceStatus[]): Promise<IntradayQuote[]> {
-  const { getTWSERealtimeIntraday } = await import('./TWSERealtime');
+  const { getTWSERealtimeIntraday, getTWSEDailyAll } = await import('./TWSERealtime');
+
+  // 1. 先試 mis.twse 盤中即時報價（真正即時，但間歇性不穩定）
   const { result: twseMap, elapsedMs } = await timedFetch(() => getTWSERealtimeIntraday());
 
   sources.push({
-    source: 'TWSE+TPEx',
-    success: twseMap.size > 0,
+    source: 'TWSE+TPEx(mis)',
+    success: twseMap.size >= TW_MIN_EXPECTED,
     quoteCount: twseMap.size,
     responseTimeMs: elapsedMs,
     timestamp: new Date().toISOString(),
   });
 
+  // 2. mis.twse 回傳不足 → 降級到 OpenAPI（STOCK_DAY_ALL，更穩定但稍慢）
+  let finalMap = twseMap;
+  if (twseMap.size < TW_MIN_EXPECTED) {
+    const reason = twseMap.size === 0 ? '返回 0 筆' : `僅 ${twseMap.size} 筆`;
+    console.warn(`[IntradayCache] TW mis.twse ${reason}，降級到 OpenAPI STOCK_DAY_ALL...`);
+    try {
+      const { result: dailyMap, elapsedMs: dailyMs } = await timedFetch(() => getTWSEDailyAll());
+      sources.push({
+        source: 'TWSE+TPEx(OpenAPI)',
+        success: dailyMap.size > 0,
+        quoteCount: dailyMap.size,
+        responseTimeMs: dailyMs,
+        timestamp: new Date().toISOString(),
+      });
+      if (dailyMap.size > 0) {
+        finalMap = dailyMap;
+        console.info(`[IntradayCache] TW OpenAPI fallback 成功: ${dailyMap.size} 筆`);
+      } else {
+        console.warn('[IntradayCache] TW OpenAPI fallback 也返回 0 筆');
+      }
+    } catch (err) {
+      sources.push({
+        source: 'TWSE+TPEx(OpenAPI)',
+        success: false,
+        quoteCount: 0,
+        errorMessage: err instanceof Error ? err.message : String(err),
+        responseTimeMs: 0,
+        timestamp: new Date().toISOString(),
+      });
+      console.warn('[IntradayCache] TW OpenAPI fallback 失敗:', err);
+    }
+  }
+
   const quotes: IntradayQuote[] = [];
-  for (const [, q] of twseMap) {
+  for (const [, q] of finalMap) {
     const prevClose = q.previousClose ?? q.close;
     const changePercent = prevClose > 0 ? ((q.close - prevClose) / prevClose) * 100 : 0;
     quotes.push({
@@ -394,15 +443,32 @@ async function _fetchCNQuotes(
     });
   }
 
-  // 2. EastMoney 返回 0 筆或連線失敗 → fallback 騰訊
-  if (cnMap.size === 0) {
-    console.warn(`[IntradayCache] CN EastMoney 返回 0 筆，嘗試騰訊 fallback...`);
+  // 2. EastMoney 返回不足 → 騰訊補充（0 筆=完全替代，<1500=補充缺失）
+  const CN_MIN_EXPECTED = 1500; // 預期 3000+ 主板，低於一半視為不足
+  if (cnMap.size < CN_MIN_EXPECTED) {
+    const reason = cnMap.size === 0 ? '返回 0 筆' : `僅 ${cnMap.size} 筆（預期 3000+）`;
+    console.warn(`[IntradayCache] CN EastMoney ${reason}，嘗試騰訊${cnMap.size > 0 ? '補充' : 'fallback'}...`);
     try {
       const { getTencentRealtime } = await import('./TencentRealtime');
       const { CN_STOCKS } = await import('@/lib/scanner/cnStocks');
       const symbols = CN_STOCKS.map(s => s.symbol);
       const { result: tcMap, elapsedMs: tcMs } = await timedFetch(() => getTencentRealtime(symbols));
-      cnMap = tcMap;
+
+      if (cnMap.size === 0) {
+        // 東財完全失敗 → 用騰訊替代
+        cnMap = tcMap;
+      } else {
+        // 東財部分成功 → 騰訊補充缺失（不覆蓋東財已有的，東財有 prevClose 等更豐富欄位）
+        let supplemented = 0;
+        for (const [code, quote] of tcMap) {
+          if (!cnMap.has(code)) {
+            cnMap.set(code, quote);
+            supplemented++;
+          }
+        }
+        console.info(`[IntradayCache] CN 騰訊補充 ${supplemented} 筆，總計 ${cnMap.size} 筆`);
+      }
+
       sources.push({
         source: 'Tencent',
         success: tcMap.size > 0,
@@ -410,9 +476,7 @@ async function _fetchCNQuotes(
         responseTimeMs: tcMs,
         timestamp: new Date().toISOString(),
       });
-      if (tcMap.size > 0) {
-        console.info(`[IntradayCache] CN 騰訊 fallback 成功: ${tcMap.size} 筆`);
-      } else {
+      if (cnMap.size === 0) {
         console.warn(`[IntradayCache] CN 騰訊 fallback 也返回 0 筆`);
       }
     } catch (err) {

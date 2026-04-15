@@ -33,6 +33,7 @@ const stockQuerySchema = z.object({
   interval: z.enum(['1m', '5m', '15m', '30m', '60m', '1d', '1wk', '1mo']).default('1d'),
   period:   z.string().default('2y'),
   local:    z.enum(['1', '0']).optional(), // '1' = 本地檔案優先（日K混合模式用）
+  scanDate: z.string().optional(),         // 'YYYY-MM-DD' 掃描日期，若 L1 缺該日則從 L2 快照補入
 });
 
 /** 解析 symbol 並加上交易所後綴 */
@@ -69,7 +70,7 @@ export async function GET(req: NextRequest) {
   if (!parsed.success) {
     return apiValidationError(parsed.error);
   }
-  const { symbol, interval, period, local: localParam } = parsed.data;
+  const { symbol, interval, period, local: localParam, scanDate } = parsed.data;
   const { candidates, isTW, isCN } = resolveSymbol(symbol);
   const pureCode = symbol.replace(/\.(SZ|SS|TW|TWO)$/i, '');
 
@@ -178,6 +179,42 @@ export async function GET(req: NextRequest) {
               close: todayQuote.close,
               volume: todayQuote.volume,
             });
+          }
+        }
+
+        // ── 補注入 scanDate K 棒（掃描日期在 L1 缺失時從 L2 快照補入） ──
+        // 常見情境：scanDate=04-14，但 L1 只到 04-13（下載未完成），
+        // 今日 bar 已注入為 04-15，但圖表定位到 04-14 時找不到對應 K 棒 → 顯示 04-13
+        if (scanDate && scanDate < today) {
+          const hasScanDateBar = result.candles.some(c => c.date === scanDate);
+          if (!hasScanDateBar) {
+            try {
+              const scanSnapshot = await readIntradaySnapshot(market as 'TW' | 'CN', scanDate);
+              if (scanSnapshot) {
+                const sq = scanSnapshot.quotes.find(q => q.symbol === pureCode);
+                if (sq && sq.close > 0) {
+                  // 插入 scanDate K 棒（按日期順序）
+                  const scanCandle = {
+                    date: scanDate,
+                    open: sq.open || sq.close,
+                    high: sq.high || sq.close,
+                    low: sq.low || sq.close,
+                    close: sq.close,
+                    volume: sq.volume || 0,
+                  };
+                  // 找到插入位置（保持日期升序）
+                  const insertIdx = result.candles.findIndex(c => c.date > scanDate);
+                  if (insertIdx === -1) {
+                    result.candles.push(scanCandle);
+                  } else {
+                    result.candles.splice(insertIdx, 0, scanCandle);
+                  }
+                  console.log(`[stock] 補注入 scanDate=${scanDate} K 棒 ${symbol}: close=${sq.close} from L2 snapshot`);
+                }
+              }
+            } catch (err) {
+              console.warn(`[stock] scanDate L2 補注入失敗 ${symbol} ${scanDate}:`, err instanceof Error ? err.message : err);
+            }
           }
         }
 

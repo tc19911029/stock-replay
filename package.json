@@ -25,6 +25,7 @@
     "@vercel/blob": "^2.3.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "fubon-neo": "^2.2.2",
     "lightweight-charts": "^5.1.0",
     "lucide-react": "^1.7.0",
     "next": "16.2.1",

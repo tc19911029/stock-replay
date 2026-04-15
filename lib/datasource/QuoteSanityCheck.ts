@@ -41,10 +41,14 @@ export function checkQuoteSanity(
   // Volume 數量級檢查
   let volumeFlag = false;
   if (lastL1Volume && lastL1Volume > 0 && realtimeVolume > 0) {
-    const volumeRatio = realtimeVolume / lastL1Volume;
-    // 盤中成交量可能很低（正常），但如果大 1000 倍以上就很可疑
-    if (volumeRatio > 1000) {
-      volumeFlag = true;
+    // 若 L1 volume 極小（< 100 張）代表 L1 本身是壞資料（如 vol=1 的錯誤 K 棒），
+    // 跳過倍率檢查避免誤拒 L3 注入。volume=1 是已知的 EODHD 資料異常。
+    if (lastL1Volume >= 100) {
+      const volumeRatio = realtimeVolume / lastL1Volume;
+      // 盤中成交量可能很低（正常），但如果大 1000 倍以上就很可疑
+      if (volumeRatio > 1000) {
+        volumeFlag = true;
+      }
     }
   }
 

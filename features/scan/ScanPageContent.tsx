@@ -113,7 +113,18 @@ export function ScanPanel({ onSelectStock }: ScanPanelProps) {
         {/* Market */}
         <div className="flex rounded overflow-hidden border border-border">
           {(['TW', 'CN'] as const).map(m => (
-            <button key={m} onClick={() => { setMarket(m); clearCurrent(); }}
+            <button key={m} onClick={async () => {
+              if (m === market) return;
+              setMarket(m);
+              clearCurrent();
+              // 切換市場後重新載入新市場的日期列表 + 最新掃描結果
+              const dir = scanDirection === 'long' || scanDirection === 'short' ? scanDirection : 'long';
+              await fetchCronDates(m, dir);
+              const dates = useBacktestStore.getState().cronDates;
+              if (dates.length > 0) {
+                useBacktestStore.getState().loadCronSession(m, dates[0].date, { scanOnly: true, direction: dir });
+              }
+            }}
               className={`px-2.5 py-1 text-[11px] font-medium ${market === m ? 'bg-blue-600 text-foreground' : 'bg-secondary text-muted-foreground hover:bg-muted'}`}>
               {m === 'TW' ? '台股' : '陸股'}
             </button>

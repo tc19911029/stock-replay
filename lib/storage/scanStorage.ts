@@ -356,8 +356,9 @@ export async function listScanDates(
     }
   }
 
-  // ── 盤中 intraday session 也納入清單（若該日尚無 post_close）──
-  const existingDates = new Set(entries.map(e => `${e.date}-${e.mtfMode}`));
+  // ── 盤中 intraday session 也納入清單 ──
+  // 不再跳過已有 post_close 的日期，讓 intraday 進入 entries，
+  // 由下方 dedup 步驟依 scanTime 取最新（盤中 intraday 較新 → 選 intraday）
 
   if (IS_VERCEL) {
     try {
@@ -368,8 +369,7 @@ export async function listScanDates(
           const intradayMatch = blob.pathname.match(/(\d{4}-\d{2}-\d{2})\/intraday\/\d{4}\.json$/);
           if (!intradayMatch) continue;
           const dateStr = intradayMatch[1];
-          if (existingDates.has(`${dateStr}-${m}`)) continue; // 已有 post_close，跳過
-          existingDates.add(`${dateStr}-${m}`);
+          // 不跳過：讓 intraday 與 post_close 共存，由 dedup 取最新 scanTime
           entries.push({
             market, direction, mtfMode: m,
             date: dateStr, resultCount: -1,
@@ -385,23 +385,48 @@ export async function listScanDates(
         const intradayMatch = file.match(/(\d{4}-\d{2}-\d{2})-intraday-\d{4}\.json$/);
         if (!intradayMatch) continue;
         const dateStr = intradayMatch[1];
-        if (existingDates.has(`${dateStr}-${m}`)) continue;
-        existingDates.add(`${dateStr}-${m}`);
-        entries.push({
-          market, direction, mtfMode: m,
-          date: dateStr, resultCount: -1, scanTime: '',
-        });
+        // 不跳過也不加入 existingDates，讓同日多筆 intraday 都進 entries，由 dedup 取最新
+        try {
+          const raw = await fsGet(file);
+          if (raw) {
+            const session = JSON.parse(raw) as ScanSession;
+            entries.push({
+              market, direction, mtfMode: m,
+              date: dateStr,
+              resultCount: session.resultCount,
+              scanTime: session.scanTime,
+            });
+          } else {
+            entries.push({
+              market, direction, mtfMode: m,
+              date: dateStr, resultCount: -1, scanTime: '',
+            });
+          }
+        } catch {
+          entries.push({
+            market, direction, mtfMode: m,
+            date: dateStr, resultCount: -1, scanTime: '',
+          });
+        }
       }
     }
   }
 
-  // Deduplicate by date+mtfMode (keep latest scanTime)
+  // Deduplicate by date+mtfMode
+  // 保留最新 scanTime（決定 L4 健康狀態新鮮度），
+  // resultCount 用最近有結果的值（與 loadScanSession/loadLatestIntradayRaw 一致）
   const seen = new Map<string, ScanDateEntry>();
   for (const e of entries) {
     const key = `${e.date}-${e.mtfMode}`;
     const existing = seen.get(key);
-    if (!existing || e.scanTime > existing.scanTime) {
+    if (!existing) {
       seen.set(key, e);
+    } else {
+      // scanTime 取最新（健康狀態用）
+      const newer = e.scanTime > existing.scanTime ? e : existing;
+      // resultCount：最新有結果就用最新的，否則保留之前有結果的
+      const bestCount = newer.resultCount > 0 ? newer.resultCount : Math.max(e.resultCount, existing.resultCount);
+      seen.set(key, { ...newer, resultCount: bestCount });
     }
   }
 
@@ -451,6 +476,26 @@ export async function loadScanSession(
     raw = await fsGet(`scan-${market}-${date}.json`);
   }
 
+  // 若有 post_close，檢查是否有更新且有結果的 intraday（盤中即時數據優先）
+  if (raw) {
+    const intradayRaw = await loadLatestIntradayRaw(market, date, direction, mtfMode);
+    if (intradayRaw) {
+      try {
+        const postClose = JSON.parse(raw) as ScanSession;
+        const intraday = JSON.parse(intradayRaw) as ScanSession;
+        // 僅當 intraday 有結果且比 post_close 新時才優先
+        // （午休/盤後空結果不應覆蓋有結果的 post_close）
+        if (
+          intraday.scanTime && postClose.scanTime &&
+          intraday.scanTime > postClose.scanTime &&
+          intraday.resultCount > 0
+        ) {
+          raw = intradayRaw;
+        }
+      } catch { /* parse 失敗就用 post_close */ }
+    }
+  }
+
   // Fallback: 若無 post_close session，嘗試載入最新的 intraday session
   if (!raw) {
     raw = await loadLatestIntradayRaw(market, date, direction, mtfMode);
@@ -481,18 +526,38 @@ async function loadLatestIntradayRaw(
       const prefix = `scans/${market}/${direction}/${mtfMode}/${date}/intraday/`;
       const blobs = await blobListPrefix(prefix);
       if (blobs.length === 0) return null;
-      // 取最新的（按 pathname 排序，HHMM 越大越新）
+      // 從最新往回找，優先返回有結果的 intraday（避免午休空掃描覆蓋盤中結果）
       const sorted = blobs.sort((a, b) => b.pathname.localeCompare(a.pathname));
+      for (const blob of sorted) {
+        const raw = await blobGet(blob.pathname);
+        if (raw) {
+          try {
+            const session = JSON.parse(raw) as ScanSession;
+            if (session.resultCount > 0) return raw;
+          } catch { /* continue */ }
+        }
+      }
+      // 全部都 0 結果 → 返回最新的
       return await blobGet(sorted[0].pathname);
     } catch {
       return null;
     }
   }
 
-  // Local dev
+  // Local dev: 從最新往回找有結果的 intraday
   const prefix = `scan-${market}-${direction}-${mtfMode}-${date}-intraday-`;
   const files = await fsListPrefix(prefix);
   if (files.length === 0) return null;
   const sorted = files.sort((a, b) => b.localeCompare(a));
+  for (const file of sorted) {
+    const raw = await fsGet(file);
+    if (raw) {
+      try {
+        const session = JSON.parse(raw) as ScanSession;
+        if (session.resultCount > 0) return raw;
+      } catch { /* continue */ }
+    }
+  }
+  // 全部都 0 結果 → 返回最新的
   return await fsGet(sorted[0]);
 }

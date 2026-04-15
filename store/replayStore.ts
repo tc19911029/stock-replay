@@ -265,8 +265,9 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
         // Step 1: 嘗試本地檔案（瞬間回應）
         let localLoaded = false;
         try {
+          const scanDateParam = targetDate ? `&scanDate=${encodeURIComponent(targetDate)}` : '';
           const localRes = await fetch(
-            `/api/stock?symbol=${encodeURIComponent(symbol)}&interval=${interval}&period=${p}&local=1`
+            `/api/stock?symbol=${encodeURIComponent(symbol)}&interval=${interval}&period=${p}&local=1${scanDateParam}`
           );
           if (localRes.ok) {
             const localJson = await localRes.json();

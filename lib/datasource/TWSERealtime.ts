@@ -184,6 +184,14 @@ async function fetchAllQuotes(): Promise<Map<string, TWSEQuote>> {
 }
 
 /**
+ * 降級備援：使用 STOCK_DAY_ALL OpenAPI（比 mis.twse 穩定，但更新頻率較低）
+ * 當 mis.twse 批量查詢失敗時使用，至少能拿到有數值的報價
+ */
+export async function getTWSEDailyAll(): Promise<Map<string, TWSEQuote>> {
+  return fetchAllQuotes();
+}
+
+/**
  * 取得單一股票的盤中即時報價（優化版）
  * 先查 memory cache，命中就 O(1)；miss 則用 mis.twse.com.tw 單股查詢（< 200ms）
  * 避免為了 1 檔走圖而拉全市場 1900 檔報價
