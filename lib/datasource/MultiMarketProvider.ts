@@ -1,9 +1,9 @@
 /**
  * MultiMarketProvider — 多市場路由器 + 備援 + 盤前時段保護
  *
- * 走圖路由（單檔速度優先，EODHD 降為備援）：
- *   台股 (.TW/.TWO) → FinMind → EODHD → TWSE/TPEx
- *   陸股 (.SS/.SZ)  → 東方財富 → 騰訊財經 → EODHD
+ * 走圖路由（單檔速度優先，EODHD 降為備援，Yahoo 最後兜底）：
+ *   台股 (.TW/.TWO) → FinMind → EODHD → TWSE/TPEx → Yahoo
+ *   陸股 (.SS/.SZ)  → 東方財富 → 騰訊財經 → EODHD → Yahoo
  *   美股            → 騰訊財經 → 東方財富
  *
  * EODHD（付費）的配額留給 cron 批量下載，走圖只有 1-3 檔用免費 API 即可。
@@ -23,6 +23,7 @@ import { finmindHistProvider } from './FinMindHistProvider';
 import { eastMoneyHistProvider } from './EastMoneyHistProvider';
 import { tencentHistProvider } from './TencentHistProvider';
 import { eodhdHistProvider } from './EODHDHistProvider';
+import { yahooProvider } from './YahooDataProvider';
 import { getTWSEQuote, getTWSERealtimeIntraday } from './TWSERealtime';
 import { getEastMoneyQuote, getUSStockQuote } from './EastMoneyRealtime';
 
@@ -359,7 +360,7 @@ export class MultiMarketProvider implements DataProvider {
     const isMinuteInterval = ['1m', '5m', '15m', '30m', '60m'].includes(interval ?? '');
 
     if (market === 'TW') {
-      // 走圖路由：FinMind 單檔快 → EODHD 備援 → TWSE 最後
+      // 走圖路由：FinMind → EODHD → TWSE → Yahoo（4 層 fallback）
       result = await tryProvidersWithRacing([
         {
           name: `FinMind ${symbol}`,
@@ -373,6 +374,10 @@ export class MultiMarketProvider implements DataProvider {
           name: `TWSE ${symbol}`,
           fn: () => twseHistProvider.getHistoricalCandles(symbol, period, asOfDate, interval),
         },
+        {
+          name: `Yahoo ${symbol}`,
+          fn: () => yahooProvider.getHistoricalCandles(symbol, period, asOfDate),
+        },
       ]);
     } else if (isMinuteInterval) {
       // 分鐘 K 線只有 EastMoney 支援
@@ -383,7 +388,7 @@ export class MultiMarketProvider implements DataProvider {
         },
       ]);
     } else {
-      // 陸股/美股走圖路由：EastMoney 單檔快 → Tencent 備援 → EODHD 最後
+      // 陸股/美股走圖路由：EastMoney → Tencent → EODHD → Yahoo（4 層 fallback）
       result = await tryProvidersWithRacing([
         {
           name: `EastMoney ${symbol}`,
@@ -396,6 +401,10 @@ export class MultiMarketProvider implements DataProvider {
         {
           name: `EODHD ${symbol}`,
           fn: () => eodhdHistProvider.getHistoricalCandles(symbol, period, asOfDate),
+        },
+        {
+          name: `Yahoo ${symbol}`,
+          fn: () => yahooProvider.getHistoricalCandles(symbol, period, asOfDate),
         },
       ]);
     }
