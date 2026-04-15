@@ -871,7 +871,15 @@ export const useBacktestStore = create<BacktestState>()(
             resultCount: s.resultCount,
             scanTime: s.scanTime,
           }));
-          set({ cronDates: entries, isFetchingCron: false });
+          // Merge by market: keep other markets' entries, replace this market's entries
+          // This prevents race conditions where TW fetch overwrites CN entries
+          set(state => ({
+            cronDates: [
+              ...state.cronDates.filter(c => c.market !== market),
+              ...entries,
+            ],
+            isFetchingCron: false,
+          }));
         } catch {
           set({ isFetchingCron: false });
         }

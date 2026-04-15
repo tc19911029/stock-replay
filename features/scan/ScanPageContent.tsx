@@ -191,7 +191,7 @@ export function ScanPanel({ onSelectStock }: ScanPanelProps) {
       <div className="flex-1 min-h-0 overflow-y-auto">
 
       {/* Date Navigator — 歷史日期列表 */}
-      {cronDates.length > 0 && (
+      {cronDates.some(c => c.market === market) && (
         <div className="px-3 py-1.5 border-b border-border flex flex-wrap gap-1 items-center">
           <span className="text-[10px] text-muted-foreground mr-1">紀錄：</span>
           {cronDates.filter(c => c.market === market).filter((c, i, arr) => arr.findIndex(x => x.date === c.date) === i).slice(0, 30).map(c => {
@@ -566,7 +566,7 @@ export default function ScanPageContent({ defaultMode: _defaultMode = 'full' }: 
 
         {/* Empty state */}
         {!isScanning && !isFetchingForward && scanResults.length === 0 && !scanError && !isLoadingCronSession && (
-          cronDates.length > 0 ? (
+          cronDates.some(c => c.market === market) ? (
             <div className="text-center py-12 text-muted-foreground space-y-2">
               <div className="text-3xl">👆</div>
               <div className="text-sm font-medium">點擊上方日期查看掃描結果</div>
