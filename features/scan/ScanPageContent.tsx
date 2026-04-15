@@ -149,14 +149,16 @@ export function ScanPanel({ onSelectStock }: ScanPanelProps) {
           className="bg-secondary border border-border text-foreground rounded px-2 py-1 text-[11px] focus:outline-none focus:border-sky-500"
         />
 
-        {/* 長線保護 */}
-        <button onClick={toggleMultiTimeframe}
-          className={`px-2 py-1 rounded text-[11px] font-medium border ${useMultiTimeframe ? 'bg-blue-700/60 border-blue-600 text-blue-200' : 'bg-secondary border-border text-muted-foreground hover:bg-muted'}`}>
-          長線保護短線
-        </button>
+        {/* 長線保護 — 打板模式不適用 */}
+        {scanDirection !== 'daban' && (
+          <button onClick={toggleMultiTimeframe}
+            className={`px-2 py-1 rounded text-[11px] font-medium border ${useMultiTimeframe ? 'bg-blue-700/60 border-blue-600 text-blue-200' : 'bg-secondary border-border text-muted-foreground hover:bg-muted'}`}>
+            長線保護短線
+          </button>
+        )}
 
-        {/* Result badge */}
-        {scanResults.length > 0 && !isScanning && (
+        {/* Result badge — 打板模式用自己的計數，不顯示這裡 */}
+        {scanResults.length > 0 && !isScanning && scanDirection !== 'daban' && (
           <span className="text-muted-foreground">
             選出 <span className="text-amber-400 font-bold">{scanResults.length}</span> 檔
             {marketTrend && (
