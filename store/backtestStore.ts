@@ -282,7 +282,17 @@ export const useBacktestStore = create<BacktestState>()(
         set(s => ({ scanPresets: s.scanPresets.filter(p => p.id !== id) }));
       },
 
-      setMarket:             (market)   => set({ market }),
+      setMarket: (market) => {
+        // P3C: 切換市場時清除 MTF unfiltered 快取，防止跨市場 cache 污染
+        // 例：在 CN 載入 5 檔後切換到 TW，再 toggle MTF 會還原 CN 結果
+        const { scanCache } = get();
+        for (const key of scanCache.keys()) {
+          if (key.startsWith('_unfilteredResults')) {
+            scanCache.delete(key);
+          }
+        }
+        set({ market });
+      },
       setScanDate: (scanDate) => {
         // P3C: 切換日期時清除所有 MTF unfiltered 快取（含 date-specific keys），
         // 避免 toggle 時還原舊日期結果
