@@ -20,7 +20,7 @@ import type { Candle, CandleWithIndicators } from '@/types';
 import { DataProvider } from './DataProvider';
 import { twseHistProvider } from './TWSEHistProvider';
 import { finmindHistProvider } from './FinMindHistProvider';
-import { eastMoneyHistProvider } from './EastMoneyHistProvider';
+import { eastMoneyHistProvider, getSinaMinuteCandles } from './EastMoneyHistProvider';
 import { tencentHistProvider } from './TencentHistProvider';
 import { eodhdHistProvider } from './EODHDHistProvider';
 import { yahooProvider } from './YahooDataProvider';
@@ -380,11 +380,15 @@ export class MultiMarketProvider implements DataProvider {
         },
       ]);
     } else if (isMinuteInterval) {
-      // 分鐘 K 線只有 EastMoney 支援
+      // 分鐘 K 線：EastMoney push2his（可能為空）→ 新浪財經備援
       result = await tryProvidersWithRacing([
         {
           name: `EastMoney ${symbol}`,
           fn: () => eastMoneyHistProvider.getHistoricalCandles(symbol, period, asOfDate, interval),
+        },
+        {
+          name: `Sina ${symbol}`,
+          fn: () => getSinaMinuteCandles(symbol, interval ?? '1m'),
         },
       ]);
     } else {

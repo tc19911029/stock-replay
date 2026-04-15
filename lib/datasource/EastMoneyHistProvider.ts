@@ -123,13 +123,9 @@ async function fetchEMKlines(
   // 統一限流
   await rateLimiter.acquire('eastmoney');
 
-  // 分鐘K（klt≤60）用 push2（即時端），日K以上用 push2his（歷史端）
-  const host = klt <= 60
-    ? 'https://push2.eastmoney.com'
-    : 'https://push2his.eastmoney.com';
-
+  // push2his 支援所有 klt，但分鐘K資料保留時間短
   const url =
-    `${host}/api/qt/stock/kline/get` +
+    `https://push2his.eastmoney.com/api/qt/stock/kline/get` +
     `?secid=${secid}` +
     `&fields1=f1,f2,f3,f4,f5,f6` +
     `&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61` +
@@ -288,3 +284,90 @@ export class EastMoneyHistProvider implements DataProvider {
 
 /** 全域東方財富 provider 單例 */
 export const eastMoneyHistProvider = new EastMoneyHistProvider();
+
+// ── 新浪財經分鐘K線（備援，A股） ─────────────────────────────────────────────
+
+const SINA_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+  'Referer': 'https://finance.sina.com.cn/',
+};
+
+/** interval → Sina scale 參數 */
+function intervalToSinaScale(interval: string): number | null {
+  const map: Record<string, number> = {
+    '1m': 1, '5m': 5, '15m': 15, '30m': 30, '60m': 60,
+  };
+  return map[interval] ?? null;
+}
+
+/** A 股代碼 → 新浪格式 (sh/sz prefix) */
+function cnSinaCode(code: string): string {
+  return (code[0] === '6' || code[0] === '9') ? `sh${code}` : `sz${code}`;
+}
+
+/**
+ * 從新浪財經取得 A 股歷史分鐘K線
+ * API: https://quotes.sina.cn/cn/api/jsonp_v2.php/var=/CN_MarketData.getKLineData
+ *
+ * 資料保留：1m≈5天(1200筆)、5m≈20天(1000筆)、15m/30m/60m≈30天(1000筆)
+ * Volume 單位：股（需÷100 → 張）
+ */
+export async function getSinaMinuteCandles(
+  symbol: string,  // e.g. "601179.SS" or "000858.SZ"
+  interval: string,
+): Promise<Candle[]> {
+  const m = symbol.match(/^(\d{6})\.(SS|SZ)$/i);
+  if (!m) return [];
+
+  const scale = intervalToSinaScale(interval);
+  if (scale == null) return [];
+
+  const code = cnSinaCode(m[1]);
+  const datalen = scale === 1 ? 1200 : 1000;
+
+  const cacheKey = `sina:min:${symbol}:${interval}`;
+  const cached = globalCache.get<Candle[]>(cacheKey);
+  if (cached) return cached;
+
+  try {
+    await rateLimiter.acquire('eastmoney'); // 共用同一個限流 bucket
+    const url =
+      `https://quotes.sina.cn/cn/api/jsonp_v2.php/var=/CN_MarketData.getKLineData` +
+      `?symbol=${code}&scale=${scale}&ma=no&datalen=${datalen}`;
+
+    const res = await fetch(url, {
+      headers: SINA_HEADERS,
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!res.ok) return [];
+    rateLimiter.reportSuccess('eastmoney');
+
+    const text = await res.text();
+    // 格式: /*<script>...</script>*/\nvar=([...])
+    const match = text.match(/\(\[(.+)\]\)/s);
+    if (!match) return [];
+
+    const arr = JSON.parse('[' + match[1] + ']') as Array<{
+      day: string; open: string; high: string; low: string; close: string; volume: string;
+    }>;
+
+    const candles: Candle[] = arr
+      .filter(d => parseFloat(d.close) > 0)
+      .map(d => ({
+        date: d.day.slice(0, 16), // "YYYY-MM-DD HH:mm"
+        open: parseFloat(d.open),
+        high: parseFloat(d.high),
+        low: parseFloat(d.low),
+        close: parseFloat(d.close),
+        volume: Math.round(parseInt(d.volume, 10) / 100), // 股 → 張
+      }));
+
+    if (candles.length > 0) {
+      globalCache.set(cacheKey, candles, 30 * 1000); // 30 秒快取
+    }
+    return candles;
+  } catch (err) {
+    console.warn('[Sina] minute candles error:', err);
+    return [];
+  }
+}
