@@ -271,28 +271,39 @@ export async function GET(req: NextRequest) {
     let candles: { date: string; open: number; high: number; low: number; close: number; volume: number }[] = [];
     let ticker = candidates[0];
 
-    // 台股分鐘 K 線：先用 Fugle Historical（多天），失敗再用 Fugle Intraday（今日）
-    if (isTW && isMinuteInterval && isFugleAvailable()) {
-      try {
-        // 優先：歷史分鐘K（支援多天回顧，適合走圖模式）
-        const histCandles = await getFugleHistoricalMinuteCandles(pureCode, interval, p);
-        if (histCandles.length > 0) {
-          ticker = candidates[0];
-          candles = histCandles;
-        } else {
-          // Fallback：盤中即時 API（今日分鐘K，適合盤中監控）
-          const intradayCandles = await getFugleIntradayCandles(pureCode, interval);
-          if (intradayCandles.length > 0) {
+    // 台股分鐘 K 線：Fugle 是唯一來源，成功則用；失敗直接回 404（避免 MultiMarketProvider 空跑）
+    if (isTW && isMinuteInterval) {
+      if (isFugleAvailable()) {
+        try {
+          // 優先：歷史分鐘K（支援多天回顧，適合走圖模式）
+          const histCandles = await getFugleHistoricalMinuteCandles(pureCode, interval, p);
+          if (histCandles.length > 0) {
             ticker = candidates[0];
-            candles = intradayCandles;
+            candles = histCandles;
+          } else {
+            // Fallback：盤中即時 API（今日分鐘K，適合盤中監控）
+            const intradayCandles = await getFugleIntradayCandles(pureCode, interval);
+            if (intradayCandles.length > 0) {
+              ticker = candidates[0];
+              candles = intradayCandles;
+            }
           }
+        } catch {
+          // Fugle 例外，落入下方 404
         }
-      } catch {
-        // Fugle 失敗，走 MultiMarketProvider 備援
+      }
+      // TW 分鐘K 只有 Fugle，沒資料直接回錯誤（其他 provider 不支援分鐘K）
+      if (candles.length === 0) {
+        return apiError(
+          `台股分鐘K線需透過 Fugle 歷史資料取得。` +
+          `目前 Fugle 未回傳資料，可能原因：① 非盤中時段（盤後只有今日單日資料）② 需確認 Fugle 方案支援歷史分鐘K。` +
+          `建議改用「日K」查看歷史走圖。`,
+          404,
+        );
       }
     }
 
-    // MultiMarketProvider 多源備援（日K 主要路徑，或分鐘 K 的備援）
+    // MultiMarketProvider 多源備援（日K 主要路徑，或 CN/US 分鐘 K 的備援）
     if (candles.length === 0) {
       for (const candidate of candidates) {
         try {
