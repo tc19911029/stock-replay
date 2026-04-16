@@ -10,12 +10,9 @@
  *   - L2 記憶體注入（盤中/盤後統一）
  */
 
-import { TaiwanScanner } from './TaiwanScanner';
-import { ChinaScanner } from './ChinaScanner';
-import { ScanSession, MarketId, ScanDirection } from './types';
-import { saveScanSession, loadScanSession } from '@/lib/storage/scanStorage';
-import { readIntradaySnapshot } from '@/lib/datasource/IntradayCache';
-import { ZHU_V1 } from '@/lib/strategy/StrategyConfig';
+import type { ScanSession, MarketId, ScanDirection } from './types';
+import type { TaiwanScanner } from './TaiwanScanner';
+import type { ChinaScanner } from './ChinaScanner';
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -61,8 +58,20 @@ export async function runScanPipeline(options: ScanPipelineOptions): Promise<Sca
   let timedOut = false;
 
   // ── Step 1: 建立 Scanner + L2 注入 ──
-  const scanner = market === 'CN' ? new ChinaScanner() : new TaiwanScanner();
-  const l2Injected = await injectL2(scanner, market, date);
+  // 動態 import 避免 Edge runtime 解析到 fs/path
+  const { saveScanSession, loadScanSession } = await import('@/lib/storage/scanStorage');
+  const { readIntradaySnapshot } = await import('@/lib/datasource/IntradayCache');
+  const { ZHU_V1 } = await import('@/lib/strategy/StrategyConfig');
+
+  let scanner: TaiwanScanner | ChinaScanner;
+  if (market === 'CN') {
+    const { ChinaScanner: CS } = await import('./ChinaScanner');
+    scanner = new CS();
+  } else {
+    const { TaiwanScanner: TS } = await import('./TaiwanScanner');
+    scanner = new TS();
+  }
+  const l2Injected = await injectL2(scanner, market, date, readIntradaySnapshot);
 
   // ── Step 2: 取得股票清單（支援批次切片） ──
   let stocks = await scanner.getStockList();
@@ -156,6 +165,7 @@ async function injectL2(
   scanner: TaiwanScanner | ChinaScanner,
   market: 'TW' | 'CN',
   date: string,
+  readIntradaySnapshot: (market: 'TW' | 'CN', date: string) => Promise<{ quotes: { symbol: string; open: number; high: number; low: number; close: number; volume: number }[]; date: string } | null>,
 ): Promise<number> {
   try {
     const snap = await readIntradaySnapshot(market, date);
