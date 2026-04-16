@@ -27,10 +27,12 @@ const MA_COLORS = {
 
 /** Convert date string to lightweight-charts Time.
  *  Daily: 'YYYY-MM-DD' → string Time (business day)
- *  Intraday: 'YYYY-MM-DD HH:mm' → UTCTimestamp (seconds) */
+ *  Intraday: 'YYYY-MM-DD HH:mm' → UTCTimestamp (seconds)
+ *  注意：分鐘K的時間假裝是 UTC，讓 TradingView 直接顯示 CST 時間 */
 function toTime(date: string): Time {
   if (date.includes(' ')) {
-    const d = new Date(date.replace(' ', 'T') + '+08:00');
+    // 用 'Z' (UTC) 而非 '+08:00'，讓 TV 顯示的 UTC 時間 = 我們的 CST 時間
+    const d = new Date(date.replace(' ', 'T') + ':00Z');
     return Math.floor(d.getTime() / 1000) as unknown as Time;
   }
   // 清除 TWSE 除權息日標記（如 "2025-11-17*" → "2025-11-17"）
