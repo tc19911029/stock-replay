@@ -5,7 +5,16 @@
 import type { Candle } from '@/types';
 import { getWeekMonday, getMonthKey } from './aggregateCandles';
 
-export type ScanInterval = '1d' | '1wk' | '1mo';
+export type ScanInterval = '1m' | '5m' | '15m' | '30m' | '60m' | '1d' | '1wk' | '1mo';
+
+/** 分鐘K週期列表 */
+export const MINUTE_INTERVALS: ScanInterval[] = ['1m', '5m', '15m', '30m', '60m'];
+
+/** 每種週期對應的預設回看期間 */
+export const DEFAULT_PERIODS: Record<ScanInterval, string> = {
+  '1m': '5d', '5m': '60d', '15m': '60d', '30m': '60d', '60m': '6mo',
+  '1d': '2y', '1wk': '5y', '1mo': '10y',
+};
 
 export interface AnchorResult {
   /** 聚合 K 棒陣列中的 index */
@@ -31,6 +40,9 @@ export function findAnchorIndex(
   interval: ScanInterval,
 ): AnchorResult | null {
   if (aggregatedCandles.length === 0) return null;
+
+  // 分鐘K不需要聚合定位
+  if (MINUTE_INTERVALS.includes(interval)) return null;
 
   if (interval === '1d') {
     // 精確日期或最近前一根

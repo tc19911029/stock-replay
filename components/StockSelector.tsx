@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useReplayStore } from '@/store/replayStore';
+import { IntervalSwitcher } from '@/features/scan/components/IntervalSwitcher';
+import { type ScanInterval, DEFAULT_PERIODS } from '@/lib/datasource/findAnchorIndex';
 
 const DEFAULT_QUICK_STOCKS = [
   { symbol: 'mock',  name: '📊 範例資料（離線）' },
@@ -29,21 +31,6 @@ const DEFAULT_QUICK_STOCKS = [
 ];
 
 
-const INTERVALS = [
-  { label: '1分', value: '1m' },
-  { label: '5分', value: '5m' },
-  { label: '15分', value: '15m' },
-  { label: '30分', value: '30m' },
-  { label: '60分', value: '60m' },
-  { label: '日', value: '1d' },
-  { label: '周', value: '1wk' },
-  { label: '月', value: '1mo' },
-];
-
-const DEFAULT_PERIODS: Record<string, string> = {
-  '1m': '5d', '5m': '60d', '15m': '60d', '30m': '60d', '60m': '6mo',
-  '1d': '2y', '1wk': '5y', '1mo': '10y',
-};
 
 // Extract raw symbol from ticker (e.g. "2330.TW" → "2330", "AAPL" → "AAPL")
 function rawSymbol(ticker: string) {
@@ -53,7 +40,7 @@ function rawSymbol(ticker: string) {
 export default function StockSelector() {
   const { loadStock, isLoadingStock, currentStock, targetDate, startPolling, stopPolling } = useReplayStore();
   const [input,    setInput]    = useState('');
-  const [interval, setInterval] = useState('1d');
+  const [interval, setInterval] = useState<ScanInterval>('1d');
   const [showDrop, setShowDrop] = useState(false);
   const [error,    setError]    = useState('');
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -72,11 +59,11 @@ export default function StockSelector() {
     return () => { stopPolling(); };
   }, [stopPolling]);
 
-  const handleLoad = useCallback(async (symbol: string, iv = interval, keepTarget = false) => {
+  const handleLoad = useCallback(async (symbol: string, iv: ScanInterval = interval, keepTarget = false) => {
     setError('');
     setShowDrop(false);
     stopPolling(); // 切換股票/週期前先停止
-    const pd = DEFAULT_PERIODS[iv] ?? '2y';
+    const pd = DEFAULT_PERIODS[iv];
     try {
       const td = keepTarget ? targetDate ?? undefined : undefined;
       await loadStock(symbol, iv, pd, td);
@@ -87,7 +74,7 @@ export default function StockSelector() {
   }, [interval, targetDate, loadStock, startPolling, stopPolling]);
 
   // Auto-reload when interval changes — 保留訊號日定位
-  const handleIntervalChange = (newIv: string) => {
+  const handleIntervalChange = (newIv: ScanInterval) => {
     setInterval(newIv);
     if (currentStock) handleLoad(rawSymbol(currentStock.ticker), newIv, true);
   };
@@ -145,16 +132,7 @@ export default function StockSelector() {
       <span className="text-muted-foreground/60 text-xs shrink-0">|</span>
 
       {/* Interval buttons — auto-reload on click */}
-      <div className="flex gap-0.5 shrink-0">
-        {INTERVALS.map(opt => (
-          <button key={opt.value} onClick={() => handleIntervalChange(opt.value)}
-            className={`px-2 py-1 rounded text-xs font-bold transition ${
-              interval === opt.value ? 'bg-blue-600 text-foreground' : 'bg-muted hover:bg-muted text-foreground/80'
-            }`}>
-            {opt.label}
-          </button>
-        ))}
-      </div>
+      <IntervalSwitcher value={interval} onChange={handleIntervalChange} />
 
       {error && <span className="text-xs text-red-400 truncate">{error}</span>}
     </div>

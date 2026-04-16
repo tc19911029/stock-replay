@@ -6,7 +6,7 @@ import { useReplayStore } from '@/store/replayStore';
 import { useBacktestStore } from '@/store/backtestStore';
 import type { CandleWithIndicators } from '@/types';
 import { ChevronUp, ChevronDown } from 'lucide-react';
-import type { ScanInterval } from '@/lib/datasource/findAnchorIndex';
+import { type ScanInterval, MINUTE_INTERVALS, DEFAULT_PERIODS } from '@/lib/datasource/findAnchorIndex';
 import { useScanTimeframe } from '../hooks/useScanTimeframe';
 import { IntervalSwitcher } from './IntervalSwitcher';
 
@@ -49,6 +49,21 @@ export function ScanChartPanel({ selectedStock, scanDate }: ScanChartPanelProps)
   // 用兩個獨立的 ref 追蹤，避免 symbol 改變時被 scanDate 變化覆蓋
   const prevSymbolRef = useRef<string | null>(null);
   const prevScanDateRef = useRef<string | null>(null);
+  const prevIntervalRef = useRef<ScanInterval>('1d');
+
+  const isMinute = (MINUTE_INTERVALS as readonly string[]).includes(interval);
+
+  // 共用的載入後處理
+  const onLoadSuccess = useCallback(() => {
+    if (!selectedStock) return;
+    const current = useReplayStore.getState().currentStock;
+    if (current && selectedStock.name && (!current.name || /\.(TW|TWO|SS|SZ)$/i.test(current.name))) {
+      useReplayStore.setState({
+        currentStock: { ...current, name: selectedStock.name },
+      });
+    }
+    startPolling();
+  }, [selectedStock, startPolling]);
 
   // 切換股票時重置為日K
   useEffect(() => {
@@ -59,7 +74,7 @@ export function ScanChartPanel({ selectedStock, scanDate }: ScanChartPanelProps)
     }
   }, [selectedStock, setInterval]);
 
-  // Load stock when selection or scanDate changes (always daily)
+  // Load stock when selection or scanDate changes
   useEffect(() => {
     if (!selectedStock) return;
 
@@ -72,26 +87,38 @@ export function ScanChartPanel({ selectedStock, scanDate }: ScanChartPanelProps)
     prevSymbolRef.current = selectedStock.symbol;
     prevScanDateRef.current = scanDate ?? null;
 
-    // 不同股票：完整重載
-    // 同一股票、不同 scanDate：重新 load（因為股價資料會不同）
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadError(null);
-    loadStock(selectedStock.symbol, '1d', '2y', scanDate).then(() => {
-      setLoadError(null);
-      // API 可能查不到中文名（回傳 ticker），用掃描結果的名字覆蓋
-      const current = useReplayStore.getState().currentStock;
-      if (current && selectedStock.name && (!current.name || /\.(TW|TWO|SS|SZ)$/i.test(current.name))) {
-        useReplayStore.setState({
-          currentStock: { ...current, name: selectedStock.name },
-        });
-      }
-      // 盤中 polling：不論 scanDate 為哪天，圖表都顯示到最新
-      startPolling();
-    }).catch((err: unknown) => {
-      setLoadError(err instanceof Error ? err.message : String(err));
-    });
+    loadStock(selectedStock.symbol, '1d', '2y', scanDate)
+      .then(onLoadSuccess)
+      .catch((err: unknown) => {
+        setLoadError(err instanceof Error ? err.message : String(err));
+      });
     return () => { stopPolling(); };
-  }, [selectedStock, scanDate, loadStock, startPolling, stopPolling]);
+  }, [selectedStock, scanDate, loadStock, onLoadSuccess, stopPolling]);
+
+  // 切換到分鐘K時重新呼叫 API（日/週/月由前端聚合，不需重載）
+  useEffect(() => {
+    if (!selectedStock) return;
+    const prevIv = prevIntervalRef.current;
+    prevIntervalRef.current = interval;
+
+    const wasMinute = (MINUTE_INTERVALS as readonly string[]).includes(prevIv);
+    const nowMinute = isMinute;
+
+    // 分鐘K之間切換、或日線↔分鐘K切換，都需重載
+    if (nowMinute || (wasMinute && !nowMinute)) {
+      const iv = nowMinute ? interval : '1d';
+      const period = DEFAULT_PERIODS[nowMinute ? interval : '1d'];
+      setLoadError(null);
+      loadStock(selectedStock.symbol, iv, period, nowMinute ? undefined : scanDate)
+        .then(onLoadSuccess)
+        .catch((err: unknown) => {
+          setLoadError(err instanceof Error ? err.message : String(err));
+        });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interval]);
 
   // 根據 interval 聚合 K 棒 + 定位訊號日
   const { displayCandles, anchorDate, signalDateLabel } = useScanTimeframe(

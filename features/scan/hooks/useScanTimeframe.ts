@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type { CandleWithIndicators } from '@/types';
 import { aggregateCandles } from '@/lib/datasource/aggregateCandles';
 import { computeIndicators } from '@/lib/indicators';
-import { findAnchorIndex, type ScanInterval, type AnchorResult } from '@/lib/datasource/findAnchorIndex';
+import { findAnchorIndex, MINUTE_INTERVALS, type ScanInterval, type AnchorResult } from '@/lib/datasource/findAnchorIndex';
 
 interface ScanTimeframeResult {
   /** 聚合後含指標的 K 棒（日K 時 = 原始 allCandles） */
@@ -32,6 +32,11 @@ export function useScanTimeframe(
   return useMemo(() => {
     if (dailyCandles.length === 0) {
       return { displayCandles: [], anchorIndex: null, anchorDate: null, signalDateLabel: null };
+    }
+
+    // 分鐘K：API 已回傳對應週期的數據，直接透傳不聚合
+    if ((MINUTE_INTERVALS as readonly string[]).includes(interval)) {
+      return { displayCandles: dailyCandles, anchorIndex: null, anchorDate: null, signalDateLabel: null };
     }
 
     let displayCandles: CandleWithIndicators[];
