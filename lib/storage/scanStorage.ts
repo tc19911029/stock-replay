@@ -453,11 +453,14 @@ export async function listScanDates(
 
   if (rankIdx) {
     // 實際讀每個日期的最佳 session，算 filter 後 count
+    // filter 規則和 applyTurnoverFilter 一致：有 turnoverRank 保留，沒 rank 就看當前 index
     await Promise.all(filtered.map(async (e) => {
       try {
         const session = await loadScanSessionRaw(e.market, e.date, e.direction ?? 'long', e.mtfMode ?? 'daily');
         if (session && session.results) {
-          const realCount = session.results.filter(r => rankIdx!.ranks.has(r.symbol)).length;
+          const realCount = session.results.filter(r =>
+            r.turnoverRank != null || rankIdx!.ranks.has(r.symbol)
+          ).length;
           e.resultCount = realCount;
         }
       } catch { /* keep original count */ }
@@ -581,11 +584,16 @@ export async function loadScanSession(
 }
 
 /**
- * 給 session 套上當前 top500 索引：補 turnoverRank + 過濾不在前 500 的髒結果
- * 原因：fail-closed 上線前，索引壞時會跑無過濾掃描產出不在前 500 的結果，
- * 舊 intraday session 至今仍可能掛在 UI。讀取時用當前索引做兩件事：
- *   1) 補 turnoverRank（index 有就填，沒有就 null）
- *   2) 過濾不在 index 的結果（回測冠軍組合=前 500，違反者不應出現）
+ * 給 session 套上當前 top500 索引：補 turnoverRank + 過濾髒資料
+ * 原因：fail-closed 上線前，索引壞時會跑無過濾掃描產出不在前 500 的結果。
+ *
+ * 過濾規則（不誤傷歷史正確資料）：
+ *   - 保留 `turnoverRank` 已設的（代表當日 filter 時有資料，之前篩過了）
+ *   - 對 `turnoverRank` 為 null 的，看當前索引是否含：
+ *     * 含 → 可能是當日排名已填，現在缺欄位（舊格式）→ 補 rank 保留
+ *     * 不含 → 當日無過濾寫入且今天也不在前 500 → 髒，過濾掉
+ *   注意：這會誤放過「當日不在前 500 但今天恰好在」極少數漂移案例，
+ *   但不會誤殺「當日在前 500 但今天掉出去」的正常歷史資料。
  */
 async function applyTurnoverFilter(session: ScanSession, market: MarketId): Promise<void> {
   if (!session.results || session.results.length === 0) return;
@@ -594,12 +602,15 @@ async function applyTurnoverFilter(session: ScanSession, market: MarketId): Prom
     const idx = await readTurnoverRank(market as 'TW' | 'CN');
     if (!idx) return;
     const filtered = session.results.filter(r => {
-      const rank = idx.ranks.get(r.symbol);
-      if (rank != null) {
-        if (r.turnoverRank == null) r.turnoverRank = rank;
+      // 有 turnoverRank 代表當日 filter 時在前 500 → 一律保留
+      if (r.turnoverRank != null) return true;
+      // 沒有 rank → 需確認當前索引含否
+      const currentRank = idx.ranks.get(r.symbol);
+      if (currentRank != null) {
+        r.turnoverRank = currentRank;
         return true;
       }
-      return false;
+      return false; // 當日未 filter 且今天也不在前 500 → 髒
     });
     session.results = filtered;
     session.resultCount = filtered.length;
