@@ -100,7 +100,14 @@ export async function readCandleFile(
 }
 
 /**
- * 寫入 K 線原始 JSON
+ * 寫入 K 線原始 JSON（merge-safe）
+ *
+ * 不直接覆蓋既有 L1，而是把新舊資料以 date 為 key 合併：
+ *   - 同日 K 棒：新資料覆蓋舊（以 incoming 為權威）
+ *   - 只在舊有的日期：保留（避免 provider 一次只回短期資料把歷史壓短）
+ *
+ * 這修復的問題：某支股票 L1 本來有 485 根，某次 download 只拉到 253 根
+ * 會把 12/2024 ~ 2/2025 區段整段消失的 bug。
  */
 export async function writeCandleFile(
   symbol: string,
@@ -109,10 +116,22 @@ export async function writeCandleFile(
 ): Promise<void> {
   if (candles.length === 0) return;
 
-  const stripped: Candle[] = candles.map(c => ({
+  const incoming: Candle[] = candles.map(c => ({
     date: c.date, open: c.open, high: c.high,
     low: c.low, close: c.close, volume: c.volume,
   }));
+
+  // 讀既有 → merge
+  const existing = await readCandleFile(symbol, market);
+  let stripped: Candle[];
+  if (existing && existing.candles.length > 0) {
+    const map = new Map<string, Candle>();
+    for (const c of existing.candles) map.set(c.date, c);
+    for (const c of incoming) map.set(c.date, c); // incoming 覆蓋同日
+    stripped = [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
+  } else {
+    stripped = incoming.sort((a, b) => a.date.localeCompare(b.date));
+  }
 
   const lastDate = stripped[stripped.length - 1].date;
   const data: CandleFileData = {
