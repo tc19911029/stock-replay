@@ -73,8 +73,23 @@ export async function runScanPipeline(options: ScanPipelineOptions): Promise<Sca
   }
   const l2Injected = await injectL2(scanner, market, date, readIntradaySnapshot);
 
-  // ── Step 2: 取得股票清單（支援批次切片） ──
+  // ── Step 2: 取得股票清單（前 N 成交額過濾 + 批次切片） ──
   let stocks = await scanner.getStockList();
+
+  // 前 N 成交額過濾（回測冠軍組合：前 500 + MTF≥3 = +238%）
+  // 索引檔由 daily-scan cron 每天產生，見 lib/scanner/TurnoverRank.ts
+  try {
+    const { readTurnoverRank } = await import('./TurnoverRank');
+    const rank = await readTurnoverRank(market as 'TW' | 'CN');
+    if (rank) {
+      const before = stocks.length;
+      stocks = stocks.filter(s => rank.symbols.has(s.symbol));
+      console.info(`[ScanPipeline] ${market} 前 ${rank.topN} 成交額過濾: ${stocks.length}/${before} (index=${rank.date})`);
+    }
+  } catch {
+    // 索引檔讀取失敗（Vercel 無本地檔案等）— 不過濾，走原邏輯
+  }
+
   if (batch && totalBatches && totalBatches > 1) {
     const sorted = [...stocks].sort((a, b) => a.symbol.localeCompare(b.symbol));
     const chunkSize = Math.ceil(sorted.length / totalBatches);

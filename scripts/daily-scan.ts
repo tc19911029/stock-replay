@@ -20,6 +20,7 @@ config();
 import { TaiwanScanner } from '../lib/scanner/TaiwanScanner';
 import { ChinaScanner } from '../lib/scanner/ChinaScanner';
 import { runScanPipeline } from '../lib/scanner/ScanPipeline';
+import { buildTurnoverRank } from '../lib/scanner/TurnoverRank';
 import { saveLocalCandles, batchCheckFreshness, getLocalCandleDir } from '../lib/datasource/LocalCandleStore';
 import { readCandleFile } from '../lib/datasource/CandleStorageAdapter';
 import { readIntradaySnapshot } from '../lib/datasource/IntradayCache';
@@ -142,6 +143,17 @@ async function downloadCandles(market: 'TW' | 'CN') {
   console.log(`\n   ✅ 下載完成: 成功 ${succeeded}, 失敗 ${failed}`);
 }
 
+// ── Step 1.5: Build turnover rank index (前 N 大成交額) ────────────────
+
+async function buildRankIndex(market: 'TW' | 'CN') {
+  const scanner = market === 'CN' ? new ChinaScanner() : new TaiwanScanner();
+  const stocks = await scanner.getStockList();
+
+  console.log(`\n📊 [${market}] Step 1.5: 計算成交額排名（前 500）...`);
+  const index = await buildTurnoverRank(market, stocks, 500);
+  console.log(`   ✅ 寫入 data/turnover-rank/${market}.json — ${index.symbols.length} 支，日期 ${index.date}`);
+}
+
 // ── Step 2: Run scans (via ScanPipeline) ───────────────────────────────
 
 async function runScans(market: 'TW' | 'CN') {
@@ -192,6 +204,7 @@ async function main() {
     try {
       await injectL2IntoL1(market);
       await downloadCandles(market);
+      await buildRankIndex(market);
       await runScans(market);
     } catch (err) {
       console.error(`\n❌ [${market}] 失敗:`, err);
