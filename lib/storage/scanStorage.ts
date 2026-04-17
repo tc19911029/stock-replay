@@ -419,20 +419,25 @@ export async function listScanDates(
   }
 
   // Deduplicate by date+mtfMode
-  // 保留最新 scanTime（決定 L4 健康狀態新鮮度），
-  // resultCount 用最近有結果的值（與 loadScanSession/loadLatestIntradayRaw 一致）
+  // 選擇規則（和 loadScanSession 邏輯保持一致）：
+  // 1) 優先選 resultCount > 0 的 entry
+  // 2) 同是有結果（或同為 0） → 取最新 scanTime
+  // 這樣空 post_close（歷史日期 backfill 重跑變 0）不會遮蓋有結果的 intraday
   const seen = new Map<string, ScanDateEntry>();
   for (const e of entries) {
     const key = `${e.date}-${e.mtfMode}`;
     const existing = seen.get(key);
     if (!existing) {
       seen.set(key, e);
-    } else {
-      // scanTime 取最新（健康狀態用）
-      const newer = e.scanTime > existing.scanTime ? e : existing;
-      // resultCount：最新有結果就用最新的，否則保留之前有結果的
-      const bestCount = newer.resultCount > 0 ? newer.resultCount : Math.max(e.resultCount, existing.resultCount);
-      seen.set(key, { ...newer, resultCount: bestCount });
+      continue;
+    }
+    const eHas = e.resultCount > 0;
+    const oHas = existing.resultCount > 0;
+    if (eHas && !oHas) seen.set(key, e);
+    else if (!eHas && oHas) { /* keep existing */ }
+    else {
+      // 兩邊同有結果或同為 0 → 取最新 scanTime
+      if (e.scanTime > existing.scanTime) seen.set(key, e);
     }
   }
 
