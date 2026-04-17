@@ -43,18 +43,25 @@ function getTodayDate(market: 'TW' | 'CN'): string {
  * 先注入 L1，讓 downloadCandles() 把這些股票視為「已是最新」跳過 API，
  * 大幅降低對 EastMoney/Yahoo API 的依賴，VPN/API 斷線也不影響掃描完整性。
  */
-async function injectL2IntoL1(market: 'TW' | 'CN') {
+interface InjectResult {
+  injected: number;
+  skipped: number;
+  quotesCount: number;
+  reason?: 'snapshot_missing' | 'date_mismatch' | 'ok';
+}
+
+async function injectL2IntoL1(market: 'TW' | 'CN'): Promise<InjectResult> {
   const date = getTodayDate(market);
   console.log(`\n💉 [${market}] Step 0: 從 L2 快照注入今日 K 棒到 L1...`);
 
   const snap = await readIntradaySnapshot(market, date);
   if (!snap || snap.quotes.length === 0) {
     console.log(`   ⚠️  L2 快照不存在或為空（${date}），跳過注入`);
-    return;
+    return { injected: 0, skipped: 0, quotesCount: 0, reason: 'snapshot_missing' };
   }
   if (snap.date !== date) {
     console.log(`   ⚠️  L2 快照日期 ${snap.date} ≠ 今日 ${date}，跳過注入`);
-    return;
+    return { injected: 0, skipped: 0, quotesCount: snap.quotes.length, reason: 'date_mismatch' };
   }
 
   const quotes = snap.quotes.filter(q => q.close > 0);
@@ -90,6 +97,60 @@ async function injectL2IntoL1(market: 'TW' | 'CN') {
     const allSymbols = quotes.map(q => q.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, ''));
     await spotCheckL1(market, date, allSymbols);
   }
+
+  return { injected, skipped, quotesCount: quotes.length, reason: 'ok' };
+}
+
+/**
+ * Fail-closed 門檻：注入率太低代表 L2 中毒或下游不完整，
+ * 本日掃描不應該跑——寧可當天沒結果也不要產出錯誤 L4。
+ * 門檻：注入+跳過覆蓋 < 活躍股清單 80%。
+ */
+async function shouldAbortScan(
+  market: 'TW' | 'CN',
+  result: InjectResult,
+): Promise<{ abort: boolean; reason: string } | null> {
+  if (result.reason === 'snapshot_missing') {
+    return { abort: true, reason: 'L2 快照不存在或為空' };
+  }
+  if (result.reason === 'date_mismatch') {
+    return { abort: true, reason: 'L2 快照日期不符' };
+  }
+
+  // 覆蓋率 = (injected + skipped) / 全市場股票數
+  const scanner = market === 'CN' ? new ChinaScanner() : new TaiwanScanner();
+  const stocks = await scanner.getStockList();
+  const covered = result.injected + result.skipped;
+  const coverage = stocks.length > 0 ? covered / stocks.length : 0;
+  const MIN_COVERAGE = 0.8;
+
+  console.log(`   📊 L2→L1 覆蓋率: ${(coverage * 100).toFixed(1)}% (${covered}/${stocks.length})`);
+
+  if (coverage < MIN_COVERAGE) {
+    return {
+      abort: true,
+      reason: `L2→L1 覆蓋率 ${(coverage * 100).toFixed(1)}% 低於 ${MIN_COVERAGE * 100}% 門檻`,
+    };
+  }
+  return null;
+}
+
+/**
+ * 寫告警檔：讓前端 / 人工維運一眼看出今天 pipeline 出事。
+ */
+async function writeAlertFile(market: 'TW' | 'CN', date: string, reason: string): Promise<void> {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const alertPath = path.join(process.cwd(), 'data', `ALERT-${market}-${date}.json`);
+  const payload = {
+    market,
+    date,
+    at: new Date().toISOString(),
+    reason,
+    action: 'daily-scan aborted; L4 not produced for this date',
+  };
+  await fs.writeFile(alertPath, JSON.stringify(payload, null, 2), 'utf8');
+  console.error(`   🚨 告警檔已寫入: ${alertPath}`);
 }
 
 // ── Step 1: Download candles ────────────────────────────────────────────
@@ -202,7 +263,17 @@ async function main() {
 
   for (const market of targetMarkets) {
     try {
-      await injectL2IntoL1(market);
+      const inject = await injectL2IntoL1(market);
+
+      // Fail-closed precheck：注入率不足就不跑掃描，寫告警檔
+      const abortDecision = await shouldAbortScan(market, inject);
+      if (abortDecision?.abort) {
+        const date = getTodayDate(market);
+        console.error(`\n🛑 [${market}] 本日掃描中止：${abortDecision.reason}`);
+        await writeAlertFile(market, date, abortDecision.reason);
+        continue;
+      }
+
       await downloadCandles(market);
       await buildRankIndex(market);
       await runScans(market);
