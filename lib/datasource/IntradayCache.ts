@@ -411,8 +411,17 @@ async function _fetchTWQuotes(sources: DataSourceStatus[]): Promise<IntradayQuot
     }
   }
 
+  // 日期守門：STOCK_DAY_ALL 盤中會回傳昨日收盤統計（q.date=昨天），
+  // 若不檢查就會把昨日 OHLC 當成今日報價寫入 L2，污染所有下游掃描。
+  // 盤後（15:00+）STOCK_DAY_ALL 填入當日收盤（q.date=今天），正常放行。
+  const todayTW = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
+  let staleSkipped = 0;
   const quotes: IntradayQuote[] = [];
   for (const [, q] of finalMap) {
+    if (q.date && q.date !== todayTW) {
+      staleSkipped++;
+      continue; // 丟掉非今日資料（STOCK_DAY_ALL 盤中回傳的昨日殘留）
+    }
     const prevClose = q.previousClose ?? q.close;
     const changePercent = prevClose > 0 ? ((q.close - prevClose) / prevClose) * 100 : 0;
     quotes.push({
@@ -426,6 +435,9 @@ async function _fetchTWQuotes(sources: DataSourceStatus[]): Promise<IntradayQuot
       prevClose,
       changePercent: Math.round(changePercent * 100) / 100,
     });
+  }
+  if (staleSkipped > 0) {
+    console.warn(`[IntradayCache] TW 丟棄 ${staleSkipped} 筆非 ${todayTW} 資料（多半是 STOCK_DAY_ALL 盤中昨日殘留）`);
   }
   return quotes;
 }

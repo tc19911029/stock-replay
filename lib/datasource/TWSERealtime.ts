@@ -142,7 +142,7 @@ async function fetchAllQuotes(): Promise<Map<string, TWSEQuote>> {
           high: parseNum(row.HighestPrice),
           low: parseNum(row.LowestPrice),
           close,
-          volume: parseNum(row.TradeVolume),
+          volume: Math.round(parseNum(row.TradeVolume) / 1000), // 股→張（對齊 TPEx / mis.twse）
           previousClose,
           date: parseROCDate(row.Date),
         });
