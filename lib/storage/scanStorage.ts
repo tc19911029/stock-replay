@@ -482,20 +482,21 @@ export async function loadScanSession(
     raw = await fsGet(`scan-${market}-${date}.json`);
   }
 
-  // 若有 post_close，檢查是否有更新且有結果的 intraday（盤中即時數據優先）
+  // 若有 post_close，決定是否改用 intraday：
+  //   1) 空的 post_close + 有結果的 intraday → 一律優先 intraday
+  //      （歷史日期的 post_close 被重跑變 0 筆，不該蓋掉真實盤中結果）
+  //   2) intraday 比 post_close 新且有結果 → 優先 intraday（盤中即時覆蓋）
   if (raw) {
     const intradayRaw = await loadLatestIntradayRaw(market, date, direction, mtfMode);
     if (intradayRaw) {
       try {
         const postClose = JSON.parse(raw) as ScanSession;
         const intraday = JSON.parse(intradayRaw) as ScanSession;
-        // 僅當 intraday 有結果且比 post_close 新時才優先
-        // （午休/盤後空結果不應覆蓋有結果的 post_close）
-        if (
-          intraday.scanTime && postClose.scanTime &&
-          intraday.scanTime > postClose.scanTime &&
-          intraday.resultCount > 0
-        ) {
+        const intradayNewer =
+          !!intraday.scanTime && !!postClose.scanTime &&
+          intraday.scanTime > postClose.scanTime;
+        const postCloseEmpty = postClose.resultCount === 0;
+        if (intraday.resultCount > 0 && (intradayNewer || postCloseEmpty)) {
           raw = intradayRaw;
         }
       } catch { /* parse 失敗就用 post_close */ }
@@ -510,16 +511,49 @@ export async function loadScanSession(
   if (!raw) return null;
 
   try {
-    return JSON.parse(raw) as ScanSession;
+    const session = JSON.parse(raw) as ScanSession;
+    // 事後補 turnoverRank：session 原始寫入時若索引缺，results 的 turnoverRank 會是 null
+    // 讀取時用當前索引補一次，避免 UI 永遠顯示「成交量#—」
+    const missingRanks = session.results?.some(r => r.turnoverRank == null);
+    if (missingRanks && session.results) {
+      try {
+        const { readTurnoverRank } = await import('@/lib/scanner/TurnoverRank');
+        const idx = await readTurnoverRank(market as 'TW' | 'CN');
+        if (idx) {
+          for (const r of session.results) {
+            if (r.turnoverRank == null) {
+              const rank = idx.ranks.get(r.symbol);
+              if (rank) r.turnoverRank = rank;
+            }
+          }
+        }
+      } catch { /* 索引讀失敗 — 保持 null */ }
+    }
+    return session;
   } catch {
     return null;
   }
 }
 
 /**
+ * 檢查 session 是否為「乾淨的」——結果中大多數是該日的 K 棒
+ * 用於過濾 STOCK_DAY_ALL 汙染等資料源事故漏網之魚
+ * 判定：若有 dataFreshness，則 ≥50% 結果的 lastCandleDate === date
+ * 若沒 dataFreshness 欄位（舊版），保留兼容（視為 clean）
+ */
+function isFreshSession(session: ScanSession, date: string): boolean {
+  if (!session.results || session.results.length === 0) return true;
+  const withFreshness = session.results.filter(r => r?.dataFreshness?.lastCandleDate);
+  if (withFreshness.length === 0) return true; // 舊版無欄位 → 兼容
+  const fresh = withFreshness.filter(r => r.dataFreshness!.lastCandleDate === date);
+  return fresh.length / withFreshness.length >= 0.5;
+}
+
+/**
  * 載入指定日期最新的 intraday session 原始 JSON
  * 路徑: scans/{market}/{dir}/{mtf}/{date}/intraday/{HHMM}.json
  * 取最大 HHMM（最新一筆）
+ * 並要求多數結果的 lastCandleDate === date（防汙染資料漏網）
  */
 async function loadLatestIntradayRaw(
   market: MarketId,
@@ -532,25 +566,25 @@ async function loadLatestIntradayRaw(
       const prefix = `scans/${market}/${direction}/${mtfMode}/${date}/intraday/`;
       const blobs = await blobListPrefix(prefix);
       if (blobs.length === 0) return null;
-      // 從最新往回找，優先返回有結果的 intraday（避免午休空掃描覆蓋盤中結果）
+      // 從最新往回找，優先返回有結果 + 資料新鮮的 intraday
       const sorted = blobs.sort((a, b) => b.pathname.localeCompare(a.pathname));
       for (const blob of sorted) {
         const raw = await blobGet(blob.pathname);
         if (raw) {
           try {
             const session = JSON.parse(raw) as ScanSession;
-            if (session.resultCount > 0) return raw;
+            if (session.resultCount > 0 && isFreshSession(session, date)) return raw;
           } catch { /* continue */ }
         }
       }
-      // 全部都 0 結果 → 返回最新的
+      // 全部都 0 結果或資料都汙染 → 返回最新的
       return await blobGet(sorted[0].pathname);
     } catch {
       return null;
     }
   }
 
-  // Local dev: 從最新往回找有結果的 intraday
+  // Local dev: 從最新往回找有結果 + 資料新鮮的 intraday
   const prefix = `scan-${market}-${direction}-${mtfMode}-${date}-intraday-`;
   const files = await fsListPrefix(prefix);
   if (files.length === 0) return null;
@@ -560,10 +594,10 @@ async function loadLatestIntradayRaw(
     if (raw) {
       try {
         const session = JSON.parse(raw) as ScanSession;
-        if (session.resultCount > 0) return raw;
+        if (session.resultCount > 0 && isFreshSession(session, date)) return raw;
       } catch { /* continue */ }
     }
   }
-  // 全部都 0 結果 → 返回最新的
+  // 全部都 0 結果或資料都汙染 → 返回最新的
   return await fsGet(sorted[0]);
 }

@@ -79,24 +79,31 @@ export async function runScanPipeline(options: ScanPipelineOptions): Promise<Sca
 
   // 前 N 成交額過濾 + 自動重建索引（回測冠軍組合：前 500 + MTF≥3 = +238%）
   // 索引 stale 時自動重建（本地 fs / Vercel Blob 統一處理）
-  try {
+  // Fail-closed: 索引讀/建失敗 → abort 掃描，不回退到「無過濾全掃」
+  // 原因：無過濾會選到不在前 500 的股票，違反回測冠軍策略、turnoverRank 也會是 null
+  {
     const { readTurnoverRank, buildTurnoverRank } = await import('./TurnoverRank');
-    let rank = await readTurnoverRank(market as 'TW' | 'CN');
-    const needsRebuild = !rank || rank.date < date;
-    if (needsRebuild) {
-      console.info(`[ScanPipeline] ${market} 索引 stale（have=${rank?.date ?? 'none'}, want=${date}）→ 自動重建`);
-      await buildTurnoverRank(market as 'TW' | 'CN', stocks, 500);
+    let rank: Awaited<ReturnType<typeof readTurnoverRank>> = null;
+    try {
       rank = await readTurnoverRank(market as 'TW' | 'CN');
+      const needsRebuild = !rank || rank.date < date;
+      if (needsRebuild) {
+        console.info(`[ScanPipeline] ${market} 索引 stale（have=${rank?.date ?? 'none'}, want=${date}）→ 自動重建`);
+        await buildTurnoverRank(market as 'TW' | 'CN', stocks, 500);
+        rank = await readTurnoverRank(market as 'TW' | 'CN');
+      }
+    } catch (err) {
+      console.error(`[ScanPipeline] ${market} top500 索引讀/建失敗 → abort`, err);
+      throw new Error(`top500 索引失敗，掃描 abort (${market} ${date}): ${String(err)}`);
     }
-    if (rank) {
-      const before = stocks.length;
-      stocks = stocks.filter(s => rank.symbols.has(s.symbol));
-      turnoverRanks = rank.ranks;
-      console.info(`[ScanPipeline] ${market} 前 ${rank.topN} 成交額過濾: ${stocks.length}/${before} (index=${rank.date})`);
+    if (!rank || rank.symbols.size === 0) {
+      console.error(`[ScanPipeline] ${market} top500 索引空或 null → abort`);
+      throw new Error(`top500 索引空 (${market} ${date})`);
     }
-  } catch (err) {
-    console.warn(`[ScanPipeline] ${market} top500 索引讀寫失敗:`, err);
-    // 索引檔讀寫失敗 — 不過濾，走原邏輯
+    const before = stocks.length;
+    stocks = stocks.filter(s => rank!.symbols.has(s.symbol));
+    turnoverRanks = rank.ranks;
+    console.info(`[ScanPipeline] ${market} 前 ${rank.topN} 成交額過濾: ${stocks.length}/${before} (index=${rank.date})`);
   }
 
   if (batch && totalBatches && totalBatches > 1) {
