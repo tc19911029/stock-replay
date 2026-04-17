@@ -172,6 +172,40 @@ export async function runScanPipeline(options: ScanPipelineOptions): Promise<Sca
         }
       }
 
+      // 注入前向績效（openReturn / d1Return / maxGain / ... ）
+      // 讓 L4 session 寫入時就帶好「可否進場」資訊，前端不用每次重算
+      if (results.length > 0) {
+        try {
+          const { analyzeForwardBatch } = await import('@/lib/backtest/ForwardAnalyzer');
+          const fwdInput = results.map(r => ({ symbol: r.symbol, name: r.name, scanPrice: r.price }));
+          const { results: fwdPerf } = await analyzeForwardBatch(fwdInput, date);
+          const fwdMap = new Map(fwdPerf.map(p => [p.symbol, p]));
+          for (const r of results) {
+            const p = fwdMap.get(r.symbol);
+            if (!p) continue;
+            r.openReturn        = p.openReturn;
+            r.d1Return          = p.d1Return;
+            r.d2Return          = p.d2Return;
+            r.d3Return          = p.d3Return;
+            r.d4Return          = p.d4Return;
+            r.d5Return          = p.d5Return;
+            r.d6Return          = p.d6Return;
+            r.d7Return          = p.d7Return;
+            r.d8Return          = p.d8Return;
+            r.d9Return          = p.d9Return;
+            r.d10Return         = p.d10Return;
+            r.d20Return         = p.d20Return;
+            r.maxGain           = p.maxGain;
+            r.maxLoss           = p.maxLoss;
+            r.nextOpenPrice     = p.nextOpenPrice;
+            r.d1ReturnFromOpen  = p.d1ReturnFromOpen;
+          }
+          console.info(`[ScanPipeline] ${market} ${direction} 注入 forward: ${fwdPerf.length}/${results.length}`);
+        } catch (err) {
+          console.warn(`[ScanPipeline] ${market} ${direction} forward 注入失敗（non-fatal）:`, err);
+        }
+      }
+
       const allowOverwrite = sessionType === 'post_close';
 
       // ── Step 4a: 存 daily session（完整結果）──

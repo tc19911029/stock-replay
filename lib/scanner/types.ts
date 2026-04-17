@@ -108,6 +108,23 @@ export interface StockScanResult {
     daysStale: number;                    // 落後幾個交易日（0=最新）
     source: 'memory' | 'local' | 'api';  // 數據來源
   };
+  // ── 前向績效（ScanPipeline save 時注入，讓 L4 session 就帶「可否進場」資訊）──
+  nextOpenPrice?: number | null;
+  openReturn?: number | null;
+  d1Return?: number | null;
+  d2Return?: number | null;
+  d3Return?: number | null;
+  d4Return?: number | null;
+  d5Return?: number | null;
+  d6Return?: number | null;
+  d7Return?: number | null;
+  d8Return?: number | null;
+  d9Return?: number | null;
+  d10Return?: number | null;
+  d20Return?: number | null;
+  d1ReturnFromOpen?: number | null;
+  maxGain?: number;
+  maxLoss?: number;
 }
 
 /**
