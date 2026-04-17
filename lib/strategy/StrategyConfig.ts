@@ -339,7 +339,7 @@ export const ZHU_5STEPS: StrategyConfig = {
   conditions:  ALL_CONDITIONS_ON,
   thresholds:  {
     ...BASE_THRESHOLDS,
-    volumeRatioMin: 1.5,    // 書中：大量 = 5日均量1.5倍以上
+    volumeRatioMin: 1.3,    // 朱家泓 p.54：攻擊量 ≥ 前一日 × 1.3（2 倍更強）
     kdMaxEntry:     88,     // 書中：KD不宜過高進場
     deviationMax:   0.15,   // 書中：乖離15%要注意停利
     minScore:       4,      // 基本門檻
@@ -413,7 +413,7 @@ export const ZHU_OPTIMIZED: StrategyConfig = {
   conditions:  ALL_CONDITIONS_ON,
   thresholds:  {
     ...BASE_THRESHOLDS,
-    volumeRatioMin: 1.5,      // 回測驗證：帶量突破 1.5x 是基本門檻
+    volumeRatioMin: 1.3,      // 朱家泓書 p.54：攻擊量 ≥ 前一日 × 1.3（2 倍更強）
     kdMaxEntry:     88,
     deviationMax:   0.15,     // 嚴格：乖離 >15% 不追高
     minScore:       5,        // 核心：六條件至少過 5 關
