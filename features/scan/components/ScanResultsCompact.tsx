@@ -147,7 +147,7 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                     className="ml-auto text-[9px] font-mono text-amber-400/80 bg-amber-900/20 px-1 py-px rounded shrink-0"
                     title="20日均成交額排名（全市場前500內）"
                   >
-                    量#{r.turnoverRank}
+                    成交量第{r.turnoverRank}名
                   </span>
                 )}
               </div>

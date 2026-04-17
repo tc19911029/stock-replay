@@ -61,7 +61,7 @@ export async function runScanPipeline(options: ScanPipelineOptions): Promise<Sca
   // 動態 import 避免 Edge runtime 解析到 fs/path
   const { saveScanSession, loadScanSession } = await import('@/lib/storage/scanStorage');
   const { readIntradaySnapshot } = await import('@/lib/datasource/IntradayCache');
-  const { ZHU_V1 } = await import('@/lib/strategy/StrategyConfig');
+  const { ZHU_OPTIMIZED } = await import('@/lib/strategy/StrategyConfig');
 
   let scanner: TaiwanScanner | ChinaScanner;
   if (market === 'CN') {
@@ -110,7 +110,7 @@ export async function runScanPipeline(options: ScanPipelineOptions): Promise<Sca
   // 性能優化：daily 和 mtf 結果差異只在前置 MTF 過濾（mtfScore >= mtfMinScore）。
   // 而 mtfResult always 計算（MarketScanner.scanOne），所以可以一次掃描共用兩份結果。
   // CN 3121 支從原本 4 次掃描（~380s）降為 2 次（~190s），避開 Vercel 300s 限制。
-  const mtfMinScore = ZHU_V1.thresholds.mtfMinScore ?? 3;
+  const mtfMinScore = ZHU_OPTIMIZED.thresholds.mtfMinScore ?? 3;
   const wantDaily = mtfModes.includes('daily');
   const wantMtf = mtfModes.includes('mtf');
 
