@@ -413,10 +413,7 @@ export const ZHU_OPTIMIZED: StrategyConfig = {
   conditions:  ALL_CONDITIONS_ON,
   thresholds:  {
     ...BASE_THRESHOLDS,
-    // 書本朱家泓 p.54 是 1.3，但 2025-04~2026-04 一年期 TW 回測顯示
-    // 1.5 門檻 +236% vs 1.3 門檻 -43%，勝率相近但 1.5 過濾掉大量低品質信號。
-    // OPTIMIZED 策略選回測最佳的 1.5；書本忠實版請見 ZHU_5STEPS（1.3）
-    volumeRatioMin: 1.5,
+    volumeRatioMin: 1.5,      // 攻擊量 ≥ 前一日 × 1.5（2倍更強）
     kdMaxEntry:     88,
     deviationMax:   0.15,     // 嚴格：乖離 >15% 不追高
     minScore:       5,        // 核心：六條件至少過 5 關
