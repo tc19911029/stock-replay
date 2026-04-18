@@ -29,8 +29,8 @@ import { BASE_THRESHOLDS }            from '@/lib/strategy/StrategyConfig';
 // ══════════════════════════════════════════════════════════════
 
 const PERIOD = {
-  start: '2025-04-16',
-  end:   '2026-04-16',
+  start: process.env.PERIOD_START ?? '2025-04-16',
+  end:   process.env.PERIOD_END   ?? '2026-04-16',
 };
 const CAPITAL        = 1_000_000;
 const SLIPPAGE_PCT   = 0.001;

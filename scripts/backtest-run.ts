@@ -14,8 +14,10 @@ import { evaluateSixConditions }      from '@/lib/analysis/trendAnalysis';
 import { evaluateMultiTimeframe }     from '@/lib/analysis/multiTimeframeFilter';
 import { evaluateHighWinRateEntry }   from '@/lib/analysis/highWinRateEntry';
 import { ruleEngine }                 from '@/lib/rules/ruleEngine';
+import { checkLongProhibitions }      from '@/lib/rules/entryProhibitions';
+import { evaluateElimination }        from '@/lib/scanner/eliminationFilter';
 import type { CandleWithIndicators }  from '@/types';
-import { BASE_THRESHOLDS }            from '@/lib/strategy/StrategyConfig';
+import { BASE_THRESHOLDS, ZHU_OPTIMIZED } from '@/lib/strategy/StrategyConfig';
 
 // ══════════════════════════════════════════════════════════════
 // ★ 在這裡修改回測設定 ★
@@ -28,7 +30,7 @@ const CONFIG = {
   /** 回測週期（YYYY-MM-DD） */
   period: {
     start: '2025-04-16',
-    end:   '2026-04-16',
+    end:   '2026-04-17',
   },
 
   /** 買入方法：B1 = all-in排名第1，賣了才有錢買下一支 */
@@ -48,7 +50,7 @@ const CONFIG = {
    */
   sixcond: {
     topN:   500,
-    mtfMin: 3,
+    mtfMin: 0,          // 對齊面板 daily session（不開 MTF）
     sortBy: '六條件總分' as SixcondSort,
   },
 
@@ -276,8 +278,13 @@ function buildSixcondCandidate(
 ): SixcondFeatures | null {
   if (idx < 60 || idx + 2 >= candles.length) return null;
 
-  const six = evaluateSixConditions(candles, idx);
+  // 對齊生產：量比 1.5（ZHU_OPTIMIZED），不是書本 1.3
+  const six = evaluateSixConditions(candles, idx, ZHU_OPTIMIZED.thresholds);
   if (!six.isCoreReady || six.totalScore < 5) return null;
+
+  // 對齊生產：10 大戒律 + 淘汰法 R1-R11
+  if (checkLongProhibitions(candles, idx).prohibited) return null;
+  if (evaluateElimination(candles, idx).eliminated)   return null;
 
   const c    = candles[idx];
   const prev = candles[idx - 1];
