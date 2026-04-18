@@ -142,6 +142,12 @@ export function scanDaban(input: DabanScanInput): DabanScanSession {
     const dayReturn = getDayReturn(candles, idx);
     const threshold = getLimitUpThreshold(symbol);
     if (dayReturn < threshold) continue;
+    // Sanity check：主板漲停上限 +10%、創業板 +20%，若 dayReturn > threshold × 1.5
+    // 代表 L1 缺了中間某日 K 棒（idx-1 跳到前天），pct 是跨兩日累計 → reject
+    if (dayReturn > threshold * 1.5) {
+      console.warn(`[DabanScanner] ${symbol} ${date} dayReturn=${dayReturn.toFixed(2)}% 超過閾值 ${threshold} × 1.5，可能 L1 缺 K 棒，跳過`);
+      continue;
+    }
 
     // 2. 過濾 ST（名稱檢查）
     if (stockData.name.includes('ST') || stockData.name.includes('*ST')) continue;
