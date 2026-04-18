@@ -40,26 +40,26 @@ describe('Scan panel parity contracts (R10)', () => {
       expect(applyPanelFilter([], { useMultiTimeframe: true })).toEqual([]);
     });
 
-    test('六條件總分 desc 優先，共振+高勝率次要', () => {
-      const mk = (s: string, six: number, res: number, hw: number): StockScanResult => ({
+    test('漲幅 desc 優先，六條件總分次要', () => {
+      const mk = (s: string, chg: number, six: number): StockScanResult => ({
         symbol: s, name: s, market: 'TW', industry: '',
-        price: 100, changePercent: 0, volume: 0,
+        price: 100, changePercent: chg, volume: 0,
         triggeredRules: [], sixConditionsScore: six,
         sixConditionsBreakdown: {
           trend: true, position: true, kbar: true, ma: true, volume: true, indicator: true,
         },
         trendState: '多頭', trendPosition: '',
-        scanTime: '2026-04-18T00:00:00.000Z',
-        resonanceScore: res, highWinRateScore: hw, highWinRateTypes: [], highWinRateDetails: [],
+        scanTime: '2026-04-19T00:00:00.000Z',
+        highWinRateScore: 0, highWinRateTypes: [], highWinRateDetails: [],
       } as unknown as StockScanResult);
 
       const results = [
-        mk('A', 5, 10, 0),   // 次要分 10
-        mk('B', 6, 0, 0),    // 主分 6（最高）
-        mk('C', 5, 3, 2),    // 次要分 5
+        mk('A', 3, 5),  // 漲幅 3，六條件 5
+        mk('B', 5, 4),  // 漲幅 5（最高）
+        mk('C', 3, 6),  // 漲幅 3，六條件 6（比 A 高）
       ];
       const sorted = applyPanelFilter(results, { useMultiTimeframe: false });
-      expect(sorted.map(r => r.symbol)).toEqual(['B', 'A', 'C']);
+      expect(sorted.map(r => r.symbol)).toEqual(['B', 'C', 'A']);
     });
   });
 

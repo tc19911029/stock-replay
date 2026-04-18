@@ -18,7 +18,6 @@ import { computeIndicators } from '@/lib/indicators';
 import { evaluateSixConditions } from '@/lib/analysis/trendAnalysis';
 import { evaluateHighWinRateEntry } from '@/lib/analysis/highWinRateEntry';
 import { evaluateMultiTimeframe } from '@/lib/analysis/multiTimeframeFilter';
-import { ruleEngine } from '@/lib/rules/ruleEngine';
 import type { CandleWithIndicators } from '@/types';
 import { BASE_THRESHOLDS } from '@/lib/strategy/StrategyConfig';
 
@@ -51,7 +50,6 @@ interface CandFeatures {
   deviation: number;
   mom5: number;
   turnover: number;
-  resonanceScore: number;
   highWinRateScore: number;
   mtfScore: number;
   rankScore: number;
@@ -90,7 +88,6 @@ const RANK_DEFS: RankDef[] = [
   { name: '5日動能',           fn: f => f.mom5 + f.changePercent / 10 },
   { name: '成交額優先',        fn: f => Math.log10(Math.max(f.turnover, 1)) },
   { name: '綜合因子',          fn: f => Math.min(f.volumeRatio, 5) / 5 + Math.max(0, f.mom5) / 20 + Math.min(f.bodyPct * 100, 10) / 10 + f.changePercent / 10 },
-  { name: '共振+高勝率(現行)', fn: f => f.resonanceScore + f.highWinRateScore + f.changePercent / 100 },
   { name: '高勝率進場位置',    fn: f => f.highWinRateScore + f.changePercent / 10 },
 ];
 
@@ -196,14 +193,6 @@ function buildCandidate(
   const turnover      = c.volume * c.close;
   const entryPrice    = +(next.open * (1 + SLIPPAGE_PCT)).toFixed(2);
 
-  let resonanceScore = 0;
-  try {
-    const signals = ruleEngine.evaluate(candles, idx);
-    const buySignals = signals.filter(s => s.type === 'BUY' || s.type === 'ADD');
-    const uniqueGroups = new Set(buySignals.map(s => s.ruleId.split('.')[0]));
-    resonanceScore = buySignals.length + uniqueGroups.size;
-  } catch { /* non-critical */ }
-
   let highWinRateScore = 0;
   try {
     highWinRateScore = evaluateHighWinRateEntry(candles, idx).score;
@@ -219,7 +208,7 @@ function buildCandidate(
     symbol, name, idx, candles,
     entryPrice, changePercent, totalScore: sixResult.totalScore,
     volumeRatio, bodyPct, deviation, mom5, turnover,
-    resonanceScore, highWinRateScore, mtfScore, rankScore: 0,
+    highWinRateScore, mtfScore, rankScore: 0,
   };
   features.rankScore = rankFn.fn(features);
   return features;

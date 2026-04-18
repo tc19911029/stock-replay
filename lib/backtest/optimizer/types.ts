@@ -18,7 +18,6 @@ export interface DailyCandidate {
   // Layer scores
   mtfScore:         number;  // 0-4 (Layer 0)
   sixCondScore:     number;  // 0-6 (Layer 1)
-  resonanceScore:   number;  // 0-8+ (BUY/ADD signals + unique groups)
   highWinRateScore: number;  // 0-30 (6 positions × 5)
 
   // 新排序因子（數據驅動）
@@ -48,11 +47,10 @@ export interface TradeResult {
 
 // ── Ranking ─────────────────────────────────────────────────────────────────────
 
-/** 權重組合（排序因子：動能 + 離高點） */
+/** 權重組合（排序因子：高勝率 + MTF） */
 export interface WeightCombo {
   name: string;
-  wR: number;   // momentum weight (5日動能)
-  wH: number;   // distance from high weight (離60日高)
+  wH: number;   // highWinRate weight
   wM: number;   // MTF weight (固定0，只篩選不排序)
 }
 

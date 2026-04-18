@@ -30,13 +30,13 @@ export function scoreColor(s: number): string {
 // ── Composite score ───────────────────────────────────────────────────────────
 
 /**
- * Composite score — 共振:高勝率 = 1:1
+ * Composite score — 用高勝率進場位置分（寶典 Part 12）
  */
 export function calcComposite(r: Pick<StockScanResult,
-  'resonanceScore' | 'highWinRateScore' | 'compositeScore'
+  'highWinRateScore' | 'compositeScore'
 >): number {
   if (r.compositeScore != null) return r.compositeScore;
-  return (r.resonanceScore ?? 0) + (r.highWinRateScore ?? 0);
+  return r.highWinRateScore ?? 0;
 }
 
 /** Chip tooltip text */

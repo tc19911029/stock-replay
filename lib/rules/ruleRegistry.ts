@@ -34,8 +34,6 @@ export type RuleGroupId =
   | 'consensus'        // 大師共識/共振
   | 'larry-williams'   // Larry Williams 短線交易秘訣
   | 'murphy'           // Murphy《金融市場技術分析》
-  | 'resonance-2'      // 回測虛擬：2群組共振
-  | 'resonance-3'      // 回測虛擬：3群組共振
   | 'cond-2'           // 回測虛擬：六大條件≥2
   | 'cond-3'           // 回測虛擬：六大條件≥3
   | 'cond-4'           // 回測虛擬：六大條件≥4
@@ -188,7 +186,6 @@ import {
 } from './oscillatorRules';
 // 大師共識/共振
 import { masterConsensusBreakout } from './consensusRules';
-import { bullishResonance, bearishResonance } from './resonanceRules';
 // Larry Williams《短線交易秘訣》
 import { LARRY_WILLIAMS_RULES } from './larryWilliamsRules';
 // Murphy《金融市場技術分析》
@@ -375,10 +372,10 @@ function createDefaultRegistry(): RuleRegistry {
 
   registry.register({
     id: 'consensus',
-    name: '大師共識/共振',
+    name: '大師共識突破',
     author: '朱家泓 × 權證小哥 × 蔡森',
-    description: '多師共識突破 + 多指標共振信號',
-    rules: [masterConsensusBreakout, bullishResonance, bearishResonance],
+    description: '多師共識突破',
+    rules: [masterConsensusBreakout],
   });
 
   registry.register({

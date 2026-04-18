@@ -42,13 +42,12 @@ export function applyPanelFilter(
     filtered = filtered.filter(r => (r.mtfScore ?? 0) >= PANEL_MTF_MIN_SCORE);
   }
 
-  // 排序：六條件總分 desc，同分以「共振 + 高勝率」次要排序（對齊 MarketScanner.ts:857 註解）
+  // 排序：漲幅 desc 為主鍵（2026-04-19 回測驗證：漲幅在 Top500 全期冠軍）
+  // 同分以六條件總分次要
   filtered.sort((a, b) => {
-    const diff = (b.sixConditionsScore ?? 0) - (a.sixConditionsScore ?? 0);
-    if (diff !== 0) return diff;
-    const aSec = (a.resonanceScore ?? 0) + (a.highWinRateScore ?? 0);
-    const bSec = (b.resonanceScore ?? 0) + (b.highWinRateScore ?? 0);
-    return bSec - aSec;
+    const d1 = (b.changePercent ?? 0) - (a.changePercent ?? 0);
+    if (d1 !== 0) return d1;
+    return (b.sixConditionsScore ?? 0) - (a.sixConditionsScore ?? 0);
   });
 
   return filtered;

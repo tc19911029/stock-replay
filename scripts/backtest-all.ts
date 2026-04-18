@@ -20,7 +20,6 @@ import { computeIndicators }          from '@/lib/indicators';
 import { evaluateSixConditions }      from '@/lib/analysis/trendAnalysis';
 import { evaluateMultiTimeframe }     from '@/lib/analysis/multiTimeframeFilter';
 import { evaluateHighWinRateEntry }   from '@/lib/analysis/highWinRateEntry';
-import { ruleEngine }                 from '@/lib/rules/ruleEngine';
 import type { CandleWithIndicators }  from '@/types';
 import { BASE_THRESHOLDS }            from '@/lib/strategy/StrategyConfig';
 
@@ -56,11 +55,11 @@ const MARKETS_TO_RUN: ('TW' | 'CN')[] = (() => {
 
 type SixcondSort =
   | '六條件總分' | '成交額' | '量比' | '動能' | 'K棒實體'
-  | '乖離率低' | '漲幅' | '綜合因子' | '共振+高勝率' | '高勝率';
+  | '乖離率低' | '漲幅' | '綜合因子' | '高勝率';
 
 const ALL_SORT_FACTORS: SixcondSort[] = [
   '六條件總分', '成交額', '量比', '動能', 'K棒實體',
-  '乖離率低', '漲幅', '綜合因子', '共振+高勝率', '高勝率',
+  '乖離率低', '漲幅', '綜合因子', '高勝率',
 ];
 
 const ALL_TOP_N   = [0, 200, 500];              // 0 = 全部，前200，前500
@@ -101,7 +100,7 @@ interface SixcondFeatures {
   entryPrice: number; totalScore: number; changePercent: number;
   volumeRatio: number; bodyPct: number; deviation: number;
   mom5: number; turnover: number;
-  resonanceScore: number; highWinRateScore: number; mtfScore: number;
+  highWinRateScore: number; mtfScore: number;
   rankScore: number;
 }
 
@@ -148,7 +147,6 @@ const SORT_DEFS: Record<SixcondSort, (f: SixcondFeatures) => number> = {
   '漲幅':        f => f.changePercent,
   '綜合因子':    f => Math.min(f.volumeRatio, 5) / 5 + Math.max(0, f.mom5) / 20
                       + Math.min(f.bodyPct * 100, 10) / 10 + f.changePercent / 10,
-  '共振+高勝率': f => f.resonanceScore + f.highWinRateScore + f.changePercent / 100,
   '高勝率':      f => f.highWinRateScore + f.changePercent / 10,
 };
 
@@ -275,13 +273,6 @@ function buildCandidate(
   const turnover      = c.volume * c.close;
   const entryPrice    = +(next.open * (1 + SLIPPAGE_PCT)).toFixed(2);
 
-  let resonanceScore = 0;
-  try {
-    const sigs = ruleEngine.evaluate(candles, idx);
-    const buys = sigs.filter(s => s.type === 'BUY' || s.type === 'ADD');
-    resonanceScore = buys.length + new Set(buys.map(s => s.ruleId.split('.')[0])).size;
-  } catch { /* 略 */ }
-
   let highWinRateScore = 0;
   try { highWinRateScore = evaluateHighWinRateEntry(candles, idx).score; } catch { /* 略 */ }
 
@@ -296,7 +287,7 @@ function buildCandidate(
     symbol, name, idx, candles, entryPrice,
     totalScore: six.totalScore, changePercent,
     volumeRatio, bodyPct, deviation, mom5, turnover,
-    resonanceScore, highWinRateScore, mtfScore, rankScore: 0,
+    highWinRateScore, mtfScore, rankScore: 0,
   };
   f.rankScore = sortFn(f);
   return f;

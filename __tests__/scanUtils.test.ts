@@ -26,25 +26,18 @@ function mockResult(overrides?: Partial<StockScanResult>): StockScanResult {
 
 describe('calcComposite', () => {
   it('returns a non-negative number', () => {
-    const score = calcComposite(mockResult({ resonanceScore: 5, highWinRateScore: 10 }));
+    const score = calcComposite(mockResult({ highWinRateScore: 10 }));
     expect(score).toBeGreaterThanOrEqual(0);
   });
 
-  it('gives higher score with more resonance signals', () => {
-    const high = calcComposite(mockResult({ resonanceScore: 10, highWinRateScore: 0 }));
-    const low  = calcComposite(mockResult({ resonanceScore: 1, highWinRateScore: 0 }));
+  it('gives higher score with higher highWinRateScore', () => {
+    const high = calcComposite(mockResult({ highWinRateScore: 30 }));
+    const low  = calcComposite(mockResult({ highWinRateScore: 5 }));
     expect(high).toBeGreaterThan(low);
-  });
-
-  it('includes highWinRateScore with equal weight (1:1)', () => {
-    const with_ = calcComposite(mockResult({ resonanceScore: 0, highWinRateScore: 30 }));
-    const without = calcComposite(mockResult({ resonanceScore: 0, highWinRateScore: 0 }));
-    expect(with_).toBeGreaterThan(without);
   });
 
   it('handles missing optional fields gracefully', () => {
     const base = mockResult();
-    delete (base as Partial<StockScanResult>).resonanceScore;
     delete (base as Partial<StockScanResult>).highWinRateScore;
     expect(() => calcComposite(base as StockScanResult)).not.toThrow();
   });

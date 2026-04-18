@@ -12,20 +12,10 @@ import { evaluateSixConditions } from '../lib/analysis/trendAnalysis';
 import { checkLongProhibitions } from '../lib/rules/entryProhibitions';
 import { evaluateElimination } from '../lib/scanner/eliminationFilter';
 import { evaluateHighWinRateEntry } from '../lib/analysis/highWinRateEntry';
-import { ruleEngine } from '../lib/rules/ruleEngine';
 import { ZHU_V1 } from '../lib/strategy/StrategyConfig';
 import type { CandleWithIndicators, Candle } from '../types';
 
 const thresholds = ZHU_V1.thresholds;
-
-const WEIGHT_COMBOS = [
-  { name: 'A:共振100%',  rW: 1.0, hW: 0.0 },
-  { name: 'B:80/20',     rW: 0.8, hW: 0.2 },
-  { name: 'C:70/30',     rW: 0.7, hW: 0.3 },
-  { name: 'D:50/50',     rW: 0.5, hW: 0.5 },
-  { name: 'E:30/70',     rW: 0.3, hW: 0.7 },
-  { name: 'F:高勝100%',  rW: 0.0, hW: 1.0 },
-];
 
 // ── Parse args ──
 const args = process.argv.slice(2);
@@ -72,20 +62,13 @@ function evaluateStock(candles: CandleWithIndicators[], lastIdx: number) {
   const elimination = evaluateElimination(candles, lastIdx);
   if (elimination.eliminated) return null;
 
-  const signals = ruleEngine.evaluate(candles, lastIdx);
-  const buySignals = signals.filter(s => s.type === 'BUY' || s.type === 'ADD');
-  const uniqueGroups = new Set(buySignals.map(s =>
-    'groupId' in s ? (s as { groupId: string }).groupId : s.ruleId.split('.')[0]
-  ));
-  const resonanceScore = buySignals.length + uniqueGroups.size;
-
   let highWinRateScore = 0;
   try {
     const hwr = evaluateHighWinRateEntry(candles, lastIdx);
     highWinRateScore = hwr.score;
   } catch {}
 
-  return { resonanceScore, highWinRateScore };
+  return { highWinRateScore };
 }
 
 function forwardReturn(candles: CandleWithIndicators[], idx: number, days: number): number | null {
@@ -137,7 +120,7 @@ async function main() {
     const candidates: Array<{
       symbol: string; name: string; price: number; change: number;
       candleIdx: number; candles: CandleWithIndicators[];
-      resonanceScore: number; highWinRateScore: number;
+      highWinRateScore: number;
     }> = [];
 
     for (const [symbol, data] of allCandles) {
@@ -168,27 +151,20 @@ async function main() {
       continue;
     }
 
-    for (const combo of WEIGHT_COMBOS) {
-      const sorted = [...candidates].sort((a, b) => {
-        const sa = a.resonanceScore * combo.rW + a.highWinRateScore * combo.hW;
-        const sb = b.resonanceScore * combo.rW + b.highWinRateScore * combo.hW;
-        return sb - sa;
-      });
-      const top = sorted[0];
-      const score = +(top.resonanceScore * combo.rW + top.highWinRateScore * combo.hW).toFixed(1);
+    const sorted = [...candidates].sort((a, b) => b.highWinRateScore - a.highWinRateScore);
+    const top = sorted[0];
 
-      const DAYS = [1, 2, 3, 4, 5, 10, 20];
-      const rets = DAYS.map(d => forwardReturn(top.candles, top.candleIdx, d));
+    const DAYS = [1, 2, 3, 4, 5, 10, 20];
+    const rets = DAYS.map(d => forwardReturn(top.candles, top.candleIdx, d));
 
-      const fmtR = (v: number | null) => v == null ? ' N/A' : (v > 0 ? '+' : '') + v.toFixed(1) + '%';
-      const retStr = DAYS.map((d, i) => `${d}D:${fmtR(rets[i])}`).join(' ');
+    const fmtR = (v: number | null) => v == null ? ' N/A' : (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+    const retStr = DAYS.map((d, i) => `${d}D:${fmtR(rets[i])}`).join(' ');
 
-      console.log(
-        `   ${combo.name.padEnd(12)} → ${top.symbol} ${top.name.padEnd(6)} ` +
-        `$${top.price}  共振${top.resonanceScore} 高勝${top.highWinRateScore}  ` +
-        retStr
-      );
-    }
+    console.log(
+      `   高勝率 → ${top.symbol} ${top.name.padEnd(6)} ` +
+      `$${top.price}  高勝${top.highWinRateScore}  ` +
+      retStr
+    );
     console.log('');
   }
 }

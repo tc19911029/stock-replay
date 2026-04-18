@@ -393,6 +393,47 @@ export const CHART_WALKING_SOP: StrategyConfig = {
 };
 
 /**
+ * 朱家泓純書本版（對照基準）
+ *
+ * 參數只寫《活用技術分析寶典》p.54 短線做多 SOP 明確記載的數字；
+ * 書本沒寫具體值的（KD 上限、乖離上限、上影線）一律放寬到不限。
+ * 目的：提供 100% 書本對照，用來檢驗演算法是否忠實實作書本邏輯。
+ *
+ * 書本明寫：
+ * - 量比 ≥ 前一日 × 1.3（p.54 ④）
+ * - 紅 K 實體 ≥ 2%（p.54 ⑤）
+ * - 六條件 1~5 為必要（5 分通過 = 進場）
+ * - 空頭不做多（bearMinScore=6 實質禁入）
+ * - KD 向下不買（短線規則第 9 條）
+ */
+export const ZHU_PURE_BOOK: StrategyConfig = {
+  id:          'zhu-pure-book',
+  name:        '朱家泓純書本版（對照基準）',
+  description: '寶典 p.54 100% 對齊，只寫書本明確記載的門檻，其餘全放寬',
+  version:     '1.0.0',
+  author:      '朱家泓（對照基準）',
+  createdAt:   '2026-04-18T00:00:00.000Z',
+  isBuiltIn:   true,
+  conditions:  ALL_CONDITIONS_ON,
+  thresholds:  {
+    ...BASE_THRESHOLDS,
+    volumeRatioMin:   1.3,   // 書本 p.54 ④ 明寫
+    kbarMinBodyPct:   0.02,  // 書本 p.54 ⑤ 明寫
+    kdMaxEntry:       100,   // 書本沒寫 → 不限
+    deviationMax:     1.0,   // 書本沒寫 → 不限
+    upperShadowMax:   1.0,   // 書本沒寫 → 不限
+    minScore:         5,
+    bullMinScore:     5,     // 書本 1~5 必要
+    sidewaysMinScore: 5,
+    bearMinScore:     6,     // 實質禁空頭進場
+    marketTrendFilter:  true,
+    kdDecliningFilter:  true,
+    multiTimeframeFilter: false,
+  },
+  ruleGroups:  [...CORE_ZHU_GROUPS, ...BASE_GROUPS],
+};
+
+/**
  * 回測驗證最佳策略（2024-2026 台股 200 股回測結果）
  *
  * 回測結論：
@@ -426,7 +467,8 @@ export const ZHU_OPTIMIZED: StrategyConfig = {
 };
 
 export const BUILT_IN_STRATEGIES: StrategyConfig[] = [
-  ZHU_OPTIMIZED,   // 回測驗證最佳，放第一個
+  ZHU_PURE_BOOK,   // 純書本版（2026-04-19 起為預設）
+  ZHU_OPTIMIZED,   // 回測驗證版（保留）
   ZHU_V1, ZHU_V2, ZHU_CONSERVATIVE,
   ZHU_V3_MULTIFACTOR, ZHU_V3_TW, ZHU_V3_CN,
   MASTER_CONSENSUS, ZHU_5STEPS, CHART_WALKING_SOP,

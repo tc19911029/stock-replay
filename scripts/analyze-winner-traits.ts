@@ -17,7 +17,6 @@ import { evaluateMultiTimeframe } from '@/lib/analysis/multiTimeframeFilter';
 import { checkLongProhibitions } from '@/lib/rules/entryProhibitions';
 import { evaluateElimination } from '@/lib/scanner/eliminationFilter';
 import { evaluateHighWinRateEntry } from '@/lib/analysis/highWinRateEntry';
-import { ruleEngine } from '@/lib/rules/ruleEngine';
 import { ZHU_V1 } from '@/lib/strategy/StrategyConfig';
 import type { CandleWithIndicators } from '@/types';
 
@@ -34,7 +33,6 @@ interface CandidateFeatures {
   day5Return: number;
 
   // 排序因子
-  resonanceScore: number;
   highWinRateScore: number;
   mtfScore: number;
   sixCondScore: number;
@@ -161,14 +159,6 @@ async function main() {
       if (mtfScore < MTF_THRESHOLD) continue;
 
       // 排序因子
-      let resonanceScore = 0;
-      try {
-        const ruleResult = ruleEngine.evaluate(candles, idx);
-        const buySignals = ruleResult.results.filter(r => r.action === 'BUY' || r.action === 'ADD');
-        const uniqueGroups = new Set(buySignals.map(r => r.ruleId.replace(/_v\d+$/, '').replace(/_(?:bull|bear|neutral)$/, '')));
-        resonanceScore = buySignals.length + uniqueGroups.size;
-      } catch {}
-
       let highWinRateScore = 0;
       try { highWinRateScore = evaluateHighWinRateEntry(candles, idx).score; } catch {}
 
@@ -195,7 +185,7 @@ async function main() {
 
       features.push({
         date, symbol, name: stockData.name, day5Return,
-        resonanceScore, highWinRateScore, mtfScore, sixCondScore: sixConds.totalScore,
+        highWinRateScore, mtfScore, sixCondScore: sixConds.totalScore,
 
         priceVsMa5:  +((c.close / ma5 - 1) * 100).toFixed(2),
         priceVsMa10: +((c.close / ma10 - 1) * 100).toFixed(2),
@@ -255,7 +245,6 @@ async function main() {
   console.log('═══════════════════════════════════════════════════════════\n');
 
   const traits: [string, keyof CandidateFeatures][] = [
-    ['共振分數',       'resonanceScore'],
     ['高勝率分數',     'highWinRateScore'],
     ['MTF 分數',       'mtfScore'],
     ['六條件分數',     'sixCondScore'],
@@ -330,14 +319,13 @@ async function main() {
   console.log('  Top 30 大漲股（5日漲幅最大）');
   console.log('═══════════════════════════════════════════════════════════\n');
 
-  console.log('日期        股票         5日漲  共振 高勝 MTF  量比  5日動能 價/MA20 ATR5');
+  console.log('日期        股票         5日漲  高勝 MTF  量比  5日動能 價/MA20 ATR5');
   console.log('─'.repeat(80));
   for (const w of winners.slice(0, 30)) {
     console.log(
       w.date + ' ' +
       w.symbol.padEnd(12) +
       ('+' + w.day5Return.toFixed(1) + '%').padStart(7) +
-      w.resonanceScore.toString().padStart(5) +
       w.highWinRateScore.toString().padStart(5) +
       w.mtfScore.toString().padStart(4) +
       w.volRatio.toFixed(1).padStart(6) +
@@ -354,7 +342,6 @@ async function main() {
 
   // Check which features best separate winners from losers
   const factorTests: { name: string; key: keyof CandidateFeatures; higher: boolean }[] = [
-    { name: '共振分數', key: 'resonanceScore', higher: true },
     { name: '高勝率分數', key: 'highWinRateScore', higher: true },
     { name: '量比', key: 'volRatio', higher: true },
     { name: '5日動能', key: 'mom5d', higher: true },

@@ -55,8 +55,8 @@ function SignalCard({ sig }: { sig: RuleSignal }) {
   );
 }
 
-/** 共振摘要 bar */
-function ResonanceSummary({ signals }: { signals: RuleSignal[] }) {
+/** 訊號摘要 bar */
+function SignalSummary({ signals }: { signals: RuleSignal[] }) {
   const buyCount = signals.filter(s => s.type === 'BUY' || s.type === 'ADD').length;
   const sellCount = signals.filter(s => s.type === 'SELL' || s.type === 'REDUCE').length;
   const watchCount = signals.filter(s => s.type === 'WATCH').length;
@@ -65,7 +65,7 @@ function ResonanceSummary({ signals }: { signals: RuleSignal[] }) {
 
   return (
     <div className="flex items-center gap-2 px-2 py-1.5 bg-card rounded text-xs mb-2">
-      <span className="text-muted-foreground font-medium">共振:</span>
+      <span className="text-muted-foreground font-medium">訊號:</span>
       {buyCount > 0 && (
         <span className={`px-1.5 py-0.5 rounded font-bold ${buyCount >= 3 ? 'bg-red-600 text-foreground' : buyCount >= 2 ? 'bg-red-800/60 text-red-300' : 'text-red-400'}`}>
           買 ×{buyCount}
@@ -101,8 +101,8 @@ export default function RuleAlerts() {
         )}
       </div>
 
-      {/* 共振摘要 */}
-      <ResonanceSummary signals={currentSignals} />
+      {/* 訊號摘要 */}
+      <SignalSummary signals={currentSignals} />
 
       {currentSignals.length === 0 ? (
         <p className="text-xs text-muted-foreground text-center py-4">本根K線無觸發規則</p>

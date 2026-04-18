@@ -10,6 +10,7 @@
  */
 
 import type { CandleWithIndicators } from '@/types';
+import { isNearWeeklyResistance } from '@/lib/analysis/multiTimeframeFilter';
 
 export interface ProhibitionResult {
   prohibited: boolean;
@@ -83,16 +84,12 @@ export function checkLongProhibitions(
   }
 
   // ── 戒律4：週線遇壓力前，勿進場做多 ─────────────────────────────────
-  // 簡化實作：若收盤距近60根K棒高點（≈12週）在3%以內 → 即將遇週線壓力
+  // 書本：聚合日K為週K → 找週K前波高點 → 今日收盤接近即為壓力區
   {
-    const lookback = Math.min(60, index);
-    const recentHighs = candles.slice(index - lookback, index).map(c => c.high);
-    const period60High = Math.max(...recentHighs);
-    if (period60High > 0) {
-      const distanceToPeak = (period60High - last.close) / period60High;
-      if (distanceToPeak >= 0 && distanceToPeak < 0.03) {
-        reasons.push('戒律4：接近近60根K棒高點（週線壓力區），距高點<3%，勿追多');
-      }
+    const segment = candles.slice(0, index + 1);
+    const { near, detail } = isNearWeeklyResistance(segment);
+    if (near) {
+      reasons.push(`戒律4：${detail ?? '接近週線前高壓力區'}，勿追多`);
     }
   }
 

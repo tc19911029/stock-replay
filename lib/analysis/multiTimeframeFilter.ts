@@ -223,6 +223,39 @@ export function clearAggregationCache(): void {
   _aggregationCacheEpoch = Date.now();
 }
 
+/**
+ * 判斷今日收盤是否接近週線前高壓力（戒律 4 專用）
+ * 聚合日 K → 週 K → 找 pivot high → 比較今日 close 距最近的前高
+ * @param proximityPct 接近度（預設 0.03 = 3% 以內算接近）
+ */
+export function isNearWeeklyResistance(
+  dailyCandles: CandleWithIndicators[],
+  proximityPct = 0.03,
+): { near: boolean; detail?: string } {
+  if (dailyCandles.length < 60) return { near: false };
+  const todayClose = dailyCandles[dailyCandles.length - 1].close;
+
+  const weeklyCandles = getCachedAggregation(dailyCandles, '1wk');
+  if (weeklyCandles.length < 4) return { near: false };
+
+  // 用最後一根之前的週 K 找 pivot（避免今日所在那根週 K 自己當壓力）
+  const evalIdx = weeklyCandles.length - 2;
+  const pivots = findPivots(weeklyCandles, evalIdx, 6);
+  const swingHighs = pivots.filter(p => p.type === 'high' && p.index < evalIdx - 1);
+
+  for (const sh of swingHighs) {
+    if (sh.price <= 0) continue;
+    const distPct = (sh.price - todayClose) / sh.price;
+    if (distPct > 0 && distPct < proximityPct) {
+      return {
+        near: true,
+        detail: `週線前高 ${sh.price.toFixed(2)}，今日收盤 ${todayClose.toFixed(2)}（差距 ${(distPct*100).toFixed(1)}%）`,
+      };
+    }
+  }
+  return { near: false };
+}
+
 // ── Main evaluator ────────────────────────────────────────────────────────────
 
 /**

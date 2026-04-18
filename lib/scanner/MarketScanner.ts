@@ -413,11 +413,6 @@ export abstract class MarketScanner {
         ruleId: s.ruleId, ruleName: s.label, signalType: s.type, reason: s.description,
       }));
 
-      // ── 共振因子：BUY/ADD 訊號數量 + 跨群組共振 ─────────────────────
-      const buySignals = signals.filter(s => s.type === 'BUY' || s.type === 'ADD');
-      const uniqueGroups = new Set(buySignals.map(s => ('groupId' in s ? (s as { groupId: string }).groupId : s.ruleId.split('.')[0])));
-      const resonanceScore = buySignals.length + uniqueGroups.size;
-
       // ── 高勝率進場位置（朱老師《活用技術分析寶典》Part 12）─────────────
       let highWinRateEntry: ReturnType<typeof evaluateHighWinRateEntry> = {
         matched: false, types: [], score: 0, details: [],
@@ -452,7 +447,6 @@ export abstract class MarketScanner {
         trendPosition: position,
         scanTime: asOfDate ? `${asOfDate}T00:00:00.000Z` : new Date().toISOString(),
         // ── 排序因子 ─────────────────────────────────────────────────────
-        resonanceScore,
         highWinRateTypes: highWinRateEntry.types,
         highWinRateScore: highWinRateEntry.score,
         highWinRateDetails: highWinRateEntry.details,
@@ -711,11 +705,6 @@ export abstract class MarketScanner {
         ruleId: s.ruleId, ruleName: s.label, signalType: s.type, reason: s.description,
       }));
 
-      // ── 共振因子：SELL/REDUCE 訊號數量 + 跨群組共振（方向反轉）────
-      const sellSignals = signals.filter(s => s.type === 'SELL' || s.type === 'REDUCE');
-      const uniqueGroups = new Set(sellSignals.map(s => ('groupId' in s ? (s as { groupId: string }).groupId : s.ruleId.split('.')[0])));
-      const resonanceScore = sellSignals.length + uniqueGroups.size;
-
       const changePercent = lastIdx > 0 && candles[lastIdx - 1]?.close > 0
         ? +((last.close - candles[lastIdx - 1].close) / candles[lastIdx - 1].close * 100).toFixed(2)
         : 0;
@@ -743,7 +732,6 @@ export abstract class MarketScanner {
           indicator: shortConds.indicator.pass,
         },
         direction: 'short',
-        resonanceScore,
         trendState: '空頭',
         trendPosition: shortConds.position.stage ?? '',
         scanTime: asOfDate ? `${asOfDate}T00:00:00.000Z` : new Date().toISOString(),

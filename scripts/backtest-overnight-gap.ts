@@ -17,7 +17,6 @@ import { evaluateSixConditions } from '@/lib/analysis/trendAnalysis';
 import { checkLongProhibitions } from '@/lib/rules/entryProhibitions';
 import { evaluateElimination } from '@/lib/scanner/eliminationFilter';
 import { evaluateHighWinRateEntry } from '@/lib/analysis/highWinRateEntry';
-import { ruleEngine } from '@/lib/rules/ruleEngine';
 import { ZHU_OPTIMIZED } from '@/lib/strategy/StrategyConfig';
 import type { CandleWithIndicators } from '@/types';
 
@@ -150,7 +149,7 @@ function main(): void {
       symbol: string; name: string; idx: number;
       candles: CandleWithIndicators[];
       totalScore: number; changePercent: number;
-      resonanceScore: number; highWinRateScore: number;
+      highWinRateScore: number;
     }
     const cands: Cand[] = [];
 
@@ -177,29 +176,23 @@ function main(): void {
       const prev = sd.candles[idx - 1];
       const changePercent = prev.close > 0 ? (c.close - prev.close) / prev.close * 100 : 0;
 
-      // 次要排序因子：共振 + 高勝率（對齊 applyPanelFilter）
-      let resonanceScore = 0;
-      try {
-        const sigs = ruleEngine.evaluate(sd.candles, idx);
-        const buys = sigs.filter(s => s.type === 'BUY' || s.type === 'ADD');
-        resonanceScore = buys.length + new Set(buys.map(s => s.ruleId.split('.')[0])).size;
-      } catch { /* skip */ }
+      // 次要排序因子：高勝率（對齊 applyPanelFilter）
       let highWinRateScore = 0;
       try { highWinRateScore = evaluateHighWinRateEntry(sd.candles, idx).score; } catch { /* skip */ }
 
       cands.push({
         symbol, name: sd.name, idx, candles: sd.candles,
         totalScore: six.totalScore, changePercent,
-        resonanceScore, highWinRateScore,
+        highWinRateScore,
       });
     }
     if (cands.length === 0) continue;
 
-    // 對齊 lib/selection/applyPanelFilter.ts：六條件總分 desc，同分以共振+高勝率次要
+    // 對齊 lib/selection/applyPanelFilter.ts：六條件總分 desc，同分以高勝率次要
     cands.sort((a, b) => {
       const d = b.totalScore - a.totalScore;
       if (d !== 0) return d;
-      return (b.resonanceScore + b.highWinRateScore) - (a.resonanceScore + a.highWinRateScore);
+      return b.highWinRateScore - a.highWinRateScore;
     });
     const picked = cands[0];
 

@@ -4,7 +4,7 @@ import {
   StrategyConfig,
   StrategyThresholds,
   BUILT_IN_STRATEGIES,
-  ZHU_OPTIMIZED,
+  ZHU_PURE_BOOK,
   clampThresholds,
 } from '@/lib/strategy/StrategyConfig';
 
@@ -62,7 +62,7 @@ export const useSettingsStore = create<SettingsStore>()(
       colorTheme: 'asia' as ColorTheme,
       stopLossPercent: 7,
       strategy: DEFAULT_STRATEGY,
-      activeStrategyId: 'zhu-optimized',
+      activeStrategyId: 'zhu-pure-book',
       customStrategies: [],
       setNotifyEmail: (email) => set({ notifyEmail: email }),
       setNotifyMinScore: (score) => set({ notifyMinScore: score }),
@@ -105,12 +105,12 @@ export const useSettingsStore = create<SettingsStore>()(
         set(state => ({
           customStrategies: state.customStrategies.filter(s => s.id !== id),
           activeStrategyId:
-            state.activeStrategyId === id ? 'zhu-optimized' : state.activeStrategyId,
+            state.activeStrategyId === id ? 'zhu-pure-book' : state.activeStrategyId,
         })),
       getActiveStrategy: () => {
         const { activeStrategyId, customStrategies } = get();
         const all = [...BUILT_IN_STRATEGIES, ...customStrategies];
-        return all.find(s => s.id === activeStrategyId) ?? ZHU_OPTIMIZED;
+        return all.find(s => s.id === activeStrategyId) ?? ZHU_PURE_BOOK;
       },
     }),
     { name: 'settings-v4' }
@@ -122,7 +122,7 @@ export function resolveStrategy(
   strategyId: string | undefined,
   customStrategies: StrategyConfig[] = [],
 ): StrategyConfig {
-  if (!strategyId) return ZHU_OPTIMIZED;
+  if (!strategyId) return ZHU_PURE_BOOK;
   const all = [...BUILT_IN_STRATEGIES, ...customStrategies];
-  return all.find(s => s.id === strategyId) ?? ZHU_OPTIMIZED;
+  return all.find(s => s.id === strategyId) ?? ZHU_PURE_BOOK;
 }

@@ -16,6 +16,7 @@ import {
 import { CandleWithIndicators, RuleSignal, ChartSignalMarker } from '@/types';
 
 import { getBullBearColors } from '@/lib/chart/colors';
+import { detectTrendlineBreakout } from '@/lib/analysis/trendAnalysis';
 
 const MA_COLORS = {
   ma5:   '#facc15', // 黃
@@ -85,6 +86,8 @@ interface CandleChartProps {
   fillContainer?: boolean;
   maToggles?: { ma5: boolean; ma10: boolean; ma20: boolean; ma60: boolean; ma240: boolean };
   showBollinger?: boolean;
+  /** 顯示書本 p.37/p.38 切線（下降切線+上升切線），預設開 */
+  showTrendlines?: boolean;
   /** 高亮指定日期的 K 棒（黃色菱形標記） */
   highlightDate?: string;
   /** 將指定日期的 K 棒捲動至畫面中央 */
@@ -95,6 +98,7 @@ export default function CandleChart({
   candles, signals, chartMarkers = [], avgCost, stopLossPrice, onCrosshairMove, onDoubleClick, height = 400, fillContainer = false,
   maToggles = { ma5: true, ma10: true, ma20: true, ma60: true, ma240: false },
   showBollinger = false,
+  showTrendlines = true,
   highlightDate,
   centerOnDate,
 }: CandleChartProps) {
@@ -103,6 +107,7 @@ export default function CandleChart({
   const candleRef      = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const maRefs         = useRef<Record<string, ISeriesApi<'Line'>>>({});
   const bbRefs         = useRef<{ upper?: ISeriesApi<'Line'>; lower?: ISeriesApi<'Line'> }>({});
+  const trendlineRefs  = useRef<{ descending?: ISeriesApi<'Line'>; ascending?: ISeriesApi<'Line'> }>({});
   const markersPlugRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const avgCostLineRef   = useRef<ReturnType<ISeriesApi<'Candlestick'>['createPriceLine']> | null>(null);
   const stopLossLineRef  = useRef<ReturnType<ISeriesApi<'Candlestick'>['createPriceLine']> | null>(null);
@@ -166,6 +171,16 @@ export default function CandleChart({
     });
     bbRefs.current.lower = chart.addSeries(LineSeries, {
       color: 'rgba(34, 197, 94, 0.5)', lineWidth: 1, priceLineVisible: false, lastValueVisible: false, lineStyle: 2,
+    });
+
+    // ── 切線（書本 p.37/p.38 警示用，不做進出場） ──
+    trendlineRefs.current.descending = chart.addSeries(LineSeries, {
+      color: 'rgba(244, 114, 182, 0.8)',  // 粉紅：下降切線（連頭頭低）
+      lineWidth: 2, priceLineVisible: false, lastValueVisible: false, lineStyle: 2,
+    });
+    trendlineRefs.current.ascending = chart.addSeries(LineSeries, {
+      color: 'rgba(34, 211, 238, 0.8)',   // 青色：上升切線（連底底高）
+      lineWidth: 2, priceLineVisible: false, lastValueVisible: false, lineStyle: 2,
     });
 
     chartRef.current  = chart;
@@ -251,6 +266,39 @@ export default function CandleChart({
     bbRefs.current.lower?.setData(
       candles.filter(c => validNum(c.bbLower)).map(c => ({ time: toTime(c.date), value: c.bbLower! }))
     );
+
+    // ── 切線（書本 p.37/p.38）──
+    if (showTrendlines && candles.length >= 3) {
+      const lastIdx = candles.length - 1;
+      const info = detectTrendlineBreakout(candles, lastIdx);
+      if (info.descending) {
+        const { fromIndex, fromPrice, toIndex, toPrice } = info.descending;
+        const slope = (toPrice - fromPrice) / (toIndex - fromIndex);
+        const pts = [];
+        for (let i = fromIndex; i <= lastIdx; i++) {
+          if (i < 0 || i >= candles.length) continue;
+          pts.push({ time: toTime(candles[i].date), value: fromPrice + slope * (i - fromIndex) });
+        }
+        trendlineRefs.current.descending?.setData(pts);
+      } else {
+        trendlineRefs.current.descending?.setData([]);
+      }
+      if (info.ascending) {
+        const { fromIndex, fromPrice, toIndex, toPrice } = info.ascending;
+        const slope = (toPrice - fromPrice) / (toIndex - fromIndex);
+        const pts = [];
+        for (let i = fromIndex; i <= lastIdx; i++) {
+          if (i < 0 || i >= candles.length) continue;
+          pts.push({ time: toTime(candles[i].date), value: fromPrice + slope * (i - fromIndex) });
+        }
+        trendlineRefs.current.ascending?.setData(pts);
+      } else {
+        trendlineRefs.current.ascending?.setData([]);
+      }
+    } else {
+      trendlineRefs.current.descending?.setData([]);
+      trendlineRefs.current.ascending?.setData([]);
+    }
     // scrollToPosition 後稍等一個 tick 再廣播，確保 range 已更新
     const chart = chartRef.current;
     if (chart) {

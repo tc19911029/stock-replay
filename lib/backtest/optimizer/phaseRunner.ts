@@ -49,7 +49,7 @@ export function runPhaseB(
   console.log('\n══ Phase B: MTF 門檻測試 ══\n');
 
   // 使用等權基準 (1:1:1)
-  const baseCombo: WeightCombo = { name: '等權1:1:1', wR: 1, wH: 1, wM: 1 };
+  const baseCombo: WeightCombo = { name: '等權1:1', wH: 1, wM: 1 };
   const results: PhaseBResult['results'] = [];
 
   for (const threshold of MTF_THRESHOLDS) {

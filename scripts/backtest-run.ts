@@ -13,7 +13,6 @@ import { computeIndicators }          from '@/lib/indicators';
 import { evaluateSixConditions }      from '@/lib/analysis/trendAnalysis';
 import { evaluateMultiTimeframe }     from '@/lib/analysis/multiTimeframeFilter';
 import { evaluateHighWinRateEntry }   from '@/lib/analysis/highWinRateEntry';
-import { ruleEngine }                 from '@/lib/rules/ruleEngine';
 import { checkLongProhibitions }      from '@/lib/rules/entryProhibitions';
 import { evaluateElimination }        from '@/lib/scanner/eliminationFilter';
 import type { CandleWithIndicators }  from '@/types';
@@ -51,7 +50,7 @@ const CONFIG = {
   sixcond: {
     topN:   500,
     mtfMin: 0,          // 對齊面板 daily session（不開 MTF）
-    sortBy: '六條件總分' as SixcondSort,
+    sortBy: '漲幅' as SixcondSort,
   },
 
   /**
@@ -79,7 +78,7 @@ const CONFIG = {
 
 type SixcondSort =
   | '六條件總分' | '成交額' | '量比' | '動能' | 'K棒實體'
-  | '乖離率低' | '漲幅' | '綜合因子' | '共振+高勝率' | '高勝率';
+  | '乖離率低' | '漲幅' | '綜合因子' | '高勝率';
 
 type DabanSort =
   | '純成交額' | '封板力度' | '多因子' | '連板優先'
@@ -95,7 +94,7 @@ interface SixcondFeatures {
   entryPrice: number; totalScore: number; changePercent: number;
   volumeRatio: number; bodyPct: number; deviation: number;
   mom5: number; turnover: number;
-  resonanceScore: number; highWinRateScore: number; mtfScore: number;
+  highWinRateScore: number; mtfScore: number;
   rankScore: number;
 }
 
@@ -151,8 +150,8 @@ const S1_MAX_HOLD        = 60;    // 最長持有天數
 // ══════════════════════════════════════════════════════════════
 
 const SIXCOND_SORT_DEFS: Record<SixcondSort, (f: SixcondFeatures) => number> = {
-  // 對齊 lib/selection/applyPanelFilter.ts 排序：六條件總分 desc，同分以共振+高勝率次要
-  '六條件總分':   f => f.totalScore * 1000 + (f.resonanceScore + f.highWinRateScore) * 10 + f.changePercent / 100,
+  // 對齊 lib/selection/applyPanelFilter.ts 排序：六條件總分 desc，同分以高勝率次要
+  '六條件總分':   f => f.totalScore * 1000 + f.highWinRateScore * 10 + f.changePercent / 100,
   '成交額':       f => Math.log10(Math.max(f.turnover, 1)),
   '量比':         f => Math.min(f.volumeRatio, 5) * 2 + f.changePercent / 10,
   '動能':         f => f.mom5 + f.changePercent / 10,
@@ -161,7 +160,6 @@ const SIXCOND_SORT_DEFS: Record<SixcondSort, (f: SixcondFeatures) => number> = {
   '漲幅':         f => f.changePercent,
   '綜合因子':     f => Math.min(f.volumeRatio, 5) / 5 + Math.max(0, f.mom5) / 20
                        + Math.min(f.bodyPct * 100, 10) / 10 + f.changePercent / 10,
-  '共振+高勝率':  f => f.resonanceScore + f.highWinRateScore + f.changePercent / 100,
   '高勝率':       f => f.highWinRateScore + f.changePercent / 10,
 };
 
@@ -304,13 +302,6 @@ function buildSixcondCandidate(
   const turnover      = c.volume * c.close;
   const entryPrice    = +(next.open * (1 + SLIPPAGE_PCT)).toFixed(2);
 
-  let resonanceScore = 0;
-  try {
-    const sigs = ruleEngine.evaluate(candles, idx);
-    const buys = sigs.filter(s => s.type === 'BUY' || s.type === 'ADD');
-    resonanceScore = buys.length + new Set(buys.map(s => s.ruleId.split('.')[0])).size;
-  } catch { /* 略 */ }
-
   let highWinRateScore = 0;
   try { highWinRateScore = evaluateHighWinRateEntry(candles, idx).score; } catch { /* 略 */ }
 
@@ -325,7 +316,7 @@ function buildSixcondCandidate(
     symbol, name, idx, candles, entryPrice,
     totalScore: six.totalScore, changePercent,
     volumeRatio, bodyPct, deviation, mom5, turnover,
-    resonanceScore, highWinRateScore, mtfScore, rankScore: 0,
+    highWinRateScore, mtfScore, rankScore: 0,
   };
   f.rankScore = sortFn(f);
   return f;
@@ -406,25 +397,32 @@ function exitS1(
 ): ExitResult | null {
   let maxGain = 0; // 曾達到最高收益率，不可逆
 
+  // 書本獲利方程式 ①：停損點設在進場中長紅 K 線的最低點（典型落在 5~7%）
+  // 若進場低點離進場價超過 -7%（異常），硬性 cap 在 -7% 保護
+  const entryCandle = candles[entryIdx];
+  const rawStopPrice = entryCandle?.low ?? entryPrice * 0.93;
+  const floorPrice   = entryPrice * 0.93;  // -7% 硬性下限
+  const stopLossPrice = Math.max(rawStopPrice, floorPrice);
+  const stopLossPct   = entryPrice > 0 ? (stopLossPrice - entryPrice) / entryPrice * 100 : -5;
+
   for (let d = 0; d <= S1_MAX_HOLD; d++) {
     const fi = entryIdx + d;
     if (fi >= candles.length) break;
     const c    = candles[fi];
     const prev = fi > 0 ? candles[fi - 1] : null;
 
-    const lowRet   = entryPrice > 0 ? (c.low   - entryPrice) / entryPrice * 100 : 0;
     const closeRet = entryPrice > 0 ? (c.close - entryPrice) / entryPrice * 100 : 0;
     if (closeRet > maxGain) maxGain = closeRet;
 
-    // 進場日只看收盤止損
+    // 進場日只看收盤止損（收盤跌破進場 K 最低點）
     if (d === 0) {
-      if (closeRet <= S1_SL_PCT) return { exitIdx: fi, exitPrice: c.close, exitReason: `止損${S1_SL_PCT}%（進場日）` };
+      if (c.close <= stopLossPrice) return { exitIdx: fi, exitPrice: c.close, exitReason: `止損${stopLossPct.toFixed(1)}%（進場日）` };
       continue;
     }
 
-    // ① 固定止損 -5%
-    if (lowRet <= S1_SL_PCT) {
-      return { exitIdx: fi, exitPrice: +(entryPrice * (1 + S1_SL_PCT / 100)).toFixed(2), exitReason: `止損${S1_SL_PCT}%` };
+    // ① 收盤跌破進場 K 最低點（書本停損規則）
+    if (c.close <= stopLossPrice) {
+      return { exitIdx: fi, exitPrice: c.close, exitReason: `止損${stopLossPct.toFixed(1)}% 進場K低點 ${stopLossPrice.toFixed(2)}` };
     }
 
     // ② 曾漲超10%後跌破MA5（S1核心保護）

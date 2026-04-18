@@ -13,7 +13,6 @@ import { evaluateMultiTimeframe } from '@/lib/analysis/multiTimeframeFilter';
 import { evaluateHighWinRateEntry } from '@/lib/analysis/highWinRateEntry';
 import { checkLongProhibitions } from '@/lib/rules/entryProhibitions';
 import { evaluateElimination } from '@/lib/scanner/eliminationFilter';
-import { ruleEngine } from '@/lib/rules/ruleEngine';
 import { ZHU_V1 } from '@/lib/strategy/StrategyConfig';
 import { simulateTrade } from './tradeSimulator';
 import type { CandleWithIndicators, Candle } from '@/types';
@@ -137,18 +136,11 @@ export function collectAllCandidates(
       const elimination = evaluateElimination(stockData.candles, idx);
       if (elimination.eliminated) continue;
 
-      // ── 計算三大排序因子 ──
+      // ── 計算排序因子 ──
       const mtf = evaluateMultiTimeframe(
         stockData.candles.slice(0, idx + 1),
         thresholds,
       );
-
-      const signals = ruleEngine.evaluate(stockData.candles, idx);
-      const buySignals = signals.filter(s => s.type === 'BUY' || s.type === 'ADD');
-      const uniqueGroups = new Set(buySignals.map(s =>
-        'groupId' in s ? (s as { groupId: string }).groupId : s.ruleId.split('.')[0]
-      ));
-      const resonanceScore = buySignals.length + uniqueGroups.size;
 
       let highWinRateScore = 0;
       try {
@@ -181,7 +173,6 @@ export function collectAllCandidates(
         market,
         mtfScore:         mtf.totalScore,
         sixCondScore:     sixConds.totalScore,
-        resonanceScore,
         highWinRateScore,
         mom5d,
         distFrom60dHigh,
