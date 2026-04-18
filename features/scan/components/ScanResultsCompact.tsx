@@ -206,13 +206,23 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
             {/* Expanded details */}
             {isExpanded && (
               <div className="rounded-lg border border-sky-700/30 bg-card/80 px-2.5 py-2 space-y-2 text-[10px]">
-                {/* MTF info */}
+                {/* MTF info — 拆成 4 項獨立評分 */}
                 {r.mtfScore != null && (
                   <div>
                     <div className="text-muted-foreground font-medium mb-0.5">長線保護短線 {r.mtfScore}/4</div>
                     <div className="space-y-0.5 text-[9px]">
-                      {r.mtfWeeklyDetail && <div>{r.mtfWeeklyPass ? '✅' : '❌'} 週線: {r.mtfWeeklyDetail}</div>}
-                      {r.mtfMonthlyDetail && <div>{r.mtfMonthlyPass ? '✅' : '❌'} 月線: {r.mtfMonthlyDetail}</div>}
+                      {([
+                        { label: '週線趨勢', pass: r.mtfWeeklyChecks?.trend      ?? (r.mtfWeeklyTrend !== '空頭'), desc: '趨勢不是「空頭」即得分' },
+                        { label: '週線均線', pass: r.mtfWeeklyChecks?.ma         ?? (r.mtfWeeklyPass ?? false),   desc: 'MA排列多頭 + 站穩週MA20 + MA20上升' },
+                        { label: '週線壓力', pass: r.mtfWeeklyChecks?.resistance ?? !r.mtfWeeklyNearResistance,   desc: '收盤不在前高下方3%內' },
+                        { label: '月線趨勢', pass: r.mtfMonthlyPass ?? false,                                    desc: '趨勢不是「空頭」即得分' },
+                      ]).map(({ label, pass, desc }) => (
+                        <div key={label} className="flex items-center gap-1.5">
+                          <span className={pass ? 'text-green-400' : 'text-red-400'}>{pass ? '✅' : '❌'}</span>
+                          <span className="text-muted-foreground font-medium">{label}</span>
+                          <span className="text-muted-foreground/50">{desc}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
