@@ -547,9 +547,12 @@ export function evaluateSixConditions(
     : `❌ 黑K / 不符合`;
 
   // ─────────────────────────────────────────────────────────────────────────
-  // ② 均線條件（必要）— 書本 Part 4 p.281/p.749/p.343 明寫 4 線多排
-  //   • MA5 > MA10 > MA20 > MA60 四線多排（含季線）
-  //   • MA10/MA20/MA60 向上（p.54 + p.332 原文）
+  // ② 均線條件（必要）— 書本 Part 2 p.54 第 2 條
+  //   原文：「MA10、MA20 多排+向上（季線如果在上方下彎要警示）」
+  //   • MA5 > MA10 > MA20 三線多排（MA5 為跨書共識，朱 p.54 只明寫 MA10/MA20）
+  //   • MA10/MA20 向上
+  //   • MA60 僅作「在上方下彎」壓力警示，不是 gate（書本 p.54）
+  //   • p.749 的「突破 60 均 → 4 線多排」是打底完成後升級做長多的條件，非每日進場必要
   // ─────────────────────────────────────────────────────────────────────────
   const { ma5, ma10 } = c;
   const ma60 = c.ma60;
@@ -557,24 +560,27 @@ export function evaluateSixConditions(
   const prevMa20q = prev?.ma20;
   const prevMa60 = prev?.ma60;
 
-  const maAlign      = ma5 != null && ma10 != null && ma20 != null && ma60 != null
-    && ma5 > ma10 && ma10 > ma20 && ma20 > ma60;             // 4 線多排（含 MA60）
+  const maAlign      = ma5 != null && ma10 != null && ma20 != null
+    && ma5 > ma10 && ma10 > ma20;                            // 三線多排（對齊 p.54）
   const ma10Rising   = ma10 != null && prevMa10 != null && ma10 > prevMa10;
   const ma20Rising   = ma20 != null && prevMa20q != null && ma20 > prevMa20q;
-  const ma60Rising   = ma60 != null && prevMa60 != null && ma60 >= prevMa60;  // 季線向上（至少不下彎）
 
-  const bullishAlign = maAlign && ma10Rising && ma20Rising && ma60Rising;
+  const bullishAlign = maAlign && ma10Rising && ma20Rising;
+
+  // MA60 季線壓力警示（書本 p.54 原文「季線如果在上方下彎要警示」，非 gate）
+  const ma60Pressure = ma60 != null && prevMa60 != null
+    && ma60 > c.close && ma60 < prevMa60;
 
   const maAlignment = (() => {
     if (bullishAlign) {
-      return `✅ MA5(${ma5?.toFixed(1)})>MA10(${ma10?.toFixed(1)})>MA20(${ma20?.toFixed(1)})>MA60(${ma60?.toFixed(1)}) 四線多排，MA10/20/60 均向上`;
+      const base = `✅ MA5(${ma5?.toFixed(1)})>MA10(${ma10?.toFixed(1)})>MA20(${ma20?.toFixed(1)}) 三線多排，MA10/20 均向上`;
+      return ma60Pressure ? `${base}（⚠️ 季線 ${ma60?.toFixed(1)} 下彎在上方，靠近有壓力）` : base;
     }
-    if (ma5 == null || ma10 == null || ma20 == null || ma60 == null) return '均線資料不足（需 MA5/10/20/60）';
+    if (ma5 == null || ma10 == null || ma20 == null) return '均線資料不足';
     const issues = [
-      !maAlign       ? `⚠️ 四線未完全多排（MA5=${ma5.toFixed(1)} MA10=${ma10.toFixed(1)} MA20=${ma20.toFixed(1)} MA60=${ma60.toFixed(1)}）` : '',
+      !maAlign       ? `⚠️ 三線未完全多排（MA5=${ma5.toFixed(1)} MA10=${ma10.toFixed(1)} MA20=${ma20.toFixed(1)}）` : '',
       !ma10Rising    ? `MA10 未向上(${prevMa10?.toFixed(1)}→${ma10.toFixed(1)})` : '',
       !ma20Rising    ? `MA20 未向上(${prevMa20q?.toFixed(1)}→${ma20.toFixed(1)})` : '',
-      !ma60Rising    ? `MA60 下彎(${prevMa60?.toFixed(1)}→${ma60.toFixed(1)})` : '',
     ].filter(Boolean).join('，');
     return issues || '均線多排但有問題';
   })();
