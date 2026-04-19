@@ -289,7 +289,7 @@ export function checkShortProhibitions(
     }
   }
 
-  // ── 戒律7：盤整區內勿進場做空 ────────────────────────────────────────
+  // ── 戒律7：盤整區內勿進場做空（書本 p.87 盤整 <15%）──────────────────
   {
     const lookback = Math.min(10, index - 1);
     const segment = candles.slice(index - lookback, index);
@@ -298,8 +298,8 @@ export function checkShortProhibitions(
       const segLow = Math.min(...segment.map(c => c.low));
       const rangeWidth = segLow > 0 ? (segHigh - segLow) / segLow : 1;
 
-      if (rangeWidth < 0.05 && last.close >= segLow * 0.995) {
-        reasons.push('戒律7：股價在盤整區內（近10根K棒波動<5%），勿進場做空');
+      if (rangeWidth < 0.15 && last.close >= segLow * 0.995) {
+        reasons.push(`戒律7：股價在盤整區內（近10根K棒波動${(rangeWidth*100).toFixed(1)}%<15%），勿進場做空`);
       }
     }
   }
