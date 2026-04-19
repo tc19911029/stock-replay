@@ -154,37 +154,14 @@ export function checkLongProhibitions(
     }
   }
 
-  // ── 獨立戒律：MA20 乖離 >12% 追高警示（書本 p.568 MA 通道）──────────
-  // 書本：正乖離過大（>12-15%）表示買超，將有下跌壓力
-  // 與戒律3（三合一）不同，此條單獨成立即禁入（避免末升段末端追高）
-  {
-    const ma20 = last.ma20;
-    if (ma20 && ma20 > 0) {
-      const dev = (last.close - ma20) / ma20;
-      if (dev > 0.12) {
-        reasons.push(`MA20 乖離過大 ${(dev*100).toFixed(1)}%>12%（書本 p.568），追高有回檔壓力`);
-      }
-    }
-  }
+  // 註：MA20 乖離 >12% 書本 p.568 原文是「盡量避免追高」— 警示建議，不是硬 gate
+  // 已移至 evaluateSixConditions positionDetail 作為 ⚠️ tag 顯示，不擋選股
+  // 戒律 3（量背離+KD高檔+乖離 三合一）仍保留做為硬性禁入（書本 p.57 明寫）
 
-  // ── 獨立戒律：末升段暴大量黑K（書本 p.533 量價 13 條 #8(4)）──────────
-  // 書本：高檔連續急漲「暴大量」，股價只能上漲不能下跌，出現黑K下跌 → 容易急跌或反轉
-  // 觸發條件：近 3 根連續紅K 上漲 + 當日爆大量（5日均量×2）+ 黑K
-  {
-    const bodyPct = last.open > 0 ? (last.open - last.close) / last.open : 0;
-    const isBlackK = last.close < last.open;
-    const avgVol5 = last.avgVol5 ?? 0;
-    const isBlowoff = avgVol5 > 0 && last.volume >= avgVol5 * 2;
-    if (isBlackK && isBlowoff && bodyPct >= 0.01 && index >= 3) {
-      const prev3AllRed =
-        candles[index - 1].close > candles[index - 1].open &&
-        candles[index - 2].close > candles[index - 2].open &&
-        candles[index - 3].close > candles[index - 3].open;
-      if (prev3AllRed) {
-        reasons.push('末升段警示：連續3紅後爆大量長黑K（書本 p.533 #8(4)），容易急跌反轉');
-      }
-    }
-  }
+  // 註：末升段暴大量黑K（書本 p.533 量價 13 條 #8(4)）是「持有中的出場警示」
+  // 而非進場 gate（書本原文「容易急跌」是機率性表述）。
+  // 該訊號已由「戒律 9：連續急漲大量長紅K 勿追高」+ 長黑吞噬出場 涵蓋，
+  // 此處不獨立設 gate 避免 overreach（2026-04-19 用戶指出 MA20 乖離後發現同類錯誤）。
 
   // ── 戒律9：連續急漲的大量長紅K高檔，勿進場做多 ─────────────────────
   // 邏輯：近3根K棒都是大量（>前5日均量1.5倍）長紅K（實體>2%）
