@@ -65,6 +65,22 @@ export function DabanResultsCompact({ date, onSelectStock }: DabanResultsCompact
   const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
   const autoRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [nameMap, setNameMap] = useState<Map<string, string>>(new Map());
+  const [turnoverRankMap, setTurnoverRankMap] = useState<Map<string, number>>(new Map());
+
+  // 載入全市場 20 日均成交額排名（top 500）
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/scanner/turnover-rank?market=CN')
+      .then(r => r.ok ? r.json() : null)
+      .then(json => {
+        if (cancelled || !json?.symbols) return;
+        const m = new Map<string, number>();
+        (json.symbols as string[]).forEach((s, i) => m.set(s, i + 1));
+        setTurnoverRankMap(m);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     import('@/lib/scanner/cnStocks').then(({ CN_STOCKS }) => {
@@ -280,19 +296,26 @@ export function DabanResultsCompact({ date, onSelectStock }: DabanResultsCompact
         const perf = perfMap.get(r.symbol);
         const rt = realtimePrices.get(r.symbol);
         const ticker = r.symbol.replace(/\.(SS|SZ)$/i, '');
-
-        // 高開幅度視覺化標籤（依用戶決策邏輯：3~5% 甜蜜區、≥8% 追高）
-        const gap = r.gapUpPct ?? null;
-        const isSweetSpot = r.openConfirmed === true && gap != null && gap >= 2 && gap < 5;
-        const isChasingHigh = r.openConfirmed === true && gap != null && gap >= 8;
-        const rowDimClass = isChasingHigh ? 'opacity-60' : '';
+        const turnoverRank = turnoverRankMap.get(r.symbol);
 
         return (
-          <div key={r.symbol} className={`rounded-lg border border-border/60 px-2.5 py-2 bg-card hover:bg-secondary/40 transition-colors ${rowDimClass}`}>
-            {/* Row 1: Symbol + Name + Board type + 進場確認燈 */}
+          <div key={r.symbol} className="rounded-lg border border-border/60 px-2.5 py-2 bg-card hover:bg-secondary/40 transition-colors">
+            {/* Row 1: Symbol + Name + Board type + 進場確認燈 + 全市場成交額排名 */}
             <div className="flex items-center gap-1.5 mb-1 flex-wrap">
               <span className="font-mono text-[11px] text-foreground/90">{ticker}</span>
               <span className="text-[11px] text-foreground/80 truncate flex-1">{displayName(r)}</span>
+              {turnoverRank != null && (
+                <span
+                  className={`text-[9px] px-1 py-0.5 rounded border ${
+                    turnoverRank <= 50 ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                    : turnoverRank <= 200 ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                    : 'bg-zinc-500/20 text-zinc-400 border-zinc-500/40'
+                  }`}
+                  title={`全市場 20 日均成交額排名第 ${turnoverRank} 名（top 500）`}
+                >
+                  💰 #{turnoverRank}
+                </span>
+              )}
               {r.openConfirmed === true && (
                 <span className="text-[9px] px-1 py-0.5 rounded border bg-green-500/20 text-green-400 border-green-500/30" title="9:25集合競價開盤價 ≥ 買入門檻，確認進場">
                   ✅ 進場
@@ -301,16 +324,6 @@ export function DabanResultsCompact({ date, onSelectStock }: DabanResultsCompact
               {r.openConfirmed === false && (
                 <span className="text-[9px] px-1 py-0.5 rounded border bg-zinc-500/20 text-zinc-400 border-zinc-500/40" title="9:25集合競價未達買入門檻（收盤 × 1.02），不進場">
                   ⏸ 不進
-                </span>
-              )}
-              {isSweetSpot && (
-                <span className="text-[9px] px-1 py-0.5 rounded border bg-amber-500/20 text-amber-300 border-amber-500/40" title="高開 2~5% 甜蜜區：離漲停還有 5~8% 空間，歷史 T+3 平均 +0.91~+3.61%">
-                  🎯 甜蜜區
-                </span>
-              )}
-              {isChasingHigh && (
-                <span className="text-[9px] px-1 py-0.5 rounded border bg-red-500/20 text-red-300 border-red-500/40" title="高開 ≥ 8% 已追高：離漲停剩 ≤ 2%，歷史 T+3 平均 -2.77%">
-                  ⚠️ 追高
                 </span>
               )}
               <span className={`text-[9px] px-1 py-0.5 rounded border ${boardBadge(r.limitUpType)}`}>{r.limitUpType}</span>
