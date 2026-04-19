@@ -408,6 +408,8 @@ export interface ScanSession {
   resultCount: number;
   results: StockScanResult[];
   topPicks?: ScanSessionTopPick[];
+  /** 當日大盤趨勢（'多頭' | '空頭' | '盤整'），從大盤指數 K 線偵測 */
+  marketTrend?: string;
   /** 掃描時數據新鮮度摘要 */
   dataFreshness?: {
     avgStaleDays: number;       // 平均落後天數

@@ -234,6 +234,7 @@ export async function runScanPipeline(options: ScanPipelineOptions): Promise<Sca
           scanTime: new Date().toISOString(),
           resultCount: results.length,
           results,
+          marketTrend,
           dataFreshness: sessionFreshness,
         };
         await saveScanSession(dailySession, { allowOverwritePostClose: allowOverwrite });
@@ -253,6 +254,7 @@ export async function runScanPipeline(options: ScanPipelineOptions): Promise<Sca
           scanTime: new Date().toISOString(),
           resultCount: mtfResults.length,
           results: mtfResults,
+          marketTrend,
           dataFreshness: sessionFreshness,
         };
         await saveScanSession(mtfSession, { allowOverwritePostClose: allowOverwrite });

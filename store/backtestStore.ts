@@ -946,7 +946,7 @@ export const useBacktestStore = create<BacktestState>()(
                     ).map(r => r.symbol));
                     displayPerf = performance.filter(p => filteredSymbols.has(p.symbol));
                   }
-                  scanCache.set(cacheKey, { scanResults: cached.scanResults, performance: displayPerf, marketTrend: null });
+                  scanCache.set(cacheKey, { scanResults: cached.scanResults, performance: displayPerf, marketTrend: cached.marketTrend });
                   set({ performance: displayPerf, isFetchingForward: false });
                 }
               } catch { /* forward 失敗不影響已顯示的 scanResults */ }
@@ -971,25 +971,30 @@ export const useBacktestStore = create<BacktestState>()(
           // Phase 1: Load scan results from server (with MTF dimension)
           const res = await fetch(`/api/scanner/results?market=${market}&date=${date}&direction=${apiDirection}&mtf=${mtfParam}`);
           if (!res.ok) throw new Error('無法載入歷史掃描結果');
-          const json = await res.json() as { sessions?: Array<{ results: StockScanResult[]; dataFreshness?: { avgStaleDays: number; maxStaleDays: number; staleCount: number; totalScanned: number; coverageRate: number; dataStatus: string } }> };
+          const json = await res.json() as { sessions?: Array<{ results: StockScanResult[]; marketTrend?: string; dataFreshness?: { avgStaleDays: number; maxStaleDays: number; staleCount: number; totalScanned: number; coverageRate: number; dataStatus: string } }> };
           const session0 = json.sessions?.[0];
           const scanResults = session0?.results ?? [];
           if (scanResults.length === 0) {
             set({ isLoadingCronSession: false });
             return;
           }
+          const sessionMarketTrend = session0?.marketTrend ?? null;
 
           // MTF ON → 前端過濾（API 永遠返回完整結果）
           let displayResults = scanResults;
           if (useMultiTimeframe) {
             const cacheKey = `_unfilteredResults:${date}`;
-            scanCache.set(cacheKey, { scanResults, performance: [], marketTrend: null });
+            scanCache.set(cacheKey, { scanResults, performance: [], marketTrend: sessionMarketTrend as TrendState | null });
             displayResults = scanResults.filter(r =>
               (r.mtfScore ?? 0) >= PANEL_MTF_MIN_SCORE,
             );
           }
 
-          set({ scanResults: displayResults, sessionDataFreshness: session0?.dataFreshness ?? null });
+          set({
+            scanResults: displayResults,
+            sessionDataFreshness: session0?.dataFreshness ?? null,
+            marketTrend: sessionMarketTrend as TrendState | null,
+          });
 
           // Phase 2: Fetch forward performance
           set({ isFetchingForward: true });
@@ -1016,12 +1021,12 @@ export const useBacktestStore = create<BacktestState>()(
               const unfilteredKey = `_unfilteredResults:${date}`;
               const cached = scanCache.get(unfilteredKey);
               if (cached) {
-                scanCache.set(unfilteredKey, { ...cached, performance, marketTrend: null });
+                scanCache.set(unfilteredKey, { ...cached, performance });
               }
             }
             // Save to cache for instant switching later
-            const { scanResults: currentResults, scanCache: cache } = get();
-            cache.set(cacheKey, { scanResults: currentResults, performance: displayPerf, marketTrend: null });
+            const { scanResults: currentResults, scanCache: cache, marketTrend: currentMarketTrend } = get();
+            cache.set(cacheKey, { scanResults: currentResults, performance: displayPerf, marketTrend: currentMarketTrend });
             set({
               performance: displayPerf,
               isFetchingForward: false,
@@ -1127,10 +1132,15 @@ export const useBacktestStore = create<BacktestState>()(
               try {
                 const res = await fetch(`/api/scanner/results?market=${market}&date=${date}&direction=${dir}&mtf=daily`);
                 if (!res.ok) return;
-                const json = await res.json() as { sessions?: Array<{ results: StockScanResult[] }> };
-                const results = json.sessions?.[0]?.results ?? [];
+                const json = await res.json() as { sessions?: Array<{ results: StockScanResult[]; marketTrend?: string }> };
+                const session0 = json.sessions?.[0];
+                const results = session0?.results ?? [];
                 if (results.length > 0) {
-                  get().scanCache.set(cacheKey, { scanResults: results, performance: [], marketTrend: null });
+                  get().scanCache.set(cacheKey, {
+                    scanResults: results,
+                    performance: [],
+                    marketTrend: (session0?.marketTrend ?? null) as TrendState | null,
+                  });
                 }
               } catch { /* 預載失敗不影響 UI */ }
             })).catch(() => {});
