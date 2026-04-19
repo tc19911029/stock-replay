@@ -5,6 +5,7 @@ import { useBacktestStore } from '@/store/backtestStore';
 import { useWatchlistStore } from '@/store/watchlistStore';
 import type { SelectedStock } from './ScanChartPanel';
 import type { StockForwardPerformance } from '@/lib/scanner/types';
+import { ScanCoachDigest } from './ScanCoachDigest';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -43,7 +44,7 @@ interface ScanResultsCompactProps {
 
 export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
   const {
-    scanResults, scanDate, market, marketTrend, scanOnly,
+    scanResults, scanDate, market, marketTrend, scanOnly, scanDirection,
     performance, isFetchingForward, isLoadingCronSession,
   } = useBacktestStore();
 
@@ -98,6 +99,16 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
           <span className="text-[9px] text-sky-400 animate-pulse">載入中…</span>
         )}
       </div>
+
+      {/* 朱老師跨檔分析 */}
+      <ScanCoachDigest
+        market={market}
+        scanDate={scanDate}
+        direction={scanDirection === 'short' ? 'short' : 'long'}
+        marketTrend={String(marketTrend ?? '')}
+        results={sorted}
+      />
+
 
       {/* Concept filter pills */}
       {availableConcepts.length > 1 && (

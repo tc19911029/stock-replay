@@ -29,7 +29,6 @@ import AnalysisChat from '@/components/AnalysisChat';
 import { ErrorBoundary, SectionBoundary } from '@/components/ErrorBoundary';
 import BottomPanel from '@/components/BottomPanel';
 import { ScanPanelVertical } from '@/features/scan';
-import { DailyActionPanel } from '@/features/daily-action/components/DailyActionPanel';
 import { DataHealthBadge } from '@/features/scan/components/DataHealthBadge';
 import type { SelectedStock } from '@/features/scan';
 import { useBacktestStore } from '@/store/backtestStore';
@@ -92,8 +91,6 @@ export default function HomePage() {
   const [showHelp, setShowHelp] = useState(false);
   // Scanner bottom panel
   const [scannerOpen, setScannerOpen] = useState(false);
-  // Right-panel tab：scan = 掃描候選池，action = 每日操作清單
-  const [rightPanelTab, setRightPanelTab] = useState<'scan' | 'action'>('scan');
   // 手機點「走圖」→ 全螢幕 K 線視圖
   const [mobileChartFullscreen, setMobileChartFullscreen] = useState(false);
   const openMobileChart = useCallback(() => {
@@ -123,8 +120,7 @@ export default function HomePage() {
     else if (e.key === '2') { e.preventDefault(); setSideTab('signals'); }
     else if (e.key === '3') { e.preventDefault(); setSideTab('chip'); }
     else if (e.key === '4') { e.preventDefault(); setSideTab('chat'); }
-    else if (e.key === '5') { e.preventDefault(); setScannerOpen(true); setRightPanelTab('scan'); }
-    else if (e.key === '6') { e.preventDefault(); setScannerOpen(true); setRightPanelTab('action'); }
+    else if (e.key === '5') { e.preventDefault(); setScannerOpen(true); }
     // P2-3: indicator toggle
     else if (e.key === 'i' || e.key === 'I') { e.preventDefault(); setShowIndicators(v => !v); }
     // P1-5: help overlay
@@ -498,31 +494,11 @@ export default function HomePage() {
         }`}>
           {scannerOpen ? (
             <>
-              {/* Panel header with tabs + close button */}
+              {/* Panel header: 掃描標題 + close button */}
               <div className="shrink-0 flex items-center justify-between px-2 py-1.5 border-b border-border bg-secondary/30">
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setRightPanelTab('scan')}
-                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-colors ${
-                      rightPanelTab === 'scan'
-                        ? 'bg-blue-500/80 text-white'
-                        : 'text-muted-foreground hover:bg-muted'
-                    }`}
-                  >
-                    <Search className="w-3 h-3" />
-                    <span>掃描</span>
-                  </button>
-                  <button
-                    onClick={() => setRightPanelTab('action')}
-                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-colors ${
-                      rightPanelTab === 'action'
-                        ? 'bg-blue-500/80 text-white'
-                        : 'text-muted-foreground hover:bg-muted'
-                    }`}
-                  >
-                    <span>📋</span>
-                    <span>操作</span>
-                  </button>
+                <div className="flex items-center gap-1 px-2 py-1 text-xs font-semibold text-foreground">
+                  <Search className="w-3 h-3" />
+                  <span>掃描</span>
                 </div>
                 <button onClick={() => setScannerOpen(false)}
                   className="text-muted-foreground hover:text-foreground p-0.5 rounded hover:bg-muted transition-colors">
@@ -530,31 +506,19 @@ export default function HomePage() {
                 </button>
               </div>
               <div className="animate-fade-in flex-1 min-h-0">
-                {rightPanelTab === 'scan'
-                  ? <ScanPanelVertical onSelectStock={handleScanSelectStock} />
-                  : <DailyActionPanel />}
+                <ScanPanelVertical onSelectStock={handleScanSelectStock} />
               </div>
             </>
           ) : (
             /* Collapsed: horizontal bar on mobile, vertical label on desktop */
-            <div className="flex-1 flex flex-row md:flex-col items-stretch">
-              <button
-                onClick={() => { setScannerOpen(true); setRightPanelTab('scan'); }}
-                className="flex-1 flex flex-row md:flex-col items-center justify-center gap-2 hover:bg-muted/50 transition-colors group border-r md:border-r-0 md:border-b border-border/50"
-                title="掃描"
-              >
-                <Search className="w-3.5 h-3.5 text-muted-foreground group-hover:text-blue-400 transition-colors" />
-                <span className="text-[10px] text-muted-foreground group-hover:text-foreground transition-colors md:[writing-mode:vertical-rl]">掃描</span>
-              </button>
-              <button
-                onClick={() => { setScannerOpen(true); setRightPanelTab('action'); }}
-                className="flex-1 flex flex-row md:flex-col items-center justify-center gap-2 hover:bg-muted/50 transition-colors group"
-                title="每日操作"
-              >
-                <span className="text-xs text-muted-foreground group-hover:text-emerald-400 transition-colors">📋</span>
-                <span className="text-[10px] text-muted-foreground group-hover:text-foreground transition-colors md:[writing-mode:vertical-rl]">操作</span>
-              </button>
-            </div>
+            <button
+              onClick={() => setScannerOpen(true)}
+              className="flex-1 flex flex-row md:flex-col items-center justify-center gap-2 hover:bg-muted/50 transition-colors group"
+              title="掃描"
+            >
+              <Search className="w-3.5 h-3.5 text-muted-foreground group-hover:text-blue-400 transition-colors" />
+              <span className="text-[10px] text-muted-foreground group-hover:text-foreground transition-colors md:[writing-mode:vertical-rl]">掃描</span>
+            </button>
           )}
         </div>
 
