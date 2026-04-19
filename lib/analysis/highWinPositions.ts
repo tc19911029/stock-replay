@@ -124,15 +124,16 @@ export function detectMaClusterBreak(
 }
 
 /**
- * 假跌破反彈（Part 4 葛蘭碧做多買點③ p.308-309）
- * 書本：均線上揚 + 股價回檔跌破均線 + 很快站回 → 買
- * 實作：MA20 上揚 + 近 5 日曾收盤跌破 MA20 + 今日紅K 收盤站回 MA20
+ * 假跌破反彈（Part 4 葛蘭碧做多買點③ p.308-309 + Part 6 p.441）
+ * 書本 Part 6 p.441 明寫：「跌破月線支撐，股價 3 日內再站上月線，
+ * 且月線仍然維持上揚，月線仍有支撐力道，多頭趨勢仍可做多」
+ * → 3 日窗口對齊書本
  */
 export function detectFalseBreakRebound(
   candles: CandleWithIndicators[],
   index: number,
 ): boolean {
-  if (index < 5) return false;
+  if (index < 3) return false;
   const c = candles[index];
   const prev = candles[index - 1];
   if (c.ma20 == null || !prev?.ma20) return false;
@@ -140,9 +141,9 @@ export function detectFalseBreakRebound(
   // MA20 上揚
   if (c.ma20 <= prev.ma20) return false;
 
-  // 近 5 日曾收盤跌破 MA20
+  // 書本 p.441：3 日內曾收盤跌破 MA20
   let wasBroken = false;
-  for (let j = Math.max(0, index - 5); j < index; j++) {
+  for (let j = Math.max(0, index - 3); j < index; j++) {
     const past = candles[j];
     if (past?.ma20 != null && past.close < past.ma20) { wasBroken = true; break; }
   }

@@ -948,7 +948,8 @@ export function runSOPBacktest(
 
     // ══════════════════════════════════════════════════════════════
     // 7. 獲利>10% + 收盤跌破MA5 → 停利（守則6）
-    //    末升段降短線：接近起漲 1 倍時（書本 Part 4 p.333）門檻降半到 5%
+    //    末升段降短線：書本 Part 4 p.333「股價已上漲接近底部起漲 1 倍」
+    //    → 距 60 日低 >100%（漲 1 倍）觸發末升段，守 MA5 門檻降半到 5%
     //    守則15 例外：跌幅<1%，量縮，MA20向上 → 可續抱
     // ══════════════════════════════════════════════════════════════
     let effProfitMa5Threshold = zhuExit.profitTakeMa5Pct;
@@ -956,8 +957,8 @@ export function runSOPBacktest(
       const lookback60 = forwardCandles.slice(Math.max(0, absIdx - 60), absIdx);
       let low60 = Infinity;
       for (const k of lookback60) if (k.low < low60) low60 = k.low;
-      if (low60 > 0 && (c.close - low60) / low60 > 0.80) {
-        // 進入末升段（距 60 日低點 >80%）→ 守 MA5 門檻降半
+      if (low60 > 0 && (c.close - low60) / low60 >= 1.0) {
+        // 書本 p.333：已漲 1 倍 → 末升段，守 MA5 門檻降半
         effProfitMa5Threshold = zhuExit.profitTakeMa5Pct * 0.5;
       }
     }
