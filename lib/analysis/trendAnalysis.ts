@@ -1,5 +1,6 @@
 import { CandleWithIndicators } from '@/types';
 import type { StrategyThresholds } from '@/lib/strategy/StrategyConfig';
+import { detectExtraHighWinPositions } from './highWinPositions';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -432,10 +433,10 @@ export function evaluateSixConditions(
   const ma10c  = c.ma10;
   const ma20Dev = ma20 && ma20 > 0 ? (c.close - ma20) / ma20 : null;
 
-  // 跨書共識：股價位置 = 收盤站上 MA5
-  // （《抓住飆股》「站上 MA5 買進」、林穎「站上 MA5/10/20」）
-  // 寶典 p.54 原文是站上 MA10/MA20，此處取更嚴版本配合 ② 三線多排
-  const positionPass = c.ma5 != null && c.close > c.ma5;
+  // 書本 p.37 進場 2 口訣：position gate = 站 MA5 + (回後買上漲 OR 盤整突破)
+  // 2026-04-19 用戶決議「按書本走不按回測」，把 pulledBackBuy / rangeBreakout 由 tag 升為 gate
+  // pulledBackBuy / rangeBreakout 變數下方定義，此處先佔位，實際在兩者計算後再賦值
+  const closeAboveMa5 = c.ma5 != null && c.close > c.ma5;
 
   // Scenario A：回後買上漲（p.37 ①）— 資訊 tag
   // 書本：上漲一波後的回檔修正不破前低 + 收盤過 MA5 + 收盤過昨日最高點
@@ -488,17 +489,34 @@ export function evaluateSixConditions(
     return c.close > rangeHigh;                               // 突破上頸線
   })();
 
+  // 高勝率 6 位置（書本 Part 12 p.749-754）其餘 4 種
+  const extra = detectExtraHighWinPositions(candles, index);
+
+  // 書本 p.37 進場口訣 + p.749-754 高勝率 6 位置
+  // positionPass gate：站 MA5 + 至少一個高勝率位置
+  const highWinAny =
+    pulledBackBuy || rangeBreakout
+    || extra.doubleBottomLeg1 || extra.doubleBottomLeg2
+    || extra.maClusterBreak   || extra.falseBreakRebound;
+  const positionPass = closeAboveMa5 && highWinAny;
+
   const positionDetail = (() => {
     const devStr = ma20Dev !== null ? `MA20乖離${(ma20Dev*100).toFixed(1)}%` : '';
     if (c.ma5 == null) return '均線資料不足';
-    if (!positionPass) {
+    if (!closeAboveMa5) {
       return `❌ 收盤 ${c.close} 未站上 MA5 ${c.ma5.toFixed(1)}`;
+    }
+    if (!positionPass) {
+      return `❌ 站 MA5 但不符 p.749-754 高勝率 6 位置（回後買/盤整突破/打底1腳/打底2腳/均線糾結/假跌破反彈）— ${stage}`;
     }
     const tags: string[] = [];
     if (pulledBackBuy) tags.push('🎯 回後買上漲');
     if (rangeBreakout) tags.push('🎯 盤整突破');
-    const tagStr = tags.length > 0 ? `｜${tags.join(' ')}` : '';
-    return `✅ 收盤站上 MA5（${devStr}，${stage}${tagStr}）`;
+    if (extra.doubleBottomLeg1) tags.push('🎯 打底第1腳');
+    if (extra.doubleBottomLeg2) tags.push('🎯 打底第2腳');
+    if (extra.maClusterBreak)   tags.push('🎯 均線糾結突破');
+    if (extra.falseBreakRebound) tags.push('🎯 假跌破反彈');
+    return `✅ ${tags.join(' ')}（${devStr}，${stage}）`;
   })();
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -529,10 +547,9 @@ export function evaluateSixConditions(
     : `❌ 黑K / 不符合`;
 
   // ─────────────────────────────────────────────────────────────────────────
-  // ② 均線條件（必要）— 跨書共識（多本書要求四線多排，這裡取三線）
-  //   • MA5 > MA10 > MA20 三線多排（跨書共識，含 MA5 對齊朱/林）
-  //   • MA10 向上 + MA20 向上（p.54 原文）
-  //   • MA60 下彎且在股價上方 → 壓力警示（非阻擋）
+  // ② 均線條件（必要）— 書本 Part 4 p.281/p.749/p.343 明寫 4 線多排
+  //   • MA5 > MA10 > MA20 > MA60 四線多排（含季線）
+  //   • MA10/MA20/MA60 向上（p.54 + p.332 原文）
   // ─────────────────────────────────────────────────────────────────────────
   const { ma5, ma10 } = c;
   const ma60 = c.ma60;
@@ -540,27 +557,24 @@ export function evaluateSixConditions(
   const prevMa20q = prev?.ma20;
   const prevMa60 = prev?.ma60;
 
-  const maAlign      = ma5 != null && ma10 != null && ma20 != null
-    && ma5 > ma10 && ma10 > ma20;                            // 三線多排
+  const maAlign      = ma5 != null && ma10 != null && ma20 != null && ma60 != null
+    && ma5 > ma10 && ma10 > ma20 && ma20 > ma60;             // 4 線多排（含 MA60）
   const ma10Rising   = ma10 != null && prevMa10 != null && ma10 > prevMa10;
   const ma20Rising   = ma20 != null && prevMa20q != null && ma20 > prevMa20q;
+  const ma60Rising   = ma60 != null && prevMa60 != null && ma60 >= prevMa60;  // 季線向上（至少不下彎）
 
-  const bullishAlign = maAlign && ma10Rising && ma20Rising;
-
-  // 季線（MA60）壓力警示
-  const ma60Pressure = ma60 != null && prevMa60 != null
-    && ma60 > c.close && ma60 < prevMa60;
+  const bullishAlign = maAlign && ma10Rising && ma20Rising && ma60Rising;
 
   const maAlignment = (() => {
     if (bullishAlign) {
-      const base = `✅ MA5(${ma5?.toFixed(1)})>MA10(${ma10?.toFixed(1)})>MA20(${ma20?.toFixed(1)}) 三線多排，MA10/MA20 均向上`;
-      return ma60Pressure ? `${base}（⚠️ 季線 ${ma60?.toFixed(1)} 下彎在上方，靠近有壓力）` : base;
+      return `✅ MA5(${ma5?.toFixed(1)})>MA10(${ma10?.toFixed(1)})>MA20(${ma20?.toFixed(1)})>MA60(${ma60?.toFixed(1)}) 四線多排，MA10/20/60 均向上`;
     }
-    if (ma5 == null || ma10 == null || ma20 == null) return '均線資料不足';
+    if (ma5 == null || ma10 == null || ma20 == null || ma60 == null) return '均線資料不足（需 MA5/10/20/60）';
     const issues = [
-      !maAlign       ? `⚠️ 三線未完全多排（MA5=${ma5.toFixed(1)} MA10=${ma10.toFixed(1)} MA20=${ma20.toFixed(1)}）` : '',
+      !maAlign       ? `⚠️ 四線未完全多排（MA5=${ma5.toFixed(1)} MA10=${ma10.toFixed(1)} MA20=${ma20.toFixed(1)} MA60=${ma60.toFixed(1)}）` : '',
       !ma10Rising    ? `MA10 未向上(${prevMa10?.toFixed(1)}→${ma10.toFixed(1)})` : '',
       !ma20Rising    ? `MA20 未向上(${prevMa20q?.toFixed(1)}→${ma20.toFixed(1)})` : '',
+      !ma60Rising    ? `MA60 下彎(${prevMa60?.toFixed(1)}→${ma60.toFixed(1)})` : '',
     ].filter(Boolean).join('，');
     return issues || '均線多排但有問題';
   })();

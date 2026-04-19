@@ -1,6 +1,7 @@
 import {
   runSingleBacktest, runBatchBacktest, calcBacktestStats,
   scanResultToSignal,
+  runSOPBacktest, DEFAULT_ZHU_EXIT,
   DEFAULT_STRATEGY, BacktestStrategyParams,
 } from '../lib/backtest/BacktestEngine';
 import { StockScanResult, ForwardCandle } from '../lib/scanner/types';
@@ -73,6 +74,75 @@ describe('runSingleBacktest', () => {
     const trade = runSingleBacktest(scanResultToSignal(mockScanResult()), candles, { ...NO_SLIP, stopLoss: -0.07 });
     expect(trade!.exitReason).toBe('stopLoss');
     expect(trade!.grossReturn).toBeLessThan(0);
+  });
+
+  test('長黑吞噬獨立觸發停利（runSOPBacktest，書本 p.55 第7條）', () => {
+    // 書本規則：黑K 實體完全包覆前日紅K → 當天全部停利（不需獲利>20%/連漲3天）
+    // Day0 進場 open=100，Day1 小紅 102→108 (實體5.9%)
+    // Day2 長黑 open=109, close=100 (實體8.3%)：
+    //   open 109 >= prev close 108 ✅
+    //   close 100 <= prev open 102 ✅
+    //   bodyPct 0.083 >= prevBodyPct 0.059 ✅
+    //   bodyPct >= 0.02 ✅
+    // → 觸發 sop_longBlackEngulf
+    const candles: ForwardCandle[] = [
+      { date: '2024-01-16', open: 100, close: 100, high: 101, low: 99,  volume: 1_000_000 },
+      { date: '2024-01-17', open: 102, close: 108, high: 109, low: 102, volume: 1_000_000 },
+      { date: '2024-01-18', open: 109, close: 100, high: 109, low: 100, volume: 1_500_000 },
+      { date: '2024-01-19', open: 100, close: 101, high: 102, low: 99,  volume: 1_000_000 },
+    ];
+    const trade = runSOPBacktest(
+      scanResultToSignal(mockScanResult()),
+      candles,
+      { ...NO_SLIP, stopLoss: null, trailingStop: null, trailingActivate: null },
+      DEFAULT_ZHU_EXIT,
+    );
+    expect(trade!.exitReason).toBe('sop_longBlackEngulf');
+    expect(trade!.exitDate).toBe('2024-01-18');
+  });
+
+  test('非吞噬的長黑 K 不觸發長黑吞噬規則', () => {
+    // 黑K 沒完全包覆前日紅K（close > prev open）→ 不觸發
+    const candles: ForwardCandle[] = [
+      { date: '2024-01-16', open: 100, close: 100, high: 101, low: 99,  volume: 1_000_000 },
+      { date: '2024-01-17', open: 102, close: 108, high: 109, low: 102, volume: 1_000_000 },
+      // 黑K close=103 > 紅K open=102 → 沒包住下緣
+      { date: '2024-01-18', open: 109, close: 103, high: 109, low: 103, volume: 1_500_000 },
+      { date: '2024-01-19', open: 103, close: 104, high: 105, low: 102, volume: 1_000_000 },
+      { date: '2024-01-20', open: 104, close: 106, high: 107, low: 103, volume: 1_000_000 },
+    ];
+    const trade = runSOPBacktest(
+      scanResultToSignal(mockScanResult()),
+      candles,
+      { ...NO_SLIP, stopLoss: null, trailingStop: null, trailingActivate: null },
+      DEFAULT_ZHU_EXIT,
+    );
+    expect(trade!.exitReason).not.toBe('sop_longBlackEngulf');
+  });
+
+  test('stopLossMaxPct 限制動態停損切換上限', () => {
+    // 預設 stopLossMaxPct=-0.05（書本 Part 12 p.748 主流，2026-04-19 用戶決議）
+    // entryPrice=100 (nextOpen=Day0 open)，Day0 low=94.5 → dynamicStopPct=-5.5%
+    // 預設 -0.05: -5.5% < -5% → 退回 strategy.stopLoss=-0.05，stop=95
+    // 放寬到 -0.07: -5.5% ≥ -7% → 用動態，stop=94.5
+    // Day1 low=94.8 → 預設 95 觸發（94.8≤95），放寬 94.5 不觸發（94.8>94.5）
+    const candles: ForwardCandle[] = [
+      { date: '2024-01-16', open: 100,  close: 96,   high: 101, low: 94.5, volume: 0 },
+      { date: '2024-01-17', open: 96,   close: 94.8, high: 96,  low: 94.8, volume: 0 },
+      { date: '2024-01-18', open: 94.8, close: 96,   high: 97,  low: 95.5, volume: 0 },
+      { date: '2024-01-19', open: 96,   close: 97,   high: 98,  low: 95.5, volume: 0 },
+      { date: '2024-01-20', open: 97,   close: 98,   high: 99,  low: 96,   volume: 0 },
+    ];
+    const signal = scanResultToSignal(mockScanResult());
+    const baseStrat = { ...NO_SLIP, stopLoss: -0.05, trailingStop: null, trailingActivate: null };
+
+    // 預設 -5%：-5.5% dynamic 被拒 → fallback 到 -5% 停損位 95，Day1 94.8 觸發
+    const tradeDefault = runSingleBacktest(signal, candles, baseStrat);
+    expect(tradeDefault!.exitReason).toBe('stopLoss');
+
+    // 放寬 -7%：-5.5% dynamic 有效 → 停損位 94.5，Day1 94.8 不觸發
+    const tradeLoose = runSingleBacktest(signal, candles, { ...baseStrat, stopLossMaxPct: -0.07 });
+    expect(tradeLoose!.exitReason).not.toBe('stopLoss');
   });
 
   test('停利觸發', () => {

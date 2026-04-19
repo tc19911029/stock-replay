@@ -397,11 +397,11 @@ function exitS1(
 ): ExitResult | null {
   let maxGain = 0; // 曾達到最高收益率，不可逆
 
-  // 書本獲利方程式 ①：停損點設在進場中長紅 K 線的最低點（典型落在 5~7%）
-  // 若進場低點離進場價超過 -7%（異常），硬性 cap 在 -7% 保護
+  // 書本獲利方程式 ①：停損點設在進場中長紅 K 線的最低點（典型落在 5%）
+  // 若進場低點離進場價超過 -5%（異常），硬性 cap 在 -5% 保護（書本 Part 12 p.748 主流）
   const entryCandle = candles[entryIdx];
-  const rawStopPrice = entryCandle?.low ?? entryPrice * 0.93;
-  const floorPrice   = entryPrice * 0.93;  // -7% 硬性下限
+  const rawStopPrice = entryCandle?.low ?? entryPrice * 0.95;
+  const floorPrice   = entryPrice * 0.95;  // -5% 硬性下限
   const stopLossPrice = Math.max(rawStopPrice, floorPrice);
   const stopLossPct   = entryPrice > 0 ? (stopLossPrice - entryPrice) / entryPrice * 100 : -5;
 

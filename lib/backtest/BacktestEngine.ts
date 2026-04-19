@@ -109,6 +109,13 @@ export interface BacktestStrategyParams {
   ma5StopLoss?: boolean;       // 跌破 MA5 出場（收盤 < MA5 即出場）
   costParams:  CostParams;
   slippagePct: number;         // 滑價百分比（如 0.001 = 0.1%，買入加 / 賣出減）
+  /**
+   * 動態停損切換上限（負數）
+   * 進場 K low 距進場價 ≤ |此值| 時用 K low，超過時退回 strategy.stopLoss。
+   * 預設 -0.05（書本 Part 12 p.748 財富篇主流）
+   * 書本 Part 3 p.247 K 線戰法寫 -0.07，屬異數；2026-04-19 用戶決議「按書本走不按回測」，採主流版
+   */
+  stopLossMaxPct?: number;
   /** 雙層出場機制：Tranche 1 (50%) 固定停利 + Tranche 2 (50%) 階梯追蹤 */
   dualTranche?: boolean;       // 啟用雙層出場（default false）
 }
@@ -211,6 +218,15 @@ export const PURE_ZHU_STRATEGY: BacktestStrategyParams = {
 };
 
 /**
+ * 書本 Part 12 p.748 財富篇嚴格版：停損上限 5%（非 7%）
+ * 用於對照 PURE_ZHU_STRATEGY 回測，驗證書本兩套標準對績效的影響
+ */
+export const ZHU_STRATEGY_S1_STRICT: BacktestStrategyParams = {
+  ...PURE_ZHU_STRATEGY,
+  stopLossMaxPct:   -0.05,
+};
+
+/**
  * 朱老師獲利方程式策略：搭配 runSOPBacktest + ZhuExitParams 使用
  * 進場用 nextOpen，出場交給獲利方程式分層邏輯
  * stopLoss/takeProfit/trailing 設 null — 由 ZhuExitParams 控制
@@ -305,11 +321,12 @@ export function runSingleBacktest(
   const holdWindow = forwardCandles.slice(offset, offset + strategy.holdDays);
 
   // 獲利方程式第1條：停損設在進場紅K最低點（使用進場日的最低價）
-  // 如果進場日最低價距進場價 >7%，則用固定停損
+  // 如果進場日最低價距進場價 > stopLossMaxPct（預設 5%，書本 Part 12 p.748），則用固定停損
   const entryDayLow = forwardCandles[0]?.low ?? 0;
   const dynamicStopPct = entryDayLow > 0 ? (entryDayLow - entryPrice) / entryPrice : -0.05;
+  const slMaxPct = strategy.stopLossMaxPct ?? -0.05;
   const effectiveStopLoss = strategy.stopLoss !== null
-    ? (dynamicStopPct >= -0.07 && dynamicStopPct < 0 ? dynamicStopPct : strategy.stopLoss)
+    ? (dynamicStopPct >= slMaxPct && dynamicStopPct < 0 ? dynamicStopPct : strategy.stopLoss)
     : null;
 
   const stopLossPrice   = effectiveStopLoss !== null ? entryPrice * (1 + effectiveStopLoss) : null;
@@ -790,20 +807,59 @@ export function runSOPBacktest(
     const prevCandle = holdWindow[i - 1];
 
     // ══════════════════════════════════════════════════════════════
-    // 2. 頭頭低檢查 — 獲利方程式第3條
+    // 2. 收盤頭頭低 — 獲利方程式第3條（書本 Part 2 p.39/p.55）
+    //    書本定義：最近一個波段高點 < 前一個波段高點（收盤比）
+    //    實作：用 local peak detection（前後一日較低判定為頭），比最近兩個頭的 close
     // ══════════════════════════════════════════════════════════════
-    if (zhuExit.enableLowerHigh && i >= 3) {
-      const h1 = holdWindow[i - 2].high;
-      const h2 = holdWindow[i - 1].high;
-      const h3 = c.high;
-      const l1 = holdWindow[i - 2].low;
-      const l2 = holdWindow[i - 1].low;
-      const l3 = c.low;
-      if (h3 < h2 && h2 < h1 && l3 < l2 && l2 < l1) {
+    if (zhuExit.enableLowerHigh && i >= 4) {
+      // 掃 holdWindow[0..i-1] 找最近兩個 local peak
+      let latestHead: { idx: number; close: number } | null = null;
+      let prevHead:   { idx: number; close: number } | null = null;
+      for (let j = i - 1; j >= 1 && j > i - 30; j--) {
+        const prev = holdWindow[j - 1];
+        const here = holdWindow[j];
+        const next = holdWindow[j + 1];
+        if (here.high > prev.high && here.high > next.high) {  // local peak（高點兩側較低）
+          if (latestHead === null) {
+            latestHead = { idx: j, close: here.close };
+          } else {
+            prevHead = { idx: j, close: here.close };
+            break;
+          }
+        }
+      }
+      // 當日收盤同時須跌破最新頭，才算「頭頭低確認」
+      if (latestHead && prevHead
+          && latestHead.close < prevHead.close
+          && c.close < latestHead.close) {
         exitReason = 'sop_trendReverse';
         exitPrice = +(c.close * (1 - strategy.slippagePct)).toFixed(3);
         exitDate = c.date;
         break;
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // 2b. 長黑吞噬獨立觸發（書本 p.55 第7條 + Part 3 p.204 吞噬定義）
+    //     黑K 實體完全包覆前日紅K → 全部停利（不需前置條件）
+    //     吞噬是雙K反轉最強訊號，書本明寫「當天出現長黑吞噬，當天全部停利」
+    // ══════════════════════════════════════════════════════════════
+    if (isBlackCandle && prevCandle) {
+      const prevIsRed = prevCandle.close > prevCandle.open;
+      if (prevIsRed) {
+        const bodyPct = Math.abs(c.close - c.open) / c.open;
+        const prevBodyPct = Math.abs(prevCandle.close - prevCandle.open) / prevCandle.open;
+        const engulfs =
+          c.open >= prevCandle.close &&      // 黑K 開盤 ≥ 前日紅K 收盤（完全包覆上緣）
+          c.close <= prevCandle.open &&      // 黑K 收盤 ≤ 前日紅K 開盤（完全包覆下緣）
+          bodyPct >= prevBodyPct &&          // 黑K 實體 ≥ 前日紅K 實體
+          bodyPct >= 0.02;                   // 長黑門檻 ≥2%
+        if (engulfs) {
+          exitReason = 'sop_longBlackEngulf';
+          exitPrice = +(c.close * (1 - strategy.slippagePct)).toFixed(3);
+          exitDate = c.date;
+          break;
+        }
       }
     }
 
@@ -1080,14 +1136,15 @@ export function runShortSOPBacktest(
   const holdWindow = forwardCandles.slice(offset, offset + maxHold);
 
   // ── 做空停損設在進場黑K最高點（獲利方程式第②條）──
-  // 動態停損：進場黑K最高點；若距離 >7%，改用固定比例
+  // 動態停損：進場黑K最高點；若距離 > stopLossMaxPct（預設 5%，書本 Part 12 p.748），改用固定比例
   let stopLossPrice: number | null = null;
   {
     const entryDayHigh = forwardCandles[0]?.high ?? 0;
     const dynamicPct = entryDayHigh > 0
       ? (entryDayHigh - entryPrice) / entryPrice   // 正值 = 停損需要上漲 X%
       : Math.abs(zhuExit.fixedStopLossPct);
-    const effectivePct = dynamicPct <= 0.07
+    const slMaxPct = Math.abs(strategy.stopLossMaxPct ?? -0.05);
+    const effectivePct = dynamicPct <= slMaxPct
       ? dynamicPct
       : Math.abs(zhuExit.fixedStopLossPct);
     stopLossPrice = entryPrice * (1 + effectivePct);
