@@ -433,10 +433,11 @@ export function evaluateSixConditions(
   const ma10c  = c.ma10;
   const ma20Dev = ma20 && ma20 > 0 ? (c.close - ma20) / ma20 : null;
 
-  // 書本 p.37 進場 2 口訣：position gate = 站 MA5 + (回後買上漲 OR 盤整突破)
-  // 2026-04-19 用戶決議「按書本走不按回測」，把 pulledBackBuy / rangeBreakout 由 tag 升為 gate
-  // pulledBackBuy / rangeBreakout 變數下方定義，此處先佔位，實際在兩者計算後再賦值
-  const closeAboveMa5 = c.ma5 != null && c.close > c.ma5;
+  // 書本 p.54 第 3 條原文：「股價收盤在 MA10、MA20 之上」
+  // p.37 的 2 口訣（回後買上漲/盤整突破）+ p.749 的高勝率 6 位置是「更好的時機加分項」，不是 gate
+  // （2026-04-19 用戶第二次糾正）
+  const positionAboveKeyMa = c.ma10 != null && c.ma20 != null
+    && c.close > c.ma10 && c.close > c.ma20;
 
   // Scenario A：回後買上漲（p.37 ①）— 資訊 tag
   // 書本：上漲一波後的回檔修正不破前低 + 收盤過 MA5 + 收盤過昨日最高點
@@ -489,34 +490,27 @@ export function evaluateSixConditions(
     return c.close > rangeHigh;                               // 突破上頸線
   })();
 
-  // 高勝率 6 位置（書本 Part 12 p.749-754）其餘 4 種
+  // 高勝率 6 位置（書本 Part 12 p.749-754）其餘 4 種 — 加分 tag，不是 gate
   const extra = detectExtraHighWinPositions(candles, index);
+  const highWinTags: string[] = [];
+  if (pulledBackBuy) highWinTags.push('🎯 回後買上漲');
+  if (rangeBreakout) highWinTags.push('🎯 盤整突破');
+  if (extra.doubleBottomLeg1) highWinTags.push('🎯 打底第1腳');
+  if (extra.doubleBottomLeg2) highWinTags.push('🎯 打底第2腳');
+  if (extra.maClusterBreak)   highWinTags.push('🎯 均線糾結突破');
+  if (extra.falseBreakRebound) highWinTags.push('🎯 假跌破反彈');
 
-  // 書本 p.37 進場口訣 + p.749-754 高勝率 6 位置
-  // positionPass gate：站 MA5 + 至少一個高勝率位置
-  const highWinAny =
-    pulledBackBuy || rangeBreakout
-    || extra.doubleBottomLeg1 || extra.doubleBottomLeg2
-    || extra.maClusterBreak   || extra.falseBreakRebound;
-  const positionPass = closeAboveMa5 && highWinAny;
+  // 書本 p.54 #3 gate：收盤在 MA10、MA20 之上（高勝率位置不當 gate）
+  const positionPass = positionAboveKeyMa;
 
   const positionDetail = (() => {
     const devStr = ma20Dev !== null ? `MA20乖離${(ma20Dev*100).toFixed(1)}%` : '';
-    if (c.ma5 == null) return '均線資料不足';
-    if (!closeAboveMa5) {
-      return `❌ 收盤 ${c.close} 未站上 MA5 ${c.ma5.toFixed(1)}`;
+    if (c.ma10 == null || c.ma20 == null) return '均線資料不足（需 MA10/20）';
+    if (!positionAboveKeyMa) {
+      return `❌ 收盤 ${c.close} 未同時站上 MA10 ${c.ma10.toFixed(1)} / MA20 ${c.ma20.toFixed(1)}`;
     }
-    if (!positionPass) {
-      return `❌ 站 MA5 但不符 p.749-754 高勝率 6 位置（回後買/盤整突破/打底1腳/打底2腳/均線糾結/假跌破反彈）— ${stage}`;
-    }
-    const tags: string[] = [];
-    if (pulledBackBuy) tags.push('🎯 回後買上漲');
-    if (rangeBreakout) tags.push('🎯 盤整突破');
-    if (extra.doubleBottomLeg1) tags.push('🎯 打底第1腳');
-    if (extra.doubleBottomLeg2) tags.push('🎯 打底第2腳');
-    if (extra.maClusterBreak)   tags.push('🎯 均線糾結突破');
-    if (extra.falseBreakRebound) tags.push('🎯 假跌破反彈');
-    return `✅ ${tags.join(' ')}（${devStr}，${stage}）`;
+    const bonusStr = highWinTags.length > 0 ? `｜加分：${highWinTags.join(' ')}` : '';
+    return `✅ 收盤站上 MA10/MA20（${devStr}，${stage}${bonusStr}）`;
   })();
 
   // ─────────────────────────────────────────────────────────────────────────
