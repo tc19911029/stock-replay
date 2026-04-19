@@ -1,6 +1,11 @@
 import { CandleWithIndicators } from '@/types';
 import type { StrategyThresholds } from '@/lib/strategy/StrategyConfig';
 import { detectExtraHighWinPositions } from './highWinPositions';
+import { detectVolumePriceDivergence, detectHighPeakVolume, detectChokingVolume } from './volumePatterns';
+import { detectMacdOsc7, isKdHighSaturated, detectKdPeakDivergence } from './indicatorPatterns';
+import { detectBollingerSignals } from './bollingerPatterns';
+import { detectOneDayReversal, detectTopFormation } from './reversalStructure';
+import { detectIslandReversal, detectTwoGapsInThreeDays, classifyGapUp } from './gapPatterns';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -503,6 +508,52 @@ export function evaluateSixConditions(
   // 書本 p.54 #3 gate：收盤在 MA10、MA20 之上（高勝率位置不當 gate）
   const positionPass = positionAboveKeyMa;
 
+  // Tier B 書本警示 tag（不擋 gate，僅顯示資訊）—— 讓用戶看到書本其他訊號
+  const warnings: string[] = [];
+
+  // MA20 乖離警示（書本 p.568「盡量避免追高」）
+  if (ma20Dev !== null && ma20Dev > 0.12) {
+    warnings.push(`⚠️ MA20乖離${(ma20Dev*100).toFixed(1)}%追高警示(書p.568)`);
+  }
+  // 量價背離（書本 p.500-506）
+  const div = detectVolumePriceDivergence(candles, index);
+  if (div.priceUpVolDown) warnings.push('⚠️ 價漲量縮背離(書p.500)');
+  if (div.pricePlatVolUp) warnings.push('⚠️ 價平量增停滯(書p.502)');
+  if (div.priceUpVolPlat) warnings.push('⚠️ 價漲量平止漲(書p.505)');
+  // 高檔爆量 3 種判定（書本 p.493-499）
+  const hpv = detectHighPeakVolume(candles, index);
+  if (hpv.distributionVolume) warnings.push('⚠️ 高檔出貨量(書p.498)');
+  // MACD 7 條細則 + 高檔背離（書本 p.540-547）
+  const macd7 = detectMacdOsc7(candles, index);
+  if (macd7.highPeakDiverge) warnings.push('⚠️ MACD高檔背離(書p.547)');
+  if (macd7.redDivergence)   warnings.push('⚠️ MACD紅柱漸長但股價不漲(書p.540)');
+  // KD 鈍化 + 峰背離（書本 p.553-559）
+  if (isKdHighSaturated(candles, index)) warnings.push('⚠️ KD高檔鈍化≥80(書p.553)');
+  if (detectKdPeakDivergence(candles, index)) warnings.push('⚠️ KD峰背離(書p.558)');
+  // 窒息量（書本 p.525）
+  if (detectChokingVolume(candles, index)) warnings.push('⚠️ 窒息量(書p.525)');
+  // 一日反轉（書本 p.74-75）
+  if (detectOneDayReversal(candles, index)) warnings.push('⚠️ 一日反轉訊號(書p.74)');
+  // 做頭三階段（書本 p.75-76）
+  const top = detectTopFormation(candles, index);
+  if (top === 'secondHead') warnings.push('⚠️ 做頭第2個頭(書p.75)');
+  else if (top === 'bearConfirmed') warnings.push('⚠️ 空頭反轉確認(書p.76)');
+  // 布林通道進階（書本 p.572-582）
+  const bb = detectBollingerSignals(candles, index);
+  if (bb.sellFromUpper)   warnings.push('⚠️ 布林穿上軌賣訊(書p.575)');
+  if (bb.allBandsFalling) warnings.push('⚠️ 布林3軌同向下(書p.581)');
+  // 缺口警示（書本 Part 9）
+  const gapUp = classifyGapUp(candles, index);
+  if (gapUp === 'exhaustion') warnings.push('⚠️ 末升段竭盡缺口(書p.602)');
+  if (gapUp === 'island')     warnings.push('⚠️ 島型反轉(書p.593)');
+  const gaps2 = detectTwoGapsInThreeDays(candles, index);
+  if (gaps2.up)   warnings.push('🎯 向上3日2缺口(書p.635，必大漲)');
+  if (gaps2.down) warnings.push('⚠️ 向下3日2缺口(書p.638，必大跌)');
+  // 低檔島型反彈（多頭訊號）
+  const island = detectIslandReversal(candles, index, 5);
+  if (island === 'bottom') warnings.push('🎯 低檔島型反轉(書p.593)');
+  else if (island === 'top') warnings.push('⚠️ 高檔島型反轉(書p.607)');
+
   const positionDetail = (() => {
     const devStr = ma20Dev !== null ? `MA20乖離${(ma20Dev*100).toFixed(1)}%` : '';
     if (c.ma10 == null || c.ma20 == null) return '均線資料不足（需 MA10/20）';
@@ -510,7 +561,8 @@ export function evaluateSixConditions(
       return `❌ 收盤 ${c.close} 未同時站上 MA10 ${c.ma10.toFixed(1)} / MA20 ${c.ma20.toFixed(1)}`;
     }
     const bonusStr = highWinTags.length > 0 ? `｜加分：${highWinTags.join(' ')}` : '';
-    return `✅ 收盤站上 MA10/MA20（${devStr}，${stage}${bonusStr}）`;
+    const warnStr  = warnings.length > 0 ? `｜警示：${warnings.join(' ')}` : '';
+    return `✅ 收盤站上 MA10/MA20（${devStr}，${stage}${bonusStr}${warnStr}）`;
   })();
 
   // ─────────────────────────────────────────────────────────────────────────
