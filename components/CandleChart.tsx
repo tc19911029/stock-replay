@@ -117,6 +117,7 @@ export default function CandleChart({
   const onCrosshairRef = useRef(onCrosshairMove);
   const onDoubleClickRef = useRef(onDoubleClick);
   const [hoverCandle, setHoverCandle] = useState<CandleWithIndicators | null>(null);
+  const [trendlineStatus, setTrendlineStatus] = useState<{ ascending: boolean; descending: boolean }>({ ascending: false, descending: false });
 
   useEffect(() => {
     candlesRef.current = candles;
@@ -145,7 +146,7 @@ export default function CandleChart({
       },
       crosshair: { mode: 1, vertLine: { labelVisible: false } },
       rightPriceScale: { borderColor: '#334155', minimumWidth: 80 },
-      timeScale: { borderColor: '#334155', timeVisible: true },
+      timeScale: { borderColor: '#334155', timeVisible: true, rightOffset: 15 },
       width: containerRef.current.clientWidth,
       height: chartHeight,
     });
@@ -174,13 +175,14 @@ export default function CandleChart({
     });
 
     // ── 切線（書本 p.37/p.38 警示用，不做進出場） ──
+    // 單一實線從 fromIndex 延伸到今日+未來 15 個營業日
     trendlineRefs.current.descending = chart.addSeries(LineSeries, {
-      color: 'rgba(244, 114, 182, 0.8)',  // 粉紅：下降切線（連頭頭低）
-      lineWidth: 2, priceLineVisible: false, lastValueVisible: false, lineStyle: 2,
+      color: '#10b981',  // 綠：下降切線（連頭頭低）
+      lineWidth: 3, priceLineVisible: false, lastValueVisible: false, lineStyle: 0,
     });
     trendlineRefs.current.ascending = chart.addSeries(LineSeries, {
-      color: 'rgba(34, 211, 238, 0.8)',   // 青色：上升切線（連底底高）
-      lineWidth: 2, priceLineVisible: false, lastValueVisible: false, lineStyle: 2,
+      color: '#ef4444',   // 紅：上升切線（連底底高）
+      lineWidth: 3, priceLineVisible: false, lastValueVisible: false, lineStyle: 0,
     });
 
     chartRef.current  = chart;
@@ -268,30 +270,54 @@ export default function CandleChart({
     );
 
     // ── 切線（書本 p.37/p.38）──
+    // 單一實線從 fromIndex 延伸到 lastIdx + 未來 15 個營業日
+    let hasDescending = false;
+    let hasAscending = false;
     if (showTrendlines && candles.length >= 3) {
       const lastIdx = candles.length - 1;
       const info = detectTrendlineBreakout(candles, lastIdx);
-      if (info.descending) {
-        const { fromIndex, fromPrice, toIndex, toPrice } = info.descending;
-        const slope = (toPrice - fromPrice) / (toIndex - fromIndex);
-        const pts = [];
+      const FUTURE_DAYS = 15;
+      const lastDate = candles[lastIdx]?.date ?? '';
+      const futureDates: string[] = [];
+      if (lastDate && !lastDate.includes(' ')) {
+        // Daily: 加未來 N 個營業日（跳過週末）
+        const d = new Date(lastDate + 'T00:00:00Z');
+        let added = 0;
+        while (added < FUTURE_DAYS) {
+          d.setUTCDate(d.getUTCDate() + 1);
+          const dow = d.getUTCDay();
+          if (dow === 0 || dow === 6) continue;
+          futureDates.push(d.toISOString().slice(0, 10));
+          added++;
+        }
+      }
+      const buildLine = (fromIndex: number, fromPrice: number, slope: number) => {
+        const pts: { time: ReturnType<typeof toTime>; value: number }[] = [];
         for (let i = fromIndex; i <= lastIdx; i++) {
           if (i < 0 || i >= candles.length) continue;
           pts.push({ time: toTime(candles[i].date), value: fromPrice + slope * (i - fromIndex) });
         }
-        trendlineRefs.current.descending?.setData(pts);
+        // 延伸到未來
+        futureDates.forEach((fd, k) => {
+          const futureIdx = lastIdx + 1 + k;
+          pts.push({ time: toTime(fd), value: fromPrice + slope * (futureIdx - fromIndex) });
+        });
+        return pts;
+      };
+
+      if (info.descending) {
+        const { fromIndex, fromPrice, toIndex, toPrice } = info.descending;
+        const slope = (toPrice - fromPrice) / (toIndex - fromIndex);
+        trendlineRefs.current.descending?.setData(buildLine(fromIndex, fromPrice, slope));
+        hasDescending = true;
       } else {
         trendlineRefs.current.descending?.setData([]);
       }
       if (info.ascending) {
         const { fromIndex, fromPrice, toIndex, toPrice } = info.ascending;
         const slope = (toPrice - fromPrice) / (toIndex - fromIndex);
-        const pts = [];
-        for (let i = fromIndex; i <= lastIdx; i++) {
-          if (i < 0 || i >= candles.length) continue;
-          pts.push({ time: toTime(candles[i].date), value: fromPrice + slope * (i - fromIndex) });
-        }
-        trendlineRefs.current.ascending?.setData(pts);
+        trendlineRefs.current.ascending?.setData(buildLine(fromIndex, fromPrice, slope));
+        hasAscending = true;
       } else {
         trendlineRefs.current.ascending?.setData([]);
       }
@@ -299,6 +325,7 @@ export default function CandleChart({
       trendlineRefs.current.descending?.setData([]);
       trendlineRefs.current.ascending?.setData([]);
     }
+    setTrendlineStatus({ ascending: hasAscending, descending: hasDescending });
     // scrollToPosition 後稍等一個 tick 再廣播，確保 range 已更新
     const chart = chartRef.current;
     if (chart) {
@@ -432,6 +459,24 @@ export default function CandleChart({
           );
         })}
       </div>
+
+      {/* 切線圖例 — 只在有線時顯示 */}
+      {showTrendlines && (trendlineStatus.ascending || trendlineStatus.descending) && (
+        <div className="absolute top-7 left-3 z-10 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] font-mono pointer-events-none">
+          {trendlineStatus.ascending && (
+            <span className="flex items-center gap-1" style={{ color: '#ef4444' }}>
+              <span className="inline-block w-4 h-[3px]" style={{ background: '#ef4444' }} />
+              上升切線（底底高）
+            </span>
+          )}
+          {trendlineStatus.descending && (
+            <span className="flex items-center gap-1" style={{ color: '#10b981' }}>
+              <span className="inline-block w-4 h-[3px]" style={{ background: '#10b981' }} />
+              下降切線（頭頭低）
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Signal badge — only show highest-priority non-WATCH signal */}
       {(() => {
