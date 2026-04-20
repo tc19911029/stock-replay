@@ -125,7 +125,7 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
         {scanDirection === 'long' && (
           <div className="flex items-center gap-1 flex-wrap">
             {(['A', 'B', 'C', 'D', 'E'] as const).map(method => {
-              const labels: Record<string, string> = { A: 'A 六條件', B: 'B 突破', C: 'C V形', D: 'D 缺口', E: 'E 一字底' };
+              const labels: Record<string, string> = { A: '六條件', B: '回後買上漲', C: 'V 型反轉', D: '缺口', E: '一字底' };
               return (
                 <button key={method}
                   onClick={() => setActiveBuyMethod(method)}

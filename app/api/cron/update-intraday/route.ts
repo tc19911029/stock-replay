@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
         // 改為：IntradayCache 自己重試一次就夠；這層只做 existing L2 fallback + age 守門。
         const existing = await readIntradaySnapshot(market, date);
         const ageMs = existing ? Date.now() - new Date(existing.updatedAt).getTime() : Infinity;
-        const STALE_FALLBACK_MAX_AGE = 30 * 60 * 1000; // 30 分鐘
+        const STALE_FALLBACK_MAX_AGE = 120 * 60 * 1000; // 120 分鐘（EastMoney/Tencent 皆掛時撐過整個盤中）
 
         if (existing && existing.count > 0 && ageMs < STALE_FALLBACK_MAX_AGE) {
           console.warn(
@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
           console.error(
             `[cron/update-intraday] ★★ ${market} L2 刷新失敗且既存 L2 無法用！` +
             `連續空 ${refreshSummary2.consecutiveEmptyCount} 次，告警: ${refreshSummary2.alertLevel}` +
-            (existing ? ` (age=${Math.round(ageMs / 1000)}s 超過 30min)` : ' (本地無 L2)')
+            (existing ? ` (age=${Math.round(ageMs / 1000)}s 超過 120min)` : ' (本地無 L2)')
           );
           return apiOk({
             market,

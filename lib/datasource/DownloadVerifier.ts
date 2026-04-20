@@ -193,9 +193,10 @@ export async function verifyDownload(
   }
 
   const totalStocks = symbols.length;
-  const coverageRate = totalStocks > 0
-    ? (stats.succeeded + stats.skipped) / totalStocks
-    : 0;
+  // Coverage = 實際有 L1 數據的股票比例（不看今天下載是否成功）
+  // 避免 provider 配額爆/網路斷線時誤判 L1 本體異常
+  const stocksWithL1 = totalStocks - failedSymbols.length - readFailed;
+  const coverageRate = totalStocks > 0 ? stocksWithL1 / totalStocks : 0;
 
   const report: VerifyReport = {
     market,

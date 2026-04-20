@@ -204,7 +204,7 @@ async function fetchPage(
 
   const res = await fetch(url, {
     headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://quote.eastmoney.com/' },
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(8000),
   });
 
   if (!res.ok) return [];

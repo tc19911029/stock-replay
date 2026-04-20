@@ -231,9 +231,9 @@ async function getMarketHealth(
   const l2Promise = getL2Status(market);
   const l4Promise = getL4Status(market);
 
-  // 嘗試讀取最近 3 天的報告（可能假日沒報告）
+  // 嘗試讀取最近 7 天的報告（可能假日/週末沒報告 — 週一要能回看到上週五）
   let l1Result: Omit<MarketHealth, 'l2' | 'l2Sources' | 'l4'> | null = null;
-  for (let daysBack = 0; daysBack < 3; daysBack++) {
+  for (let daysBack = 0; daysBack < 7; daysBack++) {
     const d = new Date(lastTrading + 'T12:00:00');
     d.setDate(d.getDate() - daysBack);
     const dateStr = d.toISOString().split('T')[0];

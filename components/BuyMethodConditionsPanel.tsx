@@ -29,10 +29,10 @@ interface ConditionItem {
 }
 
 const METHOD_TITLE: Record<BuyMethod, string> = {
-  B: 'B 突破進場',
-  C: 'C V 形反轉',
-  D: 'D 缺口進場',
-  E: 'E 一字底突破',
+  B: '回後買上漲',
+  C: 'V 型反轉',
+  D: '缺口',
+  E: '一字底',
 };
 
 function evaluateMethod(
@@ -150,9 +150,9 @@ function evaluateMethod(
       const bodyPct = c.open > 0 && c.close > c.open ? (c.close - c.open) / c.open * 100 : 0;
       const conditions: ConditionItem[] = [
         {
-          icon: '①', name: '前 10 根 ≥5 黑 K',
+          icon: '①', name: '前 10 根 ≥3 黑 K',
           detail: `前段 ${blackK} 根黑 K（連跌段）`,
-          pass: blackK >= 5,
+          pass: blackK >= 3,
           metric: `${blackK}/10`,
         },
         {

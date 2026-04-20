@@ -14,7 +14,7 @@
 import type { EastMoneyQuote } from './EastMoneyRealtime';
 
 const BATCH_SIZE = 80; // 每次請求最多80支，避免URL過長
-const TIMEOUT_MS = 10_000;
+const TIMEOUT_MS = 8_000;
 
 /**
  * 將 symbol (000001.SZ / 600519.SS) 轉為騰訊格式 (sz000001 / sh600519)

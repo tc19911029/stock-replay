@@ -67,6 +67,30 @@ export interface IntradaySnapshot {
 const MEMORY_TTL = 60 * 1000; // memory cache 60 秒
 const IS_VERCEL = !!process.env.VERCEL;
 
+// ── 數據源健康狀態（跨 cold-start 持久化） ──────────────────────────────
+
+interface SourceHealthEntry {
+  consecutiveFails: number;
+  lastFailureAt: string | null;  // ISO
+  lastSuccessAt: string | null;  // ISO
+}
+interface SourceHealthFile {
+  eastmoney: SourceHealthEntry;
+}
+
+const SOURCE_HEALTH_FILE = 'cn-source-health.json';
+const EM_SKIP_WINDOW_MS = 60 * 60 * 1000; // 連續失敗後跳過 60 分鐘
+
+async function readSourceHealth(): Promise<SourceHealthFile> {
+  const raw = await fsGet(SOURCE_HEALTH_FILE);
+  if (!raw) return { eastmoney: { consecutiveFails: 0, lastFailureAt: null, lastSuccessAt: null } };
+  try { return JSON.parse(raw); } catch { return { eastmoney: { consecutiveFails: 0, lastFailureAt: null, lastSuccessAt: null } }; }
+}
+
+async function writeSourceHealth(h: SourceHealthFile): Promise<void> {
+  await fsPut(SOURCE_HEALTH_FILE, JSON.stringify(h, null, 2));
+}
+
 // ── 數據源狀態追蹤（模組級） ──────────────────────────────────────────────
 
 /** 每個市場最近一次刷新的各數據源狀態 */
@@ -486,31 +510,60 @@ async function _fetchCNQuotes(
   sources: DataSourceStatus[],
   today: string,
 ): Promise<IntradayQuote[]> {
-  // 1. EastMoney push2（加 try-catch 防止連線超時炸掉整個 refresh）
+  // 1. EastMoney push2（讀 persistent health 決定是否跳過，跨 cold-start 有效）
   const { getEastMoneyRealtime } = await import('./EastMoneyRealtime');
   let cnMap: Map<string, { code: string; name: string; open: number; high: number; low: number; close: number; volume: number; prevClose?: number }>;
 
-  try {
-    const { result: emMap, elapsedMs: emMs } = await timedFetch(() => getEastMoneyRealtime());
-    cnMap = emMap;
-    sources.push({
-      source: 'EastMoney',
-      success: emMap.size > 0,
-      quoteCount: emMap.size,
-      responseTimeMs: emMs,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (emErr) {
-    console.error(`[IntradayCache] CN EastMoney 連線失敗:`, emErr instanceof Error ? emErr.message : emErr);
+  const health = await readSourceHealth();
+  const emFails = health.eastmoney.consecutiveFails;
+  const emLastFail = health.eastmoney.lastFailureAt ? new Date(health.eastmoney.lastFailureAt).getTime() : 0;
+  const emSkip = emFails >= 2 && (Date.now() - emLastFail) < EM_SKIP_WINDOW_MS;
+
+  if (emSkip) {
+    console.warn(`[IntradayCache] CN EastMoney 跳過（連續失敗 ${emFails} 次，最近失敗 ${Math.round((Date.now() - emLastFail) / 60000)}min 前），直接用騰訊`);
     cnMap = new Map();
     sources.push({
       source: 'EastMoney',
       success: false,
       quoteCount: 0,
-      errorMessage: emErr instanceof Error ? emErr.message : String(emErr),
+      errorMessage: `circuit-open: ${emFails} consecutive failures`,
       responseTimeMs: 0,
       timestamp: new Date().toISOString(),
     });
+  } else {
+    try {
+      const { result: emMap, elapsedMs: emMs } = await timedFetch(() => getEastMoneyRealtime());
+      cnMap = emMap;
+      const emSuccess = emMap.size > 0;
+      sources.push({
+        source: 'EastMoney',
+        success: emSuccess,
+        quoteCount: emMap.size,
+        responseTimeMs: emMs,
+        timestamp: new Date().toISOString(),
+      });
+      // 成功：重置 circuit breaker
+      if (emSuccess) {
+        health.eastmoney = { consecutiveFails: 0, lastFailureAt: health.eastmoney.lastFailureAt, lastSuccessAt: new Date().toISOString() };
+        await writeSourceHealth(health).catch(() => {});
+      } else {
+        health.eastmoney = { consecutiveFails: emFails + 1, lastFailureAt: new Date().toISOString(), lastSuccessAt: health.eastmoney.lastSuccessAt };
+        await writeSourceHealth(health).catch(() => {});
+      }
+    } catch (emErr) {
+      console.error(`[IntradayCache] CN EastMoney 連線失敗:`, emErr instanceof Error ? emErr.message : emErr);
+      cnMap = new Map();
+      sources.push({
+        source: 'EastMoney',
+        success: false,
+        quoteCount: 0,
+        errorMessage: emErr instanceof Error ? emErr.message : String(emErr),
+        responseTimeMs: 0,
+        timestamp: new Date().toISOString(),
+      });
+      health.eastmoney = { consecutiveFails: emFails + 1, lastFailureAt: new Date().toISOString(), lastSuccessAt: health.eastmoney.lastSuccessAt };
+      await writeSourceHealth(health).catch(() => {});
+    }
   }
 
   // 2. EastMoney 返回不足 → 騰訊補充（0 筆=完全替代，<1500=補充缺失）
