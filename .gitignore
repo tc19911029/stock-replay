@@ -18,6 +18,11 @@ __pycache__/
 # backtest CSV outputs (root level)
 /backtest-*.csv
 
+# backtest output directory + archive/backup directories (data, not code)
+/data/backtest-output/
+/data/ARCHIVE-*/
+/data/_backup-*.tar.gz
+
 # logs
 /logs/
 
