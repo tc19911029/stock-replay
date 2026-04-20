@@ -457,17 +457,15 @@ export function evaluateSixConditions(
   })();
 
   // Scenario B：盤整突破（p.37 ②）— 資訊 tag
-  // 書本定義（朱老師心法）：
-  //   1. 振幅（箱頂-箱底）/箱底 ≤ 15%
-  //   2. 箱頂觸碰 ≥ 2 次 + 箱底觸碰 ≥ 2 次（容錯 2%）
+  // 書本定義（朱老師）：
+  //   1. 振幅（箱頂-箱底）/箱底 ≤ 15%（Part 2 p.87）
+  //   2. 最小窗口 6 天（Part 4 p.299「狹幅盤整 5-6 天」）
   //   3. 今日收盤突破箱頂
-  //
-  // 窗口：動態找「最長的連續期間振幅 ≤ 15%」，最小 6 天（書本）
+  // 註：觸碰次數 + 2% 容差自創，書本未寫 → 2026-04-20 移除
   const rangeBreakout = (() => {
     if (!prev) return false;
     const MIN_DAYS = 6;
 
-    // 從 idx-1 往前擴，找出最長振幅 ≤ 15% 的盤整期
     let rangeHigh = -Infinity, rangeLow = Infinity;
     let windowLen = 0;
     for (let i = index - 1; i >= 0; i--) {
@@ -480,19 +478,8 @@ export function evaluateSixConditions(
       rangeLow  = l;
       windowLen++;
     }
-    if (windowLen < MIN_DAYS) return false;                   // 書本最小窗口 6 天
-
-    // 觸碰次數：至少碰到箱頂 2 次、碰到箱底 2 次
-    const topThreshold = rangeHigh * 0.98;
-    const botThreshold = rangeLow  * 1.02;
-    let topTouches = 0, botTouches = 0;
-    for (let i = index - windowLen; i < index; i++) {
-      if (candles[i].high >= topThreshold) topTouches++;
-      if (candles[i].low  <= botThreshold) botTouches++;
-    }
-    if (topTouches < 2 || botTouches < 2) return false;
-
-    return c.close > rangeHigh;                               // 突破上頸線
+    if (windowLen < MIN_DAYS) return false;
+    return c.close > rangeHigh;
   })();
 
   // 高勝率 6 位置（書本 Part 12 p.749-754）其餘 4 種 — 加分 tag，不是 gate

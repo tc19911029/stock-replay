@@ -30,6 +30,11 @@ export interface StockScanResult {
   trendState: '多頭' | '空頭' | '盤整';
   trendPosition: string;
   scanTime: string;             // ISO timestamp
+  // ── 並列買法（Phase 0，2026-04-20）─────────────────────────────────────────
+  /** 本檔股票命中的買法代碼陣列，如 ['A','B','E']；舊資料 undefined 視同 ['A'] */
+  matchedMethods?: string[];
+  /** 買法內部分支，如 B 的 'consolidation_breakout' vs 'pullback_buy' */
+  buyMethodSubType?: string;
   // ── 歷史信號績效 ──────────────────────────────────────────────────────────
   histWinRate?: number;        // 歷史20日勝率 (%)
   histSignalCount?: number;    // 歷史信號次數
@@ -68,7 +73,15 @@ export interface StockScanResult {
   mtfMonthlyPass?: boolean;
   mtfMonthlyDetail?: string;
   mtfWeeklyNearResistance?: boolean;          // 週線接近前高壓力區
-  mtfWeeklyChecks?: { trend: boolean; ma: boolean; resistance: boolean }; // 週線3項個別得分
+  // 週線 6 項 checklist（= 日線六條件套到週線，2026-04-20 重寫）
+  mtfWeeklyChecks?: {
+    trend: boolean;       // ① 趨勢多頭
+    ma: boolean;          // ② MA5/10/20 三線多排+向上
+    position: boolean;    // ③ 收盤>MA10/MA20
+    volume: boolean;      // ④ 週量≥前週×1.3
+    kbar: boolean;        // ⑤ 紅K實體≥2%+高收+短上影
+    indicator: boolean;   // ⑥ MACD+KD
+  };
   // ── 10大戒律 ──────────────────────────────────────────────────────────────
   entryProhibitionReasons?: string[];        // 觸發的戒律說明（有值代表被禁止）
   // ── AI 排名 ───────────────────────────────────────────────────────────────
@@ -320,7 +333,9 @@ export interface ScanSessionTopPick {
 }
 
 export type ScanDirection = 'long' | 'short' | 'daban';
-export type MtfMode = 'daily' | 'mtf';
+// 'daily' = A 六條件（預設）；'mtf' 已廢棄（改伺服器端過濾）
+// 'B'/'C'/'E'/'F' = 並列買法獨立 session（2026-04-20 架構）
+export type MtfMode = 'daily' | 'mtf' | 'B' | 'C' | 'E' | 'F';
 
 // ── 打板掃描結果 ────────────────────────────────────────────────────────────
 
@@ -402,6 +417,8 @@ export interface ScanSession {
   date: string;
   direction?: ScanDirection;
   multiTimeframeEnabled?: boolean;  // true = 週月線過濾已啟用
+  /** 並列買法 session 的買法代碼（2026-04-20 新增）：B/C/E/F；undefined = A 六條件 */
+  buyMethod?: 'B' | 'C' | 'E' | 'F';
   /** 掃描時段：intraday=盤中快照, post_close=收盤後正式結果 */
   sessionType?: SessionType;
   scanTime: string;

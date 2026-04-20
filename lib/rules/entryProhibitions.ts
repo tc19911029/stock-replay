@@ -11,6 +11,7 @@
 
 import type { CandleWithIndicators } from '@/types';
 import { isNearWeeklyResistance } from '@/lib/analysis/multiTimeframeFilter';
+import { detectTrend, findPivots } from '@/lib/analysis/trendAnalysis';
 
 export interface ProhibitionResult {
   prohibited: boolean;
@@ -30,16 +31,15 @@ export interface ProhibitionContext {
 
 /**
  * 檢查做多進場10大戒律
- * 注意：以下戒律已由其他地方處理，此函數不重複檢查：
+ * 注意：
  *   - 戒律1（未突破月線勿做多）→ 六條件SOP條件#2/#3已要求 close > MA20
- *   - 戒律5（回檔跌破月線再上漲未過月線）→ 同上
- *   - 戒律8（空頭反彈）→ MarketScanner trend === '空頭' 已排除
  *   - 戒律10（黑K不進場）→ MarketScanner close > open 已排除
+ *   - 主力連續淨流出 → 已在 eliminationFilter R8（書本淘汰法R8，非戒律8）
  */
 export function checkLongProhibitions(
   candles: CandleWithIndicators[],
   index: number,
-  ctx?: ProhibitionContext,
+  _ctx?: ProhibitionContext,
 ): ProhibitionResult {
   const reasons: string[] = [];
 
@@ -47,16 +47,22 @@ export function checkLongProhibitions(
 
   const last = candles[index];
 
-  // ── 戒律 8：主力連續淨流出（書本 Part 10 p.661）──────────────────
-  // TW: 三大法人合計近 3 日皆淨賣 ≤ -50 張（50,000 股）
-  // CN: 主力資金近 3 日皆淨流出 ≤ -500 萬元
-  // 書本沒明寫門檻，此處取 noise filter 閾值避免小額流入流出誤殺
-  if (ctx?.institutionalHistory && ctx.institutionalHistory.length >= 3) {
-    const threshold = ctx.minMeaningfulOutflow ?? -50_000;  // 預設 TW 50 張
-    const recent3 = ctx.institutionalHistory.slice(0, 3);
-    if (recent3.every(d => d.netShares < threshold)) {
-      const avgSell = Math.round(recent3.reduce((a, d) => a + d.netShares, 0) / 3);
-      reasons.push(`戒律8：主力近3日連續淨流出（平均${avgSell.toLocaleString()}/日）`);
+  // ── 戒律5：未站上月線勿進場做多（書本 p.57） ─────────────────────
+  // 書本簡化判定：今日 close < MA20 就擋（不需時序檢查）
+  {
+    const ma20 = last.ma20;
+    if (ma20 != null && ma20 > 0 && last.close < ma20) {
+      reasons.push('戒律5：今日收盤未站上月線(MA20)，勿進場做多');
+    }
+  }
+
+  // ── 戒律8：一般空頭的反彈，勿進場做多（書本 p.57 原文） ────────────
+  // 書本：空頭趨勢下的紅K反彈視為誘多陷阱
+  {
+    const trend = detectTrend(candles, index);
+    const isRedRebound = last.close > last.open;
+    if (trend === '空頭' && isRedRebound) {
+      reasons.push('戒律8：空頭趨勢下的紅K反彈，勿進場做多');
     }
   }
 
@@ -77,7 +83,8 @@ export function checkLongProhibitions(
   }
 
   // ── 戒律3：量價背離 + KD高檔 + 乖離過大，同時成立勿進場 ───────────────
-  // 三個條件都成立才觸發（書上說「搭配」，即同時出現）
+  // 書本 p.57 原文 3 項「搭配」同時出現
+  // 2026-04-20 移除 MA 開口大（書本無此項，自創加碼已拿掉）
   {
     const kd = last.kdK;
     const ma20 = last.ma20;
@@ -93,11 +100,11 @@ export function checkLongProhibitions(
       : 0;
     const volumeDivergence = recentGain > 0.05 && last.volume < prev.volume;
 
-    // KD高檔：K值 > 80
+    // KD 高檔：K > 80（市場通用超買門檻）
     const kdHigh = kd != null && kd > 80;
 
-    // 乖離過大：距MA20 > 12%
-    const deviationLarge = deviation > 0.12;
+    // 乖離過大：距 MA20 > 22.5%（朱家泓實例 15-30% 的中位數）
+    const deviationLarge = deviation > 0.225;
 
     if (volumeDivergence && kdHigh && deviationLarge) {
       reasons.push('戒律3：量價背離+KD高檔+乖離過大同時成立，勿進場做多');
@@ -134,26 +141,18 @@ export function checkLongProhibitions(
     if (troughs.length >= 2) {
       const latestTrough = troughs[troughs.length - 1];
       const earlierTrough = troughs[troughs.length - 2];
-      if (latestTrough < earlierTrough * 0.99) { // 允許1%誤差
+      if (latestTrough < earlierTrough) { // 書本原文：不破前低（0 容差）
         reasons.push('戒律6：回檔底底低（跌破前低），再上漲勿進場做多');
       }
     }
   }
 
-  // ── 戒律7：盤整區內勿進場做多（書本 p.87 明寫 <15%）───────────────────
-  // 邏輯：近10根K棒的高低點範圍 < 15%，且今日未突破此範圍
+  // ── 戒律7：盤整區內勿進場做多 ─────────────────────────────────────
+  // 書本：不是頭頭高底底高 或 頭頭低底底低 就是盤整（用 detectTrend 判定）
   {
-    const lookback = Math.min(10, index - 1);
-    const segment = candles.slice(index - lookback, index); // 不含今日
-    if (segment.length >= 5) {
-      const segHigh = Math.max(...segment.map(c => c.high));
-      const segLow = Math.min(...segment.map(c => c.low));
-      const rangeWidth = segLow > 0 ? (segHigh - segLow) / segLow : 1;
-
-      // 盤整：區間幅度 < 15%（書本 p.87），且今日收盤未突破此盤整高點
-      if (rangeWidth < 0.15 && last.close <= segHigh * 1.005) {
-        reasons.push(`戒律7：股價在盤整區內（近10根K棒波動${(rangeWidth*100).toFixed(1)}%<15%），勿進場做多`);
-      }
+    const trend = detectTrend(candles, index);
+    if (trend === '盤整') {
+      reasons.push('戒律7：趨勢為盤整（非多頭、非空頭），勿進場做多');
     }
   }
 
@@ -167,21 +166,22 @@ export function checkLongProhibitions(
   // 此處不獨立設 gate 避免 overreach（2026-04-19 用戶指出 MA20 乖離後發現同類錯誤）。
 
   // ── 戒律9：連續急漲的大量長紅K高檔，勿進場做多 ─────────────────────
-  // 邏輯：近3根K棒都是大量（>前5日均量1.5倍）長紅K（實體>2%）
+  // 「大量」語境＝爆量（前日×2），對齊朱家泓《抓住飆股》+ 理財達人秀 YouTube #17
+  // 注：書本原文「大量長紅」在高檔急漲 context 屬爆量判斷，非進場攻擊量
   {
     const lookback = 3;
     if (index >= lookback + 5) {
       let bigRedCount = 0;
       for (let i = index - lookback + 1; i <= index; i++) {
         const c = candles[i];
+        const pv = candles[i - 1]?.volume ?? 0;
         const bodyPct = c.open > 0 ? (c.close - c.open) / c.open : 0;
-        const avg5Vol = c.avgVol5 ?? 0;
         const isLargeRedCandle = bodyPct >= 0.02 && c.close > c.open;
-        const isHighVolume = avg5Vol > 0 && c.volume > avg5Vol * 1.5;
+        const isHighVolume = pv > 0 && c.volume > pv * 2;
         if (isLargeRedCandle && isHighVolume) bigRedCount++;
       }
       if (bigRedCount >= 3) {
-        reasons.push('戒律9：連續急漲大量長紅K（3根以上），勿追高做多');
+        reasons.push('戒律9：連續急漲爆量長紅K（3根以上，量>前日×2），勿追高做多');
       }
     }
   }

@@ -88,6 +88,16 @@ export interface ReentryConfig {
 
 import type { RuleGroupId } from '@/lib/rules/ruleRegistry';
 
+/**
+ * 策略類型（Phase 0，2026-04-20 並列買法架構）
+ *
+ * - 'trend'（預設）：趨勢跟隨體系，套用朱老師 10 大戒律
+ * - 'kline-pattern'：K 線型態買法（V 形/缺口/一字底/突破），書本 Part 3 定位，不套戒律
+ *
+ * 未指定時視為 'trend'，維持舊行為。
+ */
+export type StrategyType = 'trend' | 'kline-pattern';
+
 export interface StrategyConfig {
   id:          string;     // 唯一識別碼，e.g. 'zhu-v1'
   name:        string;     // 顯示名稱
@@ -96,6 +106,12 @@ export interface StrategyConfig {
   author:      string;     // 作者
   createdAt:   string;     // ISO 日期字串
   isBuiltIn:   boolean;    // 是否為內建策略（不可刪除）
+
+  /** 策略類型；預設 'trend'（既有策略全部）。'kline-pattern' 自動 skip 戒律。 */
+  strategyType?: StrategyType;
+
+  /** 對應的買法代碼（並列買法架構用，如 'A'/'B'/'C'/'E'/'F'）；undefined 視為 'A' */
+  buyMethod?: string;
 
   conditions:  StrategyConditionToggles;
   thresholds:  StrategyThresholds;
@@ -507,12 +523,128 @@ export const ZHU_OPTIMIZED: StrategyConfig = {
   ruleGroups:  [...ALL_ZHU_GROUPS, 'lin-sop', 'bollinger', ...BASE_GROUPS],
 };
 
+/**
+ * F 一字底突破策略（並列買法架構，Phase 1，2026-04-20）
+ *
+ * 朱家泓《抓住飆股》25種型態 #9 + 寶典高勝率位置 ④：
+ *   底部盤整≥40天 + MA5/10/20 糾結 + 量縮 → 大量長紅突破
+ *
+ * 此策略不套戒律（strategyType='kline-pattern'），書本 Part 3 定位為 K 線型態買法。
+ * 底層偵測用 lib/analysis/highWinRateEntry.ts 的 detectFlatBottom()。
+ */
+export const ZHU_FLAT_BOTTOM: StrategyConfig = {
+  id:          'zhu-flat-bottom',
+  name:        '一字底突破（F）',
+  description: '朱家泓《抓住飆股》型態 #9：底部盤整≥40天+均線糾結+量縮→大量長紅突破',
+  version:     '1.0.0',
+  author:      '朱家泓',
+  createdAt:   '2026-04-20T00:00:00.000Z',
+  isBuiltIn:   true,
+  strategyType: 'kline-pattern',
+  buyMethod:    'F',
+  conditions:  ALL_CONDITIONS_ON,
+  thresholds:  {
+    ...BASE_THRESHOLDS,
+    // 一字底有自己的偵測邏輯，下列門檻僅當 fallback
+    volumeRatioMin: 2.0,   // 突破日量 ≥ 盤整期平均 × 2（detector 內部已檢查）
+    kbarMinBodyPct: 0.02,  // 書本 p.54 ⑤
+    minScore:       0,     // 不靠六條件分數，靠 detectFlatBottom() 布林
+    marketTrendFilter: false,  // 一字底本身就是底部反轉，不限大盤趨勢
+  },
+};
+
+/**
+ * E 缺口進場策略（並列買法架構，Phase 2，2026-04-20）
+ *
+ * 朱家泓《做對5個實戰步驟》p.40 做多位置 4「跳空上漲」：
+ *   向上跳空缺口 + 量≥1.3 + 紅K實體≥2.5%
+ *
+ * 不套戒律（strategyType='kline-pattern'），不限大盤趨勢。
+ * 底層偵測用 lib/analysis/gapEntry.ts 的 detectGapEntry()。
+ */
+export const ZHU_GAP: StrategyConfig = {
+  id:          'zhu-gap',
+  name:        '缺口進場（E）',
+  description: '《5步驟》位置 4 跳空上漲：開盤>前日最高+量比≥1.3+紅K實體≥2.5%',
+  version:     '1.0.0',
+  author:      '朱家泓',
+  createdAt:   '2026-04-20T00:00:00.000Z',
+  isBuiltIn:   true,
+  strategyType: 'kline-pattern',
+  buyMethod:    'E',
+  conditions:  ALL_CONDITIONS_ON,
+  thresholds:  {
+    ...BASE_THRESHOLDS,
+    volumeRatioMin: 1.3,
+    kbarMinBodyPct: 0.025,
+    minScore:       0,
+    marketTrendFilter: false,
+  },
+};
+
+/**
+ * B 突破進場策略（Phase 3，2026-04-20）
+ *
+ * 《5步驟》位置 1 盤整突破 + 位置 2 回後買上漲，合併為一個 strategy。
+ * 內部 subType 區分 consolidation_breakout / pullback_buy（停損位置不同）。
+ * 底層偵測用 lib/analysis/breakoutEntry.ts 的 detectBreakoutEntry()。
+ */
+export const ZHU_BREAKOUT: StrategyConfig = {
+  id:          'zhu-breakout',
+  name:        '突破進場（B）',
+  description: '《5步驟》位置1+2：盤整突破/回後買上漲，共用扳機（大量長紅突破前高），停損按 subType 分',
+  version:     '1.0.0',
+  author:      '朱家泓',
+  createdAt:   '2026-04-20T00:00:00.000Z',
+  isBuiltIn:   true,
+  strategyType: 'kline-pattern',
+  buyMethod:    'B',
+  conditions:  ALL_CONDITIONS_ON,
+  thresholds:  {
+    ...BASE_THRESHOLDS,
+    volumeRatioMin: 1.3,
+    kbarMinBodyPct: 0.025,
+    minScore:       0,
+    marketTrendFilter: false,
+  },
+};
+
+/**
+ * C V 形反轉策略（Phase 4，2026-04-20）
+ *
+ * 《5步驟》位置 6 反轉向上 + 寶典 Part 12 祕笈圖 #1「低檔大量長紅 K 反轉」：
+ *   前段連跌 ≥5 根黑 K + 當日量 ≥ 前 5 日均量 × 2 + 紅 K 實體 ≥ 2% + 收盤突破前日最高
+ */
+export const ZHU_V_REVERSAL: StrategyConfig = {
+  id:          'zhu-v-reversal',
+  name:        'V 形反轉（C）',
+  description: '寶典祕笈圖#1：連跌後低檔大量長紅突破前日最高，一日反轉',
+  version:     '1.0.0',
+  author:      '朱家泓',
+  createdAt:   '2026-04-20T00:00:00.000Z',
+  isBuiltIn:   true,
+  strategyType: 'kline-pattern',
+  buyMethod:    'C',
+  conditions:  ALL_CONDITIONS_ON,
+  thresholds:  {
+    ...BASE_THRESHOLDS,
+    volumeRatioMin: 2.0,   // 反轉量更嚴，≥ 5 日均量 × 2
+    kbarMinBodyPct: 0.02,
+    minScore:       0,
+    marketTrendFilter: false,
+  },
+};
+
 export const BUILT_IN_STRATEGIES: StrategyConfig[] = [
   ZHU_PURE_BOOK,   // 純書本版（2026-04-19 起為預設）
   ZHU_OPTIMIZED,   // 回測驗證版（保留）
   ZHU_V1, ZHU_V2, ZHU_CONSERVATIVE,
   ZHU_V3_MULTIFACTOR, ZHU_V3_TW, ZHU_V3_CN,
   MASTER_CONSENSUS, ZHU_5STEPS, CHART_WALKING_SOP,
+  ZHU_FLAT_BOTTOM, // Phase 1：一字底突破（F）
+  ZHU_GAP,         // Phase 2：缺口進場（E）
+  ZHU_BREAKOUT,    // Phase 3：突破進場（B）
+  ZHU_V_REVERSAL,  // Phase 4：V 形反轉（C）
 ];
 
 // ── P0-3: 策略參數邊界驗證 ──────────────────────────────────────────────────────

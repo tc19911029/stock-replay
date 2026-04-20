@@ -207,16 +207,19 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
             {/* Expanded details */}
             {isExpanded && (
               <div className="rounded-lg border border-sky-700/30 bg-card/80 px-2.5 py-2 space-y-2 text-[10px]">
-                {/* MTF info — 拆成 4 項獨立評分 */}
+                {/* MTF info — 週線六條件 checklist（= 日線六條件套週線）+ 月線趨勢 */}
                 {r.mtfScore != null && (
                   <div>
-                    <div className="text-muted-foreground font-medium mb-0.5">長線保護短線 {r.mtfScore}/4</div>
+                    <div className="text-muted-foreground font-medium mb-0.5">長線保護短線 {r.mtfScore}/7</div>
                     <div className="space-y-0.5 text-[9px]">
                       {([
-                        { label: '週線趨勢', pass: r.mtfWeeklyChecks?.trend      ?? (r.mtfWeeklyTrend !== '空頭'), desc: '趨勢不是「空頭」即得分' },
-                        { label: '週線均線', pass: r.mtfWeeklyChecks?.ma         ?? (r.mtfWeeklyPass ?? false),   desc: 'MA排列多頭 + 站穩週MA20 + MA20上升' },
-                        { label: '週線壓力', pass: r.mtfWeeklyChecks?.resistance ?? !r.mtfWeeklyNearResistance,   desc: '收盤不在前高下方3%內' },
-                        { label: '月線趨勢', pass: r.mtfMonthlyPass ?? false,                                    desc: '趨勢不是「空頭」即得分' },
+                        { label: '週①趨勢',   pass: r.mtfWeeklyChecks?.trend     ?? (r.mtfWeeklyTrend !== '空頭'), desc: '週線頭頭高底底高' },
+                        { label: '週②均線',   pass: r.mtfWeeklyChecks?.ma        ?? false,                          desc: 'MA5/10/20 三線多排 + MA10/20 向上' },
+                        { label: '週③位置',   pass: r.mtfWeeklyChecks?.position  ?? false,                          desc: '收盤 > MA10 AND MA20' },
+                        { label: '週④量',     pass: r.mtfWeeklyChecks?.volume    ?? false,                          desc: '週量 ≥ 前週 × 1.3' },
+                        { label: '週⑤紅K',    pass: r.mtfWeeklyChecks?.kbar      ?? false,                          desc: '紅K實體≥2% + 高收盤 + 上影≤實體' },
+                        { label: '週⑥指標',   pass: r.mtfWeeklyChecks?.indicator ?? false,                          desc: 'MACD 綠縮/紅延 + KD 金叉向上' },
+                        { label: '月線趨勢',   pass: r.mtfMonthlyPass ?? false,                                     desc: '月線不是空頭' },
                       ]).map(({ label, pass, desc }) => (
                         <div key={label} className="flex items-center gap-1.5">
                           <span className={pass ? 'text-green-400' : 'text-red-400'}>{pass ? '✅' : '❌'}</span>

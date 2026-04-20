@@ -69,8 +69,15 @@ function detectTrendlines(
       const priceAt = (idx: number) => p1.price + slope * (idx - p1.idx);
 
       // 判斷類型
+      // 急切線：視覺角度 > 60°（網路通用標準，程式交易快譯通/量化通）
+      // 換算：假設 x 軸 1 天 = 1 單位，y 軸 1% 均價 = 1 單位
+      //   normalizedSlope = (slope / avgPrice) × 100（每日 % 變化）
+      //   angle = atan(normalizedSlope) × 180/π
+      //   60° ≈ atan(1.732) → 每日 ≈ 2% 變化
       const avgPrice = (p1.price + p2.price) / 2;
-      const isSteep = avgPrice > 0 && (slope / avgPrice) > 0.005; // 每天漲0.5%以上
+      const normalizedSlope = avgPrice > 0 ? (slope / avgPrice) * 100 : 0;
+      const angleDeg = Math.atan(normalizedSlope) * 180 / Math.PI;
+      const isSteep = angleDeg > 60;
 
       trendlines.push({
         type: 'ascending',
@@ -92,8 +99,11 @@ function detectTrendlines(
       const slope = (p2.price - p1.price) / (p2.idx - p1.idx);
       const priceAt = (idx: number) => p1.price + slope * (idx - p1.idx);
 
+      // 急切線：視覺角度 > 60°（同升線，絕對值比較）
       const avgPrice = (p1.price + p2.price) / 2;
-      const isSteep = avgPrice > 0 && Math.abs(slope / avgPrice) > 0.005;
+      const normalizedSlope = avgPrice > 0 ? Math.abs(slope / avgPrice) * 100 : 0;
+      const angleDeg = Math.atan(normalizedSlope) * 180 / Math.PI;
+      const isSteep = angleDeg > 60;
 
       trendlines.push({
         type: 'descending',

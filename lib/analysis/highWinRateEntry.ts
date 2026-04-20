@@ -16,6 +16,7 @@
  */
 
 import { CandleWithIndicators } from '@/types';
+import { findPivots, detectTrend } from '@/lib/analysis/trendAnalysis';
 
 /** 高勝率進場位置類型 */
 export type HighWinRateEntryType =
@@ -46,10 +47,15 @@ function isHighVolume(c: CandleWithIndicators): boolean {
 }
 
 
-/** 均線3線多排：MA5 > MA10 > MA20 */
-function is3MABullish(c: CandleWithIndicators): boolean {
-  const { ma5, ma10, ma20 } = c;
-  return ma5 != null && ma10 != null && ma20 != null && ma5 > ma10 && ma10 > ma20;
+/**
+ * 均線 4 線多排：MA5 > MA10 > MA20 > MA60（書本 Part 12 p.749-752 原文）
+ * 書本高勝率位置 1/2/3/5 都寫「均線 4 線多排」，比六條件（3 線）更嚴格。
+ * 2026-04-20 修：原 is3MABullish 偏離書本，改為書本 4 線版。
+ */
+function is4MABullish(c: CandleWithIndicators): boolean {
+  const { ma5, ma10, ma20, ma60 } = c;
+  return ma5 != null && ma10 != null && ma20 != null && ma60 != null &&
+    ma5 > ma10 && ma10 > ma20 && ma20 > ma60;
 }
 
 /** 收盤突破 MA5 */
@@ -57,8 +63,12 @@ function closeAboveMA5(c: CandleWithIndicators): boolean {
   return c.ma5 != null && c.close > c.ma5;
 }
 
-/** 均線糾結：MA5/10/20 spread < threshold */
-function isMAClustered(c: CandleWithIndicators, threshold = 0.025): boolean {
+/**
+ * 均線糾結：MA5/10/20 spread < threshold
+ * 注：書本 p.299 寫「狹幅盤整 5-6 天」未量化均線糾結 %；
+ *     網路朱家泓資料亦無具體數字。程式交易實務區間 1-3%，取上限 3%。
+ */
+function isMAClustered(c: CandleWithIndicators, threshold = 0.03): boolean {
   const { ma5, ma10, ma20 } = c;
   if (ma5 == null || ma10 == null || ma20 == null) return false;
   const maxMA = Math.max(ma5, ma10, ma20);
@@ -84,8 +94,10 @@ interface FlatBottomResult {
  * 2. 至少MA5/MA10/MA20糾結在一起
  * 3. 盤整期間量極少，突破後量才放大
  * 4. 等大量突破確認後再買進
+ *
+ * 2026-04-20 Phase 1 export：給並列買法架構（F 一字底 strategy）使用。
  */
-function detectFlatBottom(
+export function detectFlatBottom(
   candles: CandleWithIndicators[],
   idx: number,
 ): FlatBottomResult | null {
@@ -118,7 +130,8 @@ function detectFlatBottom(
     if (minC <= 0) break;
     const spread = (maxC - minC) / minC;
 
-    if (spread >= 0.08) break; // 超出窄幅範圍，盤整到此為止
+    // 窄幅閾值 8%：朱家泓書+網路均無具體值（只寫「狹幅、很小」），8% 為實作自選
+    if (spread >= 0.08) break;
     consolStart = i;
   }
 
@@ -153,11 +166,13 @@ function detectFlatBottom(
   if (preVols.length >= 5) {
     const preAvgVol = preVols.reduce((a, b) => a + b, 0) / preVols.length;
     // 盤整期量必須 < 前期的 60%
+    // 量縮 60%：朱家泓書+網路均無具體值（只寫「極少、出奇的少」），60% 為實作自選
     if (preAvgVol > 0 && consolAvgVol >= preAvgVol * 0.6) return null;
   }
 
   // ── 步驟6: 突破量確認 ──
-  // 突破日成交量 ≥ 盤整期平均量的 2 倍
+  // 突破日成交量 ≥ 盤整期平均量的 2 倍（爆量，對齊朱家泓「均線糾結突破=爆量」定義）
+  // 出處：cmoney 朱家泓均線糾結突破三要素（整理+突破+爆量）+ YouTube #17
   if (consolAvgVol > 0 && c.volume < consolAvgVol * 2) return null;
 
   return {
@@ -170,10 +185,14 @@ function detectFlatBottom(
 // ── Entry Position Detection ───────────────────────────────────────────────────
 
 /**
- * 位置1: 多頭打底確認
- * 空頭低檔打底盤整突破，反轉多頭確認
- * 條件：均線4線多排 + 突破MA5 + 大量 + 紅K(>2%)
- * 補充：股價站上月線(MA20)且月線向上
+ * 位置1: 多頭打底確認（書本 Part 12 p.749）
+ * 書本原文 6 項：
+ *   ① 多頭打底趨勢確認（頭頭高底底高）
+ *   ② 均線 4 線多排
+ *   ③ 收盤突破 MA5
+ *   ④ 大量
+ *   ⑤ 實體紅K（>2%）
+ *   ⑥ 收盤確認位置
  */
 function checkBottomConfirm(
   candles: CandleWithIndicators[],
@@ -181,33 +200,22 @@ function checkBottomConfirm(
 ): boolean {
   if (idx < 30) return false;
   const c = candles[idx];
+  // ③ 收盤突破 MA5 + ④ 大量 + ⑤ 實體紅K
   if (!isStrongRedCandle(c) || !isHighVolume(c) || !closeAboveMA5(c)) return false;
-  if (!is3MABullish(c)) return false;
-
-  // MA20 必須向上（月線上揚）
-  const prevMA20 = candles[idx - 1]?.ma20;
-  if (c.ma20 == null || prevMA20 == null || c.ma20 <= prevMA20) return false;
-
-  // 股價站上月線
-  if (c.close <= c.ma20) return false;
-
-  // 過去 20 天有打底（盤整區域：高低差 < 15%）
-  const lookback = candles.slice(Math.max(0, idx - 20), idx);
-  if (lookback.length < 10) return false;
-  const highs = lookback.map(x => x.high);
-  const lows = lookback.map(x => x.low);
-  const rangeHigh = Math.max(...highs);
-  const rangeLow = Math.min(...lows);
-  if (rangeLow <= 0) return false;
-  const rangeSpread = (rangeHigh - rangeLow) / rangeLow;
-  // 盤整區域：高低差 < 15%
-  return rangeSpread < 0.15;
+  // ② 均線 4 線多排
+  if (!is4MABullish(c)) return false;
+  // ① 頭頭高底底高（趨勢多頭）
+  return detectTrend(candles, idx) === '多頭';
 }
 
 /**
- * 位置2: 回檔不破前低買上漲
- * 多頭回檔修正不破前低，再出現帶量紅K上漲
- * 條件：4線多排 + 紅K(>2%) + 突破MA5 + 大量
+ * 位置2: 回檔不破前低買上漲（書本 Part 12 p.749）
+ * 書本原文 5 項：
+ *   ① 多頭回檔不破前低（= 不破壞頭頭高底底高的底底高）
+ *   ② 均線 4 線多排
+ *   ③ 實體紅K（>2%）
+ *   ④ 收盤突破 MA5
+ *   ⑤ 大量
  */
 function checkPullbackBuy(
   candles: CandleWithIndicators[],
@@ -215,28 +223,22 @@ function checkPullbackBuy(
 ): boolean {
   if (idx < 10) return false;
   const c = candles[idx];
+  // ③④⑤ 紅K + 突MA5 + 大量
   if (!isStrongRedCandle(c) || !isHighVolume(c) || !closeAboveMA5(c)) return false;
-  if (!is3MABullish(c)) return false;
-
-  // 前幾天有回檔（至少1天收黑）
-  const recent5 = candles.slice(Math.max(0, idx - 5), idx);
-  const hasBlack = recent5.some(x => x.close < x.open);
-  if (!hasBlack) return false;
-
-  // 回檔期間不破前低
-  // 找前10天的起漲低點
-  const lookback = candles.slice(Math.max(0, idx - 10), idx);
-  const recentLow = Math.min(...lookback.map(x => x.low));
-  const prevSwingLow = Math.min(...candles.slice(Math.max(0, idx - 20), Math.max(0, idx - 10)).map(x => x.low));
-
-  // 回檔低點不破前波低點
-  return prevSwingLow > 0 && recentLow >= prevSwingLow * 0.98;
+  // ② 4 線多排
+  if (!is4MABullish(c)) return false;
+  // ① 不破前低（findPivots 無底底低，0 容差）
+  const pivots = findPivots(candles, idx - 1, 8);
+  const lows = pivots.filter(p => p.type === 'low').slice(0, 2);
+  if (lows.length < 2) return true;
+  const [latest, earlier] = lows;
+  return latest.price >= earlier.price;
 }
 
 /**
- * 位置3: 突破盤整上頸線
- * 盤整後大量紅K突破上頸線
- * 條件：4線多排 + 大量 + 紅K(>2%) + 突破前5日高點
+ * 位置3: 突破盤整上頸線（書本 Part 12 p.750）
+ * 書本：上頸線 = 兩個頭（high pivots）連成一條線
+ * 條件：4線多排 + 大量 + 紅K(>2%) + 今日 close 突破「兩頭連線」在今日的延伸值
  */
 function checkNecklineBreak(
   candles: CandleWithIndicators[],
@@ -245,59 +247,57 @@ function checkNecklineBreak(
   if (idx < 10) return false;
   const c = candles[idx];
   if (!isStrongRedCandle(c) || !isHighVolume(c)) return false;
-  if (!is3MABullish(c)) return false;
+  if (!is4MABullish(c)) return false;
 
-  // 過去5-10天有橫盤（收盤價波動 < 5%）
-  const lookback = candles.slice(Math.max(0, idx - 10), idx);
-  if (lookback.length < 5) return false;
-  const closes = lookback.map(x => x.close);
-  const maxClose = Math.max(...closes);
-  const minClose = Math.min(...closes);
-  if (minClose <= 0) return false;
-  const consolidation = (maxClose - minClose) / minClose;
-  if (consolidation >= 0.08) return false; // 不算盤整
+  // 書本定義：用 findPivots 找最近兩個頭（high pivots），兩點連線
+  const pivots = findPivots(candles, idx - 1, 8);
+  const highs = pivots.filter(p => p.type === 'high').slice(0, 2);
+  if (highs.length < 2) return false;
 
-  // 突破盤整高點
-  const neckline = Math.max(...lookback.map(x => x.high));
-  return c.close > neckline;
+  const [latest, earlier] = highs;
+  if (latest.index <= earlier.index) return false;
+  // 上頸線斜率（可能下降/水平/略升）
+  const slope = (latest.price - earlier.price) / (latest.index - earlier.index);
+  const daysFromLatest = idx - latest.index;
+  const necklinePrice = latest.price + slope * daysFromLatest;
+
+  return c.close > necklinePrice;
 }
 
 /**
- * 位置4: 均線糾結突破 (一字底)
- * 優先偵測完整一字底型態（盤整≥40天+量縮+均線糾結+大量突破）
- * fallback 為原有的簡單均線糾結突破
+ * 位置4: 均線糾結突破（一字底）— 書本 Part 12 p.751
+ * 書本原文：實體紅K棒收盤突破均線3線或4線糾結、大量的位置
+ * 只要：紅K+大量+前日糾結+今日突破三線，不需要 40 天盤整。
+ *
+ * 40 天 + 8% 窄幅 + 60% 量縮是**《抓住飆股》F 策略獨立一字底**的要求，
+ * 位置 4 屬於寶典 Part 12，書本沒要那麼嚴格。
  */
-let _lastFlatBottomDetail: string | null = null;
-
 function checkMAClusterBreak(
   candles: CandleWithIndicators[],
   idx: number,
 ): boolean {
-  _lastFlatBottomDetail = null;
-
-  // 優先：完整一字底型態偵測
-  const flatBottom = detectFlatBottom(candles, idx);
-  if (flatBottom?.isFlatBottom) {
-    _lastFlatBottomDetail = flatBottom.detail;
-    return true;
-  }
-
-  // Fallback：簡單均線糾結突破（向後相容）
   if (idx < 5) return false;
   const c = candles[idx];
+  // 實體紅K + 大量
   if (!isStrongRedCandle(c) || !isHighVolume(c)) return false;
-
+  // 前日均線糾結（MA5/10/20 spread < 3% 實務值，書本未量化）
   const prev = candles[idx - 1];
   if (!isMAClustered(prev)) return false;
-
+  // 今日收盤突破三線
   const { ma5, ma10, ma20 } = c;
   if (ma5 == null || ma10 == null || ma20 == null) return false;
   return c.close > ma5 && c.close > ma10 && c.close > ma20;
 }
 
 /**
- * 位置5: 強勢股回檔1-2天續攻
- * 強勢股回檔1-2天後，出現續攻紅K + 大量 + 突破黑K高點
+ * 位置5: 強勢股回檔1-2天續攻（書本 Part 12 p.752，圖 12-1-6）
+ * 書本 + 圖：
+ *   ① 強勢股（4 線多排）
+ *   ② 回檔 1-2 天黑K
+ *   ③ 回檔黑K **也大量**（圖 12-1-6 明確標示）
+ *   ④ 續攻紅K（實體>2%）
+ *   ⑤ 續攻紅K **大量**
+ *   ⑥ 收盤突破下跌黑K高點
  */
 function checkStrongResume(
   candles: CandleWithIndicators[],
@@ -305,28 +305,35 @@ function checkStrongResume(
 ): boolean {
   if (idx < 5) return false;
   const c = candles[idx];
+  // ④⑤ 續攻紅K大量
   if (!isStrongRedCandle(c) || !isHighVolume(c)) return false;
-  if (!is3MABullish(c)) return false;
+  // ① 強勢股 = 4 線多排
+  if (!is4MABullish(c)) return false;
 
-  // 前 1-2 天是回檔（黑K）
+  // ② 前 1-2 天黑K
   const d1 = candles[idx - 1];
   const d2 = candles[idx - 2];
   const pullbackDays = [d1, d2].filter(x => x && x.close < x.open);
   if (pullbackDays.length === 0 || pullbackDays.length > 2) return false;
 
-  // 回檔前是上漲趨勢（前3-5天有連續紅K）
-  const prePullback = candles.slice(Math.max(0, idx - 5), idx - pullbackDays.length);
-  const redCount = prePullback.filter(x => x.close > x.open).length;
-  if (redCount < 2) return false;
+  // ③ 黑K 也大量（圖 12-1-6 標示）
+  const allBlackHighVol = pullbackDays.every(x => isHighVolume(x));
+  if (!allBlackHighVol) return false;
 
-  // 今天突破回檔黑K的高點
+  // ⑥ 突破下跌黑K高點
   const pullbackHighest = Math.max(...pullbackDays.map(x => x.high));
   return c.close > pullbackHighest;
 }
 
 /**
- * 位置6: 假跌破真上漲
- * 跌破盤整下頸線後，快速收回 + 紅K + 大量
+ * 位置6: 假跌破真上漲（書本 Part 12 p.753）
+ * 書本：假跌破（黑K破下頸線=底底線）+ 真上漲紅K + 收盤「突破上頸線」+ 大量
+ *
+ * 書本定義（圖 12-1-7）：
+ *   - 下頸線 = 兩個底（low pivots）連線
+ *   - 上頸線 = 兩個頭（high pivots）連線
+ *   - 假跌破 = 前 1-3 天 close/low 跌破下頸線（但快速收回）
+ *   - 真上漲 = 今日紅K大量 + 收盤突破上頸線
  */
 function checkFakeBreakdown(
   candles: CandleWithIndicators[],
@@ -336,22 +343,35 @@ function checkFakeBreakdown(
   const c = candles[idx];
   if (!isStrongRedCandle(c) || !isHighVolume(c)) return false;
 
-  // 過去10天有盤整
-  const lookback = candles.slice(Math.max(0, idx - 10), idx);
-  if (lookback.length < 5) return false;
-  const closes = lookback.map(x => x.close);
-  const minClose = Math.min(...closes);
-  const _maxClose = Math.max(...closes);
-  if (minClose <= 0) return false;
+  // findPivots 找兩頭兩底
+  const pivots = findPivots(candles, idx - 1, 8);
+  const highs = pivots.filter(p => p.type === 'high').slice(0, 2);
+  const lows = pivots.filter(p => p.type === 'low').slice(0, 2);
+  if (highs.length < 2 || lows.length < 2) return false;
 
-  // 前1-3天有跌破盤整低點
-  const necklineLow = Math.min(...lookback.slice(0, -3).map(x => x.low));
-  const recentLows = candles.slice(Math.max(0, idx - 3), idx);
-  const brokeDown = recentLows.some(x => x.low < necklineLow);
-  if (!brokeDown) return false;
+  const [latestHigh, earlierHigh] = highs;
+  const [latestLow, earlierLow] = lows;
 
-  // 今天收回盤整上方
-  return c.close > minClose;
+  // 上頸線 = 兩頭連線今日延伸值
+  const hiSlope = (latestHigh.price - earlierHigh.price) / (latestHigh.index - earlierHigh.index);
+  const upperNeckline = latestHigh.price + hiSlope * (idx - latestHigh.index);
+
+  // 下頸線 = 兩底連線今日延伸值
+  const loSlope = (latestLow.price - earlierLow.price) / (latestLow.index - earlierLow.index);
+  const lowerNecklineToday = latestLow.price + loSlope * (idx - latestLow.index);
+
+  // 前 1-3 天曾跌破下頸線（假跌破）
+  let brokeBelow = false;
+  for (let i = Math.max(0, idx - 3); i < idx; i++) {
+    const k = candles[i];
+    const lowerNecklineI = latestLow.price + loSlope * (i - latestLow.index);
+    if (k.low < lowerNecklineI) { brokeBelow = true; break; }
+  }
+  if (!brokeBelow) return false;
+  void lowerNecklineToday; // 今日不需再檢查下頸線（只要前 1-3 天跌破即可）
+
+  // 今日收盤突破上頸線（真上漲）
+  return c.close > upperNeckline;
 }
 
 // ── Main Evaluator ──────────────────────────────────────────────────────────────
@@ -383,9 +403,7 @@ export function evaluateHighWinRateEntry(
   }
   if (checkMAClusterBreak(candles, idx)) {
     types.push('maClusterBreak');
-    details.push(_lastFlatBottomDetail
-      ? `高勝率位置4: ${_lastFlatBottomDetail}`
-      : '高勝率位置4: 均線糾結突破');
+    details.push('高勝率位置4: 均線糾結突破');
   }
   if (checkStrongResume(candles, idx)) {
     types.push('strongResume');

@@ -123,10 +123,10 @@ export function collectAllCandidates(
         if (prevKdK != null && last.kdK < prevKdK) continue;
       }
 
-      // ── Layer 1b: 上影線 > 50% 禁止 ──
-      const dayRange = last.high - last.low;
-      const upperShadow = last.high - last.close;
-      if (dayRange > 0 && upperShadow / dayRange > 0.5) continue;
+      // ── Layer 1b: 長上影線禁止（書本定義：上影 > 實體 = 上方賣壓沉重） ──
+      const bodyAbs = Math.abs(last.close - last.open);
+      const upperShadowLen = last.high - Math.max(last.open, last.close);
+      if (bodyAbs > 0 && upperShadowLen > bodyAbs) continue;
 
       // ── Layer 2: 十大戒律 ──
       const prohib = checkLongProhibitions(stockData.candles, idx);

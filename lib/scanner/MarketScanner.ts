@@ -434,6 +434,26 @@ export abstract class MarketScanner {
         ? +((last.close - candles[lastIdx - 1].close) / candles[lastIdx - 1].close * 100).toFixed(2)
         : 0;
 
+      // ── 並列買法標記（Phase 5 接進 cron，2026-04-20）─────────────────────
+      // 通過 A 六條件 isCoreReady → A 成立；其他偵測器獨立判定，疊加標記
+      const matchedMethods: string[] = ['A'];
+      try {
+        const { detectBreakoutEntry } = await import('@/lib/analysis/breakoutEntry');
+        if (detectBreakoutEntry(candles, lastIdx)) matchedMethods.push('B');
+      } catch { /* non-critical */ }
+      try {
+        const { detectVReversal } = await import('@/lib/analysis/vReversalDetector');
+        if (detectVReversal(candles, lastIdx)) matchedMethods.push('C');
+      } catch { /* non-critical */ }
+      try {
+        const { detectGapEntry } = await import('@/lib/analysis/gapEntry');
+        if (detectGapEntry(candles, lastIdx)) matchedMethods.push('E');
+      } catch { /* non-critical */ }
+      try {
+        const { detectFlatBottom } = await import('@/lib/analysis/highWinRateEntry');
+        if (detectFlatBottom(candles, lastIdx)) matchedMethods.push('F');
+      } catch { /* non-critical */ }
+
       return {
         symbol,
         name,
@@ -443,6 +463,7 @@ export abstract class MarketScanner {
         changePercent,
         volume: last.volume,
         triggeredRules,
+        matchedMethods,
         sixConditionsScore: sixConds.totalScore,
         sixConditionsBreakdown: {
           trend:     sixConds.trend.pass,
