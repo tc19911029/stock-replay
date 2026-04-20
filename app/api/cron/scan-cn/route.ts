@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
       sessionType: 'post_close',
       directions: ['long', 'short'],
       mtfModes: ['daily', 'mtf'],
-      buyMethods: ['B', 'C', 'D', 'E'],
+      buyMethods: ['E', 'B', 'C', 'D'],
       force: true,
       batch,
       totalBatches,
