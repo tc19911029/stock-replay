@@ -1,7 +1,7 @@
 /**
  * 並列買法獨立掃描器（2026-04-20 架構 B 方案）
  *
- * 對 top 500 每支：合 L1 + L2 今日 K → 算 indicators → 跑 B/C/E/F detector
+ * 對 top 500 每支：合 L1 + L2 今日 K → 算 indicators → 跑 B/C/D/E detector
  * 成立者收進對應買法的 session 寫入 data/scan-{MARKET}-long-{B|C|E|F}-{date}-intraday-{hhmm}.json
  *
  * 用法：npx tsx scripts/scan-buy-methods-standalone.ts [--market TW|CN|BOTH]
@@ -18,15 +18,15 @@ import { readIntradaySnapshot } from '@/lib/datasource/IntradayCache';
 import { computeIndicators } from '@/lib/indicators';
 import { detectBreakoutEntry } from '@/lib/analysis/breakoutEntry';
 import { detectVReversal } from '@/lib/analysis/vReversalDetector';
-import { detectGapEntry } from '@/lib/analysis/gapEntry';
-import { detectFlatBottom } from '@/lib/analysis/highWinRateEntry';
+import { detectStrategyD } from '@/lib/analysis/gapEntry';
+import { detectStrategyE } from '@/lib/analysis/highWinRateEntry';
 import { saveScanSession } from '@/lib/storage/scanStorage';
 import { getTWSENames } from '@/lib/datasource/TWSENames';
 import type { StockScanResult, ScanSession, MarketId } from '@/lib/scanner/types';
 import type { Candle } from '@/types';
 
-type BuyMethod = 'B' | 'C' | 'E' | 'F';
-const METHODS: BuyMethod[] = ['B', 'C', 'E', 'F'];
+type BuyMethod = 'B' | 'C' | 'D' | 'E';
+const METHODS: BuyMethod[] = ['B', 'C', 'D', 'E'];
 
 function todayDateFor(market: MarketId): string {
   const tz = market === 'TW' ? 'Asia/Taipei' : 'Asia/Shanghai';
@@ -81,7 +81,7 @@ async function scanMarket(market: MarketId): Promise<void> {
     } catch { /* 用 L2 名字兜底 */ }
   }
 
-  const buckets: Record<BuyMethod, StockScanResult[]> = { B: [], C: [], E: [], F: [] };
+  const buckets: Record<BuyMethod, StockScanResult[]> = { B: [], C: [], D: [], E: [] };
 
   let processed = 0;
   for (const sym of symbols) {
@@ -124,16 +124,16 @@ async function scanMarket(market: MarketId): Promise<void> {
       if (detectVReversal(candles, lastIdx)) {
         buckets.C.push({ ...base, matchedMethods: ['C'] } as StockScanResult);
       }
-      if (detectGapEntry(candles, lastIdx)) {
-        buckets.E.push({ ...base, matchedMethods: ['E'] } as StockScanResult);
+      if (detectStrategyD(candles, lastIdx)) {
+        buckets.D.push({ ...base, matchedMethods: ['D'] } as StockScanResult);
       }
-      if (detectFlatBottom(candles, lastIdx)) {
-        buckets.F.push({ ...base, matchedMethods: ['F'] } as StockScanResult);
+      if (detectStrategyE(candles, lastIdx)) {
+        buckets.E.push({ ...base, matchedMethods: ['E'] } as StockScanResult);
       }
     } catch { /* skip */ }
   }
 
-  console.log(`[${market}] 處理 ${processed} 支；B=${buckets.B.length} C=${buckets.C.length} E=${buckets.E.length} F=${buckets.F.length}`);
+  console.log(`[${market}] 處理 ${processed} 支；B=${buckets.B.length} C=${buckets.C.length} D=${buckets.D.length} E=${buckets.E.length}`);
 
   // 寫每個買法的 session
   const scanTime = new Date().toISOString();

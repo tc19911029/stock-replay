@@ -1,5 +1,7 @@
 /**
- * 缺口進場偵測（跳空上漲，E 買法）
+ * 策略 D：缺口進場偵測（跳空上漲）
+ *
+ * 2026-04-20 命名重整：原「E 買法」改為「策略 D」。
  *
  * 朱家泓《做對5個實戰步驟》p.40 做多位置 4「跳空上漲」：
  *   向上跳空缺口的大量長紅 K
@@ -12,8 +14,6 @@
  *
  * 不限大盤趨勢（像台積電 4/8 在空頭中跳空也算）。
  * 不套戒律（書本 Part 3 K 線型態買法）。
- *
- * Phase 2（2026-04-20 並列買法架構）
  */
 
 import type { CandleWithIndicators } from '@/types';
@@ -26,7 +26,7 @@ export interface GapEntryResult {
   detail: string;
 }
 
-export function detectGapEntry(
+export function detectStrategyD(
   candles: CandleWithIndicators[],
   idx: number,
 ): GapEntryResult | null {
@@ -59,3 +59,6 @@ export function detectGapEntry(
     detail: `跳空上漲（缺口+${gapPct.toFixed(2)}%、實體+${bodyPct.toFixed(2)}%、量比×${volumeRatio.toFixed(2)}）`,
   };
 }
+
+/** @deprecated 2026-04-20 改名為 detectStrategyD，本 alias 提供過渡期相容；下次清理時移除 */
+export const detectGapEntry = detectStrategyD;

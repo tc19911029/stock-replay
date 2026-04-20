@@ -1,5 +1,5 @@
 /**
- * 一次性 patch：對現有最新 intraday session，對每支 result 呼叫 B/C/E/F
+ * 一次性 patch：對現有最新 intraday session，對每支 result 呼叫 B/C/D/E
  * 偵測器補 matchedMethods 欄位並寫回檔案。
  *
  * 盤後窗口已過、cron 不再跑，先 patch 讓用戶能切買法 tab 看到結果；
@@ -18,8 +18,8 @@ import { readCandleFile } from '@/lib/datasource/CandleStorageAdapter';
 import { computeIndicators } from '@/lib/indicators';
 import { detectBreakoutEntry } from '@/lib/analysis/breakoutEntry';
 import { detectVReversal } from '@/lib/analysis/vReversalDetector';
-import { detectGapEntry } from '@/lib/analysis/gapEntry';
-import { detectFlatBottom } from '@/lib/analysis/highWinRateEntry';
+import { detectStrategyD } from '@/lib/analysis/gapEntry';
+import { detectStrategyE } from '@/lib/analysis/highWinRateEntry';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 
@@ -50,8 +50,8 @@ async function patchLatestSession(market: 'TW' | 'CN'): Promise<void> {
       const lastIdx = candles.length - 1;
       if (detectBreakoutEntry(candles, lastIdx)) matched.push('B');
       if (detectVReversal(candles, lastIdx)) matched.push('C');
-      if (detectGapEntry(candles, lastIdx)) matched.push('E');
-      if (detectFlatBottom(candles, lastIdx)) matched.push('F');
+      if (detectStrategyD(candles, lastIdx)) matched.push('D');
+      if (detectStrategyE(candles, lastIdx)) matched.push('E');
     } catch { /* 保底 A */ }
     r.matchedMethods = matched;
     patched++;

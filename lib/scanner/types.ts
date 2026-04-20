@@ -334,8 +334,8 @@ export interface ScanSessionTopPick {
 
 export type ScanDirection = 'long' | 'short' | 'daban';
 // 'daily' = A 六條件（預設）；'mtf' 已廢棄（改伺服器端過濾）
-// 'B'/'C'/'E'/'F' = 並列買法獨立 session（2026-04-20 架構）
-export type MtfMode = 'daily' | 'mtf' | 'B' | 'C' | 'E' | 'F';
+// 'B'/'C'/'D'/'E' = 並列買法獨立 session（2026-04-20 rename: 原 'E'=缺口→'D'、原 'F'=一字底→'E'）
+export type MtfMode = 'daily' | 'mtf' | 'B' | 'C' | 'D' | 'E';
 
 // ── 打板掃描結果 ────────────────────────────────────────────────────────────
 
@@ -417,8 +417,8 @@ export interface ScanSession {
   date: string;
   direction?: ScanDirection;
   multiTimeframeEnabled?: boolean;  // true = 週月線過濾已啟用
-  /** 並列買法 session 的買法代碼（2026-04-20 新增）：B/C/E/F；undefined = A 六條件 */
-  buyMethod?: 'B' | 'C' | 'E' | 'F';
+  /** 並列買法 session 的買法代碼：B/C/D/E（2026-04-20 rename: 原 'E'→'D'、原 'F'→'E'）；undefined = A 六條件 */
+  buyMethod?: 'B' | 'C' | 'D' | 'E';
   /** 掃描時段：intraday=盤中快照, post_close=收盤後正式結果 */
   sessionType?: SessionType;
   scanTime: string;

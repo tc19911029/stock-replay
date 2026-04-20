@@ -124,8 +124,8 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
         {/* Row 1.5: 買法選擇（只在做多時顯示） */}
         {scanDirection === 'long' && (
           <div className="flex items-center gap-1 flex-wrap">
-            {(['A', 'B', 'C', 'E', 'F'] as const).map(method => {
-              const labels: Record<string, string> = { A: 'A 六條件', B: 'B 突破', C: 'C V形', E: 'E 缺口', F: 'F 一字底' };
+            {(['A', 'B', 'C', 'D', 'E'] as const).map(method => {
+              const labels: Record<string, string> = { A: 'A 六條件', B: 'B 突破', C: 'C V形', D: 'D 缺口', E: 'E 一字底' };
               return (
                 <button key={method}
                   onClick={() => setActiveBuyMethod(method)}

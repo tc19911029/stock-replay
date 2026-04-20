@@ -87,17 +87,17 @@ interface FlatBottomResult {
 }
 
 /**
- * 一字底型態偵測（均線糾結底）
+ * 策略 E：一字底型態偵測（均線糾結底）
+ *
+ * 2026-04-20 命名重整：原「F 一字底」改為「策略 E」。
  *
  * 朱家泓《抓住飆股》25種型態 #9：
  * 1. 底部盤整≥2個月(40天)，上下幅度很小
  * 2. 至少MA5/MA10/MA20糾結在一起
  * 3. 盤整期間量極少，突破後量才放大
  * 4. 等大量突破確認後再買進
- *
- * 2026-04-20 Phase 1 export：給並列買法架構（F 一字底 strategy）使用。
  */
-export function detectFlatBottom(
+export function detectStrategyE(
   candles: CandleWithIndicators[],
   idx: number,
 ): FlatBottomResult | null {
@@ -181,6 +181,9 @@ export function detectFlatBottom(
     detail: `一字底型態突破（盤整${consolidationDays}天+均線糾結+量縮→大量突破，頸線${necklineLow.toFixed(1)}~${necklineHigh.toFixed(1)}）`,
   };
 }
+
+/** @deprecated 2026-04-20 改名為 detectStrategyE，本 alias 提供過渡期相容；下次清理時移除 */
+export const detectFlatBottom = detectStrategyE;
 
 // ── Entry Position Detection ───────────────────────────────────────────────────
 

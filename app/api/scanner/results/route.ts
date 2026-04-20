@@ -10,7 +10,7 @@ export const runtime = 'nodejs';
 const querySchema = z.object({
   market: z.enum(['TW', 'CN']).default('TW'),
   direction: z.enum(['long', 'short']).default('long'),
-  mtf: z.enum(['daily', 'mtf', 'B', 'C', 'E', 'F']).optional(),
+  mtf: z.enum(['daily', 'mtf', 'B', 'C', 'D', 'E']).optional(),
   date: z.string().optional(),
 });
 
@@ -25,9 +25,9 @@ export async function GET(req: NextRequest) {
   // 2026-04-20 路由分流：
   //   - mtf=daily (default) → A 六條件 session
   //   - mtf=mtf → 讀 daily + 伺服器端過濾 mtfScore≥3
-  //   - mtf=B/C/E/F → 讀買法獨立 session（filename mtfMode 位置存 B/C/E/F）
+  //   - mtf=B/C/D/E → 讀買法獨立 session（filename mtfMode 位置存 B/C/D/E；2026-04-20 rename: 原 E→D, 原 F→E）
   const wantMtf = mtfMode === 'mtf';
-  const isBuyMethod = mtfMode === 'B' || mtfMode === 'C' || mtfMode === 'E' || mtfMode === 'F';
+  const isBuyMethod = mtfMode === 'B' || mtfMode === 'C' || mtfMode === 'D' || mtfMode === 'E';
 
   try {
     if (dateParam) {

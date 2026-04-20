@@ -1,13 +1,13 @@
 /**
- * GET /api/scanner/buy-method?market=TW&date=2026-04-17&method=F
+ * GET /api/scanner/buy-method?market=TW&date=2026-04-17&method=D
  *
- * 並列買法架構的獨立掃描端點（Phase 5，2026-04-20）
+ * 並列買法架構的獨立掃描端點（2026-04-20 rename 後）
  *
- * 支援的 method：
- *   F — 一字底突破（detectFlatBottom）
- *   E — 缺口進場（detectGapEntry）
+ * 字母對照：
  *   B — 突破進場（detectBreakoutEntry，含 subType）
  *   C — V 形反轉（detectVReversal）
+ *   D — 缺口進場（detectStrategyD，原 detectGapEntry）
+ *   E — 一字底突破（detectStrategyE，原 detectFlatBottom）
  *
  * 資料來源：本地 L1 candles（data/candles/{market}/*.json）
  * 不動既有六條件掃描流程；各買法 detector 純 K 線邏輯 TW/CN 共用。
@@ -19,8 +19,8 @@ import fs from 'fs';
 import path from 'path';
 import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 import { loadLocalCandlesForDate, getLocalCandleDir } from '@/lib/datasource/LocalCandleStore';
-import { detectFlatBottom } from '@/lib/analysis/highWinRateEntry';
-import { detectGapEntry } from '@/lib/analysis/gapEntry';
+import { detectStrategyE } from '@/lib/analysis/highWinRateEntry';
+import { detectStrategyD } from '@/lib/analysis/gapEntry';
 import { detectBreakoutEntry } from '@/lib/analysis/breakoutEntry';
 import { detectVReversal } from '@/lib/analysis/vReversalDetector';
 import type { StockScanResult } from '@/lib/scanner/types';
@@ -31,7 +31,7 @@ export const maxDuration = 60;
 const querySchema = z.object({
   market: z.enum(['TW', 'CN']).default('TW'),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  method: z.enum(['F', 'E', 'B', 'C']),
+  method: z.enum(['B', 'C', 'D', 'E']),
 });
 
 type Method = z.infer<typeof querySchema>['method'];
@@ -42,14 +42,14 @@ function runDetector(
   idx: number,
 ): { matched: boolean; detail: string; subType?: string } {
   switch (method) {
-    case 'F': {
-      const r = detectFlatBottom(candles, idx);
+    case 'E': {
+      const r = detectStrategyE(candles, idx);
       return r?.isFlatBottom
         ? { matched: true, detail: r.detail }
         : { matched: false, detail: '' };
     }
-    case 'E': {
-      const r = detectGapEntry(candles, idx);
+    case 'D': {
+      const r = detectStrategyD(candles, idx);
       return r?.isGapEntry
         ? { matched: true, detail: r.detail }
         : { matched: false, detail: '' };

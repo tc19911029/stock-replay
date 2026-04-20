@@ -1,20 +1,24 @@
 'use client';
 
 /**
- * 買法條件面板（Phase 6 後半，2026-04-20）
+ * 買法條件面板（2026-04-20 重命名後）
  *
- * 根據當前選中買法（B/C/E/F）顯示對應的進場條件評分。
+ * 根據當前選中買法（B/C/D/E）顯示對應的進場條件評分。
  * A 六條件走既有 SixConditionsPanel，本元件不處理 A。
+ *
+ * 字母對照（2026-04-20 rename）：
+ *   B=盤整突破+回後、C=V 形反轉、D=缺口（原 E）、E=一字底（原 F）
+ *   F=變盤線（走圖輔助，無 detector）、G=切線（走圖輔助，無 detector）
  */
 
 import { useReplayStore } from '@/store/replayStore';
-import { detectFlatBottom } from '@/lib/analysis/highWinRateEntry';
-import { detectGapEntry } from '@/lib/analysis/gapEntry';
+import { detectStrategyE } from '@/lib/analysis/highWinRateEntry';
+import { detectStrategyD } from '@/lib/analysis/gapEntry';
 import { detectBreakoutEntry } from '@/lib/analysis/breakoutEntry';
 import { detectVReversal } from '@/lib/analysis/vReversalDetector';
 import type { CandleWithIndicators } from '@/types';
 
-type BuyMethod = 'B' | 'C' | 'E' | 'F';
+type BuyMethod = 'B' | 'C' | 'D' | 'E';
 
 interface ConditionItem {
   icon: string;
@@ -27,8 +31,8 @@ interface ConditionItem {
 const METHOD_TITLE: Record<BuyMethod, string> = {
   B: 'B 突破進場',
   C: 'C V 形反轉',
-  E: 'E 缺口進場',
-  F: 'F 一字底突破',
+  D: 'D 缺口進場',
+  E: 'E 一字底突破',
 };
 
 function evaluateMethod(
@@ -44,8 +48,8 @@ function evaluateMethod(
   const prev = candles[idx - 1];
 
   switch (method) {
-    case 'F': {
-      const r = detectFlatBottom(candles, idx);
+    case 'E': {
+      const r = detectStrategyE(candles, idx);
       const conditions: ConditionItem[] = [
         {
           icon: '①', name: '盤整 40 天以上',
@@ -72,8 +76,8 @@ function evaluateMethod(
       return { title, conditions, allPass: !!r };
     }
 
-    case 'E': {
-      const r = detectGapEntry(candles, idx);
+    case 'D': {
+      const r = detectStrategyD(candles, idx);
       const gapPct = prev && prev.high > 0 ? (c.open - prev.high) / prev.high * 100 : 0;
       const bodyPct = c.open > 0 && c.close > c.open ? (c.close - c.open) / c.open * 100 : 0;
       const volRatio = prev && prev.volume > 0 ? c.volume / prev.volume : 0;
@@ -137,12 +141,10 @@ function evaluateMethod(
 
     case 'C': {
       const r = detectVReversal(candles, idx);
-      // 手算顯示用的量比（對 5 日均量）
       const prev5 = candles.slice(idx - 5, idx);
       const vols = prev5.map(k => k.volume).filter(v => v > 0);
       const avgVol5 = vols.length > 0 ? vols.reduce((a, b) => a + b, 0) / vols.length : 0;
       const volRatio5 = avgVol5 > 0 ? c.volume / avgVol5 : 0;
-      // 黑 K 數
       const segment = candles.slice(idx - 10, idx);
       const blackK = segment.filter(k => k.close < k.open).length;
       const bodyPct = c.open > 0 && c.close > c.open ? (c.close - c.open) / c.open * 100 : 0;

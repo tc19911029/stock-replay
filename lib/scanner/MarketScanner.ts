@@ -446,12 +446,12 @@ export abstract class MarketScanner {
         if (detectVReversal(candles, lastIdx)) matchedMethods.push('C');
       } catch { /* non-critical */ }
       try {
-        const { detectGapEntry } = await import('@/lib/analysis/gapEntry');
-        if (detectGapEntry(candles, lastIdx)) matchedMethods.push('E');
+        const { detectStrategyD } = await import('@/lib/analysis/gapEntry');
+        if (detectStrategyD(candles, lastIdx)) matchedMethods.push('D');
       } catch { /* non-critical */ }
       try {
-        const { detectFlatBottom } = await import('@/lib/analysis/highWinRateEntry');
-        if (detectFlatBottom(candles, lastIdx)) matchedMethods.push('F');
+        const { detectStrategyE } = await import('@/lib/analysis/highWinRateEntry');
+        if (detectStrategyE(candles, lastIdx)) matchedMethods.push('E');
       } catch { /* non-critical */ }
 
       return {

@@ -110,7 +110,7 @@ export interface StrategyConfig {
   /** 策略類型；預設 'trend'（既有策略全部）。'kline-pattern' 自動 skip 戒律。 */
   strategyType?: StrategyType;
 
-  /** 對應的買法代碼（並列買法架構用，如 'A'/'B'/'C'/'E'/'F'）；undefined 視為 'A' */
+  /** 對應的買法代碼（並列買法架構用，如 'A'/'B'/'C'/'D'/'E'）；undefined 視為 'A'。2026-04-20 重整：D=缺口、E=一字底；F=變盤線（走圖輔助，無 detector） */
   buyMethod?: string;
 
   conditions:  StrategyConditionToggles;
@@ -530,18 +530,18 @@ export const ZHU_OPTIMIZED: StrategyConfig = {
  *   底部盤整≥40天 + MA5/10/20 糾結 + 量縮 → 大量長紅突破
  *
  * 此策略不套戒律（strategyType='kline-pattern'），書本 Part 3 定位為 K 線型態買法。
- * 底層偵測用 lib/analysis/highWinRateEntry.ts 的 detectFlatBottom()。
+ * 底層偵測用 lib/analysis/highWinRateEntry.ts 的 detectStrategyE()（原 detectFlatBottom）。
  */
 export const ZHU_FLAT_BOTTOM: StrategyConfig = {
   id:          'zhu-flat-bottom',
-  name:        '一字底突破（F）',
+  name:        '一字底突破（E）',
   description: '朱家泓《抓住飆股》型態 #9：底部盤整≥40天+均線糾結+量縮→大量長紅突破',
   version:     '1.0.0',
   author:      '朱家泓',
   createdAt:   '2026-04-20T00:00:00.000Z',
   isBuiltIn:   true,
   strategyType: 'kline-pattern',
-  buyMethod:    'F',
+  buyMethod:    'E',
   conditions:  ALL_CONDITIONS_ON,
   thresholds:  {
     ...BASE_THRESHOLDS,
@@ -560,18 +560,18 @@ export const ZHU_FLAT_BOTTOM: StrategyConfig = {
  *   向上跳空缺口 + 量≥1.3 + 紅K實體≥2.5%
  *
  * 不套戒律（strategyType='kline-pattern'），不限大盤趨勢。
- * 底層偵測用 lib/analysis/gapEntry.ts 的 detectGapEntry()。
+ * 底層偵測用 lib/analysis/gapEntry.ts 的 detectStrategyD()（原 detectGapEntry）。
  */
 export const ZHU_GAP: StrategyConfig = {
   id:          'zhu-gap',
-  name:        '缺口進場（E）',
+  name:        '缺口進場（D）',
   description: '《5步驟》位置 4 跳空上漲：開盤>前日最高+量比≥1.3+紅K實體≥2.5%',
   version:     '1.0.0',
   author:      '朱家泓',
   createdAt:   '2026-04-20T00:00:00.000Z',
   isBuiltIn:   true,
   strategyType: 'kline-pattern',
-  buyMethod:    'E',
+  buyMethod:    'D',
   conditions:  ALL_CONDITIONS_ON,
   thresholds:  {
     ...BASE_THRESHOLDS,
@@ -641,8 +641,8 @@ export const BUILT_IN_STRATEGIES: StrategyConfig[] = [
   ZHU_V1, ZHU_V2, ZHU_CONSERVATIVE,
   ZHU_V3_MULTIFACTOR, ZHU_V3_TW, ZHU_V3_CN,
   MASTER_CONSENSUS, ZHU_5STEPS, CHART_WALKING_SOP,
-  ZHU_FLAT_BOTTOM, // Phase 1：一字底突破（F）
-  ZHU_GAP,         // Phase 2：缺口進場（E）
+  ZHU_FLAT_BOTTOM, // Phase 1：一字底突破（E，2026-04-20 重命名）
+  ZHU_GAP,         // Phase 2：缺口進場（D，2026-04-20 重命名）
   ZHU_BREAKOUT,    // Phase 3：突破進場（B）
   ZHU_V_REVERSAL,  // Phase 4：V 形反轉（C）
 ];
