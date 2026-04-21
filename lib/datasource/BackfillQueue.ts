@@ -133,12 +133,11 @@ export function mergeIntoQueue(
 ): BackfillQueue {
   if (gaps.length === 0) return queue;
 
-  const now = new Date().toISOString();
   const newRanges: BackfillRange[] = gaps.map((g) => ({ from: g.fromDate, to: g.toDate }));
   const existing = queue.items.find((it) => it.symbol === symbol);
 
   if (existing) {
-    // 合併 ranges，以 from+to 去重
+    // 合併 ranges，以 from+to 去重；保留既有 attempts/detectedAt
     const seen = new Set(existing.ranges.map((r) => `${r.from}_${r.to}`));
     for (const r of newRanges) {
       const k = `${r.from}_${r.to}`;
@@ -151,7 +150,7 @@ export function mergeIntoQueue(
     queue.items.push({
       symbol,
       ranges: newRanges,
-      detectedAt: now,
+      detectedAt: new Date().toISOString(),
       attempts: 0,
     });
   }

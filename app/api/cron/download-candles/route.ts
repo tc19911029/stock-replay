@@ -24,6 +24,7 @@ import {
   loadBackfillQueue,
   saveBackfillQueue,
   markAttempt,
+  removeFromQueue,
   MAX_ATTEMPTS,
 } from '@/lib/datasource/BackfillQueue';
 import { dataProvider } from '@/lib/datasource/MultiMarketProvider';
@@ -92,6 +93,8 @@ export async function GET(req: NextRequest) {
           const filled = await dataProvider.getCandlesRange(item.symbol, earliest, latest);
           if (filled.length > 0) {
             await saveLocalCandles(item.symbol, market, filled);
+            // 成功補拉 → 立即從 queue 移除，避免主下載/verify 中間 crash 時下輪重跑
+            removeFromQueue(queue, item.symbol);
             backfillFilled++;
           } else {
             markAttempt(queue, item.symbol, 'provider returned empty');
