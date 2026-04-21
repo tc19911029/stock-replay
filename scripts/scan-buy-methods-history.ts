@@ -168,21 +168,22 @@ async function main(): Promise<void> {
     const dates = listRecentTradingDays(mkt, days);
     console.log(`\n📅 [${mkt}] B/C/D/E 歷史掃描 ${dates.length} 天: ${dates[0]} ~ ${dates[dates.length - 1]}`);
 
-    // TW 名字 map
+    // 名字 map：優先用 scanner 股票清單（TW/TWO 都有），TW 再用 TWSE API 補漏
     let nameMap = new Map<string, string>();
+    for (const s of allStocks) {
+      if (s.name) {
+        const suffix = mkt === 'TW' ? /\.(TW|TWO)$/i : /\.(SS|SZ)$/i;
+        const code = s.symbol.replace(suffix, '');
+        nameMap.set(code, s.name);
+      }
+    }
     if (mkt === 'TW') {
       try {
         const names = await getTWSENames();
-        nameMap = new Map(Object.entries(names));
-      } catch { /* skip */ }
-    } else {
-      // CN 名字從 scanner 股票清單
-      for (const s of allStocks) {
-        if (s.name) {
-          const code = s.symbol.replace(/\.(SS|SZ)$/i, '');
-          nameMap.set(code, s.name);
+        for (const [code, name] of Object.entries(names)) {
+          if (!nameMap.has(code)) nameMap.set(code, name);
         }
-      }
+      } catch { /* skip */ }
     }
 
     for (const date of dates) {
