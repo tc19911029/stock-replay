@@ -6,7 +6,7 @@
 //   實際做事交給宣告 runtime='nodejs' 的 API route。
 //   這樣 Edge bundler 才不會在 HMR 後把 fs 依賴拉進來炸掉（歷史傷疤：DabanScanner 2026-04-17）。
 
-import { isMarketOpen, isPostCloseWindow } from '@/lib/datasource/marketHours';
+import { isMarketOpen, isPostCloseWindow, getLastTradingDay } from '@/lib/datasource/marketHours';
 import { isTradingDay } from '@/lib/utils/tradingDay';
 
 function localUrl(path: string): string {
@@ -78,17 +78,16 @@ export async function register() {
   }
 
   // ── 盤後：L1 下載（走 download-candles route） ──
+  // 規則：收盤後到隔日盤前之間都可跑。以「最後一個交易日」為 key 去重，
+  // 確保 dev server 若在 postClose 窗口後才啟動，當天 L1 仍會補下載。
   const l1Downloaded = { TW: '', CN: '' };
   async function downloadL1(market: 'TW' | 'CN') {
-    const tz = market === 'TW' ? 'Asia/Taipei' : 'Asia/Shanghai';
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
+    if (isMarketOpen(market)) return; // 盤中不下（收盤價還沒定）
+    const lastTrading = getLastTradingDay(market);
+    if (l1Downloaded[market] === lastTrading) return;
 
-    if (l1Downloaded[market] === today) return;
-    if (!isTradingDay(today, market)) return;
-    if (!isPostCloseWindow(market)) return;
-
-    l1Downloaded[market] = today; // 先標記，防重複執行
-    console.log(`[local-cron] ${market} 觸發 download-candles...`);
+    l1Downloaded[market] = lastTrading; // 先標記，防重複執行
+    console.log(`[local-cron] ${market} 觸發 download-candles (lastTrading=${lastTrading})...`);
     await callRoute(`/api/cron/download-candles?market=${market}`, `${market} download-candles`);
   }
 
