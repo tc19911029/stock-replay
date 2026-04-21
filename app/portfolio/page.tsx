@@ -31,6 +31,11 @@ function marketOf(symbol: string): 'TW' | 'CN' {
   return classifyMarket(symbol) === 'CN' ? 'CN' : 'TW';
 }
 
+/** 顯示成本/均價：至少 2 位、最多 4 位（陸股均價常見 4 位小數如 302.9453） */
+function formatPrice(v: number): string {
+  return v.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+}
+
 function calcNetPnL(symbol: string, shares: number, costPrice: number, currentPrice: number) {
   if (currentPrice <= 0) return { pnl: 0, pnlPct: 0 };
   const rates = FEE_RATES[marketOf(symbol)];
@@ -160,7 +165,7 @@ export default function PortfolioPage() {
           h.symbol,
           h.name,
           h.shares,
-          h.costPrice.toFixed(2),
+          h.costPrice.toFixed(4),
           h.buyDate,
           currentPrice > 0 ? currentPrice.toFixed(2) : '',
           currentPrice > 0 ? pnl.toFixed(0) : '',
@@ -252,8 +257,8 @@ export default function PortfolioPage() {
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">成本價（買進均價）</label>
-                <Input type="number" value={form.costPrice} onChange={e => setForm(f => ({ ...f, costPrice: e.target.value }))}
-                  placeholder="150.00"
+                <Input type="number" step="0.0001" value={form.costPrice} onChange={e => setForm(f => ({ ...f, costPrice: e.target.value }))}
+                  placeholder="150.0000（陸股均價常為 4 位小數）"
                   className="bg-muted border-border focus:border-blue-500" />
               </div>
             </div>
@@ -307,7 +312,7 @@ export default function PortfolioPage() {
                       <span className="text-xs text-muted-foreground truncate">{h.name}</span>
                     </div>
                     <div className="text-[10px] text-muted-foreground mt-0.5">
-                      {h.shares.toLocaleString()} 股 · 均價 <span className="text-yellow-400 font-mono">${h.costPrice.toFixed(2)}</span>
+                      {h.shares.toLocaleString()} 股 · 均價 <span className="text-yellow-400 font-mono">${formatPrice(h.costPrice)}</span>
                       · 買進 {h.buyDate}
                     </div>
                   </div>
