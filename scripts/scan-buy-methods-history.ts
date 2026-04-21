@@ -124,7 +124,7 @@ async function scanMarketDate(
       resultCount: results.length,
       results,
     };
-    await saveScanSession(session);
+    await saveScanSession(session, { allowOverwritePostClose: true });
   }
   console.log(`   ✅ ${date} B=${buckets.B.length} C=${buckets.C.length} D=${buckets.D.length} E=${buckets.E.length} F=${buckets.F.length}`);
 }
