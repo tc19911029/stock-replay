@@ -125,6 +125,34 @@ export async function register() {
     await callRoute(`/api/cron/download-candles?market=${market}`, `${market} download-candles`);
   }
 
+  // ── 盤後：L2 快照補 L1（收盤後 30 分鐘，TW≥14:00 / CN≥15:30，每日一次） ──
+  // 比 download-candles 快（5 秒完成全市場），用於補 download-candles 遺漏的個股
+  const l1SnapshotDone = { TW: '', CN: '' };
+  async function appendL1FromSnapshot(market: 'TW' | 'CN') {
+    if (isMarketOpen(market)) return;
+    const lastTrading = getLastTradingDay(market);
+    if (l1SnapshotDone[market] === lastTrading) return;
+
+    // 30 分鐘緩衝：TW 收盤 13:30 → 等到 14:00；CN 收盤 15:00 → 等到 15:30
+    const tz = market === 'TW' ? 'Asia/Taipei' : 'Asia/Shanghai';
+    const now = new Date();
+    const hhmm = parseInt(
+      new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false })
+        .format(now).replace(':', ''),
+      10,
+    );
+    const triggerMin = market === 'TW' ? 1400 : 1530; // 14:00 CST / 15:30 CST
+    if (hhmm < triggerMin) return;
+
+    l1SnapshotDone[market] = lastTrading;
+    console.log(`[local-cron] ${market} append-from-snapshot 觸發 (lastTrading=${lastTrading})...`);
+    const json = await callRoute(
+      `/api/cron/append-from-snapshot?market=${market}`,
+      `${market} append-from-snapshot`,
+    ) as { appended?: number; already?: number } | null;
+    console.log(`[local-cron] ${market} append-from-snapshot 完成: appended=${(json as { appended?: number })?.appended ?? '?'}`);
+  }
+
   // ── 打板開盤確認（CN 9:25–9:35 CST，每日一次） ──
   const dabanConfirmed = { date: '' };
   async function maybeConfirmDabanOpen() {
@@ -164,6 +192,10 @@ export async function register() {
     downloadL1('TW').catch(err => console.error('[local-cron] TW downloadL1:', err));
     downloadL1('CN').catch(err => console.error('[local-cron] CN downloadL1:', err));
   }, 10 * 60 * 1000);
+  setInterval(() => {
+    appendL1FromSnapshot('TW').catch(err => console.error('[local-cron] TW appendL1FromSnapshot:', err));
+    appendL1FromSnapshot('CN').catch(err => console.error('[local-cron] CN appendL1FromSnapshot:', err));
+  }, 5 * 60 * 1000);
 
   // 盤後買法掃描：每分鐘檢查，時間窗口內對 B/C/D/E/F 各觸發一次
   setInterval(() => {
