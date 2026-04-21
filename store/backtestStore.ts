@@ -329,23 +329,16 @@ export const useBacktestStore = create<BacktestState>()(
           }
           return;
         }
-        // B/C/D/E：刷新對應買法的日期列表（fetchCronDates 讀 activeBuyMethod from store）
-        get().fetchCronDates(market, 'long');
-        // B/C/D/E：讀獨立買法 session（standalone scanner 產生、走 mtfMode=買法代碼）
-        if (!scanDate) return;
-        set({ isLoadingBuyMethod: true, scanResults: [], performance: [], scanError: null });
-        try {
-          const res = await fetch(`/api/scanner/results?market=${market}&date=${scanDate}&direction=long&mtf=${activeBuyMethod}`);
-          const json = await res.json();
-          if (!res.ok || !json.ok) throw new Error(json.error ?? '載入失敗');
-          const session = (json as { sessions?: Array<{ results: StockScanResult[] }> })?.sessions?.[0];
-          set({ scanResults: session?.results ?? [], isLoadingBuyMethod: false });
-        } catch (err) {
-          set({
-            isLoadingBuyMethod: false,
-            scanError: err instanceof Error ? err.message : '買法掃描失敗',
-          });
-        }
+        // B/C/D/E：刷新對應買法的日期列表，再載入最新一天資料
+        await get().fetchCronDates(market, 'long');
+        // 若已有 scanDate 直接用，否則從 cronDates 選最新有結果的日期
+        const targetDate = scanDate ?? (() => {
+          const dates = get().cronDates.filter(c => c.market === market);
+          return (dates.find(c => c.resultCount > 0) ?? dates[0])?.date ?? null;
+        })();
+        if (!targetDate) return;
+        // 委託 loadCronSession（會補填 forward performance）
+        await loadCronSession(market, targetDate, { scanOnly: true, direction: 'long' });
       },
       setStrategy:           (partial)  => set(s => ({ strategy: { ...s.strategy, ...partial } })),
       setCapitalConstraints: (partial)  => set(s => ({ capitalConstraints: { ...s.capitalConstraints, ...partial } })),
