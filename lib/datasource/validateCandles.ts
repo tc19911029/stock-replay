@@ -25,9 +25,15 @@ interface ValidationResult {
  * 3. Duplicate dates
  * 4. Out-of-order dates
  * 5. Extreme price jumps (>50% single-day) as warnings
+ *
+ * market: CN allows close > high / close < low — closing auction (收盤集合競價)
+ *   can produce a price outside the main session's high/low range.
+ *   TW adjusted prices can similarly produce close < low (ex-rights artifact).
+ *   Both are treated as warnings rather than hard errors when market is provided.
  */
 export function validateCandles(
   raw: CandleWithIndicators[],
+  market?: 'TW' | 'CN',
 ): ValidationResult {
   const issues: string[] = [];
   let removed = 0;
@@ -56,10 +62,23 @@ export function validateCandles(
     }
 
     // Check OHLC consistency (open, close should be within [low, high])
-    if (c.open > c.high || c.open < c.low || c.close > c.high || c.close < c.low) {
-      issues.push(`[${c.date}] OHLC 不一致: O=${c.open} H=${c.high} L=${c.low} C=${c.close}`);
+    // Exception: CN closing auction can produce close outside main-session high/low;
+    //            TW adjusted prices can produce close < low on ex-rights days.
+    //            Treat these as warnings (don't remove) when market is known.
+    if (c.open > c.high || c.open < c.low) {
+      issues.push(`[${c.date}] open 不在 high/low 範圍內: O=${c.open} H=${c.high} L=${c.low}`);
       removed++;
       return false;
+    }
+    if (c.close > c.high || c.close < c.low) {
+      if (market) {
+        issues.push(`[${c.date}] close 超出 high/low 範圍（${market} 已知現象）: C=${c.close} H=${c.high} L=${c.low}`);
+        // warn only, don't remove
+      } else {
+        issues.push(`[${c.date}] OHLC 不一致: O=${c.open} H=${c.high} L=${c.low} C=${c.close}`);
+        removed++;
+        return false;
+      }
     }
 
     return true;
