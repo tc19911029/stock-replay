@@ -13,6 +13,12 @@
 import { readCandleFile } from './CandleStorageAdapter';
 import { detectCandleGaps, type CandleGap } from './validateCandles';
 import { tradingDaysBetween } from '@/lib/utils/tradingDay';
+import {
+  loadBackfillQueue,
+  saveBackfillQueue,
+  mergeIntoQueue,
+  MAX_ATTEMPTS,
+} from './BackfillQueue';
 
 const IS_VERCEL = !!process.env.VERCEL;
 
@@ -221,6 +227,31 @@ export async function verifyDownload(
 
   // 存報告
   await saveReportToBlob(report);
+
+  // ── 更新 BackfillQueue：把本次發現的 gap 寫入隊列，清掉已修復的 ──────────────
+  try {
+    const queue = await loadBackfillQueue(market);
+    const gapSymbols = new Set(gapDetails.map((g) => g.symbol));
+
+    // 清掉已修復的（上次在 queue 但本次 gap=0）
+    const before = queue.items.length;
+    queue.items = queue.items.filter((it) => gapSymbols.has(it.symbol));
+    const cleared = before - queue.items.length;
+
+    // 合併本次發現的 gap
+    for (const gd of gapDetails) {
+      mergeIntoQueue(queue, gd.symbol, gd.gaps);
+    }
+
+    await saveBackfillQueue(queue);
+    const abandoned = queue.items.filter((it) => it.attempts >= MAX_ATTEMPTS).length;
+    console.info(
+      `[DownloadVerifier] ${market} ${targetDate}: backfill queue = ${queue.items.length} items ` +
+      `(cleared ${cleared}, abandoned ${abandoned})`,
+    );
+  } catch (err) {
+    console.warn('[DownloadVerifier] backfill queue update failed:', err);
+  }
 
   console.info(
     `[DownloadVerifier] ${market} ${targetDate}: ` +

@@ -133,6 +133,29 @@ export async function writeCandleFile(
     stripped = incoming.sort((a, b) => a.date.localeCompare(b.date));
   }
 
+  // Gap guard：寫入前偵測合併後結果的 gap（交易日 > 8）
+  // 只 warn log，不 reject — 寫入仍有價值（新日期加入），實際補拉由
+  // DownloadVerifier → BackfillQueue → cron 閉環處理。
+  // 新增/擴大的 gap 才 log，避免已知舊 gap 每次都噴訊息。
+  try {
+    const { detectCandleGaps } = await import('./validateCandles');
+    const newGaps = detectCandleGaps(stripped, 10, market, 8);
+    if (newGaps.length > 0) {
+      const existingGapKeys = new Set(
+        existing
+          ? detectCandleGaps(existing.candles, 10, market, 8).map((g) => `${g.fromDate}_${g.toDate}`)
+          : [],
+      );
+      const introduced = newGaps.filter((g) => !existingGapKeys.has(`${g.fromDate}_${g.toDate}`));
+      if (introduced.length > 0) {
+        console.warn(
+          `[CandleStorage] ${market} ${symbol}: ${introduced.length} new gap(s) after merge`,
+          introduced.slice(0, 3),
+        );
+      }
+    }
+  } catch { /* gap 偵測失敗不擋主流程 */ }
+
   const lastDate = stripped[stripped.length - 1].date;
   const data: CandleFileData = {
     symbol,

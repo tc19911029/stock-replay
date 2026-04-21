@@ -20,6 +20,13 @@ import { readIntradaySnapshot, IntradayQuote } from '@/lib/datasource/IntradayCa
 import { saveDownloadManifest } from '@/lib/datasource/DownloadManifest';
 import { verifyDownload } from '@/lib/datasource/DownloadVerifier';
 import { spotCheckL1 } from '@/lib/datasource/L1SpotCheck';
+import {
+  loadBackfillQueue,
+  saveBackfillQueue,
+  markAttempt,
+  MAX_ATTEMPTS,
+} from '@/lib/datasource/BackfillQueue';
+import { dataProvider } from '@/lib/datasource/MultiMarketProvider';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -57,6 +64,54 @@ export async function GET(req: NextRequest) {
   try {
     const stocks = await scanner.getStockList();
     console.info(`[download-candles] ${market}: 開始下載 ${stocks.length} 檔 K 線（增量模式）`);
+
+    // ── Step -1: 消費 Backfill Queue（上輪 verify 發現缺棒的股票，針對性補拉） ──
+    // 在主下載之前跑，因為補拉也會觸發 writeCandleFile merge，讓主下載看到已補齊狀態。
+    // 預算：此步驟 30 秒內結束，超過就剩餘留到下一輪。
+    const backfillStart = Date.now();
+    const BACKFILL_BUDGET_MS = 30_000;
+    let backfillFilled = 0;
+    let backfillFailed = 0;
+    let backfillSkipped = 0;
+    try {
+      const queue = await loadBackfillQueue(market);
+      const actionable = queue.items.filter((it) => it.attempts < MAX_ATTEMPTS);
+      if (actionable.length > 0) {
+        console.info(`[download-candles] ${market}: backfill queue = ${actionable.length} actionable items`);
+      }
+      for (const item of actionable) {
+        if (Date.now() - backfillStart > BACKFILL_BUDGET_MS) {
+          backfillSkipped = actionable.length - (backfillFilled + backfillFailed);
+          console.warn(`[download-candles] ${market}: backfill budget exhausted, ${backfillSkipped} items remain`);
+          break;
+        }
+        try {
+          // 展開所有 range，一次跨所有 gap 抓（上游 provider 都支援 range）
+          const earliest = item.ranges.reduce((m, r) => r.from < m ? r.from : m, item.ranges[0].from);
+          const latest = item.ranges.reduce((m, r) => r.to > m ? r.to : m, item.ranges[0].to);
+          const filled = await dataProvider.getCandlesRange(item.symbol, earliest, latest);
+          if (filled.length > 0) {
+            await saveLocalCandles(item.symbol, market, filled);
+            backfillFilled++;
+          } else {
+            markAttempt(queue, item.symbol, 'provider returned empty');
+            backfillFailed++;
+          }
+        } catch (err) {
+          markAttempt(queue, item.symbol, String(err instanceof Error ? err.message : err));
+          backfillFailed++;
+        }
+      }
+      // 寫回 attempts 計數（成功項會在下一輪 verify 因為 gap=0 被清）
+      await saveBackfillQueue(queue);
+      if (backfillFilled > 0 || backfillFailed > 0) {
+        console.info(
+          `[download-candles] ${market}: backfill 完成 — ${backfillFilled} 補齊, ${backfillFailed} 失敗, ${backfillSkipped} 跳過`,
+        );
+      }
+    } catch (err) {
+      console.warn('[download-candles] backfill consume failed:', err);
+    }
 
     // ── Step 0: 預載 L2 快照（API 失敗時作為 fallback） ──
     let l2Map: Map<string, IntradayQuote> | null = null;
@@ -181,6 +236,11 @@ export async function GET(req: NextRequest) {
       durationSec: parseFloat(duration),
       maBase: maBaseResult,
       verify: verifyResult,
+      backfill: {
+        filled: backfillFilled,
+        failed: backfillFailed,
+        skipped: backfillSkipped,
+      },
       spotCheck: spotCheck ? { passed: spotCheck.passed, failed: spotCheck.failed, suspicious: spotCheck.suspicious } : undefined,
     });
   } catch (err) {

@@ -63,34 +63,43 @@ interface TWSEResponse {
   data?: TWSERow[];
 }
 
+/**
+ * 拉單月 TWSE K 棒。
+ *
+ * 語義區分：
+ *   - 成功有資料 → return Candle[]（長度 > 0）
+ *   - 該月合法無交易日（新股未上市/停牌整月）→ return []（stat=OK 但 data 為空，或 stat 明確標註無資料）
+ *   - API 失敗（HTTP error、timeout、JSON parse、限流）→ throw，讓 caller 決定 retry
+ */
 async function fetchTWSEMonth(code: string, dateStr: string): Promise<Candle[]> {
   const url = `https://www.twse.com.tw/exchangeReport/STOCK_DAY?response=json&date=${dateStr}&stockNo=${code}`;
-  try {
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(10_000),
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; rockstock/2.0)' },
-    });
-    if (!res.ok) return [];
-    const json = (await res.json()) as TWSEResponse;
-    if (json.stat !== 'OK' || !json.data) return [];
-
-    return json.data
-      .map((row) => {
-        const date = parseROCDate(row[0]);
-        if (!date) return null;
-        const open = num(row[3]);
-        const high = num(row[4]);
-        const low = num(row[5]);
-        const close = num(row[6]);
-        // TWSE volume 是股數，除以 1000 轉張
-        const volume = Math.round(num(row[1]) / 1000);
-        if (isNaN(close) || close <= 0) return null;
-        return { date, open, high, low, close, volume };
-      })
-      .filter((c): c is Candle => c !== null);
-  } catch {
-    return [];
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(10_000),
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; rockstock/2.0)' },
+  });
+  if (!res.ok) throw new Error(`TWSE HTTP ${res.status} (${code} ${dateStr})`);
+  const json = (await res.json()) as TWSEResponse;
+  // stat 非 OK 不一定是 API 失敗；「很抱歉，沒有符合條件的資料!」屬於合法空月
+  if (json.stat && json.stat !== 'OK') {
+    if (/沒有符合|無資料/.test(json.stat)) return [];
+    throw new Error(`TWSE stat=${json.stat} (${code} ${dateStr})`);
   }
+  if (!json.data) return [];
+
+  return json.data
+    .map((row) => {
+      const date = parseROCDate(row[0]);
+      if (!date) return null;
+      const open = num(row[3]);
+      const high = num(row[4]);
+      const low = num(row[5]);
+      const close = num(row[6]);
+      // TWSE volume 是股數，除以 1000 轉張
+      const volume = Math.round(num(row[1]) / 1000);
+      if (isNaN(close) || close <= 0) return null;
+      return { date, open, high, low, close, volume };
+    })
+    .filter((c): c is Candle => c !== null);
 }
 
 // ── TPEx 上櫃股 fetch（單月） ─────────────────────────────────────────────────
@@ -104,6 +113,7 @@ interface TPExNewResponse {
   }[];
 }
 
+/** 拉單月 TPEx K 棒，語義同 fetchTWSEMonth：API 失敗一律 throw */
 async function fetchTPExMonth(code: string, dateStr: string): Promise<Candle[]> {
   // dateStr 格式：20260401 → 轉為 2026/04/01
   const year = dateStr.substring(0, 4);
@@ -113,40 +123,49 @@ async function fetchTPExMonth(code: string, dateStr: string): Promise<Candle[]> 
   const url =
     `https://www.tpex.org.tw/www/zh-tw/afterTrading/tradingStock` +
     `?date=${formattedDate}&code=${code}&response=json`;
-  try {
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(10_000),
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
-      },
-    });
-    if (!res.ok) return [];
-    const json = (await res.json()) as TPExNewResponse;
-    if (json.stat !== 'ok') return [];
-    const rows = json.tables?.[0]?.data;
-    if (!rows || rows.length === 0) return [];
-
-    return rows
-      .map((row) => {
-        // 新格式: [日期(115/04/01), 成交張數, 成交仟元, 開盤, 最高, 最低, 收盤, 漲跌, 筆數]
-        const date = parseROCDate(row[0]);
-        if (!date) return null;
-        const open = num(row[3]);
-        const high = num(row[4]);
-        const low = num(row[5]);
-        const close = num(row[6]);
-        const volume = num(row[1]); // 已經是張數，不需轉換
-        if (isNaN(close) || close <= 0) return null;
-        return { date, open, high, low, close, volume };
-      })
-      .filter((c): c is Candle => c !== null);
-  } catch {
-    return [];
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(10_000),
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+    },
+  });
+  if (!res.ok) throw new Error(`TPEx HTTP ${res.status} (${code} ${dateStr})`);
+  const json = (await res.json()) as TPExNewResponse;
+  if (json.stat && json.stat !== 'ok') {
+    // TPEx 新端點無資料時 stat 可能為 'no-data' 之類；視為合法空月
+    if (/no.?data|沒有|無資料/i.test(json.stat)) return [];
+    throw new Error(`TPEx stat=${json.stat} (${code} ${dateStr})`);
   }
+  const rows = json.tables?.[0]?.data;
+  if (!rows || rows.length === 0) return [];
+
+  return rows
+    .map((row) => {
+      // 新格式: [日期(115/04/01), 成交張數, 成交仟元, 開盤, 最高, 最低, 收盤, 漲跌, 筆數]
+      const date = parseROCDate(row[0]);
+      if (!date) return null;
+      const open = num(row[3]);
+      const high = num(row[4]);
+      const low = num(row[5]);
+      const close = num(row[6]);
+      const volume = num(row[1]); // 已經是張數，不需轉換
+      if (isNaN(close) || close <= 0) return null;
+      return { date, open, high, low, close, volume };
+    })
+    .filter((c): c is Candle => c !== null);
 }
 
 // ── 批次抓取多月份（含限流） ──────────────────────────────────────────────────
 
+/**
+ * 批次抓取多月份（含限流 + retry）。
+ *
+ * 每月獨立 try：成功累積、失敗進 retry 隊列。最多 2 次 retry（等 2s、4s 退避）。
+ * 全部嘗試完仍失敗的月份 log warn 但不擋整體 — caller（writeCandleFile）會 merge
+ * 舊檔保留既有日期，下一輪 cron 會透過 backfill queue 再補。
+ *
+ * 相較舊版 try/catch 吞錯回 []：現在單月失敗會被看見、被 retry、最終失敗會被 log。
+ */
 async function fetchMonths(
   code: string,
   months: number,
@@ -165,21 +184,60 @@ async function fetchMonths(
   }
 
   // 分批抓取：
-  // TWSE 限流嚴格，每批 3 個月並行，間隔 2 秒（比之前快）
+  // TWSE 限流嚴格，每批 3 個月並行，間隔 2 秒
   // TPEx 較寬鬆，每批 4 個月，間隔 1 秒
   const BATCH_SIZE = otc ? 4 : 3;
   const DELAY_MS = otc ? 1000 : 2000;
   const allCandles: Candle[] = [];
 
-  for (let i = 0; i < dateStrs.length; i += BATCH_SIZE) {
-    const batch = dateStrs.slice(i, i + BATCH_SIZE);
-    const results = await Promise.all(batch.map((ds) => fetcher(code, ds)));
-    allCandles.push(...results.flat());
-
-    // 不是最後一批就等待
-    if (i + BATCH_SIZE < dateStrs.length) {
-      await new Promise((r) => setTimeout(r, DELAY_MS));
+  const runBatch = async (queue: string[], label: string): Promise<string[]> => {
+    const stillFailing: { ds: string; err: string }[] = [];
+    for (let i = 0; i < queue.length; i += BATCH_SIZE) {
+      const batch = queue.slice(i, i + BATCH_SIZE);
+      const settled = await Promise.allSettled(
+        batch.map((ds) => fetcher(code, ds)),
+      );
+      settled.forEach((r, idx) => {
+        const ds = batch[idx];
+        if (r.status === 'fulfilled') {
+          allCandles.push(...r.value);
+        } else {
+          stillFailing.push({ ds, err: String(r.reason?.message ?? r.reason) });
+        }
+      });
+      if (i + BATCH_SIZE < queue.length) {
+        await new Promise((r) => setTimeout(r, DELAY_MS));
+      }
     }
+    if (stillFailing.length > 0) {
+      console.warn(
+        `[TWSEHist] ${label} ${code}: ${stillFailing.length}/${queue.length} months failed`,
+        stillFailing.slice(0, 3),
+      );
+    }
+    return stillFailing.map((f) => f.ds);
+  };
+
+  // Pass 1
+  let retryQueue = await runBatch(dateStrs, 'initial');
+
+  // Retry pass 2（等 2s）
+  if (retryQueue.length > 0) {
+    await new Promise((r) => setTimeout(r, 2000));
+    retryQueue = await runBatch(retryQueue, 'retry-1');
+  }
+
+  // Retry pass 3（等 4s）
+  if (retryQueue.length > 0) {
+    await new Promise((r) => setTimeout(r, 4000));
+    retryQueue = await runBatch(retryQueue, 'retry-2');
+  }
+
+  if (retryQueue.length > 0) {
+    console.error(
+      `[TWSEHist] ${code}: ${retryQueue.length} months PERMANENTLY missing after retries`,
+      retryQueue,
+    );
   }
 
   // 去重 + 排序（oldest first）
