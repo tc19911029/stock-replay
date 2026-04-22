@@ -149,27 +149,28 @@ export function detectTrend(
 ): TrendState {
   if (index < 20) return '盤整';
 
-  // 頭部：只用已確認 pivot（不用 provisional）
-  //   避免今日 close 比昨日確認頭低一點就誤判「頭頭低」→ 盤整
-  //   但若今日 close 已超過最近確認頭，立即視為更高的頭（即時多頭確認）
+  // 頭部 & 底部：都只用已確認 pivot（不用 provisional）
+  //   provisional 的「開放段 running min/max」在段內若尚未突破/跌破前一確認 pivot，
+  //   會偽造出「底底高」或「頭頭低」假象（例如 603626 今日 low 23.23 > 確認底 22.9
+  //   會把真正的確認底底低 22.9 < 23.47 蓋掉，誤判為盤整）。
   const confirmedPivots = findPivots(candles, index, 8, 0.02, false);
   const highs = confirmedPivots.filter(p => p.type === 'high').slice(0, 2);
-
-  // 底部：保留 provisional，讓跌破確認底的訊號即時反映
-  const allPivots = findPivots(candles, index, 8, 0.02, true);
-  const lows = allPivots.filter(p => p.type === 'low').slice(0, 2);
+  const lows  = confirmedPivots.filter(p => p.type === 'low').slice(0, 2);
 
   // 書本要求同時看到最近兩個頭 + 最近兩個底才能判斷
   if (highs.length < 2 || lows.length < 2) return '盤整';
 
   const c = candles[index];
-  // 今日 close 突破最近確認頭 → 立即視為頭頭高（空頭/盤整轉多頭的即時訊號）
+  // 即時覆蓋：今日 close 已突破/跌破最近確認 pivot 時，立即更新結構判定
+  //   immediateNewHigh：空頭/盤整轉多頭的即時確認
+  //   immediateNewLow ：多頭/盤整轉空頭的即時確認
   const immediateNewHigh = c.close > highs[0].price;
+  const immediateNewLow  = c.close < lows[0].price;
 
   const higherHighs = highs[0].price > highs[1].price || immediateNewHigh;
-  const higherLows  = lows[0].price  > lows[1].price;
+  const higherLows  = !immediateNewLow && lows[0].price > lows[1].price;
   const lowerHighs  = !higherHighs && highs[0].price < highs[1].price;
-  const lowerLows   = lows[0].price  < lows[1].price;
+  const lowerLows   = lows[0].price < lows[1].price || immediateNewLow;
 
   if (higherHighs && higherLows) return '多頭';
   if (lowerHighs  && lowerLows)  return '空頭';
