@@ -67,6 +67,37 @@ export abstract class MarketScanner {
     this._realtimeQuotes = quotes;
   }
 
+  /**
+   * 粗掃：L2 快照夠健康時（>= 80% 預期），把沒報價的股票先 drop，避免逐檔讀 L1 的時間爆炸。
+   * 鐵律 #3：全市場掃描必須使用快照粗掃。
+   * L2 不健康時（剛啟動、來源掛）原樣返回，避免漏訊號。
+   */
+  protected prefilterByL2(stocks: StockEntry[], tag: string): StockEntry[] {
+    const L2_PREFILTER_MIN_RATIO = 0.8;
+    const expectedCount = this.getMarketConfig().marketId === 'CN' ? 3062 : 1956;
+    const l2Map = this._realtimeQuotes;
+    if (!l2Map || l2Map.size < expectedCount * L2_PREFILTER_MIN_RATIO) {
+      console.info(
+        `[${tag}] ${this.getMarketConfig().marketId} 跳過粗掃 (L2 size=${l2Map?.size ?? 0})`
+      );
+      return stocks;
+    }
+    let noQuote = 0;
+    let zeroVol = 0;
+    const out = stocks.filter(({ symbol }) => {
+      const code = symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
+      const q = l2Map.get(code);
+      if (!q || q.close <= 0) { noQuote++; return false; }
+      if (q.volume <= 0) { zeroVol++; return false; }
+      return true;
+    });
+    console.info(
+      `[${tag}] ${this.getMarketConfig().marketId} 粗掃: ${stocks.length} → ${out.length} ` +
+      `(L2 無報價 ${noQuote}, 零量 ${zeroVol}, L2 size=${l2Map.size})`
+    );
+    return out;
+  }
+
   /** 設置 L3 API fallback 預算上限（Vercel 環境用） */
   setL3Budget(n: number): void {
     this._l3Budget = n;
@@ -213,9 +244,8 @@ export abstract class MarketScanner {
           if (this._realtimeQuotes) {
             const code = symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
             const quote = this._realtimeQuotes.get(code);
-            if (!quote || quote.close <= 0) {
-              console.warn(`[fetchCandlesForScan] L2 miss: ${symbol} code=${code} mapSize=${this._realtimeQuotes.size} found=${!!quote} close=${quote?.close ?? 'N/A'}`);
-            }
+            // L2 miss 很常見（股票停牌/今日未交易），改由 caller 做前置粗掃再決定是否進來，
+            // 這裡靜默不再逐檔 WARN log（以前一次掃會堆 11000+ 條，佔滿 log）。
             if (quote && quote.close > 0) {
               // 盤前防護：如果報價日期不是目標日，表示市場未開盤，不建立假的 K 棒
               const quoteIsTarget = quote.date
@@ -966,8 +996,12 @@ export abstract class MarketScanner {
       }
     }
 
-    for (let i = 0; i < stocks.length; i += CONCURRENCY) {
-      const batch = stocks.slice(i, i + CONCURRENCY);
+    // 粗掃：L2 健康時，先把沒報價的股票 drop
+    const stocksAfterPrefilter = this.prefilterByL2(stocks, 'scanSOP');
+    diag.totalStocks = stocksAfterPrefilter.length;
+
+    for (let i = 0; i < stocksAfterPrefilter.length; i += CONCURRENCY) {
+      const batch = stocksAfterPrefilter.slice(i, i + CONCURRENCY);
       const settled = await Promise.allSettled(
         batch.map(({ symbol, name, industry }) =>
           this.scanOne(symbol, name, config, minScore, th, asOfDate, industry, diag, institutionalMap)
@@ -977,7 +1011,7 @@ export abstract class MarketScanner {
         if (r.status === 'fulfilled' && r.value) candidates.push(r.value);
       }
       diag.processedCount += batch.length;
-      if (i + CONCURRENCY < stocks.length) await sleep(BATCH_DELAY_MS);
+      if (i + CONCURRENCY < stocksAfterPrefilter.length) await sleep(BATCH_DELAY_MS);
     }
 
     // 計算覆蓋率
@@ -1120,8 +1154,10 @@ export abstract class MarketScanner {
     const config = this.getMarketConfig();
     const results: StockScanResult[] = [];
 
-    for (let i = 0; i < stocks.length; i += CONCURRENCY) {
-      const batch = stocks.slice(i, i + CONCURRENCY);
+    const candidates = this.prefilterByL2(stocks, `scanBuyMethod-${method}`);
+
+    for (let i = 0; i < candidates.length; i += CONCURRENCY) {
+      const batch = candidates.slice(i, i + CONCURRENCY);
       const settled = await Promise.allSettled(batch.map(async ({ symbol, name, industry }) => {
         try {
           const fetchResult = await this.fetchCandlesForScan(symbol, asOfDate);
@@ -1174,6 +1210,44 @@ export abstract class MarketScanner {
 
           const mtfResult = evaluateMultiTimeframe(candles, BASE_THRESHOLDS);
 
+          // 跨策略命中：A 六條件 + 其他 5 個 detector
+          const matchedMethods: string[] = [method];
+          try {
+            const { evaluateSixConditions } = await import('@/lib/analysis/trendAnalysis');
+            if (evaluateSixConditions(candles, lastIdx).isCoreReady) matchedMethods.push('A');
+          } catch { /* non-critical */ }
+          if (method !== 'B') {
+            try {
+              const { detectBreakoutEntry } = await import('@/lib/analysis/breakoutEntry');
+              if (detectBreakoutEntry(candles, lastIdx)?.isBreakout) matchedMethods.push('B');
+            } catch { /* */ }
+          }
+          if (method !== 'C') {
+            try {
+              const { detectConsolidationBreakout } = await import('@/lib/analysis/breakoutEntry');
+              if (detectConsolidationBreakout(candles, lastIdx)?.isBreakout) matchedMethods.push('C');
+            } catch { /* */ }
+          }
+          if (method !== 'D') {
+            try {
+              const { detectStrategyE } = await import('@/lib/analysis/highWinRateEntry');
+              if (detectStrategyE(candles, lastIdx)?.isFlatBottom) matchedMethods.push('D');
+            } catch { /* */ }
+          }
+          if (method !== 'E') {
+            try {
+              const { detectStrategyD } = await import('@/lib/analysis/gapEntry');
+              if (detectStrategyD(candles, lastIdx)?.isGapEntry) matchedMethods.push('E');
+            } catch { /* */ }
+          }
+          if (method !== 'F') {
+            try {
+              const { detectVReversal } = await import('@/lib/analysis/vReversalDetector');
+              if (detectVReversal(candles, lastIdx)?.isVReversal) matchedMethods.push('F');
+            } catch { /* */ }
+          }
+          const sortedMatched = ['A', 'B', 'C', 'D', 'E', 'F'].filter(m => matchedMethods.includes(m));
+
           return {
             symbol,
             name,
@@ -1183,7 +1257,7 @@ export abstract class MarketScanner {
             changePercent,
             volume: last.volume,
             triggeredRules: [{ ruleId: `buy-method-${method.toLowerCase()}`, ruleName: detail, signalType: 'BUY' as const, reason: detail }],
-            matchedMethods: [method],
+            matchedMethods: sortedMatched,
             buyMethodSubType: subType,
             sixConditionsScore: 0,
             sixConditionsBreakdown: { trend: false, position: false, kbar: false, ma: false, volume: false, indicator: false },
@@ -1204,7 +1278,7 @@ export abstract class MarketScanner {
       for (const r of settled) {
         if (r.status === 'fulfilled' && r.value) results.push(r.value);
       }
-      if (i + CONCURRENCY < stocks.length) await sleep(BATCH_DELAY_MS);
+      if (i + CONCURRENCY < candidates.length) await sleep(BATCH_DELAY_MS);
     }
 
     return results.sort((a, b) => b.changePercent - a.changePercent);

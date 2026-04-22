@@ -157,9 +157,42 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
               {/* Row 3: 條件 badges */}
               <div className="flex items-center gap-1 mb-1">
                 {activeBuyMethod && activeBuyMethod !== 'A' ? (
-                  // B/C/D/E/F：顯示策略觸發條件
+                  // B/C/D/E/F：顯示策略觸發條件 + 跨策略命中徽章
                   (() => {
                     const rule = r.triggeredRules?.[0];
+                    const methodColors: Record<string, string> = {
+                      A: 'bg-amber-800/80 text-amber-200',
+                      B: 'bg-sky-800/80 text-sky-300',
+                      C: 'bg-emerald-800/80 text-emerald-300',
+                      D: 'bg-purple-800/80 text-purple-300',
+                      E: 'bg-orange-800/80 text-orange-300',
+                      F: 'bg-rose-800/80 text-rose-300',
+                    };
+                    const methodNames: Record<string, string> = {
+                      A: '六條件', B: '回後買上漲', C: '盤整突破',
+                      D: '一字底', E: '缺口', F: 'V反轉',
+                    };
+                    const color = methodColors[activeBuyMethod] ?? 'bg-sky-800/80 text-sky-300';
+                    const others = (r.matchedMethods ?? []).filter(m => m !== activeBuyMethod);
+                    return (
+                      <>
+                        <span className={`text-[8px] px-1.5 h-3.5 flex items-center rounded-sm max-w-[160px] truncate ${color}`}
+                          title={rule?.ruleName ?? ''}>
+                          {rule ? rule.ruleName.replace(/（.*）$/, '') : activeBuyMethod}
+                        </span>
+                        {others.map(m => (
+                          <span key={m}
+                            className={`text-[8px] px-1 h-3.5 flex items-center rounded-sm font-bold ${methodColors[m] ?? 'bg-secondary/60 text-foreground/70'}`}
+                            title={`同時命中：${m}（${methodNames[m] ?? ''}）`}>
+                            +{m}
+                          </span>
+                        ))}
+                      </>
+                    );
+                  })()
+                ) : (
+                  // A（六條件）：六個條件格子 + 分數 + 跨策略命中徽章
+                  (() => {
                     const methodColors: Record<string, string> = {
                       B: 'bg-sky-800/80 text-sky-300',
                       C: 'bg-emerald-800/80 text-emerald-300',
@@ -167,29 +200,33 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                       E: 'bg-orange-800/80 text-orange-300',
                       F: 'bg-rose-800/80 text-rose-300',
                     };
-                    const color = methodColors[activeBuyMethod] ?? 'bg-sky-800/80 text-sky-300';
+                    const methodNames: Record<string, string> = {
+                      B: '回後買上漲', C: '盤整突破', D: '一字底', E: '缺口', F: 'V反轉',
+                    };
+                    const others = (r.matchedMethods ?? []).filter(m => m !== 'A');
                     return (
-                      <span className={`text-[8px] px-1.5 h-3.5 flex items-center rounded-sm max-w-[160px] truncate ${color}`}
-                        title={rule?.ruleName ?? ''}>
-                        {rule ? rule.ruleName.replace(/（.*）$/, '') : activeBuyMethod}
-                      </span>
+                      <>
+                        {[
+                          { pass: r.sixConditionsBreakdown?.trend, label: '趨' },
+                          { pass: r.sixConditionsBreakdown?.position, label: '位' },
+                          { pass: r.sixConditionsBreakdown?.kbar, label: 'K' },
+                          { pass: r.sixConditionsBreakdown?.ma, label: '均' },
+                          { pass: r.sixConditionsBreakdown?.volume, label: '量' },
+                          { pass: r.sixConditionsBreakdown?.indicator, label: '指' },
+                        ].map(({ pass, label }) => (
+                          <span key={label} className={`text-[8px] w-3.5 h-3.5 flex items-center justify-center rounded-sm ${pass ? 'bg-sky-800/80 text-sky-300' : 'bg-secondary/50 text-muted-foreground/60'}`}>{label}</span>
+                        ))}
+                        <span className="text-[9px] text-sky-400 ml-0.5">{r.sixConditionsScore}/6</span>
+                        {others.map(m => (
+                          <span key={m}
+                            className={`text-[8px] px-1 h-3.5 flex items-center rounded-sm font-bold ${methodColors[m] ?? 'bg-secondary/60 text-foreground/70'}`}
+                            title={`同時命中：${m}（${methodNames[m] ?? ''}）`}>
+                            +{m}
+                          </span>
+                        ))}
+                      </>
                     );
                   })()
-                ) : (
-                  // A（六條件）：六個條件格子 + 分數
-                  <>
-                    {[
-                      { pass: r.sixConditionsBreakdown?.trend, label: '趨' },
-                      { pass: r.sixConditionsBreakdown?.position, label: '位' },
-                      { pass: r.sixConditionsBreakdown?.kbar, label: 'K' },
-                      { pass: r.sixConditionsBreakdown?.ma, label: '均' },
-                      { pass: r.sixConditionsBreakdown?.volume, label: '量' },
-                      { pass: r.sixConditionsBreakdown?.indicator, label: '指' },
-                    ].map(({ pass, label }) => (
-                      <span key={label} className={`text-[8px] w-3.5 h-3.5 flex items-center justify-center rounded-sm ${pass ? 'bg-sky-800/80 text-sky-300' : 'bg-secondary/50 text-muted-foreground/60'}`}>{label}</span>
-                    ))}
-                    <span className="text-[9px] text-sky-400 ml-0.5">{r.sixConditionsScore}/6</span>
-                  </>
                 )}
 
                 {/* Action buttons */}

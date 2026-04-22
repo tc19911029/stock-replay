@@ -19,6 +19,7 @@ import { detectBreakoutEntry, detectConsolidationBreakout } from '@/lib/analysis
 import { detectVReversal } from '@/lib/analysis/vReversalDetector';
 import { detectStrategyD } from '@/lib/analysis/gapEntry';
 import { detectStrategyE } from '@/lib/analysis/highWinRateEntry';
+import { evaluateSixConditions } from '@/lib/analysis/trendAnalysis';
 import { saveScanSession } from '@/lib/storage/scanStorage';
 import { getTWSENames } from '@/lib/datasource/TWSENames';
 import { TaiwanScanner } from '@/lib/scanner/TaiwanScanner';
@@ -97,30 +98,42 @@ async function scanMarketDate(
         scanTime: new Date().toISOString(),
       };
 
+      // 一次跑全部 6 個 detector → 算出 cross-match
       const rB = detectBreakoutEntry(candles, lastIdx);
+      const rC = detectConsolidationBreakout(candles, lastIdx);
+      const rD = detectStrategyE(candles, lastIdx);
+      const rE = detectStrategyD(candles, lastIdx);
+      const rF = detectVReversal(candles, lastIdx);
+      let aPass = false;
+      try { aPass = evaluateSixConditions(candles, lastIdx).isCoreReady; } catch { /* */ }
+
+      const allMatched: string[] = [];
+      if (aPass) allMatched.push('A');
+      if (rB) allMatched.push('B');
+      if (rC) allMatched.push('C');
+      if (rD) allMatched.push('D');
+      if (rE) allMatched.push('E');
+      if (rF) allMatched.push('F');
+
       if (rB) {
         const detail = (rB as { detail?: string }).detail ?? '回後買上漲';
-        buckets.B.push({ ...base, matchedMethods: ['B'], triggeredRules: [makeRule('B', detail)] } as StockScanResult);
+        buckets.B.push({ ...base, matchedMethods: allMatched, triggeredRules: [makeRule('B', detail)] } as StockScanResult);
       }
-      const rC = detectConsolidationBreakout(candles, lastIdx);
       if (rC) {
         const detail = (rC as { detail?: string }).detail ?? '盤整突破';
-        buckets.C.push({ ...base, matchedMethods: ['C'], triggeredRules: [makeRule('C', detail)] } as StockScanResult);
+        buckets.C.push({ ...base, matchedMethods: allMatched, triggeredRules: [makeRule('C', detail)] } as StockScanResult);
       }
-      const rD = detectStrategyE(candles, lastIdx);
       if (rD) {
         const detail = (rD as { detail?: string }).detail ?? '一字底';
-        buckets.D.push({ ...base, matchedMethods: ['D'], triggeredRules: [makeRule('D', detail)] } as StockScanResult);
+        buckets.D.push({ ...base, matchedMethods: allMatched, triggeredRules: [makeRule('D', detail)] } as StockScanResult);
       }
-      const rE = detectStrategyD(candles, lastIdx);
       if (rE) {
         const detail = (rE as { detail?: string }).detail ?? '缺口進場';
-        buckets.E.push({ ...base, matchedMethods: ['E'], triggeredRules: [makeRule('E', detail)] } as StockScanResult);
+        buckets.E.push({ ...base, matchedMethods: allMatched, triggeredRules: [makeRule('E', detail)] } as StockScanResult);
       }
-      const rF = detectVReversal(candles, lastIdx);
       if (rF) {
         const detail = (rF as { detail?: string }).detail ?? 'V型反轉';
-        buckets.F.push({ ...base, matchedMethods: ['F'], triggeredRules: [makeRule('F', detail)] } as StockScanResult);
+        buckets.F.push({ ...base, matchedMethods: allMatched, triggeredRules: [makeRule('F', detail)] } as StockScanResult);
       }
     } catch { /* skip */ }
   }

@@ -24,7 +24,9 @@ import { detectStrategyE } from '@/lib/analysis/highWinRateEntry';
 import { detectStrategyD } from '@/lib/analysis/gapEntry';
 import { detectBreakoutEntry, detectConsolidationBreakout } from '@/lib/analysis/breakoutEntry';
 import { detectVReversal } from '@/lib/analysis/vReversalDetector';
+import { evaluateSixConditions } from '@/lib/analysis/trendAnalysis';
 import type { StockScanResult } from '@/lib/scanner/types';
+import type { CandleWithIndicators } from '@/types';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -37,9 +39,41 @@ const querySchema = z.object({
 
 type Method = z.infer<typeof querySchema>['method'];
 
+/**
+ * 跨策略命中：給定一支股票，回傳當天還命中哪些策略字母（A/B/C/D/E/F）
+ * 主命中策略 method 一定在裡面；其他 5 個各跑一次 detector。
+ */
+function detectCrossMatches(
+  candles: CandleWithIndicators[],
+  idx: number,
+  primary: Method,
+): string[] {
+  const matched: string[] = [primary];
+  try {
+    if (evaluateSixConditions(candles, idx).isCoreReady) matched.push('A');
+  } catch { /* non-critical */ }
+  if (primary !== 'B') {
+    try { if (detectBreakoutEntry(candles, idx)?.isBreakout) matched.push('B'); } catch { /* */ }
+  }
+  if (primary !== 'C') {
+    try { if (detectConsolidationBreakout(candles, idx)?.isBreakout) matched.push('C'); } catch { /* */ }
+  }
+  if (primary !== 'D') {
+    try { if (detectStrategyE(candles, idx)?.isFlatBottom) matched.push('D'); } catch { /* */ }
+  }
+  if (primary !== 'E') {
+    try { if (detectStrategyD(candles, idx)?.isGapEntry) matched.push('E'); } catch { /* */ }
+  }
+  if (primary !== 'F') {
+    try { if (detectVReversal(candles, idx)?.isVReversal) matched.push('F'); } catch { /* */ }
+  }
+  // 排序：A 在最前，其他維持 B C D E F
+  return ['A', 'B', 'C', 'D', 'E', 'F'].filter(m => matched.includes(m));
+}
+
 function runDetector(
   method: Method,
-  candles: import('@/types').CandleWithIndicators[],
+  candles: CandleWithIndicators[],
   idx: number,
 ): { matched: boolean; detail: string; subType?: string } {
   switch (method) {
@@ -142,7 +176,7 @@ export async function GET(req: NextRequest): Promise<Response> {
           trendState: '多頭',
           trendPosition: '',
           scanTime: new Date().toISOString(),
-          matchedMethods: [method],
+          matchedMethods: detectCrossMatches(candles, idx, method),
           buyMethodSubType: det.subType,
         };
         return r;
