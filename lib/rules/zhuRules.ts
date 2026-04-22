@@ -779,36 +779,39 @@ export const zhuBiasWarning: TradingRule = {
 // 步驟5：停利規則
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/** 停利：獲利達10%且出現轉折K線 */
+/**
+ * 停利：獲利達10%且出現轉折K線
+ *
+ * 兩種行為依 ctx.avgCost 分流：
+ * - Portfolio 持倉（avgCost>0）：用真實成本算獲利，達 10% + 轉弱K → REDUCE「10%停利」
+ * - 走圖/掃描（無 avgCost）：不發「10%停利」訊號（原本用近10日低點當成本是錯的，使用者不一定買在起漲點）
+ */
 export const zhuTakeProfit10Pct: TradingRule = {
   id: 'zhu-takeprofit-10pct',
   name: '朱·10%目標停利',
-  description: '獲利達10%後出現不漲或下跌K線，停利出場',
-  evaluate(candles, index): RuleSignal | null {
-    if (index < 10) return null;
+  description: '獲利達10%後出現不漲或下跌K線，停利出場（需持倉成本）',
+  evaluate(candles, index, ctx): RuleSignal | null {
+    if (index < 1) return null;
     const c = candles[index];
 
-    // 找近10日最低收盤（假設為進場價）
-    let minClose = Infinity;
-    for (let i = index - 9; i < index; i++) {
-      if (candles[i].close < minClose) minClose = candles[i].close;
-    }
-
-    const profit = (c.close - minClose) / minClose;
-    if (profit < 0.10) return null;
-
-    // 出現不漲或下跌訊號：黑K或十字線
+    // 轉弱K：黑K或十字線
     const isWeakK = c.close <= c.open || bodyPct(c) < 0.005;
     if (!isWeakK) return null;
+
+    const avgCost = ctx?.avgCost;
+    if (!avgCost || avgCost <= 0) return null;
+
+    const profit = (c.close - avgCost) / avgCost;
+    if (profit < 0.10) return null;
 
     return {
       type: 'REDUCE',
       label: '10%停利',
-      description: `獲利約${(profit * 100).toFixed(1)}%達10%目標，出現轉弱K線`,
+      description: `獲利${(profit * 100).toFixed(1)}%達10%目標，出現轉弱K線`,
       reason: [
         '【朱家泓預設獲利目標停利】10%',
-        `近期低點${minClose.toFixed(2)}到今日${c.close}，獲利約${(profit * 100).toFixed(1)}%。`,
-        '已超過10%目標，且今日出現不漲或下跌的K線。',
+        `持倉成本 ${avgCost.toFixed(2)} → 今日 ${c.close}，獲利 ${(profit * 100).toFixed(1)}%。`,
+        '已達 10% 目標，且今日出現不漲或下跌的K線。',
         '建議停利出場，落袋為安。趨勢未變可等下一個進場點。',
       ].join('\n'),
       ruleId: this.id,

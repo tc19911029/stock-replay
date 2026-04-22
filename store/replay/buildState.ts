@@ -57,7 +57,9 @@ export function buildState(
   const currentPrice = allCandles[index]?.close ?? 0;
   const metrics = computeMetrics(account, currentPrice);
   const stats = computeStats(account, allCandles, index);
-  const signals = getActiveEngine().evaluate(allCandles, index);
+  const signals = getActiveEngine().evaluate(allCandles, index, {
+    avgCost: metrics.shares > 0 ? metrics.avgCost : undefined,
+  });
   const visibleCandles = allCandles.slice(0, index + 1);
 
   // Binary search for visible markers (markers are sorted by date asc)

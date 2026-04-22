@@ -175,24 +175,60 @@ export const longTermHeadLowerExit: TradingRule = {
 
 // ── 操作5: 漲幅>10%+破MA20停利 / 漲幅>20%+大量黑K出場 ────────────────────
 
+/**
+ * 長線停利：
+ * - Portfolio（avgCost>0）：用真實獲利算；獲利>10%破MA20 → 5A 停利；獲利>20%+大量黑K → 5B 停利
+ * - 走圖/掃描：以近60日低點當漲幅錨點；觸發時發警示（WATCH），不冒稱「停利」，提醒使用者用實際成本判斷
+ */
 export const longTermProfitTake: TradingRule = {
   id: 'long-term-profit-take',
   name: '長線停利：漲10%破月線/漲20%大量黑K',
-  description: '漲幅>10%跌破MA20停利，或漲幅>20%出現大量黑K出場',
-  evaluate(candles: CandleWithIndicators[], index: number) {
+  description: '漲幅>10%跌破MA20停利，或漲幅>20%出現大量黑K出場（持倉時以實際成本計算）',
+  evaluate(candles: CandleWithIndicators[], index: number, ctx) {
     if (index < 20) return null;
     const c = candles[index];
 
+    const avgCost = ctx?.avgCost;
+
+    // Portfolio 版：用實際成本算獲利
+    if (avgCost && avgCost > 0) {
+      const profit = (c.close - avgCost) / avgCost;
+
+      if (profit > 0.10 && c.ma20 != null && c.close < c.ma20) {
+        return {
+          type: 'SELL' as const,
+          label: '長線操作5A',
+          description: `獲利${(profit * 100).toFixed(0)}%+跌破月線，停利出場`,
+          reason: `長線操作5A: 成本${avgCost.toFixed(2)}→${c.close}，獲利${(profit * 100).toFixed(0)}%後跌破MA20停利`,
+          ruleId: this.id,
+        };
+      }
+
+      if (profit > 0.20 && isLongBlackCandle(c)) {
+        if (c.avgVol5 != null && c.volume > c.avgVol5 * 2) {
+          return {
+            type: 'SELL' as const,
+            label: '長線操作5B',
+            description: `獲利${(profit * 100).toFixed(0)}%+大量長黑K，出場`,
+            reason: `長線操作5B: 成本${avgCost.toFixed(2)}→${c.close}，獲利${(profit * 100).toFixed(0)}%+大量黑K出場`,
+            ruleId: this.id,
+          };
+        }
+      }
+      return null;
+    }
+
+    // 結構版：近60日低點當漲幅錨點，觸發 WATCH 警示
     const low60 = Math.min(...candles.slice(Math.max(0, index - 60), index).map(x => x.low));
     if (low60 <= 0) return null;
     const gainPct = (c.close - low60) / low60;
 
     if (gainPct > 0.10 && c.ma20 != null && c.close < c.ma20) {
       return {
-        type: 'SELL' as const,
-        label: '長線操作5A',
-        description: `漲幅${(gainPct * 100).toFixed(0)}%+跌破月線，停利出場`,
-        reason: `長線操作5A: 漲幅${(gainPct * 100).toFixed(0)}%後跌破MA20停利`,
+        type: 'WATCH' as const,
+        label: '漲幅+破月線',
+        description: `近60日漲幅${(gainPct * 100).toFixed(0)}%+跌破MA20`,
+        reason: `近60日低點${low60.toFixed(2)}起漲${(gainPct * 100).toFixed(0)}%後跌破MA20。若有持倉請以實際成本判斷是否達停利目標。`,
         ruleId: this.id,
       };
     }
@@ -200,10 +236,10 @@ export const longTermProfitTake: TradingRule = {
     if (gainPct > 0.20 && isLongBlackCandle(c)) {
       if (c.avgVol5 != null && c.volume > c.avgVol5 * 2) {
         return {
-          type: 'SELL' as const,
-          label: '長線操作5B',
-          description: `漲幅${(gainPct * 100).toFixed(0)}%+大量長黑K，出場`,
-          reason: `長線操作5B: 漲幅${(gainPct * 100).toFixed(0)}%+大量黑K出場`,
+          type: 'WATCH' as const,
+          label: '漲幅+大量黑K',
+          description: `近60日漲幅${(gainPct * 100).toFixed(0)}%+大量長黑K`,
+          reason: `近60日低點${low60.toFixed(2)}起漲${(gainPct * 100).toFixed(0)}%+大量黑K。若有持倉請以實際成本判斷是否停利。`,
           ruleId: this.id,
         };
       }

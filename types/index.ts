@@ -127,6 +127,16 @@ export interface PerformanceStats {
   equityCurve: { date: string; totalAssets: number }[];
 }
 
+/**
+ * Portfolio / position context passed into rule evaluation.
+ * Rules that care about real cost-based profit (e.g. 10% 停利) read from here.
+ * Rules invoked without context (scanner, precompute, watchlist) fall back to structural proxies.
+ */
+export interface RuleContext {
+  /** Average cost per share; only set when the user actually holds shares */
+  avgCost?: number;
+}
+
 /** Rule definition — implement this interface to add new rules */
 export interface TradingRule {
   id: string;
@@ -135,7 +145,8 @@ export interface TradingRule {
   /** Returns a signal if the rule is triggered, otherwise null */
   evaluate(
     candles: CandleWithIndicators[],
-    currentIndex: number
+    currentIndex: number,
+    ctx?: RuleContext,
   ): RuleSignal | null;
 }
 

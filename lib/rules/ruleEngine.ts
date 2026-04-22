@@ -1,6 +1,7 @@
 import {
   TradingRule,
   RuleSignal,
+  RuleContext,
   CandleWithIndicators,
   EnrichedSignal,
   SignalConflict,
@@ -52,13 +53,14 @@ export class RuleEngine {
   evaluate(
     candles: CandleWithIndicators[],
     index: number,
+    ctx?: RuleContext,
   ): RuleSignal[] {
     if (index < 0 || index >= candles.length) return [];
 
     const signals: RuleSignal[] = [];
     for (const rule of this.rules) {
       try {
-        const signal = rule.evaluate(candles, index);
+        const signal = rule.evaluate(candles, index, ctx);
         if (signal) signals.push(signal);
       } catch (err) {
         console.warn(
@@ -81,8 +83,9 @@ export class RuleEngine {
   evaluateDetailed(
     candles: CandleWithIndicators[],
     index: number,
+    ctx?: RuleContext,
   ): EvaluationResult {
-    const rawSignals = this.evaluate(candles, index);
+    const rawSignals = this.evaluate(candles, index, ctx);
 
     // Enrich with group metadata
     const allSignals: EnrichedSignal[] = rawSignals.map((s) => {
