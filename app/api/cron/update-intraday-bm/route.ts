@@ -67,6 +67,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const { saveScanSession } = await import('@/lib/storage/scanStorage');
+    const { readTurnoverRank } = await import('@/lib/scanner/TurnoverRank');
     const scanner = market === 'TW'
       ? new (await import('@/lib/scanner/TaiwanScanner')).TaiwanScanner()
       : new (await import('@/lib/scanner/ChinaScanner')).ChinaScanner();
@@ -74,6 +75,19 @@ export async function GET(req: NextRequest) {
     scanner.setRealtimeQuotes(realtimeQuotes);
     const stocks = await scanner.getStockList();
     const bmResults = await scanner.scanBuyMethod(method, stocks, date);
+
+    // 注入成交額排名（BCDEF 不做 top500 過濾，只拿排名當顯示 tag）
+    try {
+      const rank = await readTurnoverRank(market);
+      if (rank) {
+        for (const r of bmResults) {
+          const n = rank.ranks.get(r.symbol);
+          if (n) r.turnoverRank = n;
+        }
+      }
+    } catch (err) {
+      console.warn(`[cron/update-intraday-bm] ${market} ${method} TurnoverRank 讀取失敗（繼續）:`, err);
+    }
 
     const session = {
       id: `${market}-long-${method}-${date}-intraday-${Date.now()}`,
