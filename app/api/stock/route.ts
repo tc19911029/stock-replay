@@ -105,7 +105,11 @@ export async function GET(req: NextRequest) {
         }
         const shouldInjectToday = inLiveWindow || l2HasToday;
         const lastCandle = result.candles[result.candles.length - 1];
-        if (shouldInjectToday && lastCandle && lastCandle.date < today) {
+        // 注入條件：
+        //   a) lastCandle.date < today → append 今日 K（正常路徑）
+        //   b) lastCandle.date === today → 覆蓋（append-today 腳本寫進 L1 的盤中快照價，需用即時報價刷新）
+        const lastIsToday = !!lastCandle && lastCandle.date === today;
+        if (shouldInjectToday && lastCandle && (lastCandle.date < today || lastIsToday)) {
           let todayQuote: { open: number; high: number; low: number; close: number; volume: number } | null = null;
           try {
             if (isTW) {
@@ -189,14 +193,19 @@ export async function GET(req: NextRequest) {
             const safeOpen  = (open > 0 && open > close * 0.5 && open < close * 1.5)  ? open  : close;
             const safeHigh  = (high > 0 && high >= close && high < close * 1.5)        ? high  : Math.max(safeOpen, close);
             const safeLow   = (low > 0  && low <= close && low > close * 0.5)          ? low   : Math.min(safeOpen, close);
-            result.candles.push({
+            const todayBar = {
               date: today,
               open: safeOpen,
               high: safeHigh,
               low: safeLow,
               close: todayQuote.close,
               volume: todayQuote.volume,
-            });
+            };
+            if (lastIsToday) {
+              result.candles[result.candles.length - 1] = todayBar;
+            } else {
+              result.candles.push(todayBar);
+            }
           }
         }
 
