@@ -67,29 +67,31 @@ export interface IntradaySnapshot {
 const MEMORY_TTL = 60 * 1000; // memory cache 60 秒
 const IS_VERCEL = !!process.env.VERCEL;
 
-// ── 數據源健康狀態（跨 cold-start 持久化） ──────────────────────────────
+// ── 數據源健康狀態（記憶體短窗口 failover）──────────────────────────────
+// 舊的 cn-source-health.json 持久化 circuit breaker 已淘汰；檔案保留不刪，未來做 debug 時還能看。
 
-interface SourceHealthEntry {
-  consecutiveFails: number;
-  lastFailureAt: string | null;  // ISO
-  lastSuccessAt: string | null;  // ISO
+// 各資料源的短時間窗口 failover：若在窗口內失敗過，先跳過，省掉 timeout 時間
+const SOURCE_SKIP_WINDOW_MS = 60 * 1000; // 60 秒
+const _sourceSkipUntil: Record<string, number> = {};
+function shouldSkipSource(source: string): number | false {
+  const until = _sourceSkipUntil[source] ?? 0;
+  if (Date.now() < until) return until;
+  return false;
 }
-interface SourceHealthFile {
-  eastmoney: SourceHealthEntry;
+function markSourceFailed(source: string): void {
+  _sourceSkipUntil[source] = Date.now() + SOURCE_SKIP_WINDOW_MS;
 }
-
-const SOURCE_HEALTH_FILE = 'cn-source-health.json';
-const EM_SKIP_WINDOW_MS = 60 * 60 * 1000; // 連續失敗後跳過 60 分鐘
-
-async function readSourceHealth(): Promise<SourceHealthFile> {
-  const raw = await fsGet(SOURCE_HEALTH_FILE);
-  if (!raw) return { eastmoney: { consecutiveFails: 0, lastFailureAt: null, lastSuccessAt: null } };
-  try { return JSON.parse(raw); } catch { return { eastmoney: { consecutiveFails: 0, lastFailureAt: null, lastSuccessAt: null } }; }
+function markSourceSucceeded(source: string): void {
+  delete _sourceSkipUntil[source];
 }
 
-async function writeSourceHealth(h: SourceHealthFile): Promise<void> {
-  await fsPut(SOURCE_HEALTH_FILE, JSON.stringify(h, null, 2));
-}
+// 期望資料筆數（用於判斷 L2 刷新是否成功）：3062 CN / 1956 TW * 0.98
+const CN_EXPECTED_COUNT = 3062;
+const TW_EXPECTED_COUNT = 1956;
+const SUCCESS_RATIO = 0.98;
+const CN_SUCCESS_MIN = Math.floor(CN_EXPECTED_COUNT * SUCCESS_RATIO); // 3000
+const TW_SUCCESS_MIN = Math.floor(TW_EXPECTED_COUNT * SUCCESS_RATIO); // 1916
+
 
 // ── 數據源狀態追蹤（模組級） ──────────────────────────────────────────────
 
@@ -418,59 +420,86 @@ export function getLastRefreshSummary(market: 'TW' | 'CN'): L2RefreshSummary {
   };
 }
 
-// ── 內部：TW 報價抓取 ─────────────────────────────────────────────────────
-
-/** mis.twse 盤中即時回傳的最低預期數量，低於此值視為失敗，降級到 OpenAPI */
-const TW_MIN_EXPECTED = 500;
+// ── 內部：TW 報價抓取（mis → OpenAPI 兩層 failover） ───────────────────────
 
 async function _fetchTWQuotes(sources: DataSourceStatus[]): Promise<IntradayQuote[]> {
-  const { getTWSERealtimeIntraday, getTWSEDailyAll } = await import('./TWSERealtime');
+  const finalMap: Map<string, { code: string; name: string; open: number; high: number; low: number; close: number; volume: number; previousClose?: number; date?: string }> = new Map();
 
-  // 1. 先試 mis.twse 盤中即時報價（真正即時，但間歇性不穩定）
-  const { result: twseMap, elapsedMs } = await timedFetch(() => getTWSERealtimeIntraday());
+  type TWProvider = { name: string; fetch: () => Promise<typeof finalMap> };
+  const providers: TWProvider[] = [
+    {
+      name: 'TWSE+TPEx(mis)',
+      fetch: async () => {
+        const { getTWSERealtimeIntraday } = await import('./TWSERealtime');
+        return getTWSERealtimeIntraday();
+      },
+    },
+    {
+      name: 'TWSE+TPEx(OpenAPI)',
+      fetch: async () => {
+        const { getTWSEDailyAll } = await import('./TWSERealtime');
+        return getTWSEDailyAll();
+      },
+    },
+  ];
 
-  sources.push({
-    source: 'TWSE+TPEx(mis)',
-    success: twseMap.size >= TW_MIN_EXPECTED,
-    quoteCount: twseMap.size,
-    responseTimeMs: elapsedMs,
-    timestamp: new Date().toISOString(),
-  });
+  for (const p of providers) {
+    if (finalMap.size >= TW_SUCCESS_MIN) break;
 
-  // 2. mis.twse 失敗時的自動備援：Yahoo v8 已實測盤中回上一交易日無效（2026-04-20）
-  //    FinMind 免 token 也回昨日資料
-  //    盤中真即時的免費源目前只剩 mis.twse 本身和 Fugle 單檔（48/min 太慢做全市場）
-  //    → 直接降級到 OpenAPI 兜底（盤中被日期守門擋光，但保留 existing L2 機制讓已有的快照延續）
-  let finalMap = twseMap;
-
-  if (twseMap.size < TW_MIN_EXPECTED) {
-    console.warn(`[IntradayCache] TW 兩層 fallback 後仍 ${twseMap.size} 筆，降級到 OpenAPI STOCK_DAY_ALL...`);
-    try {
-      const { result: dailyMap, elapsedMs: dailyMs } = await timedFetch(() => getTWSEDailyAll());
+    const skipUntil = shouldSkipSource(p.name);
+    if (skipUntil) {
+      const remain = Math.round((skipUntil - Date.now()) / 1000);
+      console.warn(`[IntradayCache] TW ${p.name} 在失敗冷卻中（剩 ${remain}s），跳過`);
       sources.push({
-        source: 'TWSE+TPEx(OpenAPI)',
-        success: dailyMap.size > 0,
-        quoteCount: dailyMap.size,
-        responseTimeMs: dailyMs,
+        source: p.name,
+        success: false,
+        quoteCount: 0,
+        errorMessage: `skip: failed < ${SOURCE_SKIP_WINDOW_MS / 1000}s ago`,
+        responseTimeMs: 0,
         timestamp: new Date().toISOString(),
       });
-      if (dailyMap.size > 0) {
-        finalMap = dailyMap;
-        console.info(`[IntradayCache] TW OpenAPI fallback 成功: ${dailyMap.size} 筆`);
-      } else {
-        console.warn('[IntradayCache] TW OpenAPI fallback 也返回 0 筆');
+      continue;
+    }
+
+    try {
+      const { result: newMap, elapsedMs } = await timedFetch(p.fetch);
+      let added = 0;
+      for (const [code, q] of newMap) {
+        if (!finalMap.has(code)) {
+          finalMap.set(code, q);
+          added++;
+        }
       }
-    } catch (err) {
+      const success = newMap.size >= TW_SUCCESS_MIN;
       sources.push({
-        source: 'TWSE+TPEx(OpenAPI)',
+        source: p.name,
+        success,
+        quoteCount: newMap.size,
+        responseTimeMs: elapsedMs,
+        timestamp: new Date().toISOString(),
+      });
+      if (success) {
+        markSourceSucceeded(p.name);
+      } else {
+        markSourceFailed(p.name);
+      }
+      console.info(`[IntradayCache] TW ${p.name}: ${newMap.size} 筆（新增 ${added}，累計 ${finalMap.size}, ${elapsedMs}ms）`);
+    } catch (err) {
+      markSourceFailed(p.name);
+      sources.push({
+        source: p.name,
         success: false,
         quoteCount: 0,
         errorMessage: err instanceof Error ? err.message : String(err),
         responseTimeMs: 0,
         timestamp: new Date().toISOString(),
       });
-      console.warn('[IntradayCache] TW OpenAPI fallback 失敗:', err);
+      console.warn(`[IntradayCache] TW ${p.name} 失敗:`, err instanceof Error ? err.message : err);
     }
+  }
+
+  if (finalMap.size < TW_SUCCESS_MIN) {
+    console.warn(`[IntradayCache] TW 兩層 provider 後仍 ${finalMap.size} 筆 (< ${TW_SUCCESS_MIN})，回傳部分資料`);
   }
 
   // 日期守門：STOCK_DAY_ALL 盤中會回傳昨日收盤統計（q.date=昨天），
@@ -504,115 +533,103 @@ async function _fetchTWQuotes(sources: DataSourceStatus[]): Promise<IntradayQuot
   return quotes;
 }
 
-// ── 內部：CN 報價抓取（含 EastMoney → Tencent fallback） ──────────────────
+// ── 內部：CN 報價抓取（EastMoney → Tencent → Sina 三層 failover） ──────────
+
+type CNQuoteMap = Map<string, { code: string; name: string; open: number; high: number; low: number; close: number; volume: number; prevClose?: number }>;
 
 async function _fetchCNQuotes(
   sources: DataSourceStatus[],
   today: string,
 ): Promise<IntradayQuote[]> {
-  // 1. EastMoney push2（讀 persistent health 決定是否跳過，跨 cold-start 有效）
-  const { getEastMoneyRealtime } = await import('./EastMoneyRealtime');
-  let cnMap: Map<string, { code: string; name: string; open: number; high: number; low: number; close: number; volume: number; prevClose?: number }>;
+  const cnMap: CNQuoteMap = new Map();
+  // 三層 provider：主源 → 補 → 補，任何一層到達 98% 就停止
+  type CNProvider = { name: string; fetch: () => Promise<CNQuoteMap> };
+  const { CN_STOCKS } = await import('@/lib/scanner/cnStocks');
+  const symbols = CN_STOCKS.map(s => s.symbol);
 
-  const health = await readSourceHealth();
-  const emFails = health.eastmoney.consecutiveFails;
-  const emLastFail = health.eastmoney.lastFailureAt ? new Date(health.eastmoney.lastFailureAt).getTime() : 0;
-  const emSkip = emFails >= 2 && (Date.now() - emLastFail) < EM_SKIP_WINDOW_MS;
+  const providers: CNProvider[] = [
+    {
+      name: 'EastMoney',
+      fetch: async () => {
+        const { getEastMoneyRealtime } = await import('./EastMoneyRealtime');
+        return getEastMoneyRealtime();
+      },
+    },
+    {
+      name: 'Tencent',
+      fetch: async () => {
+        const { getTencentRealtime } = await import('./TencentRealtime');
+        return getTencentRealtime(symbols);
+      },
+    },
+    {
+      name: 'Sina',
+      fetch: async () => {
+        const { getSinaRealtime } = await import('./SinaRealtime');
+        return getSinaRealtime(symbols);
+      },
+    },
+  ];
 
-  if (emSkip) {
-    console.warn(`[IntradayCache] CN EastMoney 跳過（連續失敗 ${emFails} 次，最近失敗 ${Math.round((Date.now() - emLastFail) / 60000)}min 前），直接用騰訊`);
-    cnMap = new Map();
-    sources.push({
-      source: 'EastMoney',
-      success: false,
-      quoteCount: 0,
-      errorMessage: `circuit-open: ${emFails} consecutive failures`,
-      responseTimeMs: 0,
-      timestamp: new Date().toISOString(),
-    });
-  } else {
-    try {
-      const { result: emMap, elapsedMs: emMs } = await timedFetch(() => getEastMoneyRealtime());
-      cnMap = emMap;
-      const emSuccess = emMap.size > 0;
+  for (const p of providers) {
+    if (cnMap.size >= CN_SUCCESS_MIN) break;
+
+    const skipUntil = shouldSkipSource(p.name);
+    if (skipUntil) {
+      const remain = Math.round((skipUntil - Date.now()) / 1000);
+      console.warn(`[IntradayCache] CN ${p.name} 在失敗冷卻中（剩 ${remain}s），跳過`);
       sources.push({
-        source: 'EastMoney',
-        success: emSuccess,
-        quoteCount: emMap.size,
-        responseTimeMs: emMs,
-        timestamp: new Date().toISOString(),
-      });
-      // 成功：重置 circuit breaker
-      if (emSuccess) {
-        health.eastmoney = { consecutiveFails: 0, lastFailureAt: health.eastmoney.lastFailureAt, lastSuccessAt: new Date().toISOString() };
-        await writeSourceHealth(health).catch(() => {});
-      } else {
-        health.eastmoney = { consecutiveFails: emFails + 1, lastFailureAt: new Date().toISOString(), lastSuccessAt: health.eastmoney.lastSuccessAt };
-        await writeSourceHealth(health).catch(() => {});
-      }
-    } catch (emErr) {
-      console.error(`[IntradayCache] CN EastMoney 連線失敗:`, emErr instanceof Error ? emErr.message : emErr);
-      cnMap = new Map();
-      sources.push({
-        source: 'EastMoney',
+        source: p.name,
         success: false,
         quoteCount: 0,
-        errorMessage: emErr instanceof Error ? emErr.message : String(emErr),
+        errorMessage: `skip: failed < ${SOURCE_SKIP_WINDOW_MS / 1000}s ago`,
         responseTimeMs: 0,
         timestamp: new Date().toISOString(),
       });
-      health.eastmoney = { consecutiveFails: emFails + 1, lastFailureAt: new Date().toISOString(), lastSuccessAt: health.eastmoney.lastSuccessAt };
-      await writeSourceHealth(health).catch(() => {});
+      continue;
     }
-  }
 
-  // 2. EastMoney 返回不足 → 騰訊補充（0 筆=完全替代，<1500=補充缺失）
-  const CN_MIN_EXPECTED = 1500; // 預期 3000+ 主板，低於一半視為不足
-  if (cnMap.size < CN_MIN_EXPECTED) {
-    const reason = cnMap.size === 0 ? '返回 0 筆' : `僅 ${cnMap.size} 筆（預期 3000+）`;
-    console.warn(`[IntradayCache] CN EastMoney ${reason}，嘗試騰訊${cnMap.size > 0 ? '補充' : 'fallback'}...`);
     try {
-      const { getTencentRealtime } = await import('./TencentRealtime');
-      const { CN_STOCKS } = await import('@/lib/scanner/cnStocks');
-      const symbols = CN_STOCKS.map(s => s.symbol);
-      const { result: tcMap, elapsedMs: tcMs } = await timedFetch(() => getTencentRealtime(symbols));
-
-      if (cnMap.size === 0) {
-        // 東財完全失敗 → 用騰訊替代
-        cnMap = tcMap;
-      } else {
-        // 東財部分成功 → 騰訊補充缺失（不覆蓋東財已有的，東財有 prevClose 等更豐富欄位）
-        let supplemented = 0;
-        for (const [code, quote] of tcMap) {
-          if (!cnMap.has(code)) {
-            cnMap.set(code, quote);
-            supplemented++;
-          }
+      const { result: newMap, elapsedMs } = await timedFetch(p.fetch);
+      // 合併（保留既有，不覆蓋先前 provider 已填過的欄位較豐富的報價）
+      let added = 0;
+      for (const [code, q] of newMap) {
+        if (!cnMap.has(code)) {
+          cnMap.set(code, q);
+          added++;
         }
-        console.info(`[IntradayCache] CN 騰訊補充 ${supplemented} 筆，總計 ${cnMap.size} 筆`);
       }
-
+      const success = newMap.size >= CN_SUCCESS_MIN;
       sources.push({
-        source: 'Tencent',
-        success: tcMap.size > 0,
-        quoteCount: tcMap.size,
-        responseTimeMs: tcMs,
+        source: p.name,
+        success,
+        quoteCount: newMap.size,
+        responseTimeMs: elapsedMs,
         timestamp: new Date().toISOString(),
       });
-      if (cnMap.size === 0) {
-        console.warn(`[IntradayCache] CN 騰訊 fallback 也返回 0 筆`);
+      if (success) {
+        markSourceSucceeded(p.name);
+      } else {
+        // 單源不足 98%：標記 failed 讓下次跳過，但仍使用它拿到的 added 補到 cnMap
+        markSourceFailed(p.name);
       }
+      console.info(`[IntradayCache] CN ${p.name}: ${newMap.size} 筆（新增 ${added}，累計 ${cnMap.size}, ${elapsedMs}ms）`);
     } catch (err) {
+      markSourceFailed(p.name);
       sources.push({
-        source: 'Tencent',
+        source: p.name,
         success: false,
         quoteCount: 0,
         errorMessage: err instanceof Error ? err.message : String(err),
         responseTimeMs: 0,
         timestamp: new Date().toISOString(),
       });
-      console.warn(`[IntradayCache] CN 騰訊 fallback 失敗:`, err);
+      console.warn(`[IntradayCache] CN ${p.name} 失敗:`, err instanceof Error ? err.message : err);
     }
+  }
+
+  if (cnMap.size < CN_SUCCESS_MIN) {
+    console.warn(`[IntradayCache] CN 三層 provider 後仍 ${cnMap.size} 筆 (< ${CN_SUCCESS_MIN})，回傳部分資料`);
   }
 
   // 3. 讀取 MA Base 以補足 prevClose

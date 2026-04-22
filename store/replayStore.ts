@@ -122,9 +122,9 @@ function getPollingInterval(interval: string): number {
     case '15m': return 90_000;  // 1.5 分鐘
     case '30m': return 120_000; // 2 分鐘
     case '60m': return 180_000; // 3 分鐘
-    case '1d':  return 300_000; // 5 分鐘（日K 用即時報價 overlay）
-    case '1wk': return 300_000; // 5 分鐘（週K 盤中也要更新）
-    case '1mo': return 300_000; // 5 分鐘（月K 盤中也要更新）
+    case '1d':  return 60_000;  // 1 分鐘（日K 即時報價 overlay，對齊分K 更新節奏）
+    case '1wk': return 60_000;  // 1 分鐘（週K 聚合自日K）
+    case '1mo': return 60_000;  // 1 分鐘（月K 聚合自日K）
     default:    return 0;
   }
 }
@@ -284,9 +284,10 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
 
         if (localLoaded) {
           // 本地已秒開 → 背景靜默更新今日 K 棒（不阻塞 UI）
+          // 一律走 local=1：才會觸發 L2/即時報價注入今日 K，否則 MultiMarketProvider 只回歷史
           const bgSymbol = symbol;
           const bgInterval = interval;
-          fetch(`/api/stock?symbol=${encodeURIComponent(symbol)}&interval=${interval}&period=${p}`)
+          fetch(`/api/stock?symbol=${encodeURIComponent(symbol)}&interval=${interval}&period=${p}&local=1`)
             .then(r => r.ok ? r.json() : null)
             .then(json => {
               // 只在用戶還停在同一股票+週期才套用，避免覆蓋已換的資料
@@ -337,6 +338,7 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
     set({ isPolling: true });
     const symbol = currentStock.ticker.replace(/\.(TW|TWO|SS|SZ)$/i, '');
     const interval = currentInterval;
+    const isMinuteInterval = ['1m', '5m', '15m', '30m', '60m'].includes(interval);
     const defaultPeriod: Record<string, string> = {
       '1m': '5d', '5m': '60d', '15m': '60d', '30m': '60d', '60m': '6mo',
       '1d': '2y', '1wk': '5y', '1mo': '10y',
@@ -345,8 +347,8 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
 
     pollingTimer = setInterval(async () => {
       try {
-        // polling 一律走 API（含今日 L2 即時報價），不用 local
-        const localParam = '';
+        // 日K/週K/月K 需走 local=1 才會注入今日 L2/即時報價；分K 走 API 拿 Fugle intraday
+        const localParam = isMinuteInterval ? '' : '&local=1';
         const res = await fetch(
           `/api/stock?symbol=${encodeURIComponent(symbol)}&interval=${interval}&period=${period}${localParam}`
         );

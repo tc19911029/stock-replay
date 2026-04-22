@@ -119,7 +119,7 @@ async function fetchTWSEQuotes(symbols: string[]): Promise<QuoteTick[]> {
               ? +((fq.close - fq.prevClose) / fq.prevClose * 100).toFixed(2)
               : 0
           );
-          results.push({ symbol: sym, price: fq.close, changePercent: changePct });
+          results.push({ symbol: sym, price: fq.close, changePercent: changePct, name: fq.name || undefined });
         }
       } catch { /* Fugle fallback failed */ }
     }));
@@ -138,7 +138,7 @@ async function fetchTWSEQuotes(symbols: string[]): Promise<QuoteTick[]> {
           const code = sym.replace(/\.(TW|TWO)$/i, '');
           const q = snap.quotes.find(qq => qq.symbol === code);
           if (q && q.close > 0) {
-            results.push({ symbol: sym, price: q.close, changePercent: q.changePercent ?? 0 });
+            results.push({ symbol: sym, price: q.close, changePercent: q.changePercent ?? 0, name: q.name || undefined });
           }
         }
       }
@@ -173,6 +173,7 @@ async function fetchCNQuotes(symbols: string[]): Promise<QuoteTick[]> {
           symbol: sym,
           price: quote.close,
           changePercent: changePct,
+          name: quote.name || undefined,
         });
       }
     } catch { /* skip failed symbol */ }
@@ -262,7 +263,7 @@ export async function GET(req: NextRequest) {
           const code = e.resolved.replace(/\.(SS|SZ)$/i, '');
           const q = cnSnap.quotes.find(qq => qq.symbol === code);
           if (q && q.close > 0) {
-            quotes.push({ symbol: e.original, price: q.close, changePercent: q.changePercent ?? 0 });
+            quotes.push({ symbol: e.original, price: q.close, changePercent: q.changePercent ?? 0, name: q.name || undefined });
           }
         }
       }

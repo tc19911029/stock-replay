@@ -4,7 +4,7 @@
     {
       "name": "dev",
       "runtimeExecutable": "/bin/zsh",
-      "runtimeArgs": ["-c", "export PATH=/usr/local/bin:$PATH && node node_modules/next/dist/bin/next dev --port $PORT"],
+      "runtimeArgs": ["-c", "export PATH=/usr/local/bin:$PATH && NODE_OPTIONS='--dns-result-order=ipv4first' node node_modules/next/dist/bin/next dev --port $PORT"],
       "port": 3000,
       "autoPort": true
     },

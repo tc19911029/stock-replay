@@ -46,7 +46,7 @@ function parseTencentLine(line: string): EastMoneyQuote | null {
   const close = parseFloat(parts[3]);
   const prevClose = parseFloat(parts[4]);
   const open = parseFloat(parts[5]);
-  const volume = parseFloat(parts[6]); // 手（1手=100股=1張），統一以「張」存儲
+  const volume = parseFloat(parts[6]) * 100; // f6 單位為「手」；×100 轉為「股」與 L1 歷史一致
   const high = parseFloat(parts[33]);
   const low = parseFloat(parts[34]);
 

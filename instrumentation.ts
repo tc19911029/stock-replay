@@ -39,7 +39,7 @@ export async function register() {
   if (process.env.VERCEL || process.env.NODE_ENV === 'test') return;
 
   console.log('[local-cron] 本地開發模式：定期呼叫 API route 模擬 Vercel Cron');
-  console.log('[local-cron] 刷新+掃描：TW / CN 每 5 分鐘；打板開盤確認：9:25–9:35 CST；L1 下載：盤後一次');
+  console.log('[local-cron] L2 刷新：TW / CN 每 5 分鐘；打板開盤確認：9:25–9:35 CST；L1 下載：盤後一次');
 
   // ── 盤中：買法掃描（B/C/D/E/F），輪流觸發 —— 獨立於 A 六條件避免單輪超時 ──
   async function scanBuyMethodIntraday(market: 'TW' | 'CN', method: 'B' | 'C' | 'D' | 'E' | 'F') {
@@ -56,24 +56,19 @@ export async function register() {
     }
   }
 
-  // ── 盤中：L2 刷新 + L4 掃描（走 update-intraday route） ──
+  // ── 盤中：L2 刷新（update-intraday；L4 掃描由 Vercel scan-intraday 或手動觸發） ──
   async function refreshAndScan(market: 'TW' | 'CN') {
     if (!isMarketOpen(market) && !isPostCloseWindow(market)) return;
-    const data = await callRoute(`/api/cron/update-intraday?market=${market}`, `${market} update-intraday`);
-    if (data && typeof data === 'object') {
-      const payload = ('data' in (data as object) ? (data as { data: unknown }).data : data) as {
-        snapshot?: { count?: number; updatedAt?: string };
-        scanCount?: number;
-        skipped?: boolean;
-        reason?: string;
-      };
-      if (payload?.skipped) {
-        console.log(`[local-cron] ${market} update-intraday 跳過：${payload.reason}`);
-      } else {
-        const count = payload?.snapshot?.count ?? -1;
-        const scanCount = payload?.scanCount ?? -1;
-        console.log(`[local-cron] ${market} L2 刷新 ${count} 支；L4 掃描 ${scanCount} 檔`);
-      }
+
+    const data = await callRoute(
+      `/api/cron/update-intraday?market=${market}`,
+      `${market} update-intraday`,
+    ) as { data?: { count?: number; skipped?: boolean; reason?: string } } | null;
+    const payload = data?.data ?? data ?? {};
+    if ((payload as { skipped?: boolean }).skipped) {
+      console.log(`[local-cron] ${market} L2 刷新跳過：${(payload as { reason?: string }).reason}`);
+    } else {
+      console.log(`[local-cron] ${market} L2 刷新 ${(payload as { count?: number }).count ?? -1} 支`);
     }
   }
 

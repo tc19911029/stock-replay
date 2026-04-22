@@ -13,6 +13,7 @@ import { formatSharesAsLots, marketFromSymbol } from '@/lib/utils/shareUnits';
 interface PriceData {
   price: number;
   changePercent: number;
+  name?: string;
   surgeScore?: number;
   surgeGrade?: string;
   loading?: boolean;
@@ -42,13 +43,13 @@ export default function PortfolioPage() {
       const res = await fetch(`/api/portfolio/quotes?symbols=${encodeURIComponent(symbols.join(','))}`);
       if (!res.ok) throw new Error('quotes failed');
       const json = await res.json();
-      const quotes: Array<{ symbol: string; price: number; changePercent: number }> = json.quotes ?? [];
+      const quotes: Array<{ symbol: string; price: number; changePercent: number; name?: string }> = json.quotes ?? [];
       setPrices(prev => {
         const next = { ...prev };
         for (const s of symbols) {
           const q = quotes.find(q => q.symbol === s);
           if (q && q.price > 0) {
-            next[s] = { price: q.price, changePercent: q.changePercent, loading: false };
+            next[s] = { price: q.price, changePercent: q.changePercent, loading: false, ...(q.name ? { name: q.name } : {}) };
           } else {
             next[s] = { price: 0, changePercent: 0, loading: false, error: '無報價' };
           }
@@ -283,7 +284,7 @@ export default function PortfolioPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-foreground">{h.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</span>
-                      <span className="text-xs text-muted-foreground truncate">{h.name}</span>
+                      <span className="text-xs text-muted-foreground truncate">{p?.name || h.name || h.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</span>
                     </div>
                     <div className="text-[10px] text-muted-foreground mt-0.5">
                       {formatSharesAsLots(h.shares, marketFromSymbol(h.symbol))} · 均價 <span className="text-yellow-400 font-mono">${formatPrice(h.costPrice)}</span>

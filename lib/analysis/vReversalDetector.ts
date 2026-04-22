@@ -41,10 +41,10 @@ export interface VReversalResult {
 }
 
 const LOOKBACK_STOP_BAR = 15; // 變盤線搜尋距離（允許止跌等待多天）
-const PRE_DROP_WINDOW = 5;    // 變盤線之前的下跌段觀察窗
-const MIN_DOWN_DAYS = 3;      // 連跌天數門檻
+const PRE_DROP_WINDOW = 6;    // 變盤線之前的下跌段觀察窗（含變盤線當天）
+const MIN_DOWN_DAYS = 3;       // 連跌天數門檻
 const MIN_DROP_PCT = 8;       // 跌幅門檻 %（段首高 → 變盤線低）
-const VOLUME_MULT = 1.5;      // 今日帶量門檻
+const VOLUME_MULT = 1.4;      // 今日帶量門檻
 
 /** 判斷 K 棒是否為變盤線（十字 / 紡錘 / 長下影） */
 function classifyReversalShape(c: CandleWithIndicators): StopBarShape | null {
@@ -90,14 +90,16 @@ export function detectVReversal(
     const shape = classifyReversalShape(sb);
     if (!shape) continue;
 
-    // (a) 連續下跌：變盤線之前 5 根下跌 ≥ 3 天 且 跌幅 ≥ 10%
-    const preSeg = candles.slice(idx - k - PRE_DROP_WINDOW, idx - k);
+    // (a) 連續下跌：變盤線含當天近 N 天下跌 ≥ 3 天 且 段高 → 變盤線低 跌幅 ≥ 門檻
+    //    preSeg 從 stop bar 往前延伸（含 stop bar），才能正確抓到「變盤線之前高點」
+    const preSeg = candles.slice(idx - k - PRE_DROP_WINDOW + 1, idx - k + 1);
     if (preSeg.length < PRE_DROP_WINDOW) continue;
     let downDays = 0;
     for (let i = 1; i < preSeg.length; i++) {
       if (preSeg[i].close < preSeg[i - 1].close) downDays++;
     }
     if (downDays < MIN_DOWN_DAYS) continue;
+    // segHigh 取 stop bar 之前整個 window 的最高點（不只是 preSeg 的 high）
     const segHigh = Math.max(...preSeg.map(c => c.high));
     if (segHigh <= 0 || sb.low <= 0) continue;
     const drop = ((segHigh - sb.low) / segHigh) * 100;

@@ -78,7 +78,9 @@ export async function getEastMoneySingleQuote(code: string): Promise<EastMoneyQu
   try {
     // 判斷市場：6/9 開頭 = 上海(m:1)，其他 = 深圳(m:0)
     const secId = code[0] === '6' || code[0] === '9' ? `1.${code}` : `0.${code}`;
-    const url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${secId}&fields=f2,f5,f12,f14,f15,f16,f17&ut=fa5fd1943c7b386f172d6893dbfba10b`;
+    // push2 會 302 redirect 到 push2delay；同時帶 live (f2/f15-f17) 與 delay (f43-f60) 欄位，哪邊有資料就用哪邊
+    const fields = 'f2,f5,f12,f14,f15,f16,f17,f43,f44,f45,f46,f47,f60';
+    const url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${secId}&fields=${fields}&ut=fa5fd1943c7b386f172d6893dbfba10b`;
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://quote.eastmoney.com/' },
       signal: AbortSignal.timeout(5000),
@@ -86,15 +88,35 @@ export async function getEastMoneySingleQuote(code: string): Promise<EastMoneyQu
     if (!res.ok) return null;
     const json = await res.json();
     const item = json?.data;
-    if (!item || !item.f2 || item.f2 <= 0) return null;
+    if (!item) return null;
+
+    // live 欄位優先；若 push2delay 回應則 f43-f60（分為單位，÷100 轉元）
+    const hasLive = item.f2 != null && item.f2 > 0;
+    const hasDelay = item.f43 != null && item.f43 > 0;
+    if (!hasLive && !hasDelay) return null;
+
+    const close = hasLive ? item.f2 : item.f43 / 100;
+    const open  = hasLive
+      ? (item.f17 != null && item.f17 > 0 ? item.f17 : item.f2)
+      : (item.f46 != null && item.f46 > 0 ? item.f46 / 100 : close);
+    const high  = hasLive
+      ? (item.f15 != null && item.f15 > 0 ? item.f15 : item.f2)
+      : (item.f44 != null && item.f44 > 0 ? item.f44 / 100 : close);
+    const low   = hasLive
+      ? (item.f16 != null && item.f16 > 0 ? item.f16 : item.f2)
+      : (item.f45 != null && item.f45 > 0 ? item.f45 / 100 : close);
+    const volume = (hasLive ? (item.f5 ?? 0) : (item.f47 ?? 0)) * 100; // f5/f47 單位為「手」；×100 轉為「股」
+    const prevClose = item.f60 != null && item.f60 > 0 ? (hasLive ? item.f60 : item.f60 / 100) : undefined;
+
     return {
       code: item.f12 || code,
       name: (item.f14 && item.f14 !== '-') ? item.f14 : code,
-      open: (item.f17 != null && item.f17 > 0) ? item.f17 : item.f2,
-      high: (item.f15 != null && item.f15 > 0) ? item.f15 : item.f2,
-      low: (item.f16 != null && item.f16 > 0) ? item.f16 : item.f2,
-      close: item.f2,
-      volume: item.f5 ?? 0, // 手（1手=100股=1張），統一以「張」存儲
+      open,
+      high,
+      low,
+      close,
+      volume,
+      prevClose,
     };
   } catch {
     return null;
@@ -172,7 +194,7 @@ function parseItem(item: EastMoneyItem, market: 'cn' | 'us'): EastMoneyQuote | n
       high:   (item.f15 != null && item.f15 > 0) ? item.f15 : close,
       low:    (item.f16 != null && item.f16 > 0) ? item.f16 : close,
       close,
-      volume: item.f5 ?? 0, // 手（1手=100股=1張），統一以「張」存儲
+      volume: (item.f5 ?? 0) * 100, // f5 單位為「手」(1手=100股)；×100 轉為「股」與 L1 歷史一致
       prevClose: (item.f18 != null && item.f18 > 0) ? item.f18 : undefined,
     };
   }
