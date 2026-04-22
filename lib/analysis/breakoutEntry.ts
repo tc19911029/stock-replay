@@ -119,16 +119,16 @@ function detectConsolidation(candles: CandleWithIndicators[], idx: number): Cons
 // 寶典 p.238-244 波浪型態戰法：底底高 + 收盤站上 MA5 → 買進
 // 《做對5步驟》位置 2：多頭回檔不破前低，再大量長紅突破前高
 //
-// 前置條件：
-//   1. 多頭趨勢（detectTrend === '多頭'）— 頭頭高底底高，隱含「回檔不破前低」
-//   2. 近 20 根內曾有 close < MA5（確認有回後）
-//   3. 今日 close > MA5（站回 MA5，止跌確認）
+// 前置條件（用戶 2026-04-22 校正）：
+//   1. 多頭趨勢（detectTrend === '多頭'）— 頭頭高底底高，等同「沒跌破前底」
+//   2. 昨日 close < MA5（昨日仍在 MA5 之下，代表還在回檔中）
+//   3. 今日 close > MA5（今日才剛漲過 MA5，止跌反攻）
 // 扳機（主流程）：紅K 實體 ≥ 2.5% + 量 ≥ 1.3x + 收盤突破前K高
 
 interface PullbackState {
   isPullback: boolean;
   prevSwingLow: number;       // 回檔低點（停損參考）
-  pullbackDays: number;       // 回檔持續天數（info only）
+  pullbackDays: number;       // 回檔連續天數（info only）
   ma5Reclaim: boolean;        // 今日站上 MA5
   pullbackLowClose: number;   // 回檔期最低收盤
 }
@@ -141,30 +141,27 @@ function detectPullback(candles: CandleWithIndicators[], idx: number): PullbackS
   if (idx < 21) return empty;
 
   const c = candles[idx];
-  if (c.ma5 == null) return empty;
+  const prev = candles[idx - 1];
+  if (c.ma5 == null || !prev || prev.ma5 == null) return empty;
 
-  // ── 1. 趨勢多頭（頭頭高底底高，隱含回檔不破前低） ──
+  // ── 1. 趨勢多頭（頭頭高底底高 = 沒跌破前底） ──
   if (detectTrend(candles, idx) !== '多頭') return empty;
 
-  // ── 2. 今日站上 MA5 ──
+  // ── 2. 昨日 close < MA5（昨日仍在 MA5 之下） ──
+  if (prev.close >= prev.ma5) return empty;
+
+  // ── 3. 今日 close > MA5（今天才漲過 MA5） ──
   if (c.close <= c.ma5) return empty;
 
-  // ── 3. 近 20 根內曾跌破 MA5（確認有回後） ──
-  let hadBelowMA5 = false;
-  let pullbackLowClose = Infinity;
+  // 回檔連續天數＋最低收盤（往回找連續 close<MA5 的區段，info only）
+  let pullbackLowClose = prev.close;
   let pullbackDays = 0;
   for (let i = idx - 1; i >= Math.max(0, idx - 20); i--) {
     const bar = candles[i];
-    if (bar.ma5 == null) continue;
-    if (bar.close < bar.ma5) {
-      hadBelowMA5 = true;
-      pullbackLowClose = Math.min(pullbackLowClose, bar.close);
-      pullbackDays++;
-    } else if (hadBelowMA5) {
-      break; // 回檔期結束
-    }
+    if (bar.ma5 == null || bar.close >= bar.ma5) break;
+    pullbackLowClose = Math.min(pullbackLowClose, bar.close);
+    pullbackDays++;
   }
-  if (!hadBelowMA5) return empty;
 
   const pivots = findPivots(candles, idx - 1, 8);
   const lastLow = pivots.find(p => p.type === 'low');
@@ -175,7 +172,7 @@ function detectPullback(candles: CandleWithIndicators[], idx: number): PullbackS
     prevSwingLow,
     pullbackDays,
     ma5Reclaim: true,
-    pullbackLowClose: pullbackLowClose === Infinity ? prevSwingLow : pullbackLowClose,
+    pullbackLowClose,
   };
 }
 
@@ -220,7 +217,7 @@ export function detectConsolidationBreakout(
 /**
  * 回後買上漲偵測（B 買法）
  *
- * 《做對5步驟》位置 2：多頭回檔不破前低 + 曾跌破MA5 + 站回MA5 + 大量長紅突破前K高
+ * 《做對5步驟》位置 2：多頭回檔不破前低 + 昨日仍在MA5之下 + 今日站回MA5 + 大量長紅突破前K高
  * 只回傳 pullback_buy subType。
  */
 export function detectBreakoutEntry(
@@ -254,6 +251,6 @@ export function detectBreakoutEntry(
     volumeRatio,
     prevSwingLow: pb.prevSwingLow,
     preEntryDays: pb.pullbackDays,
-    detail: `回後買上漲（多頭+曾跌破MA5+站回MA5+紅K實體${bodyPct.toFixed(2)}%+量×${volumeRatio.toFixed(2)}+突破前K高${prev.high.toFixed(1)}）`,
+    detail: `回後買上漲（多頭+昨日<MA5+今日站回MA5+紅K實體${bodyPct.toFixed(2)}%+量×${volumeRatio.toFixed(2)}+突破前K高${prev.high.toFixed(1)}）`,
   };
 }

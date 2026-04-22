@@ -318,14 +318,14 @@ export const ZHU_CONSOLIDATION_BREAKOUT: StrategyConfig = {
 /**
  * B 回後買上漲策略（2026-04-21 重命名，原 B 的 pullback 部分獨立）
  *
- * 《5步驟》位置 2：多頭趨勢 + 曾跌破MA5 + 站回MA5 + 大量長紅突破前K高
+ * 《5步驟》位置 2：多頭趨勢 + 昨日<MA5 + 今日站回MA5 + 大量長紅突破前K高
  * 底層偵測用 lib/analysis/breakoutEntry.ts 的 detectBreakoutEntry()。
  * 不套戒律（strategyType='kline-pattern'）。
  */
 export const ZHU_BREAKOUT: StrategyConfig = {
   id:          'zhu-breakout',
   name:        '回後買上漲（B）',
-  description: '《5步驟》位置2：多頭回檔+曾跌破MA5+站回MA5+大量長紅突破前K高，停損回檔低點',
+  description: '《5步驟》位置2：多頭回檔+昨日<MA5+今日站回MA5+大量長紅突破前K高，停損回檔低點',
   version:     '1.0.0',
   author:      '朱家泓',
   createdAt:   '2026-04-20T00:00:00.000Z',

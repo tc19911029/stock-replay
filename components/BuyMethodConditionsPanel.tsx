@@ -61,8 +61,8 @@ function evaluateMethod(
           pass: !!r,
         },
         {
-          icon: '②', name: '曾跌破MA5 + 站回MA5',
-          detail: r ? '近20根內曾跌破MA5，今日收盤>MA5' : '未完成回後確認',
+          icon: '②', name: '昨日<MA5 + 今日站回MA5',
+          detail: r ? '昨日收盤<MA5，今日收盤>MA5（剛回到 MA5 上方）' : '未完成回後確認',
           pass: !!r,
         },
         {
