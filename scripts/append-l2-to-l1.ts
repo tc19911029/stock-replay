@@ -30,6 +30,25 @@ interface L2Snap { date: string; quotes: L2Quote[]; }
 interface L1Candle { date: string; open: number; high: number; low: number; close: number; volume: number; }
 interface L1File { candles: L1Candle[]; lastDate?: string; [k: string]: unknown; }
 
+function medianOf(xs: number[]): number {
+  if (xs.length === 0) return 0;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+/** 新 bar 與歷史中位數相差 >30 倍 → 單位不一致，拒絕寫入 */
+function isVolumeAnomalous(candles: L1Candle[], newVol: number): false | string {
+  if (newVol <= 0 || candles.length < 5) return false;
+  const window = candles.slice(-20).map(c => c.volume).filter(v => v > 0);
+  if (window.length < 5) return false;
+  const med = medianOf(window);
+  if (med <= 0) return false;
+  if (newVol > med * 30) return `新bar量(${newVol}) > 歷史中位數(${med})×30 → 可能手→股單位錯誤，先跑 normalize-cn-l1-volume.ts`;
+  if (newVol < med / 30) return `新bar量(${newVol}) < 歷史中位數(${med})/30 → 可能股→手單位錯誤`;
+  return false;
+}
+
 async function main() {
   const snap: L2Snap = JSON.parse(await readFile(snapFile, 'utf-8'));
   const quotes = snap.quotes.filter(q => q.close > 0);
@@ -56,6 +75,13 @@ async function main() {
       const candles = raw.candles ?? [];
       const last = candles[candles.length - 1];
       if (last?.date === snap.date) { skipped++; return; }
+
+      const anomaly = isVolumeAnomalous(candles, q.volume);
+      if (anomaly) {
+        console.warn(`  [SKIP] ${q.symbol} ${snap.date}: ${anomaly}`);
+        missing++;
+        return;
+      }
 
       candles.push({ date: snap.date, open: q.open, high: q.high, low: q.low, close: q.close, volume: q.volume });
       raw.candles = candles;

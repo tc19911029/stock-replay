@@ -87,7 +87,13 @@ function guardAgainstAnomalousLastBar(symbol: string, candles: Candle[]): Candle
   if (med <= 0) return candles;
   if (last.volume > med * 30) {
     console.warn(
-      `[L1 guard] ${symbol} ${last.date} volume=${last.volume} 超過前 20 日中位數 ${med} 的 30 倍，砍掉該 bar 不寫入`
+      `[L1 guard] ${symbol} ${last.date} volume=${last.volume} 超過前 20 日中位數 ${med} 的 30 倍，砍掉該 bar 不寫入（可能單位錯誤：手→股需先跑 normalize-cn-l1-volume.ts）`
+    );
+    return candles.slice(0, -1);
+  }
+  if (last.volume < med / 30) {
+    console.warn(
+      `[L1 guard] ${symbol} ${last.date} volume=${last.volume} 低於前 20 日中位數 ${med} 的 1/30，砍掉該 bar 不寫入（可能單位錯誤：股→手）`
     );
     return candles.slice(0, -1);
   }
