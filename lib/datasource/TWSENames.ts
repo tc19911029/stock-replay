@@ -50,7 +50,14 @@ export async function getCNChineseName(code: string): Promise<string | null> {
   const cached = globalCache.get<string>(cacheKey);
   if (cached) return cached;
 
-  // 3. 東方財富 API 動態查詢
+  // 2. 靜態對照表（CN_STOCKS + 檔案快取，立即返回不打 API）
+  // 大多數主板股票都在 CN_NAME_MAP，直接回傳避免 500 支股票 × 5s API timeout
+  if (CN_NAME_MAP[code]) {
+    globalCache.set(cacheKey, CN_NAME_MAP[code], 24 * 60 * 60 * 1000);
+    return CN_NAME_MAP[code];
+  }
+
+  // 3. 東方財富 API 動態查詢（僅靜態清單查無時才打 API）
   try {
     const secid = code.startsWith('6') ? `1.${code}` : `0.${code}`;
     const url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=f58&_=${Date.now()}`;

@@ -214,7 +214,7 @@ export async function getTWSESingleIntraday(code: string): Promise<TWSEQuote | n
     const json = await res.json();
     const d = json?.msgArray?.[0];
     if (!d) return null;
-    const close = parseMisPrice(d.z) || parseMisPrice(d.l);
+    const close = parseMisPrice(d.z) || parseMisBestPrice(d.b) || parseMisPrice(d.l);
     if (close <= 0) return null;
     const prevClose = parseMisPrice(d.y);
     // 使用 mis.twse 回傳的實際日期（d.d 格式 "20260416"），避免盤後硬編碼 today 產生假 K 棒
@@ -272,6 +272,12 @@ function parseMisPrice(s: string | undefined): number {
   if (!s || s === '-') return 0;
   const v = parseFloat(s);
   return isNaN(v) ? 0 : v;
+}
+
+/** 從 mis.twse b/a 欄位（格式 "4245.0000_4240.0000_..."）取最優一檔價格 */
+function parseMisBestPrice(s: string | undefined): number {
+  if (!s) return 0;
+  return parseMisPrice(s.split('_')[0]);
 }
 
 const MIS_BATCH_SIZE = 80;     // 每次查詢的股票數量上限（mis.twse 實測 100 可用、200 失敗）
@@ -341,7 +347,7 @@ async function fetchIntradayQuotes(): Promise<Map<string, TWSEQuote>> {
       for (const d of json?.msgArray ?? []) {
         const code = d.c;
         if (!code) continue;
-        const close = parseMisPrice(d.z) || parseMisPrice(d.l); // 最新成交 or 最低價 fallback
+        const close = parseMisPrice(d.z) || parseMisBestPrice(d.b) || parseMisPrice(d.l); // 最新成交 or 最優買價 or 最低價 fallback
         if (close <= 0) continue; // 今日無交易
         const prevClose = parseMisPrice(d.y);
         map.set(code, {

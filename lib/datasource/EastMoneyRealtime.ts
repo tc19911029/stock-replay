@@ -105,7 +105,7 @@ export async function getEastMoneySingleQuote(code: string): Promise<EastMoneyQu
     const low   = hasLive
       ? (item.f16 != null && item.f16 > 0 ? item.f16 : item.f2)
       : (item.f45 != null && item.f45 > 0 ? item.f45 / 100 : close);
-    const volume = hasLive ? (item.f5 ?? 0) : (item.f47 ?? 0); // f5/f47 單位為「手」；1手=1張=100股，直接用（不轉股）
+    const volume = (hasLive ? (item.f5 ?? 0) : (item.f47 ?? 0)) * 100; // f5/f47 單位為「手」；×100 轉為「股」與 L1 歷史一致
     const prevClose = item.f60 != null && item.f60 > 0 ? (hasLive ? item.f60 : item.f60 / 100) : undefined;
 
     return {
@@ -194,7 +194,7 @@ function parseItem(item: EastMoneyItem, market: 'cn' | 'us'): EastMoneyQuote | n
       high:   (item.f15 != null && item.f15 > 0) ? item.f15 : close,
       low:    (item.f16 != null && item.f16 > 0) ? item.f16 : close,
       close,
-      volume: item.f5 ?? 0, // f5 單位為「手」；1手=1張=100股，直接用
+      volume: (item.f5 ?? 0) * 100, // f5 單位為「手」；×100 轉為「股」與 L1 歷史一致
       prevClose: (item.f18 != null && item.f18 > 0) ? item.f18 : undefined,
     };
   }

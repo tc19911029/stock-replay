@@ -59,7 +59,17 @@ export class ChinaScanner extends MarketScanner {
       const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
       const isHistorical = !!asOfDate && asOfDate < today;
       if (candles.length < 20 && !isHistorical) {
-        candles = await dataProvider.getHistoricalCandles('000300.SS', '1y', asOfDate);
+        const fetched = await dataProvider.getHistoricalCandles('000300.SS', '1y', asOfDate);
+        if (fetched.length >= 20) {
+          // 存進 L1，下次直接從 cache 讀（省掉每次 13s API 呼叫）
+          const { saveLocalCandles } = await import('@/lib/datasource/LocalCandleStore');
+          const raw = fetched.map(c => ({
+            date: c.date, open: c.open, high: c.high,
+            low: c.low, close: c.close, volume: c.volume,
+          }));
+          saveLocalCandles('000300.SS', 'CN', raw).catch(() => {});
+        }
+        candles = fetched;
       }
       if (candles.length < 20) return '多頭'; // 資料不足時歷史預設多頭（TW 統計同期大多是多頭）
 

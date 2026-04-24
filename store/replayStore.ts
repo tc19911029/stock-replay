@@ -347,27 +347,66 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
 
     pollingTimer = setInterval(async () => {
       try {
-        // 日K/週K/月K 需走 local=1 才會注入今日 L2/即時報價；分K 走 API 拿 Fugle intraday
-        const localParam = isMinuteInterval ? '' : '&local=1';
-        const res = await fetch(
-          `/api/stock?symbol=${encodeURIComponent(symbol)}&interval=${interval}&period=${period}${localParam}`
-        );
-        if (!res.ok) return;
-        const json = await res.json();
-        const candles = computeIndicators(json.candles);
-        if (candles.length === 0) return;
+        if (isMinuteInterval) {
+          // 分K：重抓完整分鐘資料（Fugle intraday）
+          const res = await fetch(
+            `/api/stock?symbol=${encodeURIComponent(symbol)}&interval=${interval}&period=${period}`
+          );
+          if (!res.ok) return;
+          const json = await res.json();
+          const candles = computeIndicators(json.candles);
+          if (candles.length === 0) return;
+          const { currentIndex, allCandles, account } = get();
+          const wasAtEnd = currentIndex >= allCandles.length - 1;
+          const newIndex = wasAtEnd ? candles.length - 1 : currentIndex;
+          precomputeMarkers(candles);
+          set({ allCandles: candles, currentIndex: newIndex, ...buildState(candles, newIndex, account) });
+        } else {
+          // 日K/週K/月K：只更新今日最後一根 bar，避免重讀 2 年 L1 觸發 bulk preload
+          const res = await fetch(`/api/stock/quote?symbol=${encodeURIComponent(symbol)}`);
+          if (!res.ok) return;
+          const q = await res.json();
+          if (!q.close || q.close <= 0) return;
 
-        // 保留當前位置：如果在最末尾則跟隨更新，否則保持不動
-        const { currentIndex, allCandles, account } = get();
-        const wasAtEnd = currentIndex >= allCandles.length - 1;
-        const newIndex = wasAtEnd ? candles.length - 1 : currentIndex;
+          const { currentIndex, allCandles, account } = get();
+          if (allCandles.length === 0) return;
 
-        precomputeMarkers(candles);
-        set({
-          allCandles: candles,
-          currentIndex: newIndex,
-          ...buildState(candles, newIndex, account),
-        });
+          const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
+          const lastCandle = allCandles[allCandles.length - 1];
+          const updatedCandles = [...allCandles];
+
+          if (lastCandle.date === today) {
+            // 覆蓋今日 bar
+            updatedCandles[updatedCandles.length - 1] = {
+              ...lastCandle,
+              open: q.open || lastCandle.open,
+              high: Math.max(q.high || 0, lastCandle.high),
+              low: q.low > 0 ? Math.min(q.low, lastCandle.low) : lastCandle.low,
+              close: q.close,
+              volume: q.volume || lastCandle.volume,
+            };
+          } else if (lastCandle.date < today) {
+            // 新增今日 bar
+            updatedCandles.push({
+              date: today,
+              open: q.open || q.close,
+              high: q.high || q.close,
+              low: q.low || q.close,
+              close: q.close,
+              volume: q.volume || 0,
+            });
+          } else {
+            return; // 歷史回放模式，不覆蓋
+          }
+
+          const candles = computeIndicators(updatedCandles.map(c => ({
+            date: c.date, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume,
+          })));
+          const wasAtEnd = currentIndex >= allCandles.length - 1;
+          const newIndex = wasAtEnd ? candles.length - 1 : currentIndex;
+          precomputeMarkers(candles);
+          set({ allCandles: candles, currentIndex: newIndex, ...buildState(candles, newIndex, account) });
+        }
       } catch {
         // polling 失敗不影響用戶體驗，靜默忽略
       }
