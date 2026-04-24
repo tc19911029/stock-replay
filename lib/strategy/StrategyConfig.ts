@@ -152,7 +152,7 @@ export const BASE_THRESHOLDS: StrategyThresholds = {
   upperShadowMax: 0.20,
   volumeRatioMin: 1.3,  // 書上p.54：攻擊量 ≥ 前一日 × 1.3
   kdMaxEntry:     88,
-  deviationMax:   0.225,
+  deviationMax:   0.15,
   minScore:       4,    // 基本門檻 4 分
   marketTrendFilter: true,
   // 注意：scanOne() 中 isCoreReady 要求前5個核心條件全過（coreScore=5），
@@ -213,7 +213,7 @@ export const ZHU_PURE_BOOK: StrategyConfig = {
     volumeRatioMin:   1.3,   // 書本 p.54 ④ 明寫
     kbarMinBodyPct:   0.02,  // 書本 p.54 ⑤ 明寫
     kdMaxEntry:       100,   // 書本沒寫 → 不限
-    deviationMax:     1.0,   // 書本沒寫 → 不限
+    deviationMax:     0.15,  // 用戶設定：乖離 >15% 篩除（2026-04-22）
     upperShadowMax:   1.0,   // 書本沒寫 → 不限
     minScore:         5,
     bullMinScore:     5,     // 書本 1~5 必要

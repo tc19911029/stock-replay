@@ -55,11 +55,13 @@ export class ChinaScanner extends MarketScanner {
         }
       } catch { /* local read failed, fallback to API */ }
 
-      // 本地無數據時才走 API
-      if (candles.length < 20) {
+      // 歷史重掃時不打 API（000300.SS 不在 L1，打 API 只會 timeout）
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
+      const isHistorical = !!asOfDate && asOfDate < today;
+      if (candles.length < 20 && !isHistorical) {
         candles = await dataProvider.getHistoricalCandles('000300.SS', '1y', asOfDate);
       }
-      if (candles.length < 20) return '盤整'; // 資料不足，保守預設
+      if (candles.length < 20) return '多頭'; // 資料不足時歷史預設多頭（TW 統計同期大多是多頭）
 
       const lastIdx = candles.length - 1;
       const longTrend = detectTrend(candles, lastIdx);

@@ -162,6 +162,7 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   let market: MarketId | 'BOTH' = 'BOTH';
   let days = 20;
+  let onlyDate: string | null = null;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--market' && args[i + 1]) {
       const m = args[i + 1].toUpperCase();
@@ -169,6 +170,9 @@ async function main(): Promise<void> {
       i++;
     } else if (args[i] === '--days' && args[i + 1]) {
       days = parseInt(args[i + 1], 10);
+      i++;
+    } else if (args[i] === '--date' && args[i + 1]) {
+      onlyDate = args[i + 1];
       i++;
     }
   }
@@ -178,7 +182,8 @@ async function main(): Promise<void> {
   for (const mkt of markets) {
     const scanner = mkt === 'TW' ? new TaiwanScanner() : new ChinaScanner();
     const allStocks = await scanner.getStockList();
-    const dates = listRecentTradingDays(mkt, days);
+    let dates = listRecentTradingDays(mkt, days);
+    if (onlyDate) dates = dates.filter(d => d === onlyDate);
     console.log(`\n📅 [${mkt}] B/C/D/E 歷史掃描 ${dates.length} 天: ${dates[0]} ~ ${dates[dates.length - 1]}`);
 
     // 名字 map：優先用 scanner 股票清單（TW/TWO 都有），TW 再用 TWSE API 補漏

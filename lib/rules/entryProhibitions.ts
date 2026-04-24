@@ -103,8 +103,8 @@ export function checkLongProhibitions(
     // KD 高檔：K > 80（市場通用超買門檻）
     const kdHigh = kd != null && kd > 80;
 
-    // 乖離過大：距 MA20 > 22.5%（朱家泓實例 15-30% 的中位數）
-    const deviationLarge = deviation > 0.225;
+    // 乖離過大：距 MA20 > 15%（用戶設定 2026-04-22）
+    const deviationLarge = deviation > 0.15;
 
     if (volumeDivergence && kdHigh && deviationLarge) {
       reasons.push('戒律3：量價背離+KD高檔+乖離過大同時成立，勿進場做多');

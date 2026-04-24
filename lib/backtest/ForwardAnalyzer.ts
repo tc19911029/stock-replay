@@ -164,8 +164,12 @@ async function analyzeOne(
     //      成「今天」，注入會讓前一日 K 棒被加第二次造成 d1Return=d2Return 污染
     const { isTradingDay } = await import('@/lib/utils/tradingDay');
     const todayIsTradingDay = isTradingDay(todayStr, market);
+    // L1 已有今日收盤 K 棒時跳過 L2 注入：L2 是盤中快照，收盤後已過時
+    // （曾發生 L2 11:42 AM 快照蓋掉 L1 正確收盤，導致 d2Return 算錯）
+    const l1HasToday = candles.some(c => c.date === todayStr);
     try {
       if (!todayIsTradingDay) throw new Error('skip: not a trading day');
+      if (l1HasToday) throw new Error('skip: L1 already has today close');
       const { readIntradaySnapshot } = await import('@/lib/datasource/IntradayCache');
       const snap = await readIntradaySnapshot(market, todayStr);
       if (snap && snap.quotes.length > 0) {

@@ -1,7 +1,42 @@
 #!/bin/bash
-# 完整 L4 刷新：歸檔舊 B/C/E/F → 跑 A 策略 20 天 + B/C/D/E 新命名 20 天
+# 完整 L4 刷新：每天獨立一個 node process，避免記憶體堆積 OOM
+# 用法：bash scripts/full-l4-refresh.sh [天數=20]
 set -e
 cd "$(dirname "$0")/.."
+
+DAYS=${1:-20}
+HEAP=3072   # 3GB：單天資料用不到這麼多，保留一半給系統
+
+# 列出最近 N 個交易日（利用 rescan-history 的 --date 參數逐天跑）
+list_tw_days() {
+  npx tsx -e "
+import { isTradingDay } from './lib/utils/tradingDay';
+const n = ${DAYS};
+const days: string[] = [];
+const cur = new Date();
+while (days.length < n) {
+  const iso = cur.toISOString().slice(0,10);
+  if (isTradingDay(iso, 'TW')) days.push(iso);
+  cur.setUTCDate(cur.getUTCDate()-1);
+}
+console.log(days.reverse().join(' '));
+" 2>/dev/null
+}
+
+list_cn_days() {
+  npx tsx -e "
+import { isTradingDay } from './lib/utils/tradingDay';
+const n = ${DAYS};
+const days: string[] = [];
+const cur = new Date();
+while (days.length < n) {
+  const iso = cur.toISOString().slice(0,10);
+  if (isTradingDay(iso, 'CN')) days.push(iso);
+  cur.setUTCDate(cur.getUTCDate()-1);
+}
+console.log(days.reverse().join(' '));
+" 2>/dev/null
+}
 
 echo "=== Step 1: 歸檔舊 B/C/E/F 檔案（命名衝突）==="
 mkdir -p data/ARCHIVE-old-buymethods-0420
@@ -12,14 +47,42 @@ for m in TW CN; do
 done
 echo "歸檔 $(ls data/ARCHIVE-old-buymethods-0420 | wc -l) 檔"
 
-echo ""
-echo "=== Step 2: A 策略 20 天 rescan（8G heap）==="
-export NODE_OPTIONS="--max-old-space-size=8192"
-npx tsx scripts/rescan-history.ts --days 20
+run_day() {
+  local script="$1"
+  local market="$2"
+  local date="$3"
+  echo "  ▶ [${market} ${date}] ${script}..."
+  NODE_OPTIONS="--max-old-space-size=${HEAP}" \
+    npx tsx "scripts/${script}" --market "$market" --date "$date" 2>&1 \
+    | grep -v "^$" | grep -v "dotenv"
+  sleep 2
+}
 
 echo ""
-echo "=== Step 3: B/C/D/E 新命名歷史 20 天 ==="
-npx tsx scripts/scan-buy-methods-history.ts --days 20
+echo "=== Step 2: A 策略 TW（逐天）==="
+TW_DAYS=$(list_tw_days)
+for d in $TW_DAYS; do
+  run_day rescan-history.ts TW "$d"
+done
 
 echo ""
-echo "=== 完成 ==="
+echo "=== Step 3: A 策略 CN（逐天）==="
+CN_DAYS=$(list_cn_days)
+for d in $CN_DAYS; do
+  run_day rescan-history.ts CN "$d"
+done
+
+echo ""
+echo "=== Step 4: BCDEF TW（逐天）==="
+for d in $TW_DAYS; do
+  run_day scan-buy-methods-history.ts TW "$d"
+done
+
+echo ""
+echo "=== Step 5: BCDEF CN（逐天）==="
+for d in $CN_DAYS; do
+  run_day scan-buy-methods-history.ts CN "$d"
+done
+
+echo ""
+echo "=== 全部完成 ==="

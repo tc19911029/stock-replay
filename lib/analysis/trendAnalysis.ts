@@ -552,7 +552,7 @@ export function evaluateSixConditions(
   if (extra.strongPullbackResume)  highWinTags.push('🎯 強勢短回續攻');
   if (extra.falseBreakRebound)     highWinTags.push('🎯 假跌破反彈');
 
-  // 書本 p.54 #3 gate：收盤在 MA10、MA20 之上；乖離 ≤ devMax（用戶設定 22.5%）
+  // 書本 p.54 #3 gate：收盤在 MA10、MA20 之上；乖離 ≤ devMax（用戶設定 15%）
   const positionPass = positionAboveKeyMa && (ma20Dev === null || ma20Dev <= devMax);
 
   // Tier B 書本警示 tag（不擋 gate，僅顯示資訊）—— 讓用戶看到書本其他訊號
