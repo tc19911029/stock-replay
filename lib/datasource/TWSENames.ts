@@ -118,17 +118,30 @@ async function buildNameMap(): Promise<NameMap> {
   if (listedRes.status === 'fulfilled' && listedRes.value.ok) {
     const data = await listedRes.value.json() as { Code: string; Name: string }[];
     for (const s of data) {
-      if (/^\d{4}$/.test(s.Code)) map[s.Code] = s.Name;
+      if (/^\d{4,5}$/.test(s.Code)) map[s.Code] = s.Name;
     }
   }
 
   if (otcRes.status === 'fulfilled' && otcRes.value.ok) {
     const data = await otcRes.value.json() as { SecuritiesCompanyCode: string; CompanyName: string }[];
     for (const s of data) {
-      if (/^\d{4}$/.test(s.SecuritiesCompanyCode)) {
+      if (/^\d{4,5}$/.test(s.SecuritiesCompanyCode)) {
         map[s.SecuritiesCompanyCode] ??= s.CompanyName;
       }
     }
+  } else {
+    // TPEx API blocked by Cloudflare — fallback to ISIN C_public.jsp (Big5 HTML, not Cloudflare-gated)
+    try {
+      const isinRes = await fetch('https://isin.twse.com.tw/isin/C_public.jsp?strMode=4',
+        { signal: AbortSignal.timeout(15000) });
+      if (isinRes.ok) {
+        const buf = await isinRes.arrayBuffer();
+        const text = new TextDecoder('big5').decode(buf);
+        for (const [, code, name] of text.matchAll(/([1-9]\d{3})\u3000([\u4e00-\u9fff][\u4e00-\u9fff\w\-]*)/g)) {
+          if (!name.includes('購')) map[code] ??= name; // 排除含「購」的權證條目
+        }
+      }
+    } catch { /* ISIN fallback 失敗，繼續無名稱 */ }
   }
 
   return map;
