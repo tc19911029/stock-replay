@@ -89,53 +89,44 @@ export async function fetchDayTradeForStock(code: string, date: string, totalVol
   return { dayTradeVolume: volume, dayTradeRatio: ratio };
 }
 
-// ── 借券（今日 vs 7 日前比較計算淨額） ────────────────────────────────────
+// ── 借券賣出 SBL（含累積餘額 + 日流量） ──────────────────────────────────────
+// 用 TaiwanDailyShortSaleBalances dataset（免費）：
+//   SBLShortSalesCurrentDayBalance: 借券賣出當日餘額（累積部位）
+//   SBLShortSalesShortSales:        當日新增借券賣出
+//   SBLShortSalesReturns:           當日返還
+//   ⇒ 券賣淨額 = ShortSales - Returns（正值表示空方加碼，負值表示空方回補）
 
 export interface LendingInfo {
-  /** 借券今日總量（張） */
+  /** 借券賣出餘額（累積部位，張） */
   lendingBalance: number;
-  /** 借券淨增減（今日 - 上一交易日，張） */
+  /** 券賣淨增減（今日新增 - 返還，張） */
   lendingNet: number;
 }
 
-interface FmLendingRow {
+interface FmShortSaleRow {
   date: string;
-  volume: number;
-  transaction_type: string;
+  stock_id: string;
+  SBLShortSalesPreviousDayBalance: number;
+  SBLShortSalesShortSales: number;
+  SBLShortSalesReturns: number;
+  SBLShortSalesCurrentDayBalance: number;
 }
 
-function dateMinus(d: string, days: number): string {
-  const dt = new Date(d + 'T00:00:00Z');
-  dt.setUTCDate(dt.getUTCDate() - days);
-  return dt.toISOString().slice(0, 10);
-}
+const toLots = (sharesValue: number): number => {
+  if (sharesValue === 0) return 0;
+  if (Math.abs(sharesValue) < 1000) return sharesValue >= 0 ? 1 : -1;
+  return Math.round(sharesValue / 1000);
+};
 
 export async function fetchLendingForStock(code: string, date: string): Promise<LendingInfo | null> {
-  // 一次抓 7 天區間，自己分組對比今日 vs 前一個有借券交易的日子
-  const startDate = dateMinus(date, 7);
-  const rows = await fmGet<FmLendingRow>('TaiwanStockSecuritiesLending', code, startDate, date);
-  if (rows.length === 0) return null;
-
-  // 按日期 group
-  const byDate = new Map<string, number>();
-  for (const r of rows) {
-    if (!r.date) continue;
-    byDate.set(r.date, (byDate.get(r.date) ?? 0) + (r.volume ?? 0));
-  }
-  const sortedDates = Array.from(byDate.keys()).sort();
-  const todayVol = byDate.get(date) ?? 0;
-  // 找今日之前最近一個有交易的日子
-  const prevDate = sortedDates.filter(d => d < date).slice(-1)[0];
-  const prevVol = prevDate ? (byDate.get(prevDate) ?? 0) : 0;
-
-  // 借券單筆通常很小（幾十~幾千股），除1000常變0；改用 ceil 確保非0值顯示為至少 1 張
-  const toLots = (sharesValue: number): number => {
-    if (sharesValue === 0) return 0;
-    if (Math.abs(sharesValue) < 1000) return sharesValue >= 0 ? 1 : -1;
-    return Math.round(sharesValue / 1000);
-  };
+  const rows = await fmGet<FmShortSaleRow>('TaiwanDailyShortSaleBalances', code, date);
+  const r = rows[0];
+  if (!r) return null;
+  const todayShortSales = r.SBLShortSalesShortSales ?? 0;
+  const todayReturns = r.SBLShortSalesReturns ?? 0;
+  const balance = r.SBLShortSalesCurrentDayBalance ?? 0;
   return {
-    lendingBalance: toLots(todayVol),
-    lendingNet: toLots(todayVol - prevVol),
+    lendingBalance: toLots(balance),
+    lendingNet: toLots(todayShortSales - todayReturns),
   };
 }
