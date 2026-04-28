@@ -145,6 +145,115 @@ async function fetchTPExMonth(code: string, dateStr: string): Promise<Candle[]> 
   }
 }
 
+// ── FinMind fallback（TPEx Cloudflare 403 / TWSE rate-limit 時用） ───────────
+// FinMind dataset=TaiwanStockPrice 上市/上櫃通用，stock_id 不帶後綴
+// Trading_Volume 單位是「股」，除以 1000 轉張
+const FINMIND_TOKEN = process.env.FINMIND_API_TOKEN ?? '';
+
+interface FinMindPriceRow {
+  date: string;
+  Trading_Volume: number;
+  open: number;
+  max: number;
+  min: number;
+  close: number;
+}
+
+async function fetchFinMindMonth(code: string, dateStr: string): Promise<Candle[]> {
+  // dateStr 格式：YYYYMM01 → start=YYYY-MM-01, end=YYYY-MM-末日
+  const year = dateStr.substring(0, 4);
+  const month = dateStr.substring(4, 6);
+  const startDate = `${year}-${month}-01`;
+  const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+  const endDate = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+  const url =
+    `https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice` +
+    `&data_id=${code}&start_date=${startDate}&end_date=${endDate}` +
+    (FINMIND_TOKEN ? `&token=${FINMIND_TOKEN}` : '');
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    if (!res.ok) return [];
+    const json = (await res.json()) as { status: number; data?: FinMindPriceRow[] };
+    if (json.status !== 200 || !json.data) return [];
+    return json.data
+      .map((r) => {
+        if (!r.date || isNaN(r.close) || r.close <= 0) return null;
+        return {
+          date: r.date,
+          open: r.open,
+          high: r.max,
+          low: r.min,
+          close: r.close,
+          volume: Math.round(r.Trading_Volume / 1000),
+        };
+      })
+      .filter((c): c is Candle => c !== null);
+  } catch {
+    return [];
+  }
+}
+
+// Yahoo fallback：FinMind 配額耗盡時的最後一道防線
+async function fetchYahooMonth(symbol: string, dateStr: string): Promise<Candle[]> {
+  // 用 unix 秒數定 period1/period2 為當月 1 號 ~ 下月 1 號（含 Yahoo 的 UTC 偏移容忍）
+  const year = parseInt(dateStr.substring(0, 4));
+  const month = parseInt(dateStr.substring(4, 6));
+  const period1 = Math.floor(Date.UTC(year, month - 1, 1) / 1000);
+  const period2 = Math.floor(Date.UTC(year, month, 1) / 1000);
+  const url =
+    `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}` +
+    `?interval=1d&period1=${period1}&period2=${period2}`;
+  try {
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(10_000),
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+    });
+    if (!res.ok) return [];
+    const json = (await res.json()) as {
+      chart?: { result?: { timestamp?: number[]; indicators: { quote: { open: (number|null)[]; high: (number|null)[]; low: (number|null)[]; close: (number|null)[]; volume: (number|null)[] }[] } }[] };
+    };
+    const r = json.chart?.result?.[0];
+    const ts = r?.timestamp;
+    if (!ts || ts.length === 0) return [];
+    const q = r.indicators.quote[0];
+    const out: Candle[] = [];
+    for (let i = 0; i < ts.length; i++) {
+      const close = q.close[i];
+      if (close == null || close <= 0) continue;
+      const date = new Date(ts[i] * 1000).toISOString().slice(0, 10);
+      out.push({
+        date,
+        open: q.open[i] ?? close,
+        high: q.high[i] ?? close,
+        low: q.low[i] ?? close,
+        close,
+        volume: Math.round((q.volume[i] ?? 0) / 1000),
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/** TWSE 主 → FinMind → Yahoo 三層 fallback：上市股單月抓取 */
+async function fetchTWSEMonthWithFallback(code: string, dateStr: string): Promise<Candle[]> {
+  const primary = await fetchTWSEMonth(code, dateStr);
+  if (primary.length > 0) return primary;
+  const finmind = await fetchFinMindMonth(code, dateStr);
+  if (finmind.length > 0) return finmind;
+  return fetchYahooMonth(`${code}.TW`, dateStr);
+}
+
+/** TPEx 主 → FinMind → Yahoo 三層 fallback：上櫃股單月抓取（TPEx 被 Cloudflare 403 時不致斷流） */
+async function fetchTPExMonthWithFallback(code: string, dateStr: string): Promise<Candle[]> {
+  const primary = await fetchTPExMonth(code, dateStr);
+  if (primary.length > 0) return primary;
+  const finmind = await fetchFinMindMonth(code, dateStr);
+  if (finmind.length > 0) return finmind;
+  return fetchYahooMonth(`${code}.TWO`, dateStr);
+}
+
 // ── 批次抓取多月份（含限流） ──────────────────────────────────────────────────
 
 async function fetchMonths(
@@ -153,7 +262,7 @@ async function fetchMonths(
   otc: boolean,
 ): Promise<Candle[]> {
   const now = new Date();
-  const fetcher = otc ? fetchTPExMonth : fetchTWSEMonth;
+  const fetcher = otc ? fetchTPExMonthWithFallback : fetchTWSEMonthWithFallback;
 
   // 建立月份列表
   const dateStrs: string[] = [];

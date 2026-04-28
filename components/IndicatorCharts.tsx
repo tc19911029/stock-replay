@@ -487,7 +487,10 @@ function ChipChart({ seriesKey, candles, chips, hoverCandle }: {
   );
 }
 
-// ── 大戶持股（TDCC 集保戶股權分散） — 折線副圖 ──────────────────────────────
+// ── 大戶持股（TDCC 集保戶股權分散） — 精簡 badge ─────────────────────────────
+// TDCC opendata 只回傳最新一週快照，無歷史端點；累積週數 < 視覺有意義門檻時
+// 折線會是一條直線。改用 badge 顯示：當週值 + vs 上週變化 + 近 N 週區間。
+// 走圖 hover K 棒會切到「日期 <= hover.date 的最後一筆」TDCC 週資料。
 
 type HolderKey = 'h400' | 'h1000';
 const HOLDER_LABELS: Record<HolderKey, string> = {
@@ -499,103 +502,69 @@ const HOLDER_COLORS: Record<HolderKey, string> = {
   h1000: '#ec4899', // 粉
 };
 
-function HolderChart({ holderKey, candles, chips, hoverCandle }: {
+function pickHolderValue(row: { holder400Pct: number; holder1000Pct: number }, key: HolderKey): number {
+  return key === 'h400' ? row.holder400Pct : row.holder1000Pct;
+}
+
+function HolderBadge({ holderKey, chips, hoverCandle, candles }: {
   holderKey: HolderKey;
-  candles: CandleWithIndicators[];
   chips?: ChipsData | null;
   hoverCandle?: CandleWithIndicators | null;
+  candles: CandleWithIndicators[];
 }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<ISeriesApi<'Line'> | null>(null);
-  const candlesRef = useRef<CandleWithIndicators[]>(candles);
-  const chipsRef = useRef<ChipsData | null | undefined>(chips);
-  useEffect(() => { candlesRef.current = candles; }, [candles]);
-  useEffect(() => { chipsRef.current = chips; }, [chips]);
+  const tdccData = [...(chips?.tdcc ?? [])].sort((a, b) => a.date.localeCompare(b.date));
 
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const chart = makeChart(containerRef.current, false);
-    seriesRef.current = chart.addSeries(LineSeries, {
-      color: HOLDER_COLORS[holderKey],
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: false,
-      priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
-    });
-    chartRef.current = chart;
-
-    const unsub = subscribeRangeSync((range: LogicalRange | null) => {
-      if (range) chart.timeScale().setVisibleLogicalRange(range);
-    });
-    const unsubCrosshair = subscribeCrosshairSync((time) => {
-      if (!chartRef.current || !seriesRef.current) return;
-      if (!time) { chartRef.current.clearCrosshairPosition(); return; }
-      const row = (chipsRef.current?.tdcc ?? []).find(r => r.date <= time);
-      const v = row ? (holderKey === 'h400' ? row.holder400Pct : row.holder1000Pct) : 0;
-      chartRef.current.setCrosshairPosition(v, toTime(time), seriesRef.current);
-    });
-    const ro = new ResizeObserver(() => {
-      if (containerRef.current) chart.applyOptions({
-        width: containerRef.current.clientWidth,
-        height: containerRef.current.clientHeight || 80,
-      });
-    });
-    ro.observe(containerRef.current);
-    return () => { ro.disconnect(); unsub(); unsubCrosshair(); chart.remove(); };
-  }, [holderKey]);
-
-  useEffect(() => {
-    if (!seriesRef.current) return;
-    const tdccData = chips?.tdcc ?? [];
-    if (tdccData.length === 0) { seriesRef.current.setData([]); return; }
-
-    // TDCC 是週資料，需要對齊到日 K：每根 K 棒取「最近一個」TDCC 數據（forward fill）
-    const sortedTdcc = [...tdccData].sort((a, b) => a.date.localeCompare(b.date));
-    let tdccIdx = 0;
-    let lastValue: number | null = null;
-    const data: { time: Time; value: number }[] = [];
-    for (const c of candles) {
-      // 推進 tdccIdx 到 <= c.date 的最後一個
-      while (tdccIdx < sortedTdcc.length && sortedTdcc[tdccIdx].date <= c.date) {
-        const r = sortedTdcc[tdccIdx];
-        lastValue = holderKey === 'h400' ? r.holder400Pct : r.holder1000Pct;
-        tdccIdx++;
-      }
-      if (lastValue != null) {
-        data.push({ time: toTime(c.date), value: lastValue });
-      }
-    }
-    seriesRef.current.setData(data);
-    requestAnimationFrame(() => {
-      const r = getLastRange();
-      if (r && chartRef.current) chartRef.current.timeScale().setVisibleLogicalRange(r);
-    });
-  }, [candles, chips, holderKey]);
-
-  const last = candles[candles.length - 1];
-  const display = hoverCandle ?? last;
-  const tdccData = chips?.tdcc ?? [];
-  // 找日期 <= display.date 的最後一筆 TDCC（forward fill 邏輯）
-  let row: ChipsData['tdcc'][number] | null = null;
+  // hover 模式：找 date <= hoverCandle.date 的最後一筆；沒 hover 用最新一筆
+  const display = hoverCandle ?? candles[candles.length - 1];
+  let displayIdx = tdccData.length - 1;
   if (display) {
     for (let i = tdccData.length - 1; i >= 0; i--) {
-      if (tdccData[i].date <= display.date) { row = tdccData[i]; break; }
+      if (tdccData[i].date <= display.date) { displayIdx = i; break; }
     }
   }
-  const value = row ? (holderKey === 'h400' ? row.holder400Pct : row.holder1000Pct) : null;
+  const current = displayIdx >= 0 ? tdccData[displayIdx] : null;
+  const prior = displayIdx > 0 ? tdccData[displayIdx - 1] : null;
+
+  const value = current ? pickHolderValue(current, holderKey) : null;
+  const priorValue = prior ? pickHolderValue(prior, holderKey) : null;
+  const delta = value != null && priorValue != null ? value - priorValue : null;
+
+  // 近 N 週高低（取到 displayIdx 為止的最後 8 週）
+  const window = tdccData.slice(Math.max(0, displayIdx - 7), displayIdx + 1)
+    .map(r => pickHolderValue(r, holderKey));
+  const hi = window.length >= 2 ? Math.max(...window) : null;
+  const lo = window.length >= 2 ? Math.min(...window) : null;
+
+  if (tdccData.length === 0) {
+    return (
+      <div className="h-full flex items-center gap-3 px-3 text-xs font-mono">
+        <span className="text-muted-foreground">{HOLDER_LABELS[holderKey]}</span>
+        <span className="text-muted-foreground/60">無資料（每週四公布）</span>
+      </div>
+    );
+  }
 
   return (
-    <div className="relative h-full">
-      <div className="absolute top-1 left-2 z-10 flex gap-3 text-xs font-mono pointer-events-none">
-        <span className="text-muted-foreground">{HOLDER_LABELS[holderKey]}</span>
-        <span style={{ color: HOLDER_COLORS[holderKey] }}>
-          {value != null ? `${value.toFixed(2)}%` : '—'}
+    <div className="h-full flex items-center gap-3 px-3 text-xs font-mono">
+      <span className="text-muted-foreground shrink-0">{HOLDER_LABELS[holderKey]}</span>
+      <span className="font-bold tabular-nums" style={{ color: HOLDER_COLORS[holderKey] }}>
+        {value != null ? `${value.toFixed(2)}%` : '—'}
+      </span>
+      {delta != null ? (
+        <span className={`tabular-nums ${delta >= 0 ? 'text-bull' : 'text-bear'}`}>
+          {delta >= 0 ? '▲' : '▼'} {Math.abs(delta).toFixed(2)} vs 上週
         </span>
-        {row && <span className="text-muted-foreground/50 text-[10px]">基準 {row.date}</span>}
-        {tdccData.length === 0 && <span className="text-muted-foreground/50 text-[10px]">無資料（每週四公布）</span>}
-      </div>
-      <div ref={containerRef} className="w-full h-full" />
+      ) : (
+        <span className="text-muted-foreground/50">vs 上週 —（待累積）</span>
+      )}
+      {hi != null && lo != null && (
+        <span className="text-muted-foreground/70 tabular-nums">
+          近{window.length}週 高 {hi.toFixed(2)} / 低 {lo.toFixed(2)}
+        </span>
+      )}
+      {current && (
+        <span className="text-muted-foreground/50 text-[10px] ml-auto">基準 {current.date}</span>
+      )}
     </div>
   );
 }
@@ -642,8 +611,8 @@ export default function IndicatorCharts({ candles, hoverCandle, indicators, tick
     show.trust && isTW && <div key="trust" className="flex-1 min-h-0 bg-card"><ChipChart seriesKey="trust" candles={candles} chips={chips} hoverCandle={hoverCandle} /></div>,
     show.dealer && isTW && <div key="dealer" className="flex-1 min-h-0 bg-card"><ChipChart seriesKey="dealer" candles={candles} chips={chips} hoverCandle={hoverCandle} /></div>,
     show.retail && isTW && <div key="retail" className="flex-1 min-h-0 bg-card"><ChipChart seriesKey="retail" candles={candles} chips={chips} hoverCandle={hoverCandle} /></div>,
-    show.h400 && isTW && <div key="h400" className="flex-1 min-h-0 bg-card"><HolderChart holderKey="h400" candles={candles} chips={chips} hoverCandle={hoverCandle} /></div>,
-    show.h1000 && isTW && <div key="h1000" className="flex-1 min-h-0 bg-card"><HolderChart holderKey="h1000" candles={candles} chips={chips} hoverCandle={hoverCandle} /></div>,
+    show.h400 && isTW && <div key="h400" className="shrink-0 h-7 bg-card border-t border-border/40"><HolderBadge holderKey="h400" candles={candles} chips={chips} hoverCandle={hoverCandle} /></div>,
+    show.h1000 && isTW && <div key="h1000" className="shrink-0 h-7 bg-card border-t border-border/40"><HolderBadge holderKey="h1000" candles={candles} chips={chips} hoverCandle={hoverCandle} /></div>,
   ].filter(Boolean);
 
   if (panels.length === 0) return <div className="h-full bg-card flex items-center justify-center text-xs text-muted-foreground/60">請開啟至少一個指標面板</div>;

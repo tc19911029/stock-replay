@@ -17,6 +17,7 @@ import { ChinaScanner } from '@/lib/scanner/ChinaScanner';
 import { saveLocalCandles } from '@/lib/datasource/LocalCandleStore';
 import { readCandleFile } from '@/lib/datasource/CandleStorageAdapter';
 import { readIntradaySnapshot, IntradayQuote } from '@/lib/datasource/IntradayCache';
+import { getLastTradingDay } from '@/lib/datasource/marketHours';
 import { saveDownloadManifest } from '@/lib/datasource/DownloadManifest';
 import { verifyDownload } from '@/lib/datasource/DownloadVerifier';
 import { spotCheckL1 } from '@/lib/datasource/L1SpotCheck';
@@ -43,12 +44,7 @@ export async function GET(req: NextRequest) {
   const startTime = Date.now();
   const scanner = market === 'CN' ? new ChinaScanner() : new TaiwanScanner();
 
-  // 取得最近交易日
-  const now = new Date();
-  const dow = now.getDay();
-  if (dow === 0) now.setDate(now.getDate() - 2);
-  else if (dow === 6) now.setDate(now.getDate() - 1);
-  const lastTradingDate = now.toISOString().split('T')[0];
+  const lastTradingDate = getLastTradingDay(market);
 
   // L1 被視為「近期」的門檻：7 日內 → L2 injection；更舊或缺失 → 全量 API 下載
   const recentThreshold = new Date(lastTradingDate);
@@ -92,11 +88,11 @@ export async function GET(req: NextRequest) {
           if (existing && existing.lastDate >= lastTradingDate) return -1;
 
           // L1 近期存在 + L2 有今日資料 → 直接 inject，不耗 API 配額
+          // writeCandleFile 內部自行讀取並 merge，只傳新增的一根即可
           if (existing && existing.lastDate >= recentThresholdStr && l2Map) {
             const l2Quote = l2Map.get(code);
             if (l2Quote) {
               await saveLocalCandles(symbol, market, [
-                ...existing.candles,
                 { date: lastTradingDate, open: l2Quote.open, high: l2Quote.high, low: l2Quote.low, close: l2Quote.close, volume: l2Quote.volume },
               ]);
               l2Injected++;

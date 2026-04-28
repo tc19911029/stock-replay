@@ -98,11 +98,11 @@ export async function GET(req: NextRequest) {
           if (existing && existing.lastDate >= lastTradingDate) return -1;
 
           // L1 近期存在 + L2 有今日資料 → 直接 inject，不耗 API 配額
+          // writeCandleFile 內部自行讀取並 merge，只傳新增的一根即可
           if (existing && existing.lastDate >= recentThresholdStr && l2Map) {
             const l2Quote = l2Map.get(code);
             if (l2Quote) {
               await saveLocalCandles(symbol, market, [
-                ...existing.candles,
                 { date: lastTradingDate, open: l2Quote.open, high: l2Quote.high, low: l2Quote.low, close: l2Quote.close, volume: l2Quote.volume },
               ]);
               l2Injected++;

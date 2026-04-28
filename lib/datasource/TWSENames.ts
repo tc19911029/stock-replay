@@ -86,7 +86,7 @@ export async function getCNChineseName(code: string): Promise<string | null> {
       const buf = await res.arrayBuffer();
       const text = new TextDecoder('gbk').decode(buf);
       const match = text.match(/~([^~]+)~/);
-      if (match?.[1] && /[\u4e00-\u9fff]/.test(match[1])) {
+      if (match?.[1] && /[一-鿿]/.test(match[1])) {
         const name = match[1];
         CN_NAME_MAP[code] = name;
         globalCache.set(cacheKey, name, 24 * 60 * 60 * 1000);
@@ -103,18 +103,22 @@ export async function getCNChineseName(code: string): Promise<string | null> {
 const NAMES_CACHE_KEY = 'twse:names:all';
 const NAMES_TTL       = 24 * 60 * 60 * 1000; // 24 hours
 
-type NameMap = Record<string, string>; // code (4 digits) → Chinese name
+type NameMap = Record<string, string>; // code → Chinese name
 
 async function buildNameMap(): Promise<NameMap> {
   const map: NameMap = {};
 
-  const [listedRes, otcRes] = await Promise.allSettled([
+  // 三個來源並行抓取：TWSE上市、TPEx上櫃（可能被Cloudflare擋）、ISIN上櫃備援
+  const [listedRes, otcRes, isinOtcRes] = await Promise.allSettled([
     fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL',
       { signal: AbortSignal.timeout(10000) }),
     fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes',
       { signal: AbortSignal.timeout(10000) }),
+    fetch('https://isin.twse.com.tw/isin/C_public.jsp?strMode=4',
+      { signal: AbortSignal.timeout(15000) }),
   ]);
 
+  // 上市股票（TWSE STOCK_DAY_ALL，僅含當日有成交的股票）
   if (listedRes.status === 'fulfilled' && listedRes.value.ok) {
     const data = await listedRes.value.json() as { Code: string; Name: string }[];
     for (const s of data) {
@@ -122,6 +126,7 @@ async function buildNameMap(): Promise<NameMap> {
     }
   }
 
+  // 上櫃股票：優先用 TPEx JSON，被 Cloudflare 擋時用 ISIN HTML 備援
   if (otcRes.status === 'fulfilled' && otcRes.value.ok) {
     const data = await otcRes.value.json() as { SecuritiesCompanyCode: string; CompanyName: string }[];
     for (const s of data) {
@@ -129,19 +134,16 @@ async function buildNameMap(): Promise<NameMap> {
         map[s.SecuritiesCompanyCode] ??= s.CompanyName;
       }
     }
-  } else {
-    // TPEx API blocked by Cloudflare — fallback to ISIN C_public.jsp (Big5 HTML, not Cloudflare-gated)
-    try {
-      const isinRes = await fetch('https://isin.twse.com.tw/isin/C_public.jsp?strMode=4',
-        { signal: AbortSignal.timeout(15000) });
-      if (isinRes.ok) {
-        const buf = await isinRes.arrayBuffer();
-        const text = new TextDecoder('big5').decode(buf);
-        for (const [, code, name] of text.matchAll(/([1-9]\d{3})\u3000([\u4e00-\u9fff][\u4e00-\u9fff\w\-]*)/g)) {
-          if (!name.includes('購')) map[code] ??= name; // 排除含「購」的權證條目
-        }
-      }
-    } catch { /* ISIN fallback 失敗，繼續無名稱 */ }
+  } else if (isinOtcRes.status === 'fulfilled' && isinOtcRes.value.ok) {
+    // ISIN C_public.jsp 回傳 Big5 HTML
+    // 用 ISIN 欄位區分股票（TW+10位純數字）與權證（含字母Z）
+    const buf  = await isinOtcRes.value.arrayBuffer();
+    const text = new TextDecoder('big5').decode(buf);
+    for (const [, code, name] of text.matchAll(
+      /bgcolor=#FAFAD2>([1-9]\d{3,4})　([^<]+?)<\/td><td bgcolor=#FAFAD2>(TW\d{10})<\/td>/g,
+    )) {
+      map[code] ??= name.trim();
+    }
   }
 
   return map;
