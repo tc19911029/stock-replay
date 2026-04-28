@@ -126,22 +126,44 @@ async function fetchTWSEStocks(): Promise<(StockEntry & { vol: number })[]> {
     .sort((a, b) => b.vol - a.vol);
 }
 
-/** 從 TPEx 取得上櫃股票，按當日成交量排序 */
+/** 從 TPEx 取得上櫃股票，按當日成交量排序
+ *  Primary: TPEx openapi  Fallback: ISIN C_public.jsp (tpex.org.tw 被 Cloudflare 封鎖時用) */
 async function fetchTPExStocks(): Promise<(StockEntry & { vol: number })[]> {
-  const res = await fetch(
-    'https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes',
+  try {
+    const res = await fetch(
+      'https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes',
+      { signal: AbortSignal.timeout(10000) }
+    );
+    if (res.ok) {
+      const data = await res.json() as TPExRow[];
+      const stocks = data
+        .filter(s => /^[1-9]\d{3,4}$/.test(s.SecuritiesCompanyCode))
+        .map(s => ({
+          symbol: `${s.SecuritiesCompanyCode}.TWO`,
+          name: s.CompanyName.trim(),
+          vol: parseInt((s.TradingShares ?? '0').replace(/,/g, ''), 10) || 0,
+        }))
+        .sort((a, b) => b.vol - a.vol);
+      if (stocks.length > 0) return stocks;
+    }
+  } catch { /* TPEx blocked or down, fall through to ISIN */ }
+
+  // ISIN C_public.jsp?strMode=4 — Big5 HTML，未被 Cloudflare 封鎖
+  const isinRes = await fetch(
+    'https://isin.twse.com.tw/isin/C_public.jsp?strMode=4',
     { signal: AbortSignal.timeout(15000) }
   );
-  if (!res.ok) throw new Error('TPEx API error');
-  const data = await res.json() as TPExRow[];
-  return data
-    .filter(s => /^[1-9]\d{3}$/.test(s.SecuritiesCompanyCode)) // 4碼且首碼1-9：排除ETF、權證
-    .map(s => ({
-      symbol: `${s.SecuritiesCompanyCode}.TWO`,
-      name: s.CompanyName.trim(),
-      vol: parseInt((s.TradingShares ?? '0').replace(/,/g, ''), 10) || 0,
-    }))
-    .sort((a, b) => b.vol - a.vol);
+  if (!isinRes.ok) throw new Error('TPEx API error');
+  const buf = await isinRes.arrayBuffer();
+  const text = new TextDecoder('big5').decode(buf);
+  const stocks: (StockEntry & { vol: number })[] = [];
+  for (const [, code, name] of text.matchAll(
+    /bgcolor=#FAFAD2>([1-9]\d{3,4})　([^<]+?)<\/td><td bgcolor=#FAFAD2>(TW\d{10})<\/td>/g,
+  )) {
+    stocks.push({ symbol: `${code}.TWO`, name: name.trim(), vol: 0 });
+  }
+  if (stocks.length === 0) throw new Error('TPEx API error');
+  return stocks;
 }
 
 export class TaiwanScanner extends MarketScanner {

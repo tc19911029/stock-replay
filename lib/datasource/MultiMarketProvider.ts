@@ -307,20 +307,27 @@ async function tryProvidersWithRacing<T>(
       }),
   );
 
-  // 等所有結果（主 provider + 備援），取第一個非空
-  // 全局超時保護：VPN/proxy 環境下 TCP 連線可能卡死，AbortSignal 在 fetch 前就被攔截
-  const allCount = 1 + fallbackPromises.length;
-  const timeoutResult = new Promise<T[][]>(r =>
-    setTimeout(() => r(Array(allCount).fill([]) as T[][]), 30000)
-  );
-  const allResults = await Promise.race([
-    Promise.all([primaryPromise, ...fallbackPromises]),
-    timeoutResult,
-  ]);
-  for (const r of allResults) {
-    if (r.length > 0) return r;
-  }
-  return [];
+  // 取第一個非空結果——不等慢速 provider（如 EODHD acquire 需 100s）完成
+  // 原 Promise.all 方案會讓慢 provider 的 acquire 觸發 30s global timeout，丟失 Yahoo 的成功結果
+  const allProviders = [primaryPromise, ...fallbackPromises];
+  const firstNonEmpty = await new Promise<T[]>((resolve) => {
+    let settled = 0;
+    const total = allProviders.length;
+    const globalTimeout = setTimeout(() => resolve([]), 30000);
+    for (const p of allProviders) {
+      p.then(r => {
+        settled++;
+        if (r.length > 0) {
+          clearTimeout(globalTimeout);
+          resolve(r);
+        } else if (settled >= total) {
+          clearTimeout(globalTimeout);
+          resolve([]);
+        }
+      });
+    }
+  });
+  return firstNonEmpty;
 }
 
 // ── inflight 請求去重 ────────────────────────────────────────────────────────

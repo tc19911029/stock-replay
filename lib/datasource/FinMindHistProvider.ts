@@ -136,7 +136,21 @@ async function fetchFinMindPrice(
 
   rateLimiter.reportSuccess('finmind');
 
-  const json = (await res.json()) as { status: number; data: FinMindPriceRow[] };
+  const json = (await res.json()) as { status: number; msg?: string; data: FinMindPriceRow[] };
+  if (json.status === 402) {
+    // JSON-level quota exceeded — same treatment as HTTP 402
+    rateLimitedUntil = Date.now() + 60 * 60 * 1000;
+    rateLimiter.reportError('finmind', 402, 'JSON quota exhausted');
+    console.warn(`[FinMind] JSON 402 quota exhausted (msg: ${json.msg ?? ''}). Circuit open 1h.`);
+    throw new Error('FinMind JSON 402 - quota exhausted');
+  }
+  if (json.status === 401 || json.status === 403) {
+    // Auth failure — likely expired token, open circuit for 24h
+    rateLimitedUntil = Date.now() + 24 * 60 * 60 * 1000;
+    rateLimiter.reportError('finmind', json.status, `auth error ${json.status}`);
+    console.error(`[FinMind] Auth error ${json.status} (msg: ${json.msg ?? ''}). Check FINMIND_API_TOKEN env var.`);
+    throw new Error(`FinMind auth error ${json.status}`);
+  }
   if (json.status !== 200 || !json.data) return [];
 
   return json.data
