@@ -195,27 +195,29 @@ export default function HomePage() {
     h400: false, h1000: false,
     cnMain: false, cnRetail: false,
   });
-  // ── 籌碼面資料（TW 法人/大戶 + CN 主力資金）：任一 toggle 開啟才 fetch ──
+  // ── 籌碼面資料（TW 法人/大戶 + CN 主力資金） ────────────────────────────────
+  // 優化：用 ticker + 「是否需要籌碼」字串 key 當依賴；同一 key 不會 refetch
+  const anyTwChipOn = indicators.foreign || indicators.trust || indicators.dealer
+    || indicators.retail || indicators.h400 || indicators.h1000;
+  const anyCnChipOn = indicators.cnMain || indicators.cnRetail;
+  const ticker = currentStock?.ticker ?? '';
+  const isTwTicker = /\.(TW|TWO)$/i.test(ticker) || /^\d{4,5}$/.test(ticker);
+  const isCnTicker = /\.(SS|SZ)$/i.test(ticker) || /^\d{6}$/.test(ticker);
+  const wantChips = (isTwTicker && anyTwChipOn) || (isCnTicker && anyCnChipOn);
+  // 把 fetch trigger 編成單一 string key，dep 比較穩定
+  const chipFetchKey = wantChips ? ticker : '';
   const [chips, setChips] = useState<{
     inst: Array<{ date: string; foreign: number; trust: number; dealer: number; total: number }>;
     tdcc: Array<{ date: string; holder400Pct: number; holder1000Pct: number; holderCount?: number }>;
     cnFlow?: Array<{ date: string; mainNet: number; superLargeNet: number; largeNet: number; mediumNet: number; smallNet: number }>;
     divergence?: { type: 'bullish' | 'bearish'; priceChangePct: number; instAccumNet: number; strength: 0|1|2|3; detail: string } | null;
   } | null>(null);
+  const [chipsLoading, setChipsLoading] = useState(false);
   useEffect(() => {
-    const ticker = currentStock?.ticker;
-    if (!ticker) { setChips(null); return; }
-    const anyTwChipOn = indicators.foreign || indicators.trust || indicators.dealer
-      || indicators.retail || indicators.h400 || indicators.h1000;
-    const anyCnChipOn = indicators.cnMain || indicators.cnRetail;
-    if (!anyTwChipOn && !anyCnChipOn) return;
-    const isTW = /\.(TW|TWO)$/i.test(ticker) || /^\d{4,5}$/.test(ticker);
-    const isCN = /\.(SS|SZ)$/i.test(ticker) || /^\d{6}$/.test(ticker);
-    if (isTW && !anyTwChipOn) return;
-    if (isCN && !anyCnChipOn) return;
-    if (!isTW && !isCN) { setChips(null); return; }
+    if (!chipFetchKey) { return; }
     const ctrl = new AbortController();
-    fetch(`/api/stock/chips?symbol=${encodeURIComponent(ticker)}&days=180`, { signal: ctrl.signal })
+    setChipsLoading(true);
+    fetch(`/api/stock/chips?symbol=${encodeURIComponent(chipFetchKey)}&days=180`, { signal: ctrl.signal })
       .then(r => r.json())
       .then(json => {
         if (json.ok) setChips({
@@ -225,9 +227,14 @@ export default function HomePage() {
           divergence: json.divergence ?? null,
         });
       })
-      .catch(err => { if (err.name !== 'AbortError') console.warn('[chips] load failed:', err); });
+      .catch(err => { if (err.name !== 'AbortError') console.warn('[chips] load failed:', err); })
+      .finally(() => setChipsLoading(false));
     return () => ctrl.abort();
-  }, [currentStock?.ticker, indicators.foreign, indicators.trust, indicators.dealer, indicators.retail, indicators.h400, indicators.h1000, indicators.cnMain, indicators.cnRetail]);
+  }, [chipFetchKey]);
+  // 切到別的股 / 關掉所有 chip toggle → 清空 chips（不在主 effect 內，避免抖動）
+  useEffect(() => {
+    if (!ticker) setChips(null);
+  }, [ticker]);
   const handleScanSelectStock = useCallback((stock: SelectedStock) => {
     const scanDate = useBacktestStore.getState().scanDate;
     loadStock(stock.symbol, '1d', '2y', scanDate || undefined).catch((e: Error) => {
@@ -530,7 +537,7 @@ export default function HomePage() {
             {showIndicators && (
               <div className="flex-1 min-h-0 overflow-hidden">
                 <ErrorBoundary>
-                  <IndicatorCharts candles={visibleCandles} hoverCandle={hoverCandle} indicators={indicators} ticker={currentStock?.ticker} chips={chips} />
+                  <IndicatorCharts candles={visibleCandles} hoverCandle={hoverCandle} indicators={indicators} ticker={currentStock?.ticker} chips={chips} chipsLoading={chipsLoading} />
                 </ErrorBoundary>
               </div>
             )}
@@ -740,7 +747,7 @@ export default function HomePage() {
                 {showIndicators && (
                   <div className="flex-[2] min-h-0 border-t border-border">
                     <ErrorBoundary>
-                      <IndicatorCharts candles={visibleCandles} hoverCandle={hoverCandle} indicators={indicators} ticker={currentStock?.ticker} chips={chips} />
+                      <IndicatorCharts candles={visibleCandles} hoverCandle={hoverCandle} indicators={indicators} ticker={currentStock?.ticker} chips={chips} chipsLoading={chipsLoading} />
                     </ErrorBoundary>
                   </div>
                 )}

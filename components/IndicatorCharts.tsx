@@ -471,7 +471,15 @@ function ChipChart({ seriesKey, candles, chips, hoverCandle }: {
 
   const last = candles[candles.length - 1];
   const display = hoverCandle ?? last;
-  const row = display ? (chips?.inst ?? []).find(r => r.date === display.date) : null;
+  const insts = chips?.inst ?? [];
+  // Hover 有資料就用 hover；否則 fallback 到 ≤display.date 的最近一筆（避免今日 K 線缺資料時整個顯示「—」）
+  let row = display ? insts.find(r => r.date === display.date) : null;
+  let isFallback = false;
+  if (!row && display && insts.length > 0) {
+    for (let i = insts.length - 1; i >= 0; i--) {
+      if (insts[i].date <= display.date) { row = insts[i]; isFallback = true; break; }
+    }
+  }
   const value = row ? extractChipValue(row, seriesKey) : null;
   const desc = CHIP_DESCRIPTIONS[seriesKey];
 
@@ -482,6 +490,9 @@ function ChipChart({ seriesKey, candles, chips, hoverCandle }: {
         <span className={(value ?? 0) >= 0 ? 'text-bull' : 'text-bear'}>
           {value != null ? `${value >= 0 ? '+' : ''}${value.toLocaleString()}` : '—'}
         </span>
+        {isFallback && row && (
+          <span className="text-muted-foreground/50 text-[10px]">@ {row.date}</span>
+        )}
         {desc && <span className="text-muted-foreground/50 text-[10px]">{desc}</span>}
       </div>
       <div ref={containerRef} className="w-full h-full" />
@@ -689,7 +700,7 @@ export interface IndicatorToggles {
   cnRetail?: boolean;
 }
 
-export default function IndicatorCharts({ candles, hoverCandle, indicators, ticker, chips }: {
+export default function IndicatorCharts({ candles, hoverCandle, indicators, ticker, chips, chipsLoading }: {
   candles: CandleWithIndicators[];
   hoverCandle?: CandleWithIndicators | null;
   indicators?: IndicatorToggles;
@@ -697,6 +708,8 @@ export default function IndicatorCharts({ candles, hoverCandle, indicators, tick
   ticker?: string;
   /** 籌碼面資料（法人/大戶/CN 主力），由父元件 fetch 後傳入 */
   chips?: ChipsData | null;
+  /** 籌碼 fetch 進行中（顯示載入提示） */
+  chipsLoading?: boolean;
 }) {
   if (candles.length === 0) return null;
   const isTW = ticker ? (/\.(TW|TWO)$/i.test(ticker) || /^\d{4,5}$/.test(ticker)) : false;
@@ -732,6 +745,11 @@ export default function IndicatorCharts({ candles, hoverCandle, indicators, tick
           <span className="font-bold">{div.type === 'bullish' ? '▲ 多頭背離' : '▼ 空頭背離'}</span>
           <span className="text-foreground/70">{'★'.repeat(div.strength)}</span>
           <span className="text-foreground/60 truncate">{div.detail}</span>
+        </div>
+      )}
+      {anyChipToggle && chipsLoading && !chips && (
+        <div className="shrink-0 px-2 py-0.5 text-[10px] text-muted-foreground/60 animate-pulse">
+          籌碼資料載入中...
         </div>
       )}
       {panels}
