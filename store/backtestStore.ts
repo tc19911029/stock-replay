@@ -7,7 +7,6 @@ import {
 } from '@/lib/scanner/types';
 import { TrendState } from '@/lib/analysis/trendAnalysis';
 import { getMissingTradingDays } from '@/lib/utils/tradingDay';
-import { applyPanelFilter } from '@/lib/selection/applyPanelFilter';
 // Inline calcBacktestSummary to avoid pulling server-only ForwardAnalyzer → LocalCandleStore (fs)
 function calcBacktestSummary(
   perf: StockForwardPerformance[],

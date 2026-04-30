@@ -34,7 +34,6 @@ export default function AnalysisChat({ sidebar = false }: Props) {
   const messages = useAnalysisChatStore(s => s.messages);
   const setMessages = useAnalysisChatStore(s => s.setMessages);
   const updateMessages = useAnalysisChatStore(s => s.updateMessages);
-  const clearMessages = useAnalysisChatStore(s => s.clear);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);

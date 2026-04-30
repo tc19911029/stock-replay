@@ -10,7 +10,6 @@
 import { computeIndicators } from '@/lib/indicators';
 import type { CandleWithIndicators } from '@/types';
 import type { DabanScanResult, DabanScanSession, DabanSentiment, LimitUpType } from './types';
-import type { EastMoneyQuote } from '@/lib/datasource/EastMoneyRealtime';
 
 // ── 參數 ────────────────────────────────────────────────────────────────────
 

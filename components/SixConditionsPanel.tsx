@@ -2,8 +2,6 @@
 
 import { useState } from 'react';
 import { useReplayStore } from '@/store/replayStore';
-import { useSettingsStore } from '@/store/settingsStore';
-import { BUILT_IN_STRATEGIES } from '@/lib/strategy/StrategyConfig';
 import { SixConditionsResult } from '@/lib/analysis/trendAnalysis';
 import { detectSellSignals } from '@/lib/analysis/sellSignals';
 
@@ -27,7 +25,7 @@ const CONDITION_LABELS = [
 
 type ConditionKey = typeof CONDITION_LABELS[number]['key'];
 
-function ScoreDots({ score, total = 6 }: { score: number; total?: number }) {
+function _ScoreDots({ score, total = 6 }: { score: number; total?: number }) {
   return (
     <span className="flex gap-1 items-center">
       {Array.from({ length: total }).map((_, i) => (
@@ -128,10 +126,6 @@ export default function SixConditionsPanel() {
   const prevSixConditions = useReplayStore(s => s.prevSixConditions);
   const allCandles    = useReplayStore(s => s.allCandles);
   const currentIndex  = useReplayStore(s => s.currentIndex);
-  const strategyName = useSettingsStore(s => {
-    const all = [...BUILT_IN_STRATEGIES, ...s.customStrategies];
-    return all.find(st => st.id === s.activeStrategyId)?.name ?? '朱老師六大條件';
-  });
   const [expanded, setExpanded] = useState<ConditionKey | null>(null);
 
   const sellSignals = detectSellSignals(allCandles, currentIndex);

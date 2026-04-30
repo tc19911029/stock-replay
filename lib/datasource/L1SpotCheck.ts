@@ -90,7 +90,7 @@ export async function spotCheckL1(
   const BATCH = 5;
   for (let i = 0; i < sample.length; i += BATCH) {
     const batch = sample.slice(i, i + BATCH);
-    const results = await Promise.allSettled(
+    await Promise.allSettled(
       batch.map(async (symbol) => {
         // 讀 L1
         const l1Data = await readCandleFile(symbol, market);

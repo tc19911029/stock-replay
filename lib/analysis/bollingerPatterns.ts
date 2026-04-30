@@ -76,7 +76,6 @@ export function detectBollingerSignals(
 
   const c = candles[index];
   const prev = candles[index - 1];
-  const prev5 = candles[index - 5];
   const bb = getBollingerBands(candles, index);
   const bbPrev = getBollingerBands(candles, index - 1);
   const bbPrev5 = getBollingerBands(candles, index - 5);

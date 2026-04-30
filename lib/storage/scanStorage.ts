@@ -55,12 +55,6 @@ async function blobListPrefix(prefix: string): Promise<Array<{ pathname: string;
   return all;
 }
 
-async function blobDelete(urls: string[]): Promise<void> {
-  if (urls.length === 0) return;
-  const { del } = await import('@vercel/blob');
-  await del(urls);
-}
-
 // ── Filesystem helpers ───────────────────────────────────────────────────────
 
 async function fsPut(filename: string, data: string): Promise<void> {

@@ -32,7 +32,7 @@ export function ScanChartPanel({ selectedStock, scanDate }: ScanChartPanelProps)
 
   const {
     allCandles, currentSignals, chartMarkers,
-    isLoadingStock, loadStock, jumpToIndex,
+    isLoadingStock, loadStock,
     startPolling, stopPolling, dataGaps,
   } = useReplayStore();
 

@@ -7,11 +7,6 @@ import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 // 數據來源：TWSE + TPEX + TDCC（全部免費公開 API）
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function parseNum(s: string): number {
-  if (!s) return 0;
-  return parseInt(s.replace(/,/g, ''), 10) || 0;
-}
-
 // ── 完整籌碼數據 ─────────────────────────────────────────────────────────────
 export interface ChipData {
   symbol: string;
@@ -45,127 +40,6 @@ export interface ChipData {
   chipGrade: string;
   chipSignal: string;
   chipDetail: string;       // 詳細說明
-}
-
-// ── 三大法人（TWSE 上市 + TPEX 上櫃）─────────────────────────────────────────
-async function fetchInstitutional(date: string): Promise<Map<string, { foreignBuy: number; trustBuy: number; dealerBuy: number; totalBuy: number; name: string }>> {
-  const map = new Map<string, { foreignBuy: number; trustBuy: number; dealerBuy: number; totalBuy: number; name: string }>();
-  const dateStr = date.replace(/-/g, '');
-
-  // TWSE 上市
-  try {
-    const res = await fetch(`https://www.twse.com.tw/rwd/zh/fund/T86?date=${dateStr}&selectType=ALL&response=json`, {
-      headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(15000),
-    });
-    const json = await res.json();
-    for (const row of json?.data ?? []) {
-      const sym = row[0]?.trim();
-      if (!sym || sym.length > 6) continue;
-      // TWSE 回傳的是「股數」，除以 1000 轉成「張」（跟三竹一致）
-      // [4]=外陸資買賣超, [10]=投信買賣超, [11]=自營商買賣超合計
-      const fb = Math.round(parseNum(row[4]) / 1000);
-      const tb = Math.round(parseNum(row[10]) / 1000);
-      const db = Math.round(parseNum(row[11]) / 1000);
-      map.set(sym, { foreignBuy: fb, trustBuy: tb, dealerBuy: db, totalBuy: fb + tb + db, name: row[1]?.trim() || '' });
-    }
-  } catch { /* TWSE institutional fetch failed */ }
-
-  // TPEX 上櫃
-  try {
-    const [y, m, d] = date.split('-');
-    const roc = parseInt(y) - 1911;
-    const res = await fetch(`https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&o=json&se=EW&t=D&d=${roc}/${m}/${d}`, {
-      headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.tpex.org.tw/' }, signal: AbortSignal.timeout(15000),
-    });
-    const json = await res.json();
-    for (const row of json?.tables?.[0]?.data ?? []) {
-      const sym = row[0]?.trim();
-      if (!sym || sym.length > 6) continue;
-      // TPEX 也是股數，除以 1000 轉張
-      const fb = Math.round(parseNum(row[4]) / 1000);
-      const tb = Math.round(parseNum(row[7]) / 1000);
-      const db = Math.round(parseNum(row[16]) / 1000);
-      map.set(sym, { foreignBuy: fb, trustBuy: tb, dealerBuy: db, totalBuy: fb + tb + db, name: row[1]?.trim() || '' });
-    }
-  } catch { /* TPEX institutional fetch failed */ }
-
-  return map;
-}
-
-// ── 融資融券 ─────────────────────────────────────────────────────────────────
-async function fetchMargin(date: string): Promise<Map<string, { marginBalance: number; marginNet: number; shortBalance: number; shortNet: number; marginUtilRate: number }>> {
-  const map = new Map<string, { marginBalance: number; marginNet: number; shortBalance: number; shortNet: number; marginUtilRate: number }>();
-  try {
-    const dateStr = date.replace(/-/g, '');
-    const res = await fetch(`https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?date=${dateStr}&selectType=ALL&response=json`, {
-      headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(15000),
-    });
-    const json = await res.json();
-    for (const row of json?.tables?.[1]?.data ?? []) {
-      const sym = row[0]?.trim();
-      if (!sym) continue;
-      // row[5]=前日餘額, row[6]=今日餘額, row[7]=融資限額
-      // row[11]=融券前日餘額, row[12]=融券今日餘額
-      const mPrev    = parseNum(row[5]);
-      const mBalance = parseNum(row[6]);
-      const mLimit   = parseNum(row[7]);
-      const sPrev    = parseNum(row[11]);
-      const sBalance = parseNum(row[12]);
-      map.set(sym, {
-        marginBalance: mBalance,
-        marginNet: mBalance - mPrev,          // 今日餘額 − 前日餘額 = 精確增減
-        shortBalance: sBalance,
-        shortNet: sBalance - sPrev,           // 同上
-        marginUtilRate: mLimit > 0 ? +(mBalance / mLimit * 100).toFixed(1) : 0,
-      });
-    }
-  } catch { /* fetchMargin failed */ }
-  return map;
-}
-
-// ── 當沖統計 ─────────────────────────────────────────────────────────────────
-async function fetchDayTrade(date: string): Promise<Map<string, { dayTradeVolume: number; dayTradeRatio: number }>> {
-  const map = new Map<string, { dayTradeVolume: number; dayTradeRatio: number }>();
-  try {
-    const dateStr = date.replace(/-/g, '');
-    const res = await fetch(`https://www.twse.com.tw/rwd/zh/marginTrading/TWT93U?date=${dateStr}&response=json`, {
-      headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(15000),
-    });
-    const json = await res.json();
-    for (const row of json?.data ?? []) {
-      const sym = row[0]?.trim();
-      if (!sym) continue;
-      const dtVol = parseNum(row[2]) + parseNum(row[5]); // 當沖買+賣
-      const totalVol = parseNum(row[8]); // 總成交量
-      map.set(sym, {
-        dayTradeVolume: dtVol,
-        dayTradeRatio: totalVol > 0 ? +(dtVol / totalVol * 100).toFixed(1) : 0,
-      });
-    }
-  } catch { /* fetchDayTrade failed */ }
-  return map;
-}
-
-// ── 大額交易人 ───────────────────────────────────────────────────────────────
-async function fetchLargeTrader(date: string): Promise<Map<string, { buy: number; sell: number; net: number }>> {
-  const map = new Map<string, { buy: number; sell: number; net: number }>();
-  try {
-    const dateStr = date.replace(/-/g, '');
-    const res = await fetch(`https://www.twse.com.tw/rwd/zh/fund/TWT38U?date=${dateStr}&response=json`, {
-      headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(15000),
-    });
-    const json = await res.json();
-    for (const row of json?.data ?? []) {
-      const sym = row[1]?.trim();
-      if (!sym || sym.length > 6) continue;
-      // 股數 → 張
-      const buy = Math.round(parseNum(row[3]) / 1000);
-      const sell = Math.round(parseNum(row[4]) / 1000);
-      const net = Math.round(parseNum(row[5]) / 1000);
-      map.set(sym, { buy, sell, net });
-    }
-  } catch { /* fetchLargeTrader failed */ }
-  return map;
 }
 
 // ── 計算籌碼面綜合評分 ───────────────────────────────────────────────────────

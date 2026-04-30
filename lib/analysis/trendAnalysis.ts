@@ -295,7 +295,7 @@ export function detectTrendlineBreakout(
  * 空頭方向對稱（用底底低次數判斷）。
  */
 
-function countHeadHighsSinceBottom(pivots: Pivot[]): number {
+function _countHeadHighsSinceBottom(pivots: Pivot[]): number {
   // pivots 已 newest-first；從最新往舊數，連續頭頭高的個數
   const highs = pivots.filter(p => p.type === 'high');
   let count = 0;
@@ -468,7 +468,6 @@ export function evaluateSixConditions(
   // ─────────────────────────────────────────────────────────────────────────
   const stage  = detectTrendPosition(candles, index);
   const ma20   = c.ma20;
-  const ma10c  = c.ma10;
   const ma20Dev = ma20 && ma20 > 0 ? (c.close - ma20) / ma20 : null;
 
   // 書本 p.54 第 3 條原文：「股價收盤在 MA10、MA20 之上」

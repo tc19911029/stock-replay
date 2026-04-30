@@ -47,7 +47,7 @@ function makeChart(container: HTMLElement, showTimeAxis: boolean): IChartApi {
 }
 
 /** 台股量顯示為「張」(1張=1000股)，其他市場顯示「股」 */
-function formatVolume(vol: number, isTW: boolean): string {
+function formatVolume(vol: number, _isTW: boolean): string {
   // vol 傳入時已經是張（TW: dataProvider已除1000，CN: EastMoney已是張）
   // formatVolume 只做千分位格式化，不應再除以1000
   return vol.toLocaleString();

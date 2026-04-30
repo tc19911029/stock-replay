@@ -55,7 +55,7 @@ export default function BottomPanel() {
   ];
   const uniqueSymbols = [...new Set(allSymbols)];
 
-  const fetchPrice = useCallback(async (symbol: string) => {
+  const _fetchPrice = useCallback(async (symbol: string) => {
     setPrices(prev => ({ ...prev, [symbol]: { ...prev[symbol], loading: true } as PriceInfo }));
     try {
       const strategyId = useSettingsStore.getState().activeStrategyId;

@@ -68,12 +68,6 @@ const statusColorMap: Record<string, string> = {
   no_report: 'bg-zinc-900/60 text-zinc-400 border-zinc-700/50',
 };
 
-const dotColorMap: Record<string, string> = {
-  fresh: 'bg-green-400', closed: 'bg-blue-400', stale: 'bg-yellow-400',
-  missing: 'bg-red-400', good: 'bg-green-400', warning: 'bg-yellow-400',
-  critical: 'bg-red-400', no_report: 'bg-zinc-500',
-};
-
 const statusLabelMap: Record<string, string> = {
   fresh: '即時', closed: '收盤', stale: '過期', missing: '無數據',
   good: '正常', warning: '警告', critical: '異常', no_report: '未校驗',
@@ -157,7 +151,6 @@ export function DataHealthBadge({ market, forceDown }: DataHealthProps) {
 
   if (loading || !health) return null;
 
-  const noReport = health.health === 'no_report';
   const l2 = health.l2;
   const l4 = health.l4;
 

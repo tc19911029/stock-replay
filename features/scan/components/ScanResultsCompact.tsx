@@ -50,8 +50,7 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
 
   const [expandedStock, setExpandedStock] = useState<string | null>(null);
   const [conceptFilter, setConceptFilter] = useState<string>('all');
-  const [scanSort, setScanSort] = useState<'change'>('change');
-  const [scanSortDir, setScanSortDir] = useState<'desc'>('desc');
+  const [scanSortDir] = useState<'desc'>('desc');
 
   const perfMap = useMemo(() => {
     const map = new Map<string, StockForwardPerformance>();

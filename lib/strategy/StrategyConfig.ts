@@ -131,7 +131,7 @@ export interface StrategyConfig {
 const BASE_GROUPS: RuleGroupId[] = ['trend-ma', 'volume', 'oscillator'];
 
 /** 朱家泓全部群組 */
-const ALL_ZHU_GROUPS: RuleGroupId[] = [
+const _ALL_ZHU_GROUPS: RuleGroupId[] = [
   'zhu-5steps', 'zhu-kline', 'zhu-reversal',
   'zhu-ma-strategy', 'zhu-momentum', 'zhu-advanced', 'zhu-soar-stock',
 ];

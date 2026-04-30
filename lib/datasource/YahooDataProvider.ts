@@ -493,7 +493,7 @@ export async function getYahooTWRealtimeViaChart(): Promise<Map<string, TWSEQuot
 
   // Step 2: 並行 20 個請求，每檔打 v8 chart
   const CONCURRENCY = 20;
-  let processed = 0;
+  let _processed = 0;
   async function fetchOne(sym: string): Promise<void> {
     try {
       const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=1d&interval=1d`;
@@ -521,7 +521,7 @@ export async function getYahooTWRealtimeViaChart(): Promise<Map<string, TWSEQuot
         date: qDate,
       });
     } catch { /* skip this symbol */ }
-    processed++;
+    _processed++;
   }
 
   // 分批並行

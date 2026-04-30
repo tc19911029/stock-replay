@@ -67,7 +67,7 @@ function periodToBeg(period: string): string {
 }
 
 /** 解析東方財富 klines CSV 為 Candle[] */
-function parseKlines(klines: string[], isCN: boolean): Candle[] {
+function parseKlines(klines: string[], _isCN: boolean): Candle[] {
   return klines
     .map((line) => {
       const f = line.split(',');

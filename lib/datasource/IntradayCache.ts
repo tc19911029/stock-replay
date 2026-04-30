@@ -774,7 +774,7 @@ const CROSS_VALIDATE_ALERT_THRESHOLD = 0.10; // 10% 不一致率觸發告警
 async function crossValidateL2(
   market: 'TW' | 'CN',
   primaryQuotes: IntradayQuote[],
-  sources: DataSourceStatus[],
+  _sources: DataSourceStatus[],
 ): Promise<void> {
   if (primaryQuotes.length < 100) return; // 數據太少不值得核驗
 
