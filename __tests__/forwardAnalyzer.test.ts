@@ -101,8 +101,10 @@ describe('ForwardAnalyzer — 連假缺口補足', () => {
       ...API_CANDLES_AFTER_HOLIDAY,
     ]);
 
+    // scanPrice 設為接近首根 K 線 close，避免 sanitizeCandles 的 15% 跳空閘
+    // 把整批 candle 全部誤刪後進入 setTimeout retry 路徑（fake timer 下會 hang）
     const { results } = await analyzeForwardBatch(
-      [{ symbol: '6419.TWO', name: '京晨科', scanPrice: 90 }],
+      [{ symbol: '6419.TWO', name: '京晨科', scanPrice: 54 }],
       '2026-04-01',
     );
 

@@ -216,6 +216,7 @@ export default function HomePage() {
   useEffect(() => {
     if (!chipFetchKey) { return; }
     const ctrl = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 載入 flag，搭配下方 finally 清除
     setChipsLoading(true);
     fetch(`/api/stock/chips?symbol=${encodeURIComponent(chipFetchKey)}&days=180`, { signal: ctrl.signal })
       .then(r => r.json())
@@ -233,6 +234,7 @@ export default function HomePage() {
   }, [chipFetchKey]);
   // 切到別的股 / 關掉所有 chip toggle → 清空 chips（不在主 effect 內，避免抖動）
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 切股時清舊 chips
     if (!ticker) setChips(null);
   }, [ticker]);
   const handleScanSelectStock = useCallback((stock: SelectedStock) => {

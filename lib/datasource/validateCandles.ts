@@ -6,6 +6,7 @@
  */
 
 import type { CandleWithIndicators } from '@/types';
+import { tradingDaysBetween } from '@/lib/utils/tradingDay';
 
 interface ValidationResult {
   /** Cleaned candles with anomalies removed */
@@ -147,7 +148,6 @@ export function detectCandleGaps(
 
   // 有 market → 用交易日差距（精確排除假日）
   if (market) {
-    const { tradingDaysBetween } = require('@/lib/utils/tradingDay');
     for (let i = 1; i < candles.length; i++) {
       const prev = new Date(candles[i - 1].date + 'T12:00:00');
       const curr = new Date(candles[i].date + 'T12:00:00');

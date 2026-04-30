@@ -633,7 +633,7 @@ async function _fetchCNQuotes(
   }
 
   // 3. 讀取 MA Base 以補足 prevClose
-  let maBaseMap: Record<string, { closes: number[] }> = {};
+  const maBaseMap: Record<string, { closes: number[] }> = {};
   try {
     const maBase = await readMABase('CN', today);
     if (maBase) {

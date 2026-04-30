@@ -503,7 +503,9 @@ export const useBacktestStore = create<BacktestState>()(
 
         // ── Timing ──────────────────────────────────────────────────────────
         const t0 = globalThis.performance.now();
-        let tList = t0, tIngest = t0, tChunk = t0;
+        let tList = t0;
+        const tIngest = t0;
+        let tChunk = t0;
 
         // ── Phase 1: Get stock list ──────────────────────────────────────────
         set({ isScanning: true, scanProgress: 5, scanningStock: '取得股票清單...', scanningCount: '', scanError: null,

@@ -143,6 +143,7 @@ export function DataHealthBadge({ market, forceDown }: DataHealthProps) {
   }, [expanded, forceDown]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 切換 market 時切換 loading + 清舊 health
     setLoading(true);
     setHealth(null); // 清除舊市場資料，避免顯示上個市場的 badge
     const controller = new AbortController();

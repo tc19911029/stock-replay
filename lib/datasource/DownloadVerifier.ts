@@ -40,6 +40,8 @@ export interface VerifyReport {
     downloadSkipped: number;
     coverageRate: number;
     stocksWithGaps: number;
+    /** 近 180 天內的 gap（排除歷史結構性缺口） */
+    stocksWithRecentGaps: number;
     stocksStale: number;
     stocksClean: number;
     stocksReadFailed: number;
@@ -54,16 +56,24 @@ export interface VerifyReport {
 
 function classifyHealth(
   coverageRate: number,
-  stocksWithGaps: number,
+  stocksWithRecentGaps: number,
   stocksStale: number,
   totalStocks: number,
 ): 'good' | 'warning' | 'critical' {
-  const gapRate = totalStocks > 0 ? stocksWithGaps / totalStocks : 0;
+  // 只用近 180 天內的 gap 計算，排除歷史結構性缺口（資料收集起始點）
+  const recentGapRate = totalStocks > 0 ? stocksWithRecentGaps / totalStocks : 0;
   const staleRate = totalStocks > 0 ? stocksStale / totalStocks : 0;
 
-  if (coverageRate < 0.80 || gapRate > 0.10 || staleRate > 0.10) return 'critical';
-  if (coverageRate < 0.95 || gapRate > 0.02 || staleRate > 0.05) return 'warning';
+  if (coverageRate < 0.80 || recentGapRate > 0.10 || staleRate > 0.10) return 'critical';
+  if (coverageRate < 0.95 || recentGapRate > 0.02 || staleRate > 0.05) return 'warning';
   return 'good';
+}
+
+/** 計算 180 天前的日期字串，用於排除歷史結構性缺口 */
+function recentCutoffDate(targetDate: string): string {
+  const d = new Date(targetDate + 'T12:00:00');
+  d.setDate(d.getDate() - 180);
+  return d.toISOString().slice(0, 10);
 }
 
 // ── Blob storage ─────────────────────────────────────────────────────────────
@@ -156,6 +166,7 @@ export async function verifyDownload(
   const staleDetails: VerifyStaleDetail[] = [];
   const failedSymbols: string[] = [];
   let readFailed = 0;
+  const cutoff = recentCutoffDate(targetDate);
 
   // 批次讀取+校驗（避免一次讀太多 Blob）
   for (let i = 0; i < symbols.length; i += CONCURRENCY) {
@@ -198,6 +209,12 @@ export async function verifyDownload(
   const stocksWithL1 = totalStocks - failedSymbols.length - readFailed;
   const coverageRate = totalStocks > 0 ? stocksWithL1 / totalStocks : 0;
 
+  // 近期 gap：最後一個 gap 的 toDate >= cutoff（排除資料收集起始點的歷史結構性缺口）
+  const recentGapDetails = gapDetails.filter(g => {
+    const lastGap = g.gaps[g.gaps.length - 1];
+    return lastGap.toDate >= cutoff;
+  });
+
   const report: VerifyReport = {
     market,
     date: targetDate,
@@ -209,6 +226,7 @@ export async function verifyDownload(
       downloadSkipped: stats.skipped,
       coverageRate: +coverageRate.toFixed(4),
       stocksWithGaps: gapDetails.length,
+      stocksWithRecentGaps: recentGapDetails.length,
       stocksStale: staleDetails.length,
       stocksClean: totalStocks - gapDetails.length - staleDetails.length - failedSymbols.length - readFailed,
       stocksReadFailed: readFailed + failedSymbols.length,
@@ -216,7 +234,7 @@ export async function verifyDownload(
     failedSymbols,
     gapDetails: gapDetails.slice(0, 50), // 最多記 50 筆 gap detail（避免報告太大）
     staleDetails: staleDetails.slice(0, 50),
-    health: classifyHealth(coverageRate, gapDetails.length, staleDetails.length, totalStocks),
+    health: classifyHealth(coverageRate, recentGapDetails.length, staleDetails.length, totalStocks),
   };
 
   // 存報告
@@ -225,7 +243,7 @@ export async function verifyDownload(
   console.info(
     `[DownloadVerifier] ${market} ${targetDate}: ` +
     `health=${report.health} coverage=${(coverageRate * 100).toFixed(1)}% ` +
-    `gaps=${gapDetails.length} stale=${staleDetails.length} readFail=${readFailed + failedSymbols.length}`,
+    `gaps=${gapDetails.length}(recent=${recentGapDetails.length}) stale=${staleDetails.length} readFail=${readFailed + failedSymbols.length}`,
   );
 
   return report;

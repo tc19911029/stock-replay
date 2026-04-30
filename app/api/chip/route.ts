@@ -254,10 +254,6 @@ const chipQuerySchema = z.object({
   symbol: z.string().optional(),
 });
 
-// ── 快取 ─────────────────────────────────────────────────────────────────────
-let cache: { date: string; data: Map<string, ChipData>; ts: number } | null = null;
-const CACHE_TTL = 10 * 60 * 1000;
-
 // ─── 新版：用 FinMind + TDCC L1 直接抓單檔資料（不再 bulk pre-fetch 全市場） ──
 
 import { fetchT86ForStock } from '@/lib/datasource/TwseT86Provider';

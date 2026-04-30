@@ -23,6 +23,7 @@ import { saveDownloadManifest } from '@/lib/datasource/DownloadManifest';
 import { getLastTradingDay } from '@/lib/datasource/marketHours';
 import { verifyDownload } from '@/lib/datasource/DownloadVerifier';
 import { spotCheckL1 } from '@/lib/datasource/L1SpotCheck';
+import { detectCandleGaps } from '@/lib/datasource/validateCandles';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -98,15 +99,21 @@ export async function GET(req: NextRequest) {
           if (existing && existing.lastDate >= lastTradingDate) return -1;
 
           // L1 近期存在 + L2 有今日資料 → 直接 inject，不耗 API 配額
-          // writeCandleFile 內部自行讀取並 merge，只傳新增的一根即可
+          // 但先偵測內部 gap：有洞的股票不走 fast-path，強制全量下載修補
           if (existing && existing.lastDate >= recentThresholdStr && l2Map) {
-            const l2Quote = l2Map.get(code);
-            if (l2Quote) {
-              await saveLocalCandles(symbol, market, [
-                { date: lastTradingDate, open: l2Quote.open, high: l2Quote.high, low: l2Quote.low, close: l2Quote.close, volume: l2Quote.volume },
-              ]);
-              l2Injected++;
-              return 1;
+            const internalGaps = detectCandleGaps(existing.candles, 10, market);
+            if (internalGaps.length > 0) {
+              // 有內部 gap → 落入全量下載分支
+              console.warn(`[download-batch] ${symbol} 有 ${internalGaps.length} 個 gap，強制全量下載`);
+            } else {
+              const l2Quote = l2Map.get(code);
+              if (l2Quote) {
+                await saveLocalCandles(symbol, market, [
+                  { date: lastTradingDate, open: l2Quote.open, high: l2Quote.high, low: l2Quote.low, close: l2Quote.close, volume: l2Quote.volume },
+                ]);
+                l2Injected++;
+                return 1;
+              }
             }
           }
 

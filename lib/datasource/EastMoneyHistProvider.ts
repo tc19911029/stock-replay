@@ -78,7 +78,7 @@ function parseKlines(klines: string[], isCN: boolean): Candle[] {
       const close = parseFloat(f[2]); // 注意：close 在 [2]
       const high = parseFloat(f[3]);  // high 在 [3]
       const low = parseFloat(f[4]);
-      let volume = parseInt(f[5], 10) || 0;
+      const volume = parseInt(f[5], 10) || 0;
 
       if (isNaN(close) || close <= 0) return null;
 
