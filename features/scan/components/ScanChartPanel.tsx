@@ -68,7 +68,6 @@ export function ScanChartPanel({ selectedStock, scanDate }: ScanChartPanelProps)
   // 切換股票時重置為日K
   useEffect(() => {
     if (selectedStock && selectedStock.symbol !== prevSymbolRef.current) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setInterval('1d');
       prevSymbolRef.current = selectedStock.symbol;
     }
@@ -87,7 +86,6 @@ export function ScanChartPanel({ selectedStock, scanDate }: ScanChartPanelProps)
     prevSymbolRef.current = selectedStock.symbol;
     prevScanDateRef.current = scanDate ?? null;
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadError(null);
     loadStock(selectedStock.symbol, '1d', '2y', scanDate)
       .then(onLoadSuccess)
