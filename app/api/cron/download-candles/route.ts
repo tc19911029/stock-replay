@@ -22,6 +22,39 @@ import { saveDownloadManifest } from '@/lib/datasource/DownloadManifest';
 import { verifyDownload } from '@/lib/datasource/DownloadVerifier';
 import { spotCheckL1 } from '@/lib/datasource/L1SpotCheck';
 
+// ── TWSE MI_INDEX 官方日收盤（上市，集合競價後才更新） ───────────────────────────
+
+interface BulkOHLCV { open: number; high: number; low: number; close: number; volume: number; }
+
+/**
+ * 抓 TWSE MI_INDEX table 8「每日收盤行情」，一次取所有上市股票的官方 OHLCV。
+ * 用來替代 L2 盤中快照，避免集合競價前的快照寫入錯誤收盤價。
+ */
+async function fetchTWSEBulkClose(dateStr: string): Promise<Map<string, BulkOHLCV>> {
+  const d = dateStr.replace(/-/g, ''); // "2026-04-29" → "20260429"
+  const url = `https://www.twse.com.tw/exchangeReport/MI_INDEX?response=json&date=${d}&type=ALLBUT0999`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+  if (!res.ok) throw new Error(`TWSE MI_INDEX HTTP ${res.status}`);
+  const data = await res.json() as { stat: string; tables: Array<{ fields: string[]; data: string[][] }> };
+  if (data.stat !== 'OK') throw new Error(`TWSE MI_INDEX stat=${data.stat}`);
+  const table = data.tables?.[8];
+  if (!table?.data?.length) throw new Error('TWSE MI_INDEX table 8 missing or empty');
+
+  const parseNum = (s: string) => { const n = parseFloat(s.replace(/,/g, '')); return isNaN(n) ? 0 : n; };
+  const map = new Map<string, BulkOHLCV>();
+  for (const row of table.data) {
+    const code = row[0]?.trim();
+    if (!code || !/^\d{4,}[A-Z]?$/.test(code)) continue; // 只要 4~5 位數字（含 ETF 如 00400A）
+    const open  = parseNum(row[5]);
+    const high  = parseNum(row[6]);
+    const low   = parseNum(row[7]);
+    const close = parseNum(row[8]);
+    const volume = Math.round(parseNum(row[2]) / 1000); // 股 → 張
+    if (close > 0 && open > 0) map.set(code, { open, high, low, close, volume });
+  }
+  return map;
+}
+
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
@@ -58,7 +91,20 @@ export async function GET(req: NextRequest) {
   try {
     const stocks = await scanner.getStockList();
 
-    // ── 預載 L2 快照（主路徑） ──
+    // ── TW 上市：TWSE MI_INDEX 官方日收盤（集合競價後才更新，是唯一正確來源）──
+    // 取代 L2 盤中快照，避免快照在集合競價完成前就注入錯誤收盤價
+    let twseMap: Map<string, BulkOHLCV> | null = null;
+    let twseInjected = 0;
+    if (market === 'TW') {
+      try {
+        twseMap = await fetchTWSEBulkClose(lastTradingDate);
+        console.info(`[download-candles] TW: TWSE MI_INDEX 官方收盤已載入 ${twseMap.size} 支上市股票`);
+      } catch (err) {
+        console.warn('[download-candles] TW: TWSE MI_INDEX 載入失敗，改用 L2+API fallback:', err);
+      }
+    }
+
+    // ── L2 快照（TWO 上櫃 fallback，或 TWSE 載入失敗時的備援）──
     let l2Map: Map<string, IntradayQuote> | null = null;
     let l2Injected = 0;
     try {
@@ -75,7 +121,10 @@ export async function GET(req: NextRequest) {
       }
     } catch { /* L2 不可用，改走 API 模式 */ }
 
-    console.info(`[download-candles] ${market}: ${stocks.length} 支，L2=${l2Map?.size ?? 0}，模式=${l2Map ? 'L2主路徑+API補缺' : '純API'}`);
+    console.info(
+      `[download-candles] ${market}: ${stocks.length} 支，` +
+      `TWSE=${twseMap?.size ?? 0}，L2=${l2Map?.size ?? 0}`
+    );
 
     for (let i = 0; i < stocks.length; i += CONCURRENCY) {
       const batch = stocks.slice(i, i + CONCURRENCY);
@@ -87,8 +136,18 @@ export async function GET(req: NextRequest) {
           // 已是最新，跳過
           if (existing && existing.lastDate >= lastTradingDate) return -1;
 
-          // L1 近期存在 + L2 有今日資料 → 直接 inject，不耗 API 配額
-          // writeCandleFile 內部自行讀取並 merge，只傳新增的一根即可
+          // ── 優先路徑 1：TWSE 官方日收盤（只對上市 .TW 股票）──
+          // 用集合競價後的官方 OHLCV，不受盤中快照時序影響
+          if (symbol.endsWith('.TW') && twseMap) {
+            const ohlcv = twseMap.get(code);
+            if (ohlcv) {
+              await saveLocalCandles(symbol, market, [{ date: lastTradingDate, ...ohlcv }]);
+              twseInjected++;
+              return 1;
+            }
+          }
+
+          // ── 優先路徑 2：L2 快照（上櫃 TWO / CN，或 TWSE 無此股）──
           if (existing && existing.lastDate >= recentThresholdStr && l2Map) {
             const l2Quote = l2Map.get(code);
             if (l2Quote) {
@@ -100,7 +159,7 @@ export async function GET(req: NextRequest) {
             }
           }
 
-          // L1 缺失、太舊、或 L2 沒有此股 → 全量 API 下載
+          // ── 全量 API 下載（L1 缺失、太舊、或兩個快照都無此股）──
           const candles = await scanner.fetchCandles(symbol);
           if (candles.length > 0) {
             await saveLocalCandles(symbol, market, candles);
@@ -129,7 +188,10 @@ export async function GET(req: NextRequest) {
     }
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.info(`[download-candles] ${market}: 完成 — ${succeeded} 下載, ${l2Injected} L2注入, ${skipped} 跳過, ${failed} 失敗, ${duration}s`);
+    console.info(
+      `[download-candles] ${market}: 完成 — ${succeeded} API下載, ` +
+      `${twseInjected} TWSE注入, ${l2Injected} L2注入, ${skipped} 跳過, ${failed} 失敗, ${duration}s`
+    );
 
     // 保存下載清單（供掃描前檢查覆蓋率使用）
     await saveDownloadManifest(market, lastTradingDate, {
@@ -179,6 +241,7 @@ export async function GET(req: NextRequest) {
       market,
       totalStocks: stocks.length,
       succeeded,
+      twseInjected,
       l2Injected,
       skipped,
       failed,
