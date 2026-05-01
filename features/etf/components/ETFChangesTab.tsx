@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useETFStore } from '@/store/etfStore';
 import { ACTIVE_ETF_LIST } from '@/lib/etf/etfList';
-import type { ETFChange } from '@/lib/etf/types';
+import type { ETFChange, ETFHolding } from '@/lib/etf/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatPct, formatWeight } from '../utils/format';
 
@@ -12,6 +12,7 @@ export function ETFChangesTab() {
   const { selectedEtfCode, setSelectedEtfCode } = useETFStore();
   const [date, setDate] = useState<string | null>(null);
   const [changes, setChanges] = useState<ETFChange[] | null>(null);
+  const [snapshot, setSnapshot] = useState<{ holdings: ETFHolding[]; disclosureDate: string } | null | 'loading'>('loading');
 
   useEffect(() => {
     setChanges(null);
@@ -24,6 +25,18 @@ export function ETFChangesTab() {
         setDate(d.date ?? null);
       })
       .catch(() => setChanges([]));
+  }, [selectedEtfCode]);
+
+  useEffect(() => {
+    if (!selectedEtfCode) {
+      setSnapshot(null);
+      return;
+    }
+    setSnapshot('loading');
+    fetch(`/api/etf/snapshot/${selectedEtfCode}`)
+      .then((r) => r.json())
+      .then((d) => setSnapshot(d.snapshot ?? null))
+      .catch(() => setSnapshot(null));
   }, [selectedEtfCode]);
 
   return (
@@ -56,17 +69,29 @@ export function ETFChangesTab() {
       </div>
 
       {changes === null ? (
-        <Skeleton className="h-64 w-full" />
-      ) : changes.length === 0 ? (
-        <div className="border border-dashed border-border rounded-lg p-8 text-center">
-          <p className="text-sm text-muted-foreground">尚無持股異動資料</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
+        <Skeleton className="h-32 w-full" />
+      ) : changes.length > 0 ? (
+        <div className="space-y-4 mb-6">
           {changes.map((c) => (
             <ChangeCard key={c.etfCode} change={c} />
           ))}
         </div>
+      ) : selectedEtfCode === null ? (
+        <div className="border border-dashed border-border rounded-lg p-8 text-center mb-6">
+          <p className="text-sm text-muted-foreground">尚無持股異動資料——選擇上方 ETF 查看目前持股</p>
+        </div>
+      ) : null}
+
+      {selectedEtfCode && (
+        snapshot === 'loading' ? (
+          <Skeleton className="h-64 w-full" />
+        ) : snapshot && snapshot.holdings.length > 0 ? (
+          <HoldingsTable etfCode={selectedEtfCode} holdings={snapshot.holdings} disclosureDate={snapshot.disclosureDate} />
+        ) : (
+          <div className="border border-dashed border-border rounded-lg p-8 text-center">
+            <p className="text-sm text-muted-foreground">尚無持股快照——請等待今日 cron 執行後刷新</p>
+          </div>
+        )
       )}
     </div>
   );
@@ -135,6 +160,41 @@ function Section({ title, color, rows }: { title: string; color: string; rows: S
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+function HoldingsTable({
+  etfCode,
+  holdings,
+  disclosureDate,
+}: {
+  etfCode: string;
+  holdings: ETFHolding[];
+  disclosureDate: string;
+}) {
+  return (
+    <div className="border border-border rounded-lg p-4">
+      <div className="flex items-baseline gap-2 mb-3">
+        <span className="font-mono text-sm font-semibold">{etfCode}</span>
+        <span className="text-xs text-muted-foreground">目前持股</span>
+        <span className="text-xs text-muted-foreground ml-auto">揭露日：{disclosureDate}</span>
+      </div>
+      <ul className="space-y-1">
+        {holdings.map((h, i) => (
+          <li key={h.symbol} className="flex items-center gap-2 text-xs">
+            <span className="text-muted-foreground/50 w-6 text-right tabular-nums">{i + 1}</span>
+            <Link
+              href={`/?symbol=${h.symbol}.TW`}
+              className="font-mono w-14 hover:text-sky-400 shrink-0"
+            >
+              {h.symbol}
+            </Link>
+            <span className="flex-1 truncate">{h.name}</span>
+            <span className="text-muted-foreground tabular-nums">{formatWeight(h.weight)}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
