@@ -3,6 +3,7 @@ import { apiOk, apiError } from '@/lib/api/response';
 import { isTradingDay } from '@/lib/utils/tradingDay';
 import { getLastTradingDay } from '@/lib/datasource/marketHours';
 import { runScanPipeline } from '@/lib/scanner/ScanPipeline';
+import { assertL1Coverage } from '@/lib/scanner/coverageGuard';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -19,6 +20,24 @@ export async function GET(req: NextRequest) {
 
   if (!isTradingDay(date, 'TW')) {
     return apiOk({ skipped: true, reason: 'non-trading day', date });
+  }
+
+  // L1 覆蓋率守門：若 download 未完成或殘缺，拒絕跑 scan，避免覆蓋既有正確結果
+  // 可用 ?force=1 強制跑（手動 backfill 場景）
+  const force = req.nextUrl.searchParams.get('force') === '1';
+  if (!force) {
+    const coverage = await assertL1Coverage('TW', date);
+    if (!coverage.ok) {
+      console.warn(`[cron/scan-tw] ★ 跳過 scan: ${coverage.reason}`);
+      return apiOk({
+        skipped: true,
+        reason: 'l1-coverage-insufficient',
+        detail: coverage.reason,
+        coverageRate: coverage.coverageRate,
+        date,
+      });
+    }
+    console.info(`[cron/scan-tw] L1 覆蓋率守門通過: ${(coverage.coverageRate * 100).toFixed(1)}% (health=${coverage.health})`);
   }
 
   try {
