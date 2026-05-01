@@ -43,12 +43,16 @@ export interface VerifyReport {
     /** 近 180 天內的 gap（排除歷史結構性缺口） */
     stocksWithRecentGaps: number;
     stocksStale: number;
+    /** 落後 ≥ permanentStaleDays 個交易日（推定永久停牌/退市，不計入 health 警告）— 舊報告可能無此欄位 */
+    stocksPermanentStale?: number;
     stocksClean: number;
     stocksReadFailed: number;
   };
   failedSymbols: string[];
   gapDetails: VerifyGapDetail[];
   staleDetails: VerifyStaleDetail[];
+  /** 永久 stale 的股票清單（retry-failed 應略過）— 舊報告可能無此欄位 */
+  permanentStaleDetails?: VerifyStaleDetail[];
   health: 'good' | 'warning' | 'critical';
 }
 
@@ -160,10 +164,13 @@ export async function verifyDownload(
   stats: DownloadStats,
   maxGapDays = 10,
   staleDays = 3,
+  /** 落後 ≥ N 個交易日 → 推定永久停牌/退市，不算進 stale 警告 */
+  permanentStaleDays = 14,
 ): Promise<VerifyReport> {
   const CONCURRENCY = 20;
   const gapDetails: VerifyGapDetail[] = [];
   const staleDetails: VerifyStaleDetail[] = [];
+  const permanentStaleDetails: VerifyStaleDetail[] = [];
   const failedSymbols: string[] = [];
   let readFailed = 0;
   const cutoff = recentCutoffDate(targetDate);
@@ -188,7 +195,14 @@ export async function verifyDownload(
         // lastDate 檢查
         // 用交易日差距，避免跨連假誤判為 stale
         const behind = tradingDaysBetween(data.lastDate, targetDate, market);
-        if (behind >= staleDays) {
+        if (behind >= permanentStaleDays) {
+          // 落後超過 14 個交易日 → 推定永久停牌/退市
+          permanentStaleDetails.push({
+            symbol,
+            lastDate: data.lastDate,
+            daysBehind: behind,
+          });
+        } else if (behind >= staleDays) {
           staleDetails.push({
             symbol,
             lastDate: data.lastDate,
@@ -228,12 +242,15 @@ export async function verifyDownload(
       stocksWithGaps: gapDetails.length,
       stocksWithRecentGaps: recentGapDetails.length,
       stocksStale: staleDetails.length,
-      stocksClean: totalStocks - gapDetails.length - staleDetails.length - failedSymbols.length - readFailed,
+      stocksPermanentStale: permanentStaleDetails.length,
+      stocksClean: totalStocks - gapDetails.length - staleDetails.length - permanentStaleDetails.length - failedSymbols.length - readFailed,
       stocksReadFailed: readFailed + failedSymbols.length,
     },
     failedSymbols,
     gapDetails: gapDetails.slice(0, 50), // 最多記 50 筆 gap detail（避免報告太大）
     staleDetails: staleDetails.slice(0, 50),
+    permanentStaleDetails: permanentStaleDetails.slice(0, 100),
+    // 永久 stale 不計入 health 警告（這些是真實停牌/退市）
     health: classifyHealth(coverageRate, recentGapDetails.length, staleDetails.length, totalStocks),
   };
 
