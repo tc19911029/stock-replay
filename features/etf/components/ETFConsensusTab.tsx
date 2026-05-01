@@ -72,7 +72,7 @@ export function ETFConsensusTab() {
               {entries.map((e) => (
                 <tr key={e.symbol} className="border-t border-border hover:bg-muted/30">
                   <td className="px-3 py-2">
-                    <Link href={`/?symbol=${e.symbol}.TW`} className="font-mono hover:text-sky-400">
+                    <Link href={`/?load=${e.symbol}.TW`} className="font-mono hover:text-sky-400">
                       {e.symbol}
                     </Link>
                   </td>

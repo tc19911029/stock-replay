@@ -96,7 +96,7 @@ export function ETFTrackingTab() {
                 >
                   <td className="px-2 py-2 font-mono">{e.etfCode}</td>
                   <td className="px-2 py-2">
-                    <Link href={`/?symbol=${e.symbol}.TW`} className="font-mono hover:text-sky-400">
+                    <Link href={`/?load=${e.symbol}.TW`} className="font-mono hover:text-sky-400">
                       {e.symbol}
                     </Link>{' '}
                     <span className="text-muted-foreground">{e.stockName}</span>

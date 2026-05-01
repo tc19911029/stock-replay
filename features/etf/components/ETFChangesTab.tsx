@@ -148,7 +148,7 @@ function Section({ title, color, rows }: { title: string; color: string; rows: S
           {rows.map((r) => (
             <li key={r.symbol} className="flex items-center gap-2 text-xs">
               <Link
-                href={`/?symbol=${r.symbol}.TW`}
+                href={`/?load=${r.symbol}.TW`}
                 className="font-mono w-12 hover:text-sky-400"
               >
                 {r.symbol}
@@ -185,7 +185,7 @@ function HoldingsTable({
           <li key={h.symbol} className="flex items-center gap-2 text-xs">
             <span className="text-muted-foreground/50 w-6 text-right tabular-nums">{i + 1}</span>
             <Link
-              href={`/?symbol=${h.symbol}.TW`}
+              href={`/?load=${h.symbol}.TW`}
               className="font-mono w-14 hover:text-sky-400 shrink-0"
             >
               {h.symbol}
