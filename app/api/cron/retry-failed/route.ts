@@ -14,7 +14,7 @@
 
 import { NextRequest } from 'next/server';
 import { apiOk, apiError } from '@/lib/api/response';
-import { loadVerifyReport, verifyDownload } from '@/lib/datasource/DownloadVerifier';
+import { loadVerifyReport } from '@/lib/datasource/DownloadVerifier';
 import { getLastTradingDay } from '@/lib/datasource/marketHours';
 import { TaiwanScanner } from '@/lib/scanner/TaiwanScanner';
 import { ChinaScanner } from '@/lib/scanner/ChinaScanner';
@@ -257,23 +257,10 @@ export async function GET(req: NextRequest) {
     console.warn(`[retry-failed] ${market} Phase 2 跳過（預算不足或無 gap 股票）`);
   }
 
-  // ═══ Phase 3: 重新生成校驗報告 ═════════════════════════════════════════
-  let newHealth: string | undefined;
-  try {
-    const stocks = await scanner.getStockList();
-    const allSymbols = stocks.map(s => s.symbol);
-    const totalSucceeded = report.summary.downloadSuccess + phase1Succeeded + phase2Succeeded;
-    const totalFailed = report.summary.downloadFailed - phase1Succeeded;
-    const newReport = await verifyDownload(market, lastTradingDate, allSymbols, {
-      succeeded: totalSucceeded,
-      failed: Math.max(0, totalFailed),
-      skipped: report.summary.downloadSkipped,
-    });
-    newHealth = newReport.health;
-    console.info(`[retry-failed] ${market} Phase 3: 重新校驗完成 → ${newHealth}`);
-  } catch (err) {
-    console.warn('[retry-failed] re-verify failed:', err);
-  }
+  // Phase 3（全量 verifyDownload）已移除：
+  // - CN 3150 支 / TW 2000 支全量 Blob 讀取需 100-160s，超過 120s maxDuration
+  // - download-candles-batch 最後一批本來就會跑 verifyDownload，無需在此重複
+  // - 回傳修復前的 health 作為參考基準即可
 
   const budgetUsedPct = Math.round((Date.now() - startTime) / TOTAL_BUDGET_MS * 100);
 
@@ -293,7 +280,7 @@ export async function GET(req: NextRequest) {
       failed: phase2Failed,
       sources: phase2Sources,
     },
-    newHealth,
+    baseHealth: report.health, // 修復前的 health（新 health 由 download-candles-batch 最後一批更新）
     budgetUsedPct,
   });
 }
