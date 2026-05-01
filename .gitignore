@@ -13,6 +13,7 @@ __pycache__/
 /data/turnover-rank/
 /data/institutional/
 /data/manifest/
+/data/etf/
 /data/*.json.BAD-*
 
 # backtest CSV outputs (root level)

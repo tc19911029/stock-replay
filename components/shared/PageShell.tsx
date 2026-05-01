@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import NavigationProgress from '@/components/NavigationProgress';
 import {
   Moon, Sun,
-  Star, Briefcase, Menu,
+  Star, Briefcase, Menu, TrendingUp,
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
@@ -63,8 +63,9 @@ export function PageShell({ children, headerSlot, fullViewport, className }: Pag
           <nav aria-label="輔助導覽" className="hidden md:flex items-center gap-0.5">
             {/* Watchlist & Portfolio direct links */}
             {([
-              { href: '/watchlist', label: '自選股', icon: Star },
-              { href: '/portfolio', label: '持倉',   icon: Briefcase },
+              { href: '/watchlist', label: '自選股',   icon: Star },
+              { href: '/portfolio', label: '持倉',     icon: Briefcase },
+              { href: '/etf',       label: 'ETF追蹤', icon: TrendingUp },
             ] as const).map(({ href, label, icon: Icon }) => (
               <Link
                 key={href}
@@ -116,6 +117,7 @@ export function PageShell({ children, headerSlot, fullViewport, className }: Pag
                   {[
                     { href: '/watchlist',            label: '自選股',    icon: Star },
                     { href: '/portfolio',            label: '持倉',      icon: Briefcase },
+                    { href: '/etf',                  label: 'ETF追蹤',  icon: TrendingUp },
                   ].map(({ href, label, icon: Icon }) => (
                     <Link
                       key={href}

@@ -155,9 +155,15 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── 大盤代理 ETF 下載（只在 batch 1 執行，避免重複）──────────────
+    // ── 大盤代理 ETF + 主動式 ETF 下載（只在 batch 1 執行，避免重複）──────────────
     if (batch === 1) {
-      const proxySymbols = market === 'TW' ? ['0050.TW'] : ['000300.SS'];
+      const ACTIVE_ETF_SYMBOLS = [
+        '00980A.TW', '00981A.TW', '00982A.TW', '00984A.TW', '00985A.TW',
+        '00987A.TW', '00991A.TW', '00992A.TW', '00993A.TW', '00994A.TW', '00995A.TW',
+      ];
+      const proxySymbols = market === 'TW'
+        ? ['0050.TW', ...ACTIVE_ETF_SYMBOLS]
+        : ['000300.SS'];
       for (const proxy of proxySymbols) {
         try {
           const proxyExisting = await readCandleFile(proxy, market);
