@@ -228,7 +228,47 @@ export async function GET(req: NextRequest) {
       console.warn('[download-candles] verify failed:', err);
     }
 
-    // ── L1 抽查（Yahoo 交叉核驗） ──
+    // ── 最終守護：TWSE MI_INDEX 全量交叉稽核 + 自動修復（TW 上市專用）──
+    // 防止：L2 注入或 API 下載寫入集合競價前的錯誤收盤價
+    // 機制：對所有有 TWSE 官方資料的 .TW 股票，比對 L1 vs 官方，偏差 > 0.5% 自動覆寫
+    let twseAudit: { checked: number; repaired: number; samples: string[] } | undefined;
+    if (market === 'TW' && twseMap) {
+      let checked = 0, repaired = 0;
+      const samples: string[] = [];
+      for (const stock of stocks) {
+        if (!stock.symbol.endsWith('.TW')) continue;
+        const code = stock.symbol.replace(/\.TW$/i, '');
+        const official = twseMap.get(code);
+        if (!official) continue;
+
+        const l1Data = await readCandleFile(stock.symbol, market);
+        if (!l1Data || l1Data.lastDate !== lastTradingDate) continue;
+        const lastBar = l1Data.candles[l1Data.candles.length - 1];
+        if (!lastBar) continue;
+        checked++;
+
+        const diffAbs = Math.abs(lastBar.close - official.close);
+        const diffPct = diffAbs / official.close;
+        if (diffAbs > 1 || diffPct > 0.005) {
+          await saveLocalCandles(stock.symbol, market, [{ date: lastTradingDate, ...official }]);
+          repaired++;
+          if (samples.length < 5) {
+            samples.push(`${stock.symbol}: L1=${lastBar.close} → TWSE=${official.close} (${(diffPct * 100).toFixed(2)}%)`);
+          }
+        }
+      }
+      twseAudit = { checked, repaired, samples };
+      if (repaired > 0) {
+        console.warn(
+          `[download-candles] TW: ★ TWSE 交叉稽核修復 ${repaired}/${checked} 支偏差股票`
+        );
+        for (const s of samples) console.warn(`  ${s}`);
+      } else {
+        console.info(`[download-candles] TW: TWSE 交叉稽核通過 ${checked} 支全部一致`);
+      }
+    }
+
+    // ── L1 抽查（Yahoo 交叉核驗 — 第三道防線） ──
     let spotCheck: import('@/lib/datasource/L1SpotCheck').SpotCheckResult | undefined;
     try {
       const allSymbols = stocks.map(s => s.symbol);
@@ -248,6 +288,7 @@ export async function GET(req: NextRequest) {
       durationSec: parseFloat(duration),
       maBase: maBaseResult,
       verify: verifyResult,
+      twseAudit,
       spotCheck: spotCheck ? { passed: spotCheck.passed, failed: spotCheck.failed, suspicious: spotCheck.suspicious } : undefined,
     });
   } catch (err) {
