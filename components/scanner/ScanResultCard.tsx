@@ -2,7 +2,7 @@
 
 import { useState, ReactNode } from 'react';
 import { StockScanResult } from '@/lib/scanner/types';
-import { formatTime } from '@/lib/format';
+import { formatPercent, formatPrice, formatTime, bullBearClass } from '@/lib/format';
 
 const SIGNAL_LABEL: Record<string, string> = {
   BUY: '買入', ADD: '加碼', SELL: '賣出', REDUCE: '減碼', WATCH: '觀察',
@@ -55,7 +55,6 @@ function ScoreBar({ score, label }: { score: number; label: string }) {
 export default function ScanResultCard({ result: r, actions }: { result: StockScanResult; actions?: ReactNode }) {
   const [expanded, setExpanded] = useState(false);
 
-  const changePos = r.changePercent >= 0;
   const bd = r.sixConditionsBreakdown;
   const buyRules   = r.triggeredRules.filter(t => t.signalType === 'BUY' || t.signalType === 'ADD');
   const watchRules = r.triggeredRules.filter(t => t.signalType === 'WATCH');
@@ -92,9 +91,9 @@ export default function ScanResultCard({ result: r, actions }: { result: StockSc
 
         {/* Price + change */}
         <div className="text-right shrink-0">
-          <div className="text-sm font-mono font-bold text-foreground">{r.price.toFixed(2)}</div>
-          <div className={`text-xs font-mono ${changePos ? 'text-bull' : 'text-bear'}`}>
-            {changePos ? '+' : ''}{r.changePercent.toFixed(2)}%
+          <div className="text-sm font-mono font-bold text-foreground">{formatPrice(r.price, false)}</div>
+          <div className={`text-xs font-mono ${bullBearClass(r.changePercent)}`}>
+            {formatPercent(r.changePercent)}
           </div>
         </div>
 

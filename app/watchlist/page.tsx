@@ -55,6 +55,9 @@ export default function WatchlistPage() {
   const [addLoading, setAddLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  // 避免 zustand persist 與 SSR 不一致：等 client mount 後再渲染依賴 items 的內容
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => { setHasMounted(true); }, []);
 
   const fetchConditions = useCallback(async (symbol: string) => {
     setData(prev => ({ ...prev, [symbol]: { ...prev[symbol], loading: true, error: undefined } as ConditionData }));
@@ -154,7 +157,7 @@ export default function WatchlistPage() {
     <div className="flex items-center gap-2 text-xs">
       <Link href="/" className="text-muted-foreground hover:text-foreground transition-colors shrink-0 text-lg leading-none">←</Link>
       <span className="font-bold text-sm whitespace-nowrap">⭐ 自選股</span>
-      <span className="text-muted-foreground shrink-0">{items.length} 支</span>
+      <span className="text-muted-foreground shrink-0">{hasMounted ? items.length : 0} 支</span>
       {lastUpdated && <span className="text-muted-foreground/60 hidden sm:block">{lastUpdated}</span>}
       <Button onClick={refreshAll} disabled={isRefreshing} variant="secondary" size="sm"
         className="flex items-center gap-1">
@@ -193,7 +196,7 @@ export default function WatchlistPage() {
             />
           </div>
         </div>
-        {items.length === 0 && (
+        {hasMounted && items.length === 0 && (
           <EmptyState
             icon="⭐"
             title="尚未加入任何自選股"
@@ -204,7 +207,7 @@ export default function WatchlistPage() {
 
         {/* Stock cards */}
         <div className="space-y-3">
-          {sorted.map(item => {
+          {hasMounted && sorted.map(item => {
             const d = data[item.symbol];
             const score = d?.sixConditions?.totalScore ?? null;
             const scoreColor = score == null ? 'bg-muted text-muted-foreground' :

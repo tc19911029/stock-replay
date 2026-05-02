@@ -21,8 +21,12 @@ const IS_VERCEL = !!process.env.VERCEL;
 
 // ── 內部狀態（使用 global 存活於 HMR 重載）──
 
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 分鐘，確保修復磁碟後自動過期
+
+type CacheEntry = { data: CandleFileData; expiresAt: number };
+
 type L1GlobalCache = {
-  _l1Store: Map<string, CandleFileData>;
+  _l1Store: Map<string, CacheEntry>;
 };
 
 const g = global as typeof global & Partial<L1GlobalCache>;
@@ -33,11 +37,17 @@ const _store = g._l1Store;
 // ── 公開 API ────────────────────────────────────────────────────────────────────
 
 /**
- * 取快取資料。未命中回傳 null（呼叫方負責從磁碟讀，再呼叫 updateCache）。
+ * 取快取資料。未命中或已過期回傳 null（呼叫方負責從磁碟讀，再呼叫 updateCache）。
  */
 export function getFromCache(symbol: string, market: 'TW' | 'CN'): CandleFileData | null {
   if (IS_VERCEL) return null;
-  return _store.get(`${market}/${symbol}`) ?? null;
+  const entry = _store.get(`${market}/${symbol}`);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    _store.delete(`${market}/${symbol}`);
+    return null;
+  }
+  return entry.data;
 }
 
 /**
@@ -45,7 +55,7 @@ export function getFromCache(symbol: string, market: 'TW' | 'CN'): CandleFileDat
  */
 export function updateCache(symbol: string, market: 'TW' | 'CN', data: CandleFileData): void {
   if (IS_VERCEL) return;
-  _store.set(`${market}/${symbol}`, data);
+  _store.set(`${market}/${symbol}`, { data, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
 /**
@@ -54,6 +64,12 @@ export function updateCache(symbol: string, market: 'TW' | 'CN', data: CandleFil
 export function invalidateEntry(symbol: string, market: 'TW' | 'CN'): void {
   if (IS_VERCEL) return;
   _store.delete(`${market}/${symbol}`);
+}
+
+/** 清空全部快取（server 啟動後磁碟修復時可用） */
+export function clearCache(): void {
+  if (IS_VERCEL) return;
+  _store.clear();
 }
 
 /**
@@ -80,4 +96,17 @@ export function getCacheStats(): { entries: number; markets: string[] } {
     entries: _store.size,
     markets: [...markets],
   };
+}
+
+/** 清除所有已過期的 entry（定期呼叫可降低記憶體用量） */
+export function evictExpired(): number {
+  const now = Date.now();
+  let evicted = 0;
+  for (const [key, entry] of _store) {
+    if (now > entry.expiresAt) {
+      _store.delete(key);
+      evicted++;
+    }
+  }
+  return evicted;
 }

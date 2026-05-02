@@ -13,7 +13,7 @@
  */
 
 import 'dotenv/config';
-import { list, put, head } from '@vercel/blob';
+import { list, put, get } from '@vercel/blob';
 
 const DRY_RUN = process.argv.includes('--dry-run');
 const MARKET_ARG = process.argv.find(a => a.startsWith('--market='))?.replace('--market=', '')
@@ -98,11 +98,16 @@ async function listBlobKeys(prefix: string): Promise<string[]> {
 
 async function readBlob(pathname: string): Promise<string | null> {
   try {
-    const info = await head(pathname);
-    if (!info || !info.downloadUrl) return null;
-    const res = await fetch(info.downloadUrl);
-    if (!res.ok) return null;
-    return res.text();
+    const result = await get(pathname, { access: 'private' });
+    if (!result?.stream) return null;
+    const reader = result.stream.getReader();
+    const chunks: Uint8Array[] = [];
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) chunks.push(value);
+    }
+    return new TextDecoder().decode(Buffer.concat(chunks));
   } catch {
     return null;
   }

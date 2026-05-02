@@ -11,6 +11,7 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { useReplayStore } from '@/store/replayStore';
 import { type MarketTab, filterByMarket, classifyMarket } from '@/lib/market/classify';
 import { calcNetPnL } from '@/lib/portfolio/fees';
+import { formatPercent, bullBearClass } from '@/lib/format';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -308,7 +309,7 @@ function SummaryRow({ label, summary, returnPct, currency }: { label?: string; s
           {summary.totalPnL >= 0 ? '+' : ''}{formatMoney(summary.totalPnL)}
         </div>
         <div className={`text-[9px] ${returnPct >= 0 ? 'text-bull/70' : 'text-bear/70'}`}>
-          {returnPct >= 0 ? '+' : ''}{returnPct.toFixed(2)}%
+          {formatPercent(returnPct)}
         </div>
       </div>
       <div className="bg-card py-1 px-1">
@@ -379,8 +380,8 @@ function PortfolioContent({ holdings, prices, summary, totalReturnPct, marketTab
                   ) : cur > 0 ? (
                     <span className="text-[11px] font-mono font-bold text-foreground">
                       {cur.toFixed(cur >= 100 ? 0 : 2)}
-                      <span className={`ml-1 text-[9px] ${(p?.changePercent ?? 0) >= 0 ? 'text-bull' : 'text-bear'}`}>
-                        {(p?.changePercent ?? 0) >= 0 ? '+' : ''}{(p?.changePercent ?? 0).toFixed(2)}%
+                      <span className={`ml-1 text-[9px] ${bullBearClass(p?.changePercent ?? 0)}`}>
+                        {formatPercent(p?.changePercent ?? 0)}
                       </span>
                     </span>
                   ) : (
@@ -402,7 +403,7 @@ function PortfolioContent({ holdings, prices, summary, totalReturnPct, marketTab
                   {cur > 0 ? (
                     <span className={`ml-1 font-mono font-bold ${pnl >= 0 ? 'text-bull' : 'text-bear'}`}>
                       {pnl >= 0 ? '+' : ''}{formatMoney(pnl)}
-                      <span className="font-normal ml-1">({pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(1)}%)</span>
+                      <span className="font-normal ml-1">({formatPercent(pnlPct, 1)})</span>
                     </span>
                   ) : <span className="ml-1 text-muted-foreground">—</span>}
                 </span>
@@ -484,7 +485,6 @@ function useFetchAddedPrice(symbol: string, addedAt: string, hasPrice: boolean) 
 function WatchlistItemRow({ item, prices }: { item: ReturnType<typeof useWatchlistStore.getState>['items'][0]; prices: Record<string, PriceInfo> }) {
   const p = prices[item.symbol];
   const cur = p?.price ?? 0;
-  const isUp = (p?.changePercent ?? 0) >= 0;
   const sinceAddedPct = item.addedPrice && cur > 0
     ? ((cur - item.addedPrice) / item.addedPrice) * 100
     : null;
@@ -509,8 +509,8 @@ function WatchlistItemRow({ item, prices }: { item: ReturnType<typeof useWatchli
             ) : cur > 0 ? (
               <span className="text-[11px] font-mono font-bold text-foreground">
                 {cur.toFixed(cur >= 100 ? 0 : 2)}
-                <span className={`ml-1 text-[9px] ${isUp ? 'text-bull' : 'text-bear'}`}>
-                  {isUp ? '+' : ''}{(p?.changePercent ?? 0).toFixed(2)}%
+                <span className={`ml-1 text-[9px] ${bullBearClass(p?.changePercent ?? 0)}`}>
+                  {formatPercent(p?.changePercent ?? 0)}
                 </span>
               </span>
             ) : (
@@ -525,8 +525,8 @@ function WatchlistItemRow({ item, prices }: { item: ReturnType<typeof useWatchli
             加入 {item.addedAt.slice(0, 10)}
           </span>
           {sinceAddedPct != null ? (
-            <span className={`text-[9px] font-mono ${sinceAddedPct >= 0 ? 'text-bull' : 'text-bear'}`}>
-              {sinceAddedPct >= 0 ? '+' : ''}{sinceAddedPct.toFixed(2)}%
+            <span className={`text-[9px] font-mono ${bullBearClass(sinceAddedPct)}`}>
+              {formatPercent(sinceAddedPct)}
             </span>
           ) : (
             <span className="text-[9px] text-muted-foreground/40 animate-pulse">抓取中...</span>
@@ -572,8 +572,8 @@ function WatchlistContent({ watchlist, prices }: WatchlistContentProps) {
         <div className="bg-card py-1 px-1 col-span-2">
           <div className="text-muted-foreground">加入平均漲幅</div>
           {avgPct != null ? (
-            <div className={`font-mono font-bold text-xs ${avgPct >= 0 ? 'text-bull' : 'text-bear'}`}>
-              {avgPct >= 0 ? '+' : ''}{avgPct.toFixed(2)}%
+            <div className={`font-mono font-bold text-xs ${bullBearClass(avgPct)}`}>
+              {formatPercent(avgPct)}
             </div>
           ) : (
             <div className="text-muted-foreground/40 text-[9px]">計算中...</div>
