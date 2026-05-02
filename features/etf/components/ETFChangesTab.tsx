@@ -339,19 +339,31 @@ export function ETFChangesTab() {
       {/* diff 卡片 */}
       {changes === null ? (
         <Skeleton className="h-20 w-full" />
-      ) : changes.length > 0 ? (
-        changes.map(c => <ChangeCard key={c.etfCode} change={c} />)
-      ) : selectedEtfCode && fromDate && toDate && fromDate !== toDate ? (
-        <div className="border border-dashed border-border rounded-lg p-5 text-center">
-          <p className="text-sm text-muted-foreground">
-            {fromDate} → {toDate} 持股無變化
-          </p>
-        </div>
-      ) : selectedEtfCode === null ? (
-        <div className="border border-dashed border-border rounded-lg p-5 text-center">
-          <p className="text-sm text-muted-foreground">選擇上方 ETF 查看持股與異動</p>
-        </div>
-      ) : null}
+      ) : (() => {
+        const nonEmpty = changes.filter(c =>
+          c.newEntries.length + c.exits.length + c.increased.length + c.decreased.length > 0
+        );
+        if (nonEmpty.length > 0) {
+          return nonEmpty.map(c => <ChangeCard key={c.etfCode} change={c} />);
+        }
+        if (selectedEtfCode === null) {
+          return (
+            <div className="border border-dashed border-border rounded-lg p-5 text-center">
+              <p className="text-sm text-muted-foreground">選擇上方 ETF 查看持股與異動</p>
+            </div>
+          );
+        }
+        if (fromDate && toDate && fromDate !== toDate) {
+          return (
+            <div className="border border-dashed border-border rounded-lg p-5 text-center">
+              <p className="text-sm text-muted-foreground">
+                {fromDate} → {toDate} 持股無變化
+              </p>
+            </div>
+          );
+        }
+        return null;
+      })()}
 
       {/* 目前持股表格 */}
       {selectedEtfCode && (
