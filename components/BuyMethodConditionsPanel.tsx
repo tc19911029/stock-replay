@@ -15,8 +15,10 @@ import { useReplayStore } from '@/store/replayStore';
 import { detectStrategyE } from '@/lib/analysis/highWinRateEntry';
 import { detectStrategyD } from '@/lib/analysis/gapEntry';
 import { detectBreakoutEntry, detectConsolidationBreakout } from '@/lib/analysis/breakoutEntry';
+import { detectTrend } from '@/lib/analysis/trendAnalysis';
 import { detectVReversal } from '@/lib/analysis/vReversalDetector';
 import type { CandleWithIndicators } from '@/types';
+import { EmptyState } from '@/components/shared';
 
 type BuyMethod = 'B' | 'C' | 'D' | 'E' | 'F';
 
@@ -50,26 +52,44 @@ function evaluateMethod(
 
   switch (method) {
     case 'B': {
-      // B=回後買上漲
+      // B=回後買上漲 — 各條件獨立計算，避免 r=null 時全部顯示相同失敗訊息
       const r = detectBreakoutEntry(candles, idx);
       const bodyPct = c.open > 0 && c.close > c.open ? (c.close - c.open) / c.open * 100 : 0;
       const volRatio = prev && prev.volume > 0 ? c.volume / prev.volume : 0;
+
+      const isTrend = c.ma5 != null && detectTrend(candles, idx) === '多頭';
+      const hasMa5 = c.ma5 != null && prev?.ma5 != null;
+      const prevBelowMa5 = hasMa5 && prev!.close < prev!.ma5!;
+      const todayAboveMa5 = hasMa5 && c.close > c.ma5!;
+      const isMa5Reclaim = prevBelowMa5 && todayAboveMa5;
+      const prevHigh = prev?.high ?? 0;
+      const isBreakoutHigh = prevHigh > 0 && c.close > prevHigh;
+
+      const ma5ReclaimDetail = (() => {
+        if (!hasMa5) return '無 MA5 資料';
+        if (!prevBelowMa5) return `昨收${prev!.close}≥MA5(${prev!.ma5!.toFixed(0)})，昨日未在MA5下`;
+        if (!todayAboveMa5) return `今收${c.close}≤MA5(${c.ma5!.toFixed(0)})，今日未站回`;
+        return `昨收${prev!.close}<MA5(${prev!.ma5!.toFixed(0)})，今收${c.close}>MA5(${c.ma5!.toFixed(0)})`;
+      })();
+
       const conditions: ConditionItem[] = [
         {
           icon: '①', name: '多頭趨勢',
-          detail: r ? '多頭（頭頭高底底高）' : '非多頭趨勢',
-          pass: !!r,
+          detail: isTrend ? '多頭（頭頭高底底高）' : '非多頭趨勢',
+          pass: isTrend,
         },
         {
           icon: '②', name: '昨日<MA5 + 今日站回MA5',
-          detail: r ? '昨日收盤<MA5，今日收盤>MA5（剛回到 MA5 上方）' : '未完成回後確認',
-          pass: !!r,
+          detail: ma5ReclaimDetail,
+          pass: isMa5Reclaim,
         },
         {
           icon: '③', name: '收盤突破前K高',
-          detail: r ? `突破 ${r.breakoutPrice.toFixed(2)}` : '未突破前K高',
-          pass: !!r,
-          metric: r ? r.breakoutPrice.toFixed(2) : undefined,
+          detail: isBreakoutHigh
+            ? `突破前K高 ${prevHigh.toFixed(0)}`
+            : `未突破前K高 ${prevHigh.toFixed(0)}`,
+          pass: isBreakoutHigh,
+          metric: prevHigh > 0 ? prevHigh.toFixed(0) : undefined,
         },
         {
           icon: '④', name: '紅 K 實體 ≥ 2.5%',
@@ -214,11 +234,11 @@ function evaluateMethod(
           pass: !!r,
         },
         {
-          icon: '④', name: '今日紅 K + 帶量（× 1.5）',
+          icon: '④', name: '今日紅 K + 帶量（× 1.4）',
           detail: c.close > c.open
             ? `實體 +${bodyPct.toFixed(2)}%、量 ×${volRatio5.toFixed(2)} 5日均量`
             : '今日為黑 K',
-          pass: c.close > c.open && volRatio5 >= 1.5,
+          pass: c.close > c.open && volRatio5 >= 1.4,
           metric: `×${volRatio5.toFixed(2)}`,
         },
         {

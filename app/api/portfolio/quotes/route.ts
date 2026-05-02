@@ -152,6 +152,27 @@ async function fetchTWSEQuotes(symbols: string[]): Promise<QuoteTick[]> {
 
 // ── 陸股即時報價（騰訊 → 東方財富 fallback）────────────────────────────────
 
+/** 騰訊一次拿 close+prevClose+name；EastMoney clist 收盤後 f2 不等於日K收盤（疑似盤後參考價），改 fallback */
+async function fetchCNTencentQuote(code: string): Promise<{ close: number; prevClose: number; name: string } | null> {
+  try {
+    const prefix = code[0] === '6' || code[0] === '9' ? 'sh' : 'sz';
+    const url = `https://qt.gtimg.cn/q=${prefix}${code}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    const buf = await res.arrayBuffer();
+    const text = new TextDecoder('gbk').decode(buf);
+    const match = text.match(/="(.+)"/);
+    if (!match) return null;
+    const f = match[1].split('~');
+    const close = parseFloat(f[3]) || 0;
+    const prevClose = parseFloat(f[4]) || 0;
+    const name = f[1] || '';
+    if (close <= 0) return null;
+    return { close, prevClose, name };
+  } catch {
+    return null;
+  }
+}
+
 async function fetchCNQuotes(symbols: string[]): Promise<QuoteTick[]> {
   if (symbols.length === 0) return [];
 
@@ -159,18 +180,30 @@ async function fetchCNQuotes(symbols: string[]): Promise<QuoteTick[]> {
 
   await Promise.allSettled(symbols.map(async (sym) => {
     const code = sym.replace(/\.(SS|SZ)$/i, '');
+
+    // Tencent 優先：close 與日K收盤一致
+    const tencent = await fetchCNTencentQuote(code);
+    if (tencent && tencent.close > 0) {
+      const changePct = tencent.prevClose > 0
+        ? +((tencent.close - tencent.prevClose) / tencent.prevClose * 100).toFixed(2)
+        : 0;
+      results.push({
+        symbol: sym,
+        price: tencent.close,
+        changePercent: changePct,
+        name: tencent.name || undefined,
+      });
+      return;
+    }
+
+    // Fallback: EastMoney
     try {
       const quote = await getEastMoneyQuote(code);
       if (quote && quote.close > 0) {
-        // 騰訊 API 沒有直接回 prevClose，用 open 做近似（或從快取推算）
-        // getEastMoneyQuote 回傳 close=最新價, open=開盤
-        // 漲跌幅只能用 (close - open)/open 近似，除非我們另外取 prevClose
-        // 改用騰訊 API 直接取 prevClose
-        const prevClose = await fetchCNPrevClose(code);
+        const prevClose = quote.prevClose ?? 0;
         const changePct = prevClose > 0
           ? +((quote.close - prevClose) / prevClose * 100).toFixed(2)
           : 0;
-
         results.push({
           symbol: sym,
           price: quote.close,
@@ -182,22 +215,6 @@ async function fetchCNQuotes(symbols: string[]): Promise<QuoteTick[]> {
   }));
 
   return results;
-}
-
-/** 騰訊 API 取 prevClose（昨收）*/
-async function fetchCNPrevClose(code: string): Promise<number> {
-  try {
-    const prefix = code[0] === '6' || code[0] === '9' ? 'sh' : 'sz';
-    const url = `https://qt.gtimg.cn/q=${prefix}${code}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-    const text = await res.text();
-    const match = text.match(/="(.+)"/);
-    if (!match) return 0;
-    const f = match[1].split('~');
-    return parseFloat(f[4]) || 0; // f[4] = 昨收
-  } catch {
-    return 0;
-  }
 }
 
 // ── Route Handler ────────────────────────────────────────────────────────────

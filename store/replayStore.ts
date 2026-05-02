@@ -286,7 +286,7 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
         if (localLoaded) {
           // 本地已秒開 → 背景靜默更新今日 K 棒（不阻塞 UI）
           // 一律走 local=1：才會觸發 L2/即時報價注入今日 K，否則 MultiMarketProvider 只回歷史
-          const bgSymbol = symbol;
+          const bgSymbol = symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
           const bgInterval = interval;
           fetch(`/api/stock?symbol=${encodeURIComponent(symbol)}&interval=${interval}&period=${p}&local=1`)
             .then(r => r.ok ? r.json() : null)
@@ -369,7 +369,7 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
           const q = await res.json();
           if (!q.close || q.close <= 0) return;
 
-          const { currentIndex, allCandles, account } = get();
+          const { currentIndex, allCandles, account, targetDate } = get();
           if (allCandles.length === 0) return;
 
           const ticker = currentStock?.ticker ?? symbol;
@@ -412,7 +412,14 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
             date: c.date, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume,
           })));
           const wasAtEnd = currentIndex >= allCandles.length - 1;
-          const newIndex = wasAtEnd ? candles.length - 1 : currentIndex;
+          let newIndex: number;
+          if (wasAtEnd && targetDate) {
+            // 掃描模式：保持在 targetDate bar，不因新增今日 bar 而跳走
+            const tIdx = candles.findIndex(c => c.date.slice(0, 10) === targetDate);
+            newIndex = tIdx !== -1 ? tIdx : candles.length - 1;
+          } else {
+            newIndex = wasAtEnd ? candles.length - 1 : currentIndex;
+          }
           precomputeMarkers(candles);
           set({ allCandles: candles, currentIndex: newIndex, ...buildState(candles, newIndex, account) });
         }

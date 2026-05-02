@@ -44,7 +44,7 @@ const INDEX_NAMES: Record<string, string> = {
 
 /** 解析 symbol 並加上交易所後綴 */
 function resolveSymbol(symbol: string): { ticker: string; candidates: string[]; isTW: boolean; isCN: boolean } {
-  const isTW = /^\d{4,5}$/.test(symbol) || /^\d{4,5}\.(TW|TWO)$/i.test(symbol);
+  const isTW = /^\d{4,5}[A-Za-z]?$/.test(symbol) || /^\d{4,5}[A-Za-z]?\.(TW|TWO)$/i.test(symbol);
   const isCN = /^\d{6}$/.test(symbol) || /^\d{6}\.(SZ|SS)$/i.test(symbol);
   const pureCode = symbol.replace(/\.(SZ|SS|TW|TWO)$/i, '');
 

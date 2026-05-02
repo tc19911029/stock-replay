@@ -97,6 +97,16 @@ function guardAgainstAnomalousLastBar(symbol: string, candles: Candle[]): Candle
     );
     return candles.slice(0, -1);
   }
+
+  // OHLC 一致性：high >= close >= low 且 high >= open >= low
+  // 違規代表盤中快照污染（快照時的 low/high 尚未反映最終收盤）
+  if (last.high < last.close || last.low > last.close || last.high < last.open || last.low > last.open) {
+    console.warn(
+      `[L1 guard] ${symbol} ${last.date} OHLC 矛盾 (o=${last.open} h=${last.high} l=${last.low} c=${last.close})，砍掉該 bar 不寫入（盤中快照污染，收盤後再寫）`
+    );
+    return candles.slice(0, -1);
+  }
+
   return candles;
 }
 

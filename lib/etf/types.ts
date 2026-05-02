@@ -16,6 +16,8 @@ export interface ETFHolding {
   name: string;
   /** 持股比重 %，如 12.5 */
   weight: number;
+  /** 持股股數（股，非張）。1 張 = 1000 股。MoneyDJ 有揭露，其他 source 可能無 */
+  shares?: number;
 }
 
 export interface ETFSnapshot {
@@ -32,6 +34,10 @@ export interface ETFSnapshot {
 export interface ETFHoldingDelta extends ETFHolding {
   prevWeight: number;
   delta: number;
+  /** 股數變動（股）。兩期都有 shares 時才有值 */
+  deltaShares?: number;
+  /** 前期股數（股）。用於計算變動幅度 % */
+  priorShares?: number;
 }
 
 export interface ETFChange {

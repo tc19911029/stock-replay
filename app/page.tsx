@@ -20,7 +20,7 @@ import { useReplayStore } from '@/store/replayStore';
 import { findBuyPoints, prevBuyPointIndex, nextBuyPointIndex } from '@/lib/analysis/findBuyPoints';
 import { detectTrend } from '@/lib/analysis/trendAnalysis';
 import StockSelector from '@/components/StockSelector';
-import { PageShell } from '@/components/shared';
+import { PageShell, EmptyState } from '@/components/shared';
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import RuleAlerts from '@/components/RuleAlerts';
 import ProhibitionAlerts from '@/components/ProhibitionAlerts';
@@ -386,11 +386,12 @@ export default function HomePage() {
             <ChipDetailPanel symbol={currentStock.ticker} date={currentDate} />
           </SectionBoundary>
         ) : (
-          <div className="flex flex-col items-center justify-center py-10 text-center">
-            <p className="text-2xl mb-2">📋</p>
-            <p className="text-sm font-medium text-muted-foreground">尚未載入股票</p>
-            <p className="text-xs text-muted-foreground/70 mt-1">請先選擇一檔股票以查看籌碼資料</p>
-          </div>
+          <EmptyState
+            variant="compact"
+            icon="📋"
+            title="尚未載入股票"
+            description="請先選擇一檔股票以查看籌碼資料"
+          />
         )
       )}
     </div>

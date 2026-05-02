@@ -2,6 +2,7 @@
 
 import { useState, ReactNode } from 'react';
 import { StockScanResult } from '@/lib/scanner/types';
+import { formatTime } from '@/lib/format';
 
 const SIGNAL_LABEL: Record<string, string> = {
   BUY: '買入', ADD: '加碼', SELL: '賣出', REDUCE: '減碼', WATCH: '觀察',
@@ -195,7 +196,7 @@ export default function ScanResultCard({ result: r, actions }: { result: StockSc
           )}
 
           <div className="text-xs text-muted-foreground">
-            量 {(r.volume / 1000).toFixed(0)}K · 掃描 {new Date(r.scanTime).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
+            量 {(r.volume / 1000).toFixed(0)}K · 掃描 {formatTime(r.scanTime)}
           </div>
         </div>
       )}

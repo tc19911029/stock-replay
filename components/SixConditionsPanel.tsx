@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useReplayStore } from '@/store/replayStore';
 import { SixConditionsResult } from '@/lib/analysis/trendAnalysis';
 import { detectSellSignals } from '@/lib/analysis/sellSignals';
+import { EmptyState } from '@/components/shared';
 
 const HIGH_WIN_POS_NUM: Record<string, string> = {
   '🎯 打底趨勢確認': '①',
@@ -132,11 +133,12 @@ export default function SixConditionsPanel() {
 
   if (!sixConditions) {
     return (
-      <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
-        <p className="text-2xl mb-2">📊</p>
-        <p className="text-sm font-medium text-muted-foreground">尚未載入股票</p>
-        <p className="text-xs text-muted-foreground mt-1">請先在上方選擇一檔股票，即可查看六大條件評分</p>
-      </div>
+      <EmptyState
+        variant="compact"
+        icon="📊"
+        title="尚未載入股票"
+        description="請先在上方選擇一檔股票，即可查看六大條件評分"
+      />
     );
   }
 

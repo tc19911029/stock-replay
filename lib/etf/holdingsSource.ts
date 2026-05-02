@@ -2,12 +2,13 @@
  * 主動式 ETF 持股資料源（pluggable）
  *
  * 來源優先序：
- *   1. MoneyDJ Basic0007B（全部持股，HTML server-rendered，免登入）
- *   2. STUB（demo 用，allowStub=true 時啟用）
+ *   1. CMoney GetDtnoData API（全持股含張數，免登入，JSON）
+ *   2. MoneyDJ Basic0007B（HTML fallback）
+ *   3. STUB（demo 用，allowStub=true 時啟用）
  *
- * 加入新 source 步驟：
- *   1. 新增 fetchFromXxx(etfCode, date) → ETFHolding[] | null
- *   2. 在 fetchHoldings() 內依序 try
+ * CMoney API:
+ *   https://www.cmoney.tw/MobileService/ashx/GetDtnoData.ashx
+ *   DtNo=59449513, ParamStr=AssignID={code};MTPeriod=0;DTMode=0;DTRange=1;DTOrder=1;MajorTable=M722;
  */
 import type { ETFHolding, ETFListItem, ETFSnapshot } from './types';
 
@@ -23,11 +24,15 @@ export async function fetchHoldings(
   date: string,
   options: { allowStub?: boolean } = {},
 ): Promise<HoldingsFetchResult> {
-  // 1) MoneyDJ：全部持股，免登入，server-rendered HTML
+  // 1) CMoney：完整持股含張數，JSON API
+  const cmoney = await fetchFromCMoney(etf.etfCode);
+  if (cmoney && cmoney.length > 0) return { holdings: cmoney, source: 'issuer' };
+
+  // 2) MoneyDJ：fallback，HTML server-rendered
   const moneydj = await fetchFromMoneyDJ(etf.etfCode);
   if (moneydj && moneydj.length > 0) return { holdings: moneydj, source: 'issuer' };
 
-  // 2) STUB：產出可信的 demo 資料供開發/驗證
+  // 3) STUB：產出可信的 demo 資料供開發/驗證
   if (options.allowStub) {
     return { holdings: stubHoldings(etf, date), source: 'stub' };
   }
@@ -35,17 +40,66 @@ export async function fetchHoldings(
   return null;
 }
 
-// ── MoneyDJ scraper ──────────────────────────────────────────
+// ── CMoney API scraper ───────────────────────────────────────
+
+const CMONEY_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+const CMONEY_DTNO = '59449513';
+const STOCK_CODE_RE = /^\d{4,6}$/;
+
+interface CMoneyResponse {
+  Title: string[];
+  Data: string[][];
+}
+
+/**
+ * 從 CMoney GetDtnoData API 抓取當日完整持股（免登入，JSON）
+ * 欄位：[日期, 標的代號, 標的名稱, 權重(%), 持有數, 單位]
+ */
+async function fetchFromCMoney(etfCode: string): Promise<ETFHolding[] | null> {
+  try {
+    const paramStr = `AssignID=${etfCode};MTPeriod=0;DTMode=0;DTRange=1;DTOrder=1;MajorTable=M722;`;
+    const url = `https://www.cmoney.tw/MobileService/ashx/GetDtnoData.ashx?action=getdtnodata&DtNo=${CMONEY_DTNO}&ParamStr=${encodeURIComponent(paramStr)}&FilterNo=0`;
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': CMONEY_UA,
+        'Referer': `https://www.cmoney.tw/etf/tw/${etfCode}/fundholding`,
+      },
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!res.ok) return null;
+    const json: CMoneyResponse = await res.json();
+    return parseCMoneyHoldings(json.Data ?? []);
+  } catch {
+    return null;
+  }
+}
+
+function parseCMoneyHoldings(rows: string[][]): ETFHolding[] {
+  const holdings: ETFHolding[] = [];
+  for (const r of rows) {
+    // r = [date, symbol, name, weight%, shares, unit]
+    const sym = r[1];
+    if (!STOCK_CODE_RE.test(sym)) continue;
+    const weightStr = r[3];
+    if (!weightStr) continue;
+    const weight = parseFloat(weightStr);
+    if (isNaN(weight) || weight < 0) continue;
+    const sharesRaw = parseInt(r[4] ?? '', 10);
+    const shares = isNaN(sharesRaw) || sharesRaw <= 0 ? undefined : sharesRaw;
+    // Skip rows that are both 0% and have no shares (truly empty)
+    if (weight === 0 && !shares) continue;
+    holdings.push({ symbol: sym, name: r[2], weight, ...(shares !== undefined ? { shares } : {}) });
+  }
+  return holdings;
+}
+
+// ── MoneyDJ scraper (fallback) ───────────────────────────────
 
 const MONEYDJ_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
 /**
  * 從 MoneyDJ Basic0007B 抓取全部持股（server-rendered HTML，免登入）
  * URL: https://www.moneydj.com/ETF/X/Basic/Basic0007B.xdjhtm?etfid=00981A.TW
- *
- * 每筆 row 結構：
- *   col05: <a href='...etfid=2330.TW...'>台積電(2330.TW)</a>
- *   col06: 8.97
  */
 async function fetchFromMoneyDJ(etfCode: string): Promise<ETFHolding[] | null> {
   try {
@@ -64,28 +118,22 @@ async function fetchFromMoneyDJ(etfCode: string): Promise<ETFHolding[] | null> {
 
 function parseMoneyDJHoldings(html: string): ETFHolding[] {
   const holdings: ETFHolding[] = [];
-
-  // Extract all col05 (name+code) and col06 (weight) cells
-  const rowRe = /col05">(.*?)<\/td>.*?col06">([\d.]+)/gs;
+  const rowRe = /col05">(.*?)<\/td>.*?col06">([\d.]+).*?col07">([\d,]*)/gs;
   const linkRe = /etfid=([\dA-Z]+)\.TW[^>]*>(.*?)\(/;
 
   for (const rowMatch of html.matchAll(rowRe)) {
-    const [, cell05, weightStr] = rowMatch;
+    const [, cell05, weightStr, sharesStr] = rowMatch;
     const linkMatch = cell05.match(linkRe);
     if (!linkMatch) continue;
-
     const symbol = linkMatch[1];
-    // Extract name: everything before the last '('
-    const nameRaw = linkMatch[2].trim();
-    // Clean asterisk used by MoneyDJ for notes (e.g. "國巨*(2327.TW)")
-    const name = nameRaw.replace(/\*$/, '').trim();
+    const name = linkMatch[2].trim().replace(/\*$/, '').trim();
     const weight = parseFloat(weightStr);
-
+    const sharesRaw = sharesStr ? parseInt(sharesStr.replace(/,/g, ''), 10) : NaN;
+    const shares = isNaN(sharesRaw) || sharesRaw === 0 ? undefined : sharesRaw;
     if (symbol && name && !isNaN(weight)) {
-      holdings.push({ symbol, name, weight });
+      holdings.push({ symbol, name, weight, ...(shares !== undefined ? { shares } : {}) });
     }
   }
-
   return holdings;
 }
 

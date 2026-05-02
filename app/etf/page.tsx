@@ -1,4 +1,3 @@
-import { PageShell } from '@/components/shared';
 import { ETFPageContent } from '@/features/etf';
 
 export const metadata = {
@@ -6,9 +5,5 @@ export const metadata = {
 };
 
 export default function ETFPage() {
-  return (
-    <PageShell>
-      <ETFPageContent />
-    </PageShell>
-  );
+  return <ETFPageContent />;
 }

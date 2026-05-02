@@ -183,7 +183,7 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                           <span key={m}
                             className={`text-[8px] px-1 h-3.5 flex items-center rounded-sm font-bold ${methodColors[m] ?? 'bg-secondary/60 text-foreground/70'}`}
                             title={`同時命中：${m}（${methodNames[m] ?? ''}）`}>
-                            +{m}
+                            +{methodNames[m] ?? m}
                           </span>
                         ))}
                       </>
@@ -220,7 +220,7 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                           <span key={m}
                             className={`text-[8px] px-1 h-3.5 flex items-center rounded-sm font-bold ${methodColors[m] ?? 'bg-secondary/60 text-foreground/70'}`}
                             title={`同時命中：${m}（${methodNames[m] ?? ''}）`}>
-                            +{m}
+                            +{methodNames[m] ?? m}
                           </span>
                         ))}
                       </>

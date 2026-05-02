@@ -1,10 +1,11 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
-import { evaluateSixConditions, detectTrend } from '@/lib/analysis/trendAnalysis';
+import { evaluateSixConditions } from '@/lib/analysis/trendAnalysis';
 import { resolveThresholds } from '@/lib/strategy/resolveThresholds';
 import { loadLocalCandles } from '@/lib/datasource/LocalCandleStore';
 import { loadLatestETFSnapshot } from '@/lib/etf/etfStorage';
+import type { StrategySignals, HoldingWithStrategies } from '@/lib/etf/strategySignals';
 import type { CandleWithIndicators } from '@/types';
 
 export const runtime = 'nodejs';
@@ -13,22 +14,46 @@ const querySchema = z.object({
   etfCode: z.string().min(1),
 });
 
-interface HoldingResult {
-  symbol: string;
-  name: string;
-  weight: number;
-  price: number;
-  changePct: number;
-  trend: string;
-  sixConditions: {
-    totalScore: number;
-    trend: { pass: boolean };
-    position: { pass: boolean };
-    kbar: { pass: boolean };
-    ma: { pass: boolean };
-    volume: { pass: boolean };
-    indicator: { pass: boolean };
-  };
+async function detectStrategies(
+  candles: CandleWithIndicators[],
+  lastIdx: number,
+  thresholds: ReturnType<typeof resolveThresholds>,
+): Promise<StrategySignals> {
+  const sixConds = evaluateSixConditions(candles, lastIdx, thresholds);
+  const A = sixConds.isCoreReady ?? false;
+
+  let B = false;
+  let C = false;
+  let D = false;
+  let E = false;
+  let F = false;
+
+  try {
+    const { detectBreakoutEntry } = await import('@/lib/analysis/breakoutEntry');
+    B = !!detectBreakoutEntry(candles, lastIdx);
+  } catch { /* non-critical */ }
+
+  try {
+    const { detectConsolidationBreakout } = await import('@/lib/analysis/breakoutEntry');
+    C = !!detectConsolidationBreakout(candles, lastIdx);
+  } catch { /* non-critical */ }
+
+  try {
+    const { detectStrategyE } = await import('@/lib/analysis/highWinRateEntry');
+    D = !!detectStrategyE(candles, lastIdx);
+  } catch { /* non-critical */ }
+
+  try {
+    const { detectStrategyD } = await import('@/lib/analysis/gapEntry');
+    E = !!detectStrategyD(candles, lastIdx);
+  } catch { /* non-critical */ }
+
+  try {
+    const { detectVReversal } = await import('@/lib/analysis/vReversalDetector');
+    F = !!detectVReversal(candles, lastIdx);
+  } catch { /* non-critical */ }
+
+  return { A, B, C, D, E, F };
 }
 
 async function processHolding(
@@ -36,20 +61,13 @@ async function processHolding(
   name: string,
   weight: number,
   thresholds: ReturnType<typeof resolveThresholds>,
-): Promise<HoldingResult | null> {
-  // TW active ETF holdings: try .TW first, fallback .TWO (e.g. OTC-listed stocks)
+): Promise<HoldingWithStrategies | null> {
   const candidates = [`${symbol}.TW`, `${symbol}.TWO`];
-
   let candles: CandleWithIndicators[] | null = null;
-  const resolvedName = name;
 
   for (const ticker of candidates) {
-    // market is always TW for active ETF holdings
     const result = await loadLocalCandles(ticker, 'TW');
-    if (result && result.length > 0) {
-      candles = result;
-      break;
-    }
+    if (result && result.length > 0) { candles = result; break; }
   }
 
   if (!candles || candles.length < 30) return null;
@@ -63,32 +81,15 @@ async function processHolding(
       ? +((last.close - prev.close) / prev.close * 100).toFixed(2)
       : 0;
 
-    const sixRaw = evaluateSixConditions(candles, lastIdx, thresholds);
-    const trend = detectTrend(candles, lastIdx);
+    const strategies = await detectStrategies(candles, lastIdx, thresholds);
 
-    return {
-      symbol,
-      name: resolvedName,
-      weight,
-      price: last.close,
-      changePct,
-      trend,
-      sixConditions: {
-        totalScore: sixRaw.totalScore,
-        trend:     { pass: sixRaw.trend.pass },
-        position:  { pass: sixRaw.position.pass },
-        kbar:      { pass: sixRaw.kbar.pass },
-        ma:        { pass: sixRaw.ma.pass },
-        volume:    { pass: sixRaw.volume.pass },
-        indicator: { pass: sixRaw.indicator.pass },
-      },
-    };
+    const result: HoldingWithStrategies = { symbol, name, weight, price: last.close, changePct, strategies };
+    return result;
   } catch {
     return null;
   }
 }
 
-/** 分批並行，每批最多 concurrency 支 */
 async function runInBatches<T, R>(
   items: T[],
   concurrency: number,
@@ -119,7 +120,7 @@ export async function GET(req: NextRequest) {
     (h) => processHolding(h.symbol, h.name, h.weight, thresholds),
   );
 
-  const validHoldings = holdings.filter((h): h is HoldingResult => h !== null);
+  const validHoldings = holdings.filter((h): h is HoldingWithStrategies => h !== null);
 
   return apiOk({
     etfCode: snapshot.etfCode,

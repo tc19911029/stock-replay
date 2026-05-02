@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { useWatchlistStore } from '@/store/watchlistStore';
 import { useSettingsStore } from '@/store/settingsStore';
-import { PageShell } from '@/components/shared';
+import { PageShell, EmptyState } from '@/components/shared';
 import { Button } from '@/components/ui/button';
+import { formatPrice, formatPercent, formatDate, formatTime, bullBearClass } from '@/lib/format';
 
 interface ConditionData {
   symbol: string;
@@ -28,12 +29,20 @@ interface ConditionData {
   surgeScore?: number;
   surgeGrade?: string;
   surgeFlags?: string[];
+  matchedMethods?: string[];
   loading?: boolean;
   error?: string;
 }
 
-const COND_KEYS = ['trend', 'position', 'kbar', 'ma', 'volume', 'indicator'] as const;
-const COND_NAMES: Record<string, string> = { trend: '趨勢', position: '位置', kbar: 'K棒', ma: '均線', volume: '量能', indicator: '指標' };
+const METHOD_LABELS: Record<string, string> = {
+  A: '六條件',
+  B: '回後買上漲',
+  C: '盤整突破',
+  D: '一字底',
+  E: '缺口進場',
+  F: 'V形反轉',
+};
+const METHOD_KEYS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
 
 export default function WatchlistPage() {
   const { items, remove, add, updateNote, addTag, removeTag } = useWatchlistStore();
@@ -62,7 +71,7 @@ export default function WatchlistPage() {
   const refreshAll = useCallback(async () => {
     setIsRefreshing(true);
     await Promise.allSettled(items.map(item => fetchConditions(item.symbol)));
-    setLastUpdated(new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' }));
+    setLastUpdated(formatTime(new Date()));
     setIsRefreshing(false);
   }, [items, fetchConditions]);
 
@@ -185,14 +194,12 @@ export default function WatchlistPage() {
           </div>
         </div>
         {items.length === 0 && (
-          <div className="text-center py-20 text-muted-foreground border border-dashed border-border rounded-xl">
-            <p className="text-5xl mb-4">⭐</p>
-            <p className="text-sm font-medium text-muted-foreground">尚未加入任何自選股</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">在上方輸入股票代號，或從掃描結果直接加入</p>
-            <Link href="/scanner" className="inline-block mt-4 text-xs px-4 py-1.5 bg-blue-600/80 hover:bg-blue-500 rounded-lg text-foreground font-medium transition">
-              前往掃描
-            </Link>
-          </div>
+          <EmptyState
+            icon="⭐"
+            title="尚未加入任何自選股"
+            description="在上方輸入股票代號，或從掃描結果直接加入"
+            cta={{ label: '前往掃描', href: '/scanner' }}
+          />
         )}
 
         {/* Stock cards */}
@@ -200,30 +207,26 @@ export default function WatchlistPage() {
           {sorted.map(item => {
             const d = data[item.symbol];
             const score = d?.sixConditions?.totalScore ?? null;
-            const isUp = (d?.changePercent ?? 0) >= 0;
             const scoreColor = score == null ? 'bg-muted text-muted-foreground' :
               score >= 5 ? 'bg-green-600 text-white' :
               score >= 3 ? 'bg-yellow-500 text-black' : 'bg-muted text-foreground/80';
 
             return (
-              <div key={item.symbol} className={`bg-secondary border rounded-xl overflow-hidden ${
-                d?.hasBuySignal ? 'border-red-500/50' : 'border-border'
-              }`}>
+              <div key={item.symbol} className="bg-secondary border border-border rounded-xl overflow-hidden">
                 {/* Header row */}
                 <div className="flex items-center gap-3 px-4 py-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-foreground">{item.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</span>
                       <span className="text-xs text-muted-foreground truncate">{d?.name ?? item.name}</span>
-                      {d?.hasBuySignal && <span className="text-[10px] bg-red-600 text-foreground px-1.5 py-0.5 rounded font-bold">買入訊號</span>}
                     </div>
-                    {/* Condition chips */}
-                    {d?.sixConditions && (
+                    {/* Strategy chips：只顯示有命中的買法 */}
+                    {d && !d.loading && !d.error && (d.matchedMethods?.length ?? 0) > 0 && (
                       <div className="flex gap-1 mt-1.5 flex-wrap">
-                        {COND_KEYS.map(key => (
-                          <span key={key} className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                            d.sixConditions[key]?.pass ? 'bg-red-900/60 text-red-300' : 'bg-muted text-muted-foreground line-through'
-                          }`}>{COND_NAMES[key]}</span>
+                        {(d.matchedMethods ?? []).map(m => (
+                          <span key={m} className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-red-900/60 text-red-300">
+                            {m} {METHOD_LABELS[m]}
+                          </span>
                         ))}
                       </div>
                     )}
@@ -232,14 +235,24 @@ export default function WatchlistPage() {
                   </div>
 
                   {/* Price */}
-                  {d && !d.loading && !d.error && (
-                    <div className="text-right shrink-0">
-                      <div className="font-mono font-bold text-foreground">${d.price.toFixed(2)}</div>
-                      <div className={`text-xs font-mono ${isUp ? 'text-bull' : 'text-bear'}`}>
-                        {isUp ? '+' : ''}{d.changePercent.toFixed(2)}%
+                  {d && !d.loading && !d.error && (() => {
+                    const sinceAdd = item.addedPrice && item.addedPrice > 0
+                      ? (d.price - item.addedPrice) / item.addedPrice * 100
+                      : null;
+                    return (
+                      <div className="text-right shrink-0">
+                        <div className="font-mono font-bold text-foreground">{formatPrice(d.price)}</div>
+                        <div className={`text-xs font-mono ${bullBearClass(d.changePercent)}`}>
+                          今 {formatPercent(d.changePercent)}
+                        </div>
+                        {sinceAdd != null && (
+                          <div className={`text-[10px] font-mono ${bullBearClass(sinceAdd)}`}>
+                            自加入 {formatPercent(sinceAdd)}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Surge grade badge */}
                   {d?.surgeGrade && (
@@ -277,7 +290,7 @@ export default function WatchlistPage() {
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-popover text-foreground/80 font-medium">{d.trend}</span>
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-popover text-foreground/80 font-medium">{d.position}</span>
                     <span className="ml-auto text-[10px] text-muted-foreground/60">
-                      加入 {new Date(item.addedAt).toLocaleDateString('zh-TW')}
+                      加入 {formatDate(item.addedAt)}
                     </span>
                   </div>
                 )}

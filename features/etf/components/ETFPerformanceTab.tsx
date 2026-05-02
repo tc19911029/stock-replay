@@ -16,7 +16,7 @@ const PERIOD_LABELS: Record<PeriodKey, string> = {
 };
 
 export function ETFPerformanceTab() {
-  const { performancePeriod, setPerformancePeriod } = useETFStore();
+  const { performancePeriod, setPerformancePeriod, setActiveTab, setSelectedEtfCode } = useETFStore();
   const [entries, setEntries] = useState<ETFPerformanceEntry[] | null>(null);
   const [latestDate, setLatestDate] = useState('');
   const [message, setMessage] = useState<string | null>(null);
@@ -72,9 +72,13 @@ export function ETFPerformanceTab() {
               {entries.map((e, i) => {
                 const ret = e.returns[performancePeriod];
                 return (
-                  <tr key={e.etfCode} className="border-t border-border hover:bg-muted/30">
+                  <tr
+                    key={e.etfCode}
+                    className="border-t border-border hover:bg-muted/30 cursor-pointer"
+                    onClick={() => { setSelectedEtfCode(e.etfCode); setActiveTab('changes'); }}
+                  >
                     <td className="px-3 py-2 text-muted-foreground">{i + 1}</td>
-                    <td className="px-3 py-2 font-mono">{e.etfCode}</td>
+                    <td className="px-3 py-2 font-mono text-sky-400">{e.etfCode}</td>
                     <td className="px-3 py-2">{e.etfName}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{e.latestPrice.toFixed(2)}</td>
                     <td className={`px-3 py-2 text-right tabular-nums ${returnColor(ret)}`}>

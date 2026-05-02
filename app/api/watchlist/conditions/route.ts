@@ -53,6 +53,28 @@ export async function GET(req: NextRequest) {
     const sixConditions = evaluateSixConditions(allCandles, lastIdx, thresholds);
     const trend = detectTrend(allCandles, lastIdx);
     const position = detectTrendPosition(allCandles, lastIdx);
+
+    // 並列買法命中（A=六條件 / B=回後買上漲 / C=盤整突破 / D=一字底 / E=缺口 / F=V反轉）
+    const matchedMethods: string[] = [];
+    if (sixConditions.isCoreReady) matchedMethods.push('A');
+    try {
+      const { detectBreakoutEntry, detectConsolidationBreakout } = await import('@/lib/analysis/breakoutEntry');
+      if (detectBreakoutEntry(allCandles, lastIdx)?.isBreakout) matchedMethods.push('B');
+      if (detectConsolidationBreakout(allCandles, lastIdx)?.isBreakout) matchedMethods.push('C');
+    } catch { /* */ }
+    try {
+      const { detectStrategyE } = await import('@/lib/analysis/highWinRateEntry');
+      if (detectStrategyE(allCandles, lastIdx)?.isFlatBottom) matchedMethods.push('D');
+    } catch { /* */ }
+    try {
+      const { detectStrategyD } = await import('@/lib/analysis/gapEntry');
+      if (detectStrategyD(allCandles, lastIdx)?.isGapEntry) matchedMethods.push('E');
+    } catch { /* */ }
+    try {
+      const { detectVReversal } = await import('@/lib/analysis/vReversalDetector');
+      if (detectVReversal(allCandles, lastIdx)?.isVReversal) matchedMethods.push('F');
+    } catch { /* */ }
+    const sortedMatched = ['A', 'B', 'C', 'D', 'E', 'F'].filter(m => matchedMethods.includes(m));
     // 根據策略篩選規則群組
     const strategy = strategyId ? BUILT_IN_STRATEGIES.find(s => s.id === strategyId) : undefined;
     const engine = (strategy?.ruleGroups && strategy.ruleGroups.length > 0)
@@ -73,6 +95,7 @@ export async function GET(req: NextRequest) {
       trend,
       position,
       sixConditions,
+      matchedMethods: sortedMatched,
       hasBuySignal: signals.some(s => s.type === 'BUY' || s.type === 'ADD'),
     });
   } catch (err) {
