@@ -218,13 +218,14 @@ export async function register() {
   }, 10 * 60 * 1000);
 
   // 買法 B/C/D/E/F/G/H/I 錯開：每分鐘檢查，每 10 分鐘輪一圈
-  // :01→B :02→C :03→D :04→E :05→F :06→G :07→H :08→I（剩 :00/:09 留空給其他 cron）
+  // 對齊 vercel.json 的排程映射：
+  //   :00→F :01→G :02→B :03→H :04→C :05→I :06→D :08→E（:07/:09 留空）
   setInterval(() => {
     const rem = new Date().getMinutes() % 10;
     const method =
-      rem === 1 ? 'B' : rem === 2 ? 'C' : rem === 3 ? 'D' :
-      rem === 4 ? 'E' : rem === 5 ? 'F' : rem === 6 ? 'G' :
-      rem === 7 ? 'H' : rem === 8 ? 'I' : null;
+      rem === 0 ? 'F' : rem === 1 ? 'G' : rem === 2 ? 'B' :
+      rem === 3 ? 'H' : rem === 4 ? 'C' : rem === 5 ? 'I' :
+      rem === 6 ? 'D' : rem === 8 ? 'E' : null;
     if (!method) return;
     scanBuyMethodIntraday('TW', method).catch(err => console.error(`[local-cron] TW bm ${method}:`, err));
     scanBuyMethodIntraday('CN', method).catch(err => console.error(`[local-cron] CN bm ${method}:`, err));
