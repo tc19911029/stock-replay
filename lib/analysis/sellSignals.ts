@@ -146,7 +146,15 @@ export function detectSellSignals(
     }
     if (recentHighs.length >= 2) {
       const [newerHigh, olderHigh] = recentHighs;
-      if (newerHigh.price < olderHigh.price && c.close < newerHigh.price) {
+      // 事件型觸發：頭頭低成立 + 今日為「自 newerHigh 形成以來首次 close < newerHigh」。
+      // 之後每天即使 close < newerHigh 也不重複報（避免持續狀態 noise）。
+      let firstBreakIdx = -1;
+      if (newerHigh.price < olderHigh.price) {
+        for (let i = newerHigh.idx + 1; i <= index; i++) {
+          if (candles[i].close < newerHigh.price) { firstBreakIdx = i; break; }
+        }
+      }
+      if (firstBreakIdx === index) {
         signals.push({
           type: 'LOWER_LOW',
           label: '頭頭低出場',
