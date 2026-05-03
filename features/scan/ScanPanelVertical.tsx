@@ -124,7 +124,7 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
         {/* Row 1.5: 買法選擇（只在做多時顯示） */}
         {scanDirection === 'long' && (
           <div className="flex items-center gap-1 flex-wrap">
-            {(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] as const).map(method => {
+            {(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'] as const).map(method => {
               const labels: Record<string, string> = {
                 A: '六條件',
                 B: '回後買上漲',
@@ -134,6 +134,7 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
                 F: 'V型反轉',
                 G: 'ABC突破',
                 H: '突破大量黑K',
+                I: 'K線橫盤',
               };
               return (
                 <button key={method}

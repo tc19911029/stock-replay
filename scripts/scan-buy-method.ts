@@ -27,9 +27,10 @@ import { detectBreakoutEntry, detectConsolidationBreakout } from '@/lib/analysis
 import { detectVReversal } from '@/lib/analysis/vReversalDetector';
 import { detectABCBreakout } from '@/lib/analysis/abcBreakoutEntry';
 import { detectBlackKBreakout } from '@/lib/analysis/blackKBreakoutEntry';
+import { detectKlineConsolidationBreakout } from '@/lib/analysis/klineConsolidationBreakout';
 import type { CandleWithIndicators } from '@/types';
 
-type Method = 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
+type Method = 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I';
 
 const method = (process.argv[2] ?? 'D').toUpperCase() as Method;
 const market = (process.argv[3] ?? 'TW').toUpperCase() as 'TW' | 'CN';
@@ -43,6 +44,7 @@ const METHOD_NAMES: Record<Method, string> = {
   F: 'V 形反轉',
   G: 'ABC 突破',
   H: '突破大量黑 K',
+  I: 'K 線橫盤突破',
 };
 
 interface Hit {
@@ -99,12 +101,16 @@ function runDetector(method: Method, candles: CandleWithIndicators[], idx: numbe
       const r = detectBlackKBreakout(candles, idx);
       return r?.isBlackKBreakout ? r.detail : null;
     }
+    case 'I': {
+      const r = detectKlineConsolidationBreakout(candles, idx);
+      return r?.isBreakout ? r.detail : null;
+    }
   }
 }
 
 function main() {
-  if (!(['B', 'C', 'D', 'E', 'F', 'G', 'H'] as Method[]).includes(method)) {
-    console.error('買法必須是 B/C/D/E/F/G/H');
+  if (!(['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'] as Method[]).includes(method)) {
+    console.error('買法必須是 B/C/D/E/F/G/H/I');
     process.exit(1);
   }
 

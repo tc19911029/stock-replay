@@ -21,6 +21,7 @@ import { detectStrategyD } from '@/lib/analysis/gapEntry';
 import { detectStrategyE } from '@/lib/analysis/highWinRateEntry';
 import { detectABCBreakout } from '@/lib/analysis/abcBreakoutEntry';
 import { detectBlackKBreakout } from '@/lib/analysis/blackKBreakoutEntry';
+import { detectKlineConsolidationBreakout } from '@/lib/analysis/klineConsolidationBreakout';
 import { evaluateSixConditions, detectTrend, detectTrendPosition } from '@/lib/analysis/trendAnalysis';
 import { saveScanSession } from '@/lib/storage/scanStorage';
 import { getTWSENames } from '@/lib/datasource/TWSENames';
@@ -29,8 +30,8 @@ import { ChinaScanner } from '@/lib/scanner/ChinaScanner';
 import { isTradingDay } from '@/lib/utils/tradingDay';
 import type { StockScanResult, ScanSession, MarketId } from '@/lib/scanner/types';
 
-type BuyMethod = 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
-const METHODS: BuyMethod[] = ['B', 'C', 'D', 'E', 'F', 'G', 'H'];
+type BuyMethod = 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I';
+const METHODS: BuyMethod[] = ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
 
 function listRecentTradingDays(market: MarketId, count: number): string[] {
   const tz = market === 'TW' ? 'Asia/Taipei' : 'Asia/Shanghai';
@@ -63,7 +64,7 @@ async function scanMarketDate(
     industryMap.set(s.symbol, (s as { industry?: string }).industry);
   }
 
-  const buckets: Record<BuyMethod, StockScanResult[]> = { B: [], C: [], D: [], E: [], F: [], G: [], H: [] };
+  const buckets: Record<BuyMethod, StockScanResult[]> = { B: [], C: [], D: [], E: [], F: [], G: [], H: [], I: [] };
 
   for (const sym of symbols) {
     try {
@@ -119,6 +120,7 @@ async function scanMarketDate(
       const rF = detectVReversal(candles, lastIdx);
       const rG = detectABCBreakout(candles, lastIdx);
       const rH = detectBlackKBreakout(candles, lastIdx);
+      const rI = detectKlineConsolidationBreakout(candles, lastIdx);
       let aPass = false;
       try { aPass = evaluateSixConditions(candles, lastIdx).isCoreReady; } catch { /* */ }
 
@@ -131,6 +133,7 @@ async function scanMarketDate(
       if (rF) allMatched.push('F');
       if (rG) allMatched.push('G');
       if (rH) allMatched.push('H');
+      if (rI) allMatched.push('I');
 
       if (rB) {
         const detail = (rB as { detail?: string }).detail ?? '回後買上漲';
@@ -160,6 +163,10 @@ async function scanMarketDate(
         const detail = (rH as { detail?: string }).detail ?? '突破大量黑K';
         buckets.H.push({ ...base, matchedMethods: allMatched, triggeredRules: [makeRule('H', detail)] } as StockScanResult);
       }
+      if (rI) {
+        const detail = (rI as { detail?: string }).detail ?? 'K 線橫盤突破';
+        buckets.I.push({ ...base, matchedMethods: allMatched, triggeredRules: [makeRule('I', detail)] } as StockScanResult);
+      }
     } catch { /* skip */ }
   }
 
@@ -180,7 +187,7 @@ async function scanMarketDate(
     };
     await saveScanSession(session, { allowOverwritePostClose: true });
   }
-  console.log(`   ✅ ${date} B=${buckets.B.length} C=${buckets.C.length} D=${buckets.D.length} E=${buckets.E.length} F=${buckets.F.length} G=${buckets.G.length} H=${buckets.H.length}`);
+  console.log(`   ✅ ${date} B=${buckets.B.length} C=${buckets.C.length} D=${buckets.D.length} E=${buckets.E.length} F=${buckets.F.length} G=${buckets.G.length} H=${buckets.H.length} I=${buckets.I.length}`);
 }
 
 async function main(): Promise<void> {

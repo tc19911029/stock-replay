@@ -29,6 +29,7 @@ async function detectStrategies(
   let F = false;
   let G = false;
   let H = false;
+  let I = false;
 
   try {
     const { detectBreakoutEntry } = await import('@/lib/analysis/breakoutEntry');
@@ -65,7 +66,12 @@ async function detectStrategies(
     H = !!detectBlackKBreakout(candles, lastIdx);
   } catch { /* non-critical */ }
 
-  return { A, B, C, D, E, F, G, H };
+  try {
+    const { detectKlineConsolidationBreakout } = await import('@/lib/analysis/klineConsolidationBreakout');
+    I = !!detectKlineConsolidationBreakout(candles, lastIdx);
+  } catch { /* non-critical */ }
+
+  return { A, B, C, D, E, F, G, H, I };
 }
 
 async function processHolding(

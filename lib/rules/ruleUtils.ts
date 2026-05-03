@@ -102,14 +102,14 @@ export function hasLongLowerShadow(c: CandleWithIndicators): boolean {
   return body > 0 ? lowerShadow(c) >= body * 2 : lowerShadow(c) > 0;
 }
 
-/** 是否為中長紅K（實體 >= 2.5%） */
+/** 是否為中長紅K（實體 >= 2%；2026-05-04 從 2.5% 對齊寶典 2024 短線做多 SOP p.55 ⑤） */
 export function isMedLongRed(c: CandleWithIndicators): boolean {
-  return c.close > c.open && bodyPct(c) >= 0.025;
+  return c.close > c.open && bodyPct(c) >= 0.02;
 }
 
-/** 是否為中長黑K（實體 >= 2.5%） */
+/** 是否為中長黑K（實體 >= 2%；2026-05-04 從 2.5% 對齊寶典 2024） */
 export function isMedLongBlack(c: CandleWithIndicators): boolean {
-  return c.close < c.open && bodyPct(c) >= 0.025;
+  return c.close < c.open && bodyPct(c) >= 0.02;
 }
 
 /** 向上跳空缺口：curr.low > prev.high */

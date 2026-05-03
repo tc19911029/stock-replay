@@ -15,7 +15,7 @@ import type { StrategySignals, HoldingWithStrategies } from '@/lib/etf/strategyS
 const formatShares = fmtShares;
 
 // ── 策略 A-F 標籤 ─────────────────────────────────────────────────────
-const STRAT_KEYS: (keyof StrategySignals)[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+const STRAT_KEYS: (keyof StrategySignals)[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
 const STRAT_TITLES: Record<string, string> = {
   A: '六大條件',
   B: '回後買上漲',
@@ -25,6 +25,7 @@ const STRAT_TITLES: Record<string, string> = {
   F: 'V形反轉',
   G: 'ABC 突破',
   H: '突破大量黑K',
+  I: 'K線橫盤突破',
 };
 
 // ── 格式化股數變動（依大小選張/股） ──────────────────────────────────

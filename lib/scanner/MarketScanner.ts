@@ -1152,7 +1152,7 @@ export abstract class MarketScanner {
    *   H=突破大量黑 K（寶典 Part 11-1 位置 8，2026-05-04 新增）
    */
   async scanBuyMethod(
-    method: 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
+    method: 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I',
     stocks: StockEntry[],
     asOfDate?: string,
   ): Promise<StockScanResult[]> {
@@ -1214,6 +1214,11 @@ export abstract class MarketScanner {
             const { detectBlackKBreakout } = await import('@/lib/analysis/blackKBreakoutEntry');
             const r = detectBlackKBreakout(candles, lastIdx);
             if (r?.isBlackKBreakout) { matched = true; detail = r.detail; }
+          } else if (method === 'I') {
+            // I=K 線橫盤突破（寶典 Part 11-1 位置 3，2026-05-04 新增）
+            const { detectKlineConsolidationBreakout } = await import('@/lib/analysis/klineConsolidationBreakout');
+            const r = detectKlineConsolidationBreakout(candles, lastIdx);
+            if (r?.isBreakout) { matched = true; detail = r.detail; }
           }
 
           if (!matched) return null;
@@ -1276,7 +1281,13 @@ export abstract class MarketScanner {
               if (detectBlackKBreakout(candles, lastIdx)?.isBlackKBreakout) matchedMethods.push('H');
             } catch { /* */ }
           }
-          const sortedMatched = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].filter(m => matchedMethods.includes(m));
+          if (method !== 'I') {
+            try {
+              const { detectKlineConsolidationBreakout } = await import('@/lib/analysis/klineConsolidationBreakout');
+              if (detectKlineConsolidationBreakout(candles, lastIdx)?.isBreakout) matchedMethods.push('I');
+            } catch { /* */ }
+          }
+          const sortedMatched = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'].filter(m => matchedMethods.includes(m));
 
           return {
             symbol,

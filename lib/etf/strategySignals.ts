@@ -7,6 +7,7 @@ export interface StrategySignals {
   F: boolean; // V形反轉    (detectVReversal)
   G: boolean; // ABC 突破   (detectABCBreakout，寶典 Part 11-1 位置 6)
   H: boolean; // 突破大量黑K (detectBlackKBreakout，寶典 Part 11-1 位置 8)
+  I: boolean; // K線橫盤突破 (detectKlineConsolidationBreakout，寶典 Part 11-1 位置 3)
 }
 
 export interface HoldingWithStrategies {

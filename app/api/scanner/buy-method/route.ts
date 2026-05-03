@@ -26,6 +26,7 @@ import { detectBreakoutEntry, detectConsolidationBreakout } from '@/lib/analysis
 import { detectVReversal } from '@/lib/analysis/vReversalDetector';
 import { detectABCBreakout } from '@/lib/analysis/abcBreakoutEntry';
 import { detectBlackKBreakout } from '@/lib/analysis/blackKBreakoutEntry';
+import { detectKlineConsolidationBreakout } from '@/lib/analysis/klineConsolidationBreakout';
 import { evaluateSixConditions } from '@/lib/analysis/trendAnalysis';
 import type { StockScanResult } from '@/lib/scanner/types';
 import type { CandleWithIndicators } from '@/types';
@@ -36,7 +37,7 @@ export const maxDuration = 60;
 const querySchema = z.object({
   market: z.enum(['TW', 'CN']).default('TW'),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  method: z.enum(['B', 'C', 'D', 'E', 'F', 'G', 'H']),
+  method: z.enum(['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']),
 });
 
 type Method = z.infer<typeof querySchema>['method'];
@@ -75,8 +76,11 @@ function detectCrossMatches(
   if (primary !== 'H') {
     try { if (detectBlackKBreakout(candles, idx)?.isBlackKBreakout) matched.push('H'); } catch { /* */ }
   }
-  // 排序：A 在最前，其他維持 B C D E F G H
-  return ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].filter(m => matched.includes(m));
+  if (primary !== 'I') {
+    try { if (detectKlineConsolidationBreakout(candles, idx)?.isBreakout) matched.push('I'); } catch { /* */ }
+  }
+  // 排序：A 在最前，其他維持 B C D E F G H I
+  return ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'].filter(m => matched.includes(m));
 }
 
 function runDetector(
@@ -131,6 +135,13 @@ function runDetector(
       // H=突破大量黑 K（寶典 Part 11-1 位置 8）
       const r = detectBlackKBreakout(candles, idx);
       return r?.isBlackKBreakout
+        ? { matched: true, detail: r.detail }
+        : { matched: false, detail: '' };
+    }
+    case 'I': {
+      // I=K 線橫盤突破（寶典 Part 11-1 位置 3）
+      const r = detectKlineConsolidationBreakout(candles, idx);
+      return r?.isBreakout
         ? { matched: true, detail: r.detail }
         : { matched: false, detail: '' };
     }

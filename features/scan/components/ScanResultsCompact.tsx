@@ -168,11 +168,12 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                       F: 'bg-rose-800/80 text-rose-300',
                       G: 'bg-cyan-800/80 text-cyan-300',
                       H: 'bg-fuchsia-800/80 text-fuchsia-300',
+                      I: 'bg-lime-800/80 text-lime-300',
                     };
                     const methodNames: Record<string, string> = {
                       A: '六條件', B: '回後買上漲', C: '盤整突破',
                       D: '一字底', E: '缺口', F: 'V反轉',
-                      G: 'ABC突破', H: '突破黑K',
+                      G: 'ABC突破', H: '突破黑K', I: 'K線橫盤',
                     };
                     const color = methodColors[activeBuyMethod] ?? 'bg-sky-800/80 text-sky-300';
                     const others = (r.matchedMethods ?? []).filter(m => m !== activeBuyMethod);
@@ -203,10 +204,11 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                       F: 'bg-rose-800/80 text-rose-300',
                       G: 'bg-cyan-800/80 text-cyan-300',
                       H: 'bg-fuchsia-800/80 text-fuchsia-300',
+                      I: 'bg-lime-800/80 text-lime-300',
                     };
                     const methodNames: Record<string, string> = {
                       B: '回後買上漲', C: '盤整突破', D: '一字底', E: '缺口', F: 'V反轉',
-                      G: 'ABC突破', H: '突破黑K',
+                      G: 'ABC突破', H: '突破黑K', I: 'K線橫盤',
                     };
                     const others = (r.matchedMethods ?? []).filter(m => m !== 'A');
                     return (

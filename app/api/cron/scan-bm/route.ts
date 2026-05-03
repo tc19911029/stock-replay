@@ -26,7 +26,7 @@ import { getLastTradingDay } from '@/lib/datasource/marketHours';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
-const VALID_METHODS = ['B', 'C', 'D', 'E', 'F', 'G', 'H'] as const;
+const VALID_METHODS = ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'] as const;
 type BuyMethod = typeof VALID_METHODS[number];
 
 export async function GET(req: NextRequest) {

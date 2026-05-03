@@ -437,6 +437,39 @@ export const ZHU_BLACK_K_BREAKOUT: StrategyConfig = {
   },
 };
 
+/**
+ * I K 線橫盤突破策略（並列買法架構，2026-05-04）
+ *
+ * 朱家泓《活用技術分析寶典》Part 11-1 8 種進場位置「位置 3：等 K 線橫盤突破」（p.694）
+ * + 寶典 Part 12-4 18 祕笈圖第 5 圖「K 線橫盤突破」（p.802）
+ *
+ * 多頭中長紅 K（≥3%）上漲後，股價在錨點之上狹幅橫盤 5-15 天，
+ * 大量紅 K 突破橫盤最高 → 做多。
+ *
+ * 用戶 Step 2 第 4 條「K 線橫盤突破」直接源頭。
+ * 底層偵測用 lib/analysis/klineConsolidationBreakout.ts 的 detectKlineConsolidationBreakout()。
+ * 不套戒律（strategyType='kline-pattern'）。
+ */
+export const ZHU_KLINE_HSP_BREAKOUT: StrategyConfig = {
+  id:          'zhu-kline-hsp-breakout',
+  name:        'K 線橫盤突破（I）',
+  description: '寶典 Part 11-1 位置 3：中長紅 K 上方狹幅橫盤 5-15 天，紅 K 突破橫盤最高點',
+  version:     '1.0.0',
+  author:      '朱家泓',
+  createdAt:   '2026-05-04T00:00:00.000Z',
+  isBuiltIn:   true,
+  strategyType: 'kline-pattern',
+  buyMethod:    'I',
+  conditions:  ALL_CONDITIONS_ON,
+  thresholds:  {
+    ...BASE_THRESHOLDS,
+    volumeRatioMin: 1.3,
+    kbarMinBodyPct: 0.02,   // 寶典 2024 短線做多 SOP p.55 ⑤
+    minScore:       0,
+    marketTrendFilter: false,
+  },
+};
+
 export const BUILT_IN_STRATEGIES: StrategyConfig[] = [
   ZHU_PURE_BOOK,              // 純書本版（A = long-daily 六條件的 thresholds）
   ZHU_FLAT_BOTTOM,            // D：一字底突破（2026-04-21 rename from E）
@@ -446,6 +479,7 @@ export const BUILT_IN_STRATEGIES: StrategyConfig[] = [
   ZHU_V_REVERSAL,             // F：V 形反轉（2026-04-21 rename from C）
   ZHU_ABC_BREAKOUT,           // G：ABC 突破（2026-05-04 新增，寶典 Part 11-1 位置 6）
   ZHU_BLACK_K_BREAKOUT,       // H：突破大量黑 K（2026-05-04 新增，寶典 Part 11-1 位置 8）
+  ZHU_KLINE_HSP_BREAKOUT,     // I：K 線橫盤突破（2026-05-04 新增，寶典 Part 11-1 位置 3）
 ];
 
 // ── P0-3: 策略參數邊界驗證 ──────────────────────────────────────────────────────

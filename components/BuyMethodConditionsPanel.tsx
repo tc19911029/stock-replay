@@ -19,10 +19,11 @@ import { detectTrend } from '@/lib/analysis/trendAnalysis';
 import { detectVReversal } from '@/lib/analysis/vReversalDetector';
 import { detectABCBreakout } from '@/lib/analysis/abcBreakoutEntry';
 import { detectBlackKBreakout } from '@/lib/analysis/blackKBreakoutEntry';
+import { detectKlineConsolidationBreakout } from '@/lib/analysis/klineConsolidationBreakout';
 import type { CandleWithIndicators } from '@/types';
 import { EmptyState } from '@/components/shared';
 
-type BuyMethod = 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
+type BuyMethod = 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I';
 
 interface ConditionItem {
   icon: string;
@@ -40,6 +41,7 @@ const METHOD_TITLE: Record<BuyMethod, string> = {
   F: 'V 型反轉',
   G: 'ABC 突破',
   H: '突破大量黑 K',
+  I: 'K 線橫盤突破',
 };
 
 function evaluateMethod(
@@ -341,6 +343,57 @@ function evaluateMethod(
         },
       ];
       return { title, conditions, allPass: !!r?.isBlackKBreakout };
+    }
+
+    case 'I': {
+      // I=K 線橫盤突破（寶典 Part 11-1 位置 3）
+      const r = detectKlineConsolidationBreakout(candles, idx);
+      const bodyPct = c.open > 0 && c.close > c.open ? (c.close - c.open) / c.open * 100 : 0;
+      const volRatio = prev && prev.volume > 0 ? c.volume / prev.volume : 0;
+      const isUptrend = detectTrend(candles, idx) === '多頭';
+      const conditions: ConditionItem[] = [
+        {
+          icon: '①', name: '多頭趨勢',
+          detail: isUptrend ? '多頭（頭頭高底底高）' : '非多頭趨勢',
+          pass: isUptrend,
+        },
+        {
+          icon: '②', name: '中長紅 K 錨點（實體 ≥ 3%）',
+          detail: r
+            ? `${r.anchorDate} 中長紅 K（高 ${r.anchorHigh.toFixed(2)}，實體 ${r.anchorBodyPct.toFixed(2)}%）`
+            : '未找到 5-15 天前的中長紅 K 錨點',
+          pass: !!r,
+          metric: r ? `${r.anchorBodyPct.toFixed(2)}%` : '—',
+        },
+        {
+          icon: '③', name: '錨點上方狹幅橫盤（5-15 天 / 幅度 ≤ 5%）',
+          detail: r
+            ? `橫盤 ${r.consolidationDays} 天，幅度 ${r.rangeWidthPct.toFixed(2)}%`
+            : '橫盤條件未成立',
+          pass: !!r,
+          metric: r ? `${r.consolidationDays}天` : '—',
+        },
+        {
+          icon: '④', name: '今日紅 K 實體 ≥ 2%',
+          detail: `實體 ${bodyPct.toFixed(2)}%`,
+          pass: bodyPct >= 2.0,
+          metric: `${bodyPct.toFixed(2)}%`,
+        },
+        {
+          icon: '⑤', name: '量比 ≥ 1.3',
+          detail: `×${volRatio.toFixed(2)}`,
+          pass: volRatio >= 1.3,
+          metric: `×${volRatio.toFixed(2)}`,
+        },
+        {
+          icon: '⑥', name: '收盤突破橫盤最高點',
+          detail: r
+            ? `${c.close.toFixed(2)} > 橫盤高 ${r.rangeHigh.toFixed(2)}`
+            : '前提未成立',
+          pass: !!r?.isBreakout,
+        },
+      ];
+      return { title, conditions, allPass: !!r?.isBreakout };
     }
   }
 }

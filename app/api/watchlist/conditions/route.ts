@@ -111,7 +111,11 @@ export async function GET(req: NextRequest) {
       const { detectBlackKBreakout } = await import('@/lib/analysis/blackKBreakoutEntry');
       if (detectBlackKBreakout(allCandles, lastIdx)?.isBlackKBreakout) matchedMethods.push('H');
     } catch { /* */ }
-    const sortedMatched = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].filter(m => matchedMethods.includes(m));
+    try {
+      const { detectKlineConsolidationBreakout } = await import('@/lib/analysis/klineConsolidationBreakout');
+      if (detectKlineConsolidationBreakout(allCandles, lastIdx)?.isBreakout) matchedMethods.push('I');
+    } catch { /* */ }
+    const sortedMatched = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'].filter(m => matchedMethods.includes(m));
     // 根據策略篩選規則群組
     const strategy = strategyId ? BUILT_IN_STRATEGIES.find(s => s.id === strategyId) : undefined;
     const engine = (strategy?.ruleGroups && strategy.ruleGroups.length > 0)
