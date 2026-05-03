@@ -1,16 +1,17 @@
 import { CandleWithIndicators } from '@/types';
-import { findPivots } from '@/lib/analysis/trendAnalysis';
+import { findPivots, detectTrend } from '@/lib/analysis/trendAnalysis';
 
 export type SellSignalType =
   | 'DEATH_CROSS'         // MA5 crosses below MA20
   | 'HIGH_VOL_UPPER_SHADOW' // High volume + long upper shadow in uptrend
   | 'KD_DEATH_CROSS'      // KD high-level death cross (K crosses below D when both > 70)
   | 'BREAK_MA5'           // Close breaks below MA5 after being above
+  | 'BREAK_MA10'          // Close breaks below MA10（朱家泓長短線綜合操作法核心出場線）
   | 'BREAK_MA20'          // Close breaks below MA20 (serious)
   | 'TREND_BEARISH'       // Trend has turned bearish
   // 朱老師獲利方程式（《活用技術分析寶典》p.54）
   | 'LOWER_LOW'           // 收盤出現「頭頭低」
-  | 'PROFIT_BREAK_MA5'    // 獲利>10% + 跌破MA5
+  | 'PROFIT_BREAK_MA5'    // 獲利>10% + 跌破MA5（寶典 p.711 第 18 條）
   | 'PROFIT_CLIMAX_EXIT'  // 獲利>20% 或連續急漲+長黑覆蓋
   // 朱老師短線20條守則補充（p.711-712）
   | 'STRONG_COVER'        // 強覆蓋：黑K跌破前日紅K 1/2 + K值下彎（第11條）
@@ -18,7 +19,15 @@ export type SellSignalType =
   | 'WEEKLY_RESIST_BREAK_MA5' // 週線遇壓+黑K跌破MA5（第19條）
   | 'SEASON_LINE_DOWN_BREAK' // 季線向下回檔跌破5均（第20條）
   // 寶典 Part 11-1 停損 5 法第 5 條「支阻停損」（p.703）
-  | 'SUPPORT_BREAK_STOPLOSS'; // 跌破關鍵支撐（前波低點 / 季線 MA60）→ 多單停損
+  | 'SUPPORT_BREAK_STOPLOSS' // 跌破關鍵支撐（前波低點 / 季線 MA60）→ 多單停損
+  // 寶典 Part 11-1 停利 / 短線 K 線出場法
+  | 'RED_K_LOW_BREAK'     // 收盤跌破最後一根紅 K 低點（寶典短線 K 線出場法）
+  // 寶典「自高檔下殺 8 個 K 線訊號」（抓住線圖第 3 篇 p.150-154）
+  | 'TRENDLINE_BREAK_BLACK' // 第 1 條：跌破上升切線長黑 K
+  | 'HIGH_LEVEL_DOJI'     // 第 3 條：高檔十字 K（次日跌破前一日最低）
+  | 'HIGH_LEVEL_HANGING_MAN' // 第 4 條：高檔吊人 K（長下影）
+  | 'HIGH_LEVEL_BEARISH_ENGULF' // 第 6 條：高檔陰包陽吞噬
+  | 'HIGH_LEVEL_OPEN_FLAT_BLACK'; // 第 7 條：高檔開平低（開=昨低）轉長黑
 
 export interface SellSignal {
   type: SellSignalType;
@@ -237,6 +246,166 @@ export function detectSellSignals(
         label: '季線下彎破5均',
         detail: `MA60(${c.ma60.toFixed(1)})仍下彎，回檔跌破MA5(${ma5.toFixed(1)})，多單先出場`,
         severity: 'medium',
+      });
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // 寶典 p.711 第 18 條：上漲 > 10% + 跌破 MA5 → 停利
+  // 推算「上漲 %」：用近 20 根 K 的最低收盤當基準（短線進場後的相對漲幅）
+  // ════════════════════════════════════════════════════════════════
+  if (index >= 20 && ma5 != null && prev?.ma5 != null) {
+    const window = candles.slice(Math.max(0, index - 20), index);
+    const minClose = Math.min(...window.map(k => k.close).filter(v => v > 0));
+    if (minClose > 0) {
+      const gainPct = (c.close - minClose) / minClose * 100;
+      const breakMa5Now = prev.close >= prev.ma5 && c.close < ma5;
+      if (gainPct > 10 && breakMa5Now) {
+        signals.push({
+          type: 'PROFIT_BREAK_MA5',
+          label: '獲利>10%破MA5',
+          detail: `近20日最低${minClose.toFixed(2)}→今日${c.close.toFixed(2)}（+${gainPct.toFixed(1)}%），跌破 MA5(${ma5.toFixed(2)}) 停利`,
+          severity: 'high',
+        });
+      }
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // 朱家泓「長短線綜合操作法」核心出場線：跌破 MA10
+  //   寶典 Part 11-1 停損 5 法第 3 條 + 5 步驟步驟 4 第 6 章策略 3
+  //   多頭跌破 MA10 → 停利出場（MA10 是中短線分界）
+  // ════════════════════════════════════════════════════════════════
+  if (c.ma10 != null && prev?.ma10 != null) {
+    if (prev.close >= prev.ma10 && c.close < c.ma10) {
+      signals.push({
+        type: 'BREAK_MA10',
+        label: '跌破MA10',
+        detail: `收盤(${c.close}) 跌破 MA10(${c.ma10.toFixed(2)})，朱家泓綜合操作法停利線`,
+        severity: 'high',
+      });
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // 寶典 Part 11-1 短線 K 線出場法：收盤跌破最後一根紅 K 低點
+  //   找近 5 根中最後一根紅 K（含進場 K），收盤跌破該紅 K low → 短線出場
+  // ════════════════════════════════════════════════════════════════
+  if (index >= 5) {
+    let lastRedK: typeof c | null = null;
+    for (let i = index - 1; i >= Math.max(0, index - 5); i--) {
+      const k = candles[i];
+      if (k.close > k.open) { lastRedK = k; break; }
+    }
+    if (lastRedK && c.close < lastRedK.low) {
+      signals.push({
+        type: 'RED_K_LOW_BREAK',
+        label: '跌破紅K低點',
+        detail: `收盤(${c.close}) 跌破近期紅 K(${lastRedK.date}) 低點 ${lastRedK.low.toFixed(2)}，短線 K 線出場法`,
+        severity: 'high',
+      });
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // 寶典「自高檔下殺 8 個 K 線訊號」（抓住線圖第 3 篇 p.150-154）
+  //   高檔判定：MA5 > MA20（多頭中），且非低檔
+  // ════════════════════════════════════════════════════════════════
+  const isHighLevel = ma5 != null && ma20 != null && ma5 > ma20;
+
+  // 第 1 條：跌破上升切線長黑 K（用 MA20 上升 + 黑K跌破前 2 日最低當近似切線）
+  if (isHighLevel && index >= 22) {
+    const ma20Up = c.ma20 != null && candles[index - 5]?.ma20 != null && c.ma20 > candles[index - 5].ma20!;
+    const isLongBlack = c.close < c.open && c.open > 0 && (c.open - c.close) / c.open >= 0.02;
+    const prev2Low = Math.min(candles[index - 1]?.low ?? Infinity, candles[index - 2]?.low ?? Infinity);
+    if (ma20Up && isLongBlack && c.close < prev2Low) {
+      signals.push({
+        type: 'TRENDLINE_BREAK_BLACK',
+        label: '跌破切線長黑',
+        detail: `上升趨勢中長黑K收 ${c.close.toFixed(2)} 跌破前 2 日最低 ${prev2Low.toFixed(2)}（寶典 8 下殺第 1 條）`,
+        severity: 'high',
+      });
+    }
+  }
+
+  // 第 3 條：高檔十字 K → 次日跌破前一日最低 確認
+  //   今日 K 是「昨日是十字」+ 今日跌破昨日最低
+  if (isHighLevel && prev) {
+    const prevBody = Math.abs(prev.close - prev.open);
+    const prevRange = prev.high - prev.low;
+    const isPrevDoji = prevRange > 0 && prevBody / prevRange < 0.1; // 實體 < range 10% 視為十字
+    if (isPrevDoji && c.close < prev.low) {
+      signals.push({
+        type: 'HIGH_LEVEL_DOJI',
+        label: '高檔十字後破低',
+        detail: `昨日高檔十字 K，今日收盤 ${c.close.toFixed(2)} 跌破昨日最低 ${prev.low.toFixed(2)}（寶典 8 下殺第 3 條）`,
+        severity: 'high',
+      });
+    }
+  }
+
+  // 第 4 條：高檔吊人 K（長下影 + 短實體 + 短上影） → 跌破前一日最低
+  //   昨日是吊人，今日跌破昨日最低
+  if (isHighLevel && prev) {
+    const prevBody = Math.abs(prev.close - prev.open);
+    const prevUpper = prev.high - Math.max(prev.close, prev.open);
+    const prevLower = Math.min(prev.close, prev.open) - prev.low;
+    const isHangingMan = prevBody > 0
+      && prevLower >= prevBody * 2
+      && prevUpper <= prevBody * 0.5;
+    if (isHangingMan && c.close < prev.low) {
+      signals.push({
+        type: 'HIGH_LEVEL_HANGING_MAN',
+        label: '高檔吊人破低',
+        detail: `昨日高檔吊人 K（長下影），今日跌破昨日最低 ${prev.low.toFixed(2)}（寶典 8 下殺第 4 條）`,
+        severity: 'high',
+      });
+    }
+  }
+
+  // 第 6 條：高檔陰包陽 — 今日是黑K，當日創新高，收盤吞噬昨日紅K實體
+  if (isHighLevel && prev) {
+    const isPrevRed = prev.close > prev.open;
+    const isCurBlack = c.close < c.open;
+    const newHighToday = c.high > prev.high;
+    const engulf = c.open >= prev.close && c.close <= prev.open; // 今日黑K包覆昨日紅K
+    if (isPrevRed && isCurBlack && newHighToday && engulf) {
+      signals.push({
+        type: 'HIGH_LEVEL_BEARISH_ENGULF',
+        label: '高檔陰包陽',
+        detail: `今日創新高 ${c.high.toFixed(2)} 後收長黑吞噬昨日紅K（寶典 8 下殺第 6 條）`,
+        severity: 'high',
+      });
+    }
+  }
+
+  // 第 7 條：高檔開平低轉長黑 — 開盤=昨日最低（開低）一路拉長黑
+  if (isHighLevel && prev && c.open > 0) {
+    const openEqualsPrevLow = Math.abs(c.open - prev.low) / prev.low < 0.005; // 開盤近昨低 0.5% 內
+    const isLongBlack = c.close < c.open && (c.open - c.close) / c.open >= 0.02;
+    if (openEqualsPrevLow && isLongBlack) {
+      signals.push({
+        type: 'HIGH_LEVEL_OPEN_FLAT_BLACK',
+        label: '高檔開平低長黑',
+        detail: `開盤 ${c.open.toFixed(2)} ≈ 昨日最低 ${prev.low.toFixed(2)}，一路拉長黑收 ${c.close.toFixed(2)}（寶典 8 下殺第 7 條）`,
+        severity: 'high',
+      });
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // 5 步驟絕對停損 6 情況之第 1 條：走勢轉空頭確認 → TREND_BEARISH
+  //   detectTrend 已可判斷，這裡作為 sell signal 透出
+  // ════════════════════════════════════════════════════════════════
+  if (index >= 21) {
+    const trendNow = detectTrend(candles, index);
+    const trendPrev = detectTrend(candles, index - 1);
+    if (trendPrev !== '空頭' && trendNow === '空頭') {
+      signals.push({
+        type: 'TREND_BEARISH',
+        label: '空頭趨勢確認',
+        detail: `走勢由 ${trendPrev} 轉「空頭」確認（頭頭低底底低），絕對停損出場`,
+        severity: 'high',
       });
     }
   }
