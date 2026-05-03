@@ -143,7 +143,7 @@ interface BacktestState {
   /** 掃描方向：long=做多, short=做空, daban=打板 */
   scanDirection: 'long' | 'short' | 'daban';
   /** 當前買法（並列買法架構，Phase 6，2026-04-20）— 只在 scanDirection='long' 時有意義 */
-  activeBuyMethod: 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
+  activeBuyMethod: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
   /** 載入買法結果的狀態 */
   isLoadingBuyMethod: boolean;
 
@@ -165,7 +165,7 @@ interface BacktestState {
   setScanOnly:            (v: boolean) => void;
   setScanMode:            (m: 'full' | 'pure' | 'sop') => void;
   setScanDirection:       (d: 'long' | 'short' | 'daban') => void;
-  setActiveBuyMethod:     (m: 'A' | 'B' | 'C' | 'D' | 'E' | 'F') => Promise<void>;
+  setActiveBuyMethod:     (m: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H') => Promise<void>;
   setWalkForwardConfig:   (c: Partial<WalkForwardConfig>) => void;
   computeWalkForward:     () => void;
   runScan:                () => Promise<void>;  // 統一入口（掃描+回測）

@@ -27,6 +27,8 @@ async function detectStrategies(
   let D = false;
   let E = false;
   let F = false;
+  let G = false;
+  let H = false;
 
   try {
     const { detectBreakoutEntry } = await import('@/lib/analysis/breakoutEntry');
@@ -53,7 +55,17 @@ async function detectStrategies(
     F = !!detectVReversal(candles, lastIdx);
   } catch { /* non-critical */ }
 
-  return { A, B, C, D, E, F };
+  try {
+    const { detectABCBreakout } = await import('@/lib/analysis/abcBreakoutEntry');
+    G = !!detectABCBreakout(candles, lastIdx);
+  } catch { /* non-critical */ }
+
+  try {
+    const { detectBlackKBreakout } = await import('@/lib/analysis/blackKBreakoutEntry');
+    H = !!detectBlackKBreakout(candles, lastIdx);
+  } catch { /* non-critical */ }
+
+  return { A, B, C, D, E, F, G, H };
 }
 
 async function processHolding(

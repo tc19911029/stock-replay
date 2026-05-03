@@ -328,12 +328,14 @@ export async function listScanDates(
       let files = await fsListPrefix(`scan-${market}-${direction}-`);
       // Filter out new-format files (already read above) — also exclude B/C/D/E buy-method files
       files = files.filter(f => !f.includes('-daily-') && !f.includes('-mtf-') &&
-        !f.includes('-B-') && !f.includes('-C-') && !f.includes('-D-') && !f.includes('-E-') && !f.includes('-F-'));
+        !f.includes('-B-') && !f.includes('-C-') && !f.includes('-D-') && !f.includes('-E-') && !f.includes('-F-') &&
+        !f.includes('-G-') && !f.includes('-H-'));
       // Legacy fallback (no direction prefix)
       if (files.length === 0 && direction === 'long') {
         const legacyFiles = await fsListPrefix(`scan-${market}-`);
         files = legacyFiles.filter(f => !f.includes('-long-') && !f.includes('-short-') && !f.includes('-daily-') && !f.includes('-mtf-') &&
-          !f.includes('-B-') && !f.includes('-C-') && !f.includes('-D-') && !f.includes('-E-') && !f.includes('-F-'));
+          !f.includes('-B-') && !f.includes('-C-') && !f.includes('-D-') && !f.includes('-E-') && !f.includes('-F-') &&
+          !f.includes('-G-') && !f.includes('-H-'));
       }
       for (const file of files) {
         const match = file.match(/(\d{4}-\d{2}-\d{2})\.json$/);
@@ -454,7 +456,7 @@ export async function listScanDates(
     // 注意：B/C/D/E 買法 session 不套 top500 filter（掃全市場，不限前500）
     await Promise.all(filtered.map(async (e) => {
       const mode = e.mtfMode ?? 'daily';
-      if (mode === 'B' || mode === 'C' || mode === 'D' || mode === 'E' || mode === 'F') return; // 不套 filter
+      if (mode === 'B' || mode === 'C' || mode === 'D' || mode === 'E' || mode === 'F' || mode === 'G' || mode === 'H') return; // 不套 filter
       try {
         const session = await loadScanSessionRaw(e.market, e.date, e.direction ?? 'long', mode);
         if (session && session.results) {

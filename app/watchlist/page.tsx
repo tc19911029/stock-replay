@@ -41,8 +41,10 @@ const METHOD_LABELS: Record<string, string> = {
   D: '一字底',
   E: '缺口進場',
   F: 'V形反轉',
+  G: 'ABC 突破',
+  H: '突破大量黑K',
 };
-const METHOD_KEYS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
+const METHOD_KEYS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] as const;
 
 export default function WatchlistPage() {
   const { items, remove, add, updateNote, addTag, removeTag } = useWatchlistStore();

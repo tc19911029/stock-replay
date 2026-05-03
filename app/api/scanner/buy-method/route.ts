@@ -24,6 +24,8 @@ import { detectStrategyE } from '@/lib/analysis/highWinRateEntry';
 import { detectStrategyD } from '@/lib/analysis/gapEntry';
 import { detectBreakoutEntry, detectConsolidationBreakout } from '@/lib/analysis/breakoutEntry';
 import { detectVReversal } from '@/lib/analysis/vReversalDetector';
+import { detectABCBreakout } from '@/lib/analysis/abcBreakoutEntry';
+import { detectBlackKBreakout } from '@/lib/analysis/blackKBreakoutEntry';
 import { evaluateSixConditions } from '@/lib/analysis/trendAnalysis';
 import type { StockScanResult } from '@/lib/scanner/types';
 import type { CandleWithIndicators } from '@/types';
@@ -34,7 +36,7 @@ export const maxDuration = 60;
 const querySchema = z.object({
   market: z.enum(['TW', 'CN']).default('TW'),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  method: z.enum(['B', 'C', 'D', 'E', 'F']),
+  method: z.enum(['B', 'C', 'D', 'E', 'F', 'G', 'H']),
 });
 
 type Method = z.infer<typeof querySchema>['method'];
@@ -67,8 +69,14 @@ function detectCrossMatches(
   if (primary !== 'F') {
     try { if (detectVReversal(candles, idx)?.isVReversal) matched.push('F'); } catch { /* */ }
   }
-  // 排序：A 在最前，其他維持 B C D E F
-  return ['A', 'B', 'C', 'D', 'E', 'F'].filter(m => matched.includes(m));
+  if (primary !== 'G') {
+    try { if (detectABCBreakout(candles, idx)?.isABCBreakout) matched.push('G'); } catch { /* */ }
+  }
+  if (primary !== 'H') {
+    try { if (detectBlackKBreakout(candles, idx)?.isBlackKBreakout) matched.push('H'); } catch { /* */ }
+  }
+  // 排序：A 在最前，其他維持 B C D E F G H
+  return ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].filter(m => matched.includes(m));
 }
 
 function runDetector(
@@ -109,6 +117,20 @@ function runDetector(
       // F=V形反轉
       const r = detectVReversal(candles, idx);
       return r?.isVReversal
+        ? { matched: true, detail: r.detail }
+        : { matched: false, detail: '' };
+    }
+    case 'G': {
+      // G=ABC 突破（寶典 Part 11-1 位置 6）
+      const r = detectABCBreakout(candles, idx);
+      return r?.isABCBreakout
+        ? { matched: true, detail: r.detail }
+        : { matched: false, detail: '' };
+    }
+    case 'H': {
+      // H=突破大量黑 K（寶典 Part 11-1 位置 8）
+      const r = detectBlackKBreakout(candles, idx);
+      return r?.isBlackKBreakout
         ? { matched: true, detail: r.detail }
         : { matched: false, detail: '' };
     }

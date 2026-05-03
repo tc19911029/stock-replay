@@ -6,9 +6,9 @@
  * 根據當前選中買法（B/C/D/E/F）顯示對應的進場條件評分。
  * A 六條件走既有 SixConditionsPanel，本元件不處理 A。
  *
- * 字母對照（2026-04-21 rename）：
- *   B=回後買上漲、C=盤整突破（新拆）、D=一字底、E=缺口、F=V形反轉
- *   G=變盤線（走圖輔助，無 detector）、H=切線（走圖輔助，無 detector）
+ * 字母對照（2026-05-04 update）：
+ *   B=回後買上漲、C=盤整突破、D=一字底、E=缺口、F=V形反轉
+ *   G=ABC 突破（寶典 Part 11-1 位置 6）、H=突破大量黑K（寶典 Part 11-1 位置 8）
  */
 
 import { useReplayStore } from '@/store/replayStore';
@@ -17,10 +17,12 @@ import { detectStrategyD } from '@/lib/analysis/gapEntry';
 import { detectBreakoutEntry, detectConsolidationBreakout } from '@/lib/analysis/breakoutEntry';
 import { detectTrend } from '@/lib/analysis/trendAnalysis';
 import { detectVReversal } from '@/lib/analysis/vReversalDetector';
+import { detectABCBreakout } from '@/lib/analysis/abcBreakoutEntry';
+import { detectBlackKBreakout } from '@/lib/analysis/blackKBreakoutEntry';
 import type { CandleWithIndicators } from '@/types';
 import { EmptyState } from '@/components/shared';
 
-type BuyMethod = 'B' | 'C' | 'D' | 'E' | 'F';
+type BuyMethod = 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
 
 interface ConditionItem {
   icon: string;
@@ -36,6 +38,8 @@ const METHOD_TITLE: Record<BuyMethod, string> = {
   D: '一字底',
   E: '缺口',
   F: 'V 型反轉',
+  G: 'ABC 突破',
+  H: '突破大量黑 K',
 };
 
 function evaluateMethod(
@@ -92,9 +96,9 @@ function evaluateMethod(
           metric: prevHigh > 0 ? prevHigh.toFixed(0) : undefined,
         },
         {
-          icon: '④', name: '紅 K 實體 ≥ 2.5%',
+          icon: '④', name: '紅 K 實體 ≥ 2%',
           detail: `實體 ${bodyPct.toFixed(2)}%`,
-          pass: bodyPct >= 2.5,
+          pass: bodyPct >= 2.0,
           metric: `${bodyPct.toFixed(2)}%`,
         },
         {
@@ -126,9 +130,9 @@ function evaluateMethod(
           metric: r ? r.breakoutPrice.toFixed(2) : undefined,
         },
         {
-          icon: '③', name: '紅 K 實體 ≥ 2.5%',
+          icon: '③', name: '紅 K 實體 ≥ 2%',
           detail: `實體 ${bodyPct.toFixed(2)}%`,
-          pass: bodyPct >= 2.5,
+          pass: bodyPct >= 2.0,
           metric: `${bodyPct.toFixed(2)}%`,
         },
         {
@@ -184,9 +188,9 @@ function evaluateMethod(
           metric: `+${gapPct.toFixed(2)}%`,
         },
         {
-          icon: '②', name: '紅 K 實體 ≥ 2.5%',
-          detail: bodyPct >= 2.5 ? `實體 ${bodyPct.toFixed(2)}%` : `實體僅 ${bodyPct.toFixed(2)}%`,
-          pass: bodyPct >= 2.5,
+          icon: '②', name: '紅 K 實體 ≥ 2%',
+          detail: bodyPct >= 2.0 ? `實體 ${bodyPct.toFixed(2)}%` : `實體僅 ${bodyPct.toFixed(2)}%`,
+          pass: bodyPct >= 2.0,
           metric: `${bodyPct.toFixed(2)}%`,
         },
         {
@@ -250,6 +254,93 @@ function evaluateMethod(
         },
       ];
       return { title, conditions, allPass: !!r?.isVReversal };
+    }
+
+    case 'G': {
+      // G=ABC 突破（寶典 Part 11-1 位置 6）
+      const r = detectABCBreakout(candles, idx);
+      const bodyPct = c.open > 0 && c.close > c.open ? (c.close - c.open) / c.open * 100 : 0;
+      const volRatio = prev && prev.volume > 0 ? c.volume / prev.volume : 0;
+      const aboveMa20 = c.ma20 != null && c.close > c.ma20;
+      const conditions: ConditionItem[] = [
+        {
+          icon: '①', name: 'ABC 修正結構（頭頭低+底底低）',
+          detail: r
+            ? `A峰 ${r.legAHigh.toFixed(1)}→A底 ${r.legALow.toFixed(1)}→B峰 ${r.legBHigh.toFixed(1)}→C底 ${r.legCLow.toFixed(1)}（修正 ${r.preEntryDays} 天）`
+            : '未偵測到 ABC 修正結構',
+          pass: !!r,
+          metric: r ? `${r.preEntryDays}天` : '—',
+        },
+        {
+          icon: '②', name: '收盤突破下降切線',
+          detail: r ? `切線延伸值 ${r.trendlineValue.toFixed(2)}` : '未突破下降切線',
+          pass: !!r,
+          metric: r ? r.trendlineValue.toFixed(2) : '—',
+        },
+        {
+          icon: '③', name: '紅 K 實體 ≥ 2%',
+          detail: `實體 ${bodyPct.toFixed(2)}%`,
+          pass: bodyPct >= 2.0,
+          metric: `${bodyPct.toFixed(2)}%`,
+        },
+        {
+          icon: '④', name: '量比 ≥ 1.3',
+          detail: `×${volRatio.toFixed(2)}`,
+          pass: volRatio >= 1.3,
+          metric: `×${volRatio.toFixed(2)}`,
+        },
+        {
+          icon: '⑤', name: '收盤站上 MA20',
+          detail: c.ma20 != null
+            ? `${c.close.toFixed(2)} vs MA20 ${c.ma20.toFixed(2)}`
+            : '無 MA20 資料',
+          pass: aboveMa20,
+        },
+      ];
+      return { title, conditions, allPass: !!r?.isABCBreakout };
+    }
+
+    case 'H': {
+      // H=突破大量黑 K（寶典 Part 11-1 位置 8）
+      const r = detectBlackKBreakout(candles, idx);
+      const bodyPct = c.open > 0 && c.close > c.open ? (c.close - c.open) / c.open * 100 : 0;
+      const volRatio = prev && prev.volume > 0 ? c.volume / prev.volume : 0;
+      const isUptrend = detectTrend(candles, idx) === '多頭';
+      const conditions: ConditionItem[] = [
+        {
+          icon: '①', name: '多頭趨勢',
+          detail: isUptrend ? '多頭（頭頭高底底高）' : '非多頭趨勢',
+          pass: isUptrend,
+        },
+        {
+          icon: '②', name: '近 3 日內出現大量黑 K（跌破前日低 / MA5）',
+          detail: r
+            ? `${r.blackKDate} 大量黑 K（高 ${r.blackKHigh.toFixed(2)}，量×${r.blackKVolumeRatio.toFixed(2)}）`
+            : '未發現符合條件的大量黑 K',
+          pass: !!r,
+          metric: r ? `${r.daysSinceBlackK}日前` : '—',
+        },
+        {
+          icon: '③', name: '今日紅 K 實體 ≥ 2%',
+          detail: `實體 ${bodyPct.toFixed(2)}%`,
+          pass: bodyPct >= 2.0,
+          metric: `${bodyPct.toFixed(2)}%`,
+        },
+        {
+          icon: '④', name: '今日量比 ≥ 1.3',
+          detail: `×${volRatio.toFixed(2)}`,
+          pass: volRatio >= 1.3,
+          metric: `×${volRatio.toFixed(2)}`,
+        },
+        {
+          icon: '⑤', name: '收盤突破大量黑 K 最高點',
+          detail: r
+            ? `${c.close.toFixed(2)} > 黑K高 ${r.blackKHigh.toFixed(2)}`
+            : '前提未成立',
+          pass: !!r?.isBlackKBreakout,
+        },
+      ];
+      return { title, conditions, allPass: !!r?.isBlackKBreakout };
     }
   }
 }

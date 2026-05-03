@@ -103,7 +103,15 @@ export async function GET(req: NextRequest) {
       const { detectVReversal } = await import('@/lib/analysis/vReversalDetector');
       if (detectVReversal(allCandles, lastIdx)?.isVReversal) matchedMethods.push('F');
     } catch { /* */ }
-    const sortedMatched = ['A', 'B', 'C', 'D', 'E', 'F'].filter(m => matchedMethods.includes(m));
+    try {
+      const { detectABCBreakout } = await import('@/lib/analysis/abcBreakoutEntry');
+      if (detectABCBreakout(allCandles, lastIdx)?.isABCBreakout) matchedMethods.push('G');
+    } catch { /* */ }
+    try {
+      const { detectBlackKBreakout } = await import('@/lib/analysis/blackKBreakoutEntry');
+      if (detectBlackKBreakout(allCandles, lastIdx)?.isBlackKBreakout) matchedMethods.push('H');
+    } catch { /* */ }
+    const sortedMatched = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].filter(m => matchedMethods.includes(m));
     // 根據策略篩選規則群組
     const strategy = strategyId ? BUILT_IN_STRATEGIES.find(s => s.id === strategyId) : undefined;
     const engine = (strategy?.ruleGroups && strategy.ruleGroups.length > 0)
