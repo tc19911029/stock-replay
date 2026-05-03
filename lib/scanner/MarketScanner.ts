@@ -1156,12 +1156,13 @@ export abstract class MarketScanner {
 
   /**
    * 獨立買法掃描（不過 A 六條件）
-   * 全市場依 B/C/D/E/F/G/H 偵測器各自篩選，與 scanSOP 完全並列
+   * 全市場依 B/C/D/E/F/G/H/I 偵測器各自篩選，與 scanSOP 完全並列
    *
    * 字母對照：
    *   B=回後買上漲、C=盤整突破、D=一字底、E=缺口、F=V形反轉
    *   G=ABC 突破（寶典 Part 11-1 位置 6，2026-05-04 新增）
    *   H=突破大量黑 K（寶典 Part 11-1 位置 8，2026-05-04 新增）
+   *   I=K 線橫盤突破（寶典 Part 11-1 位置 3，2026-05-04 新增）
    */
   async scanBuyMethod(
     method: 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I',
