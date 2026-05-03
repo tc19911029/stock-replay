@@ -1,8 +1,13 @@
 /**
- * GET /api/cron/scan-bm?market=TW|CN&method=B|C|D|E|F
+ * GET /api/cron/scan-bm?market=TW|CN&method=B|C|D|E|F|G|H
  *
  * 盤後買法獨立 cron — 每個買法單獨一個 Vercel cron job，
  * 避免全部塞在 scan-tw/scan-cn 造成 300s 超時。
+ *
+ * 字母對照：
+ *   B=回後買上漲、C=盤整突破、D=一字底、E=缺口、F=V形反轉
+ *   G=ABC 突破（寶典 Part 11-1 位置 6，2026-05-04 新增）
+ *   H=突破大量黑 K（寶典 Part 11-1 位置 8，2026-05-04 新增）
  *
  * 流程：
  *   1. 驗證 CRON_SECRET
@@ -21,7 +26,7 @@ import { getLastTradingDay } from '@/lib/datasource/marketHours';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
-const VALID_METHODS = ['B', 'C', 'D', 'E', 'F'] as const;
+const VALID_METHODS = ['B', 'C', 'D', 'E', 'F', 'G', 'H'] as const;
 type BuyMethod = typeof VALID_METHODS[number];
 
 export async function GET(req: NextRequest) {

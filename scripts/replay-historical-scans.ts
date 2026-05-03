@@ -34,10 +34,10 @@ import { TaiwanScanner } from '@/lib/scanner/TaiwanScanner';
 import { ChinaScanner } from '@/lib/scanner/ChinaScanner';
 
 type Market = 'TW' | 'CN';
-type Method = 'B' | 'C' | 'D' | 'E' | 'F' | 'daily' | 'mtf';
+type Method = 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'daily' | 'mtf';
 
-const METHODS: Method[] = ['B', 'C', 'D', 'E', 'F', 'daily', 'mtf'];
-const BUY_METHODS: ('B' | 'C' | 'D' | 'E' | 'F')[] = ['B', 'C', 'D', 'E', 'F'];
+const METHODS: Method[] = ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'daily', 'mtf'];
+const BUY_METHODS: ('B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H')[] = ['B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
 interface ExistingScan {
   market: Market;
@@ -70,11 +70,11 @@ const DATA_DIR = path.join(process.cwd(), 'data');
 // ─── Step 1: 列舉現有 post-close scan 結果 ───────────────────────────
 function loadExistingScans(): ExistingScan[] {
   const files = readdirSync(DATA_DIR).filter(f =>
-    /^scan-(TW|CN)-long-(B|C|D|E|F|daily|mtf)-\d{4}-\d{2}-\d{2}\.json$/.test(f)
+    /^scan-(TW|CN)-long-(B|C|D|E|F|G|H|daily|mtf)-\d{4}-\d{2}-\d{2}\.json$/.test(f)
   );
   const out: ExistingScan[] = [];
   for (const file of files) {
-    const m = file.match(/^scan-(TW|CN)-long-(B|C|D|E|F|daily|mtf)-(\d{4}-\d{2}-\d{2})\.json$/);
+    const m = file.match(/^scan-(TW|CN)-long-(B|C|D|E|F|G|H|daily|mtf)-(\d{4}-\d{2}-\d{2})\.json$/);
     if (!m) continue;
     const [, market, method, date] = m;
     try {

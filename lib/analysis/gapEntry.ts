@@ -9,7 +9,7 @@
  * 書本條件：
  * 1. 開盤 > 前日最高（向上跳空）
  * 2. 量 ≥ 前日 × 1.3（共通進場量標準）
- * 3. 紅 K 實體 ≥ 2.5%
+ * 3. 紅 K 實體 ≥ 2%（寶典 2024 短線做多 SOP p.55 ⑤；2026-05-04 從 2.5% 對齊寶典）
  * 4. 收紅 K（close > open）
  *
  * 不限大盤趨勢（像台積電 4/8 在空頭中跳空也算）。
@@ -43,9 +43,9 @@ export function detectStrategyD(
   // 條件 4：收紅 K
   if (c.close <= c.open) return null;
 
-  // 條件 3：紅 K 實體 ≥ 2.5%
+  // 條件 3：紅 K 實體 ≥ 2%（寶典對齊）
   const bodyPct = (c.close - c.open) / c.open * 100;
-  if (bodyPct < 2.5) return null;
+  if (bodyPct < 2.0) return null;
 
   // 條件 2：量比 ≥ 1.3
   const volumeRatio = c.volume / prev.volume;

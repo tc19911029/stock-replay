@@ -538,12 +538,15 @@ export const zhuStopLossKlineLow: TradingRule = {
     if (entryCandle == null) return null;
 
     // 計算停損價
+    // 2026-05-04 寶典對齊：高檔嚴控閾值 4.5% → 5%（《活用技術分析寶典》2024 Part 11-1
+    //                       ＜5% 守上漲轉折最低點，≥5% 守紅K最低點；保留書本「< 2.5% 向下放寬 2 碼」
+    //                       與「高檔大量長紅 1/2 位置」兩段補強）
     let stopPrice: number;
     if (changePct(entryCandle) < 0.025) {
-      // 漲幅 < 2.5%：最低點再向下放寬2碼
+      // 漲幅 < 2.5%：最低點再向下放寬2碼（5步驟微幅補強，避免被洗）
       stopPrice = ticksBelow(entryCandle.low, 2);
-    } else if (changePct(entryCandle) >= 0.045) {
-      // 漲幅 >= 4.5%（高檔大量長紅）：停損在1/2位置
+    } else if (changePct(entryCandle) >= 0.05) {
+      // 漲幅 ≥ 5%（高檔大量長紅）：停損在1/2位置（嚴控風險）
       stopPrice = halfPrice(entryCandle);
     } else {
       stopPrice = entryCandle.low;

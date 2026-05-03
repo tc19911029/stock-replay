@@ -334,9 +334,10 @@ export interface ScanSessionTopPick {
 
 export type ScanDirection = 'long' | 'short' | 'daban';
 // 'daily' = A 六條件（預設）；'mtf' 已廢棄（改伺服器端過濾）
-// 'B'/'C'/'D'/'E'/'F' = 並列買法獨立 session
+// 'B'/'C'/'D'/'E'/'F'/'G'/'H' = 並列買法獨立 session
 // 2026-04-21 rename: B=回後買上漲、C=盤整突破（新拆）、D=一字底、E=缺口、F=V形反轉
-export type MtfMode = 'daily' | 'mtf' | 'B' | 'C' | 'D' | 'E' | 'F';
+// 2026-05-04 新增: G=ABC 突破（寶典 Part 11-1 位置 6）、H=突破大量黑 K（寶典 Part 11-1 位置 8）
+export type MtfMode = 'daily' | 'mtf' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
 
 // ── 打板掃描結果 ────────────────────────────────────────────────────────────
 
@@ -418,8 +419,8 @@ export interface ScanSession {
   date: string;
   direction?: ScanDirection;
   multiTimeframeEnabled?: boolean;  // true = 週月線過濾已啟用
-  /** 並列買法 session 的買法代碼（2026-04-21 rename: B=回後買上漲、C=盤整突破、D=一字底、E=缺口、F=V形反轉）；undefined = A 六條件 */
-  buyMethod?: 'B' | 'C' | 'D' | 'E' | 'F';
+  /** 並列買法 session 的買法代碼（B=回後買上漲、C=盤整突破、D=一字底、E=缺口、F=V形反轉、G=ABC 突破、H=突破大量黑 K）；undefined = A 六條件 */
+  buyMethod?: 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
   /** 掃描時段：intraday=盤中快照, post_close=收盤後正式結果 */
   sessionType?: SessionType;
   scanTime: string;

@@ -20,13 +20,15 @@ import { detectBreakoutEntry, detectConsolidationBreakout } from '@/lib/analysis
 import { detectVReversal } from '@/lib/analysis/vReversalDetector';
 import { detectStrategyD } from '@/lib/analysis/gapEntry';
 import { detectStrategyE } from '@/lib/analysis/highWinRateEntry';
+import { detectABCBreakout } from '@/lib/analysis/abcBreakoutEntry';
+import { detectBlackKBreakout } from '@/lib/analysis/blackKBreakoutEntry';
 import { saveScanSession } from '@/lib/storage/scanStorage';
 import { getTWSENames } from '@/lib/datasource/TWSENames';
 import type { StockScanResult, ScanSession, MarketId } from '@/lib/scanner/types';
 import type { Candle } from '@/types';
 
-type BuyMethod = 'B' | 'C' | 'D' | 'E' | 'F';
-const METHODS: BuyMethod[] = ['B', 'C', 'D', 'E', 'F'];
+type BuyMethod = 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
+const METHODS: BuyMethod[] = ['B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
 function todayDateFor(market: MarketId): string {
   const tz = market === 'TW' ? 'Asia/Taipei' : 'Asia/Shanghai';
@@ -81,7 +83,7 @@ async function scanMarket(market: MarketId): Promise<void> {
     } catch { /* 用 L2 名字兜底 */ }
   }
 
-  const buckets: Record<BuyMethod, StockScanResult[]> = { B: [], C: [], D: [], E: [], F: [] };
+  const buckets: Record<BuyMethod, StockScanResult[]> = { B: [], C: [], D: [], E: [], F: [], G: [], H: [] };
 
   let processed = 0;
   for (const sym of symbols) {
@@ -133,10 +135,16 @@ async function scanMarket(market: MarketId): Promise<void> {
       if (detectVReversal(candles, lastIdx)) {
         buckets.F.push({ ...base, matchedMethods: ['F'] } as StockScanResult);
       }
+      if (detectABCBreakout(candles, lastIdx)) {
+        buckets.G.push({ ...base, matchedMethods: ['G'] } as StockScanResult);
+      }
+      if (detectBlackKBreakout(candles, lastIdx)) {
+        buckets.H.push({ ...base, matchedMethods: ['H'] } as StockScanResult);
+      }
     } catch { /* skip */ }
   }
 
-  console.log(`[${market}] 處理 ${processed} 支；B=${buckets.B.length} C=${buckets.C.length} D=${buckets.D.length} E=${buckets.E.length} F=${buckets.F.length}`);
+  console.log(`[${market}] 處理 ${processed} 支；B=${buckets.B.length} C=${buckets.C.length} D=${buckets.D.length} E=${buckets.E.length} F=${buckets.F.length} G=${buckets.G.length} H=${buckets.H.length}`);
 
   // 寫每個買法的 session
   const scanTime = new Date().toISOString();

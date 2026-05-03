@@ -17,7 +17,7 @@ import { isTradingDay } from '@/lib/utils/tradingDay';
 export const runtime = 'nodejs';
 export const maxDuration = 120;
 
-const VALID_METHODS = new Set(['B', 'C', 'D', 'E', 'F']);
+const VALID_METHODS = new Set(['B', 'C', 'D', 'E', 'F', 'G', 'H']);
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization');
@@ -26,10 +26,10 @@ export async function GET(req: NextRequest) {
   }
 
   const market = (req.nextUrl.searchParams.get('market') ?? 'TW') as 'TW' | 'CN';
-  const method = req.nextUrl.searchParams.get('method') as 'B' | 'C' | 'D' | 'E' | 'F' | null;
+  const method = req.nextUrl.searchParams.get('method') as 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | null;
 
   if (!method || !VALID_METHODS.has(method)) {
-    return apiError(`method required (B|C|D|E|F), got: ${method}`, 400);
+    return apiError(`method required (B|C|D|E|F|G|H), got: ${method}`, 400);
   }
 
   if (!isMarketOpen(market) && !isPostCloseWindow(market)) {
@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
       scanTime: new Date().toISOString(),
       resultCount: bmResults.length,
       results: bmResults,
-      buyMethod: method as 'B' | 'C' | 'D' | 'E' | 'F',
+      buyMethod: method as 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
     };
     await saveScanSession(session);
 

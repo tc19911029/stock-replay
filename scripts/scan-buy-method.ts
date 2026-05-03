@@ -1,17 +1,21 @@
 /**
- * 買法偵測統一驗證腳本（Phase 1~4 共用，2026-04-20 rename 後）
+ * 買法偵測統一驗證腳本（Phase 1~5 共用，2026-04-20 rename 後）
  *
  * Usage:
- *   npx tsx scripts/scan-buy-method.ts <B|C|D|E|F> <TW|CN> <YYYY-MM-DD>
+ *   npx tsx scripts/scan-buy-method.ts <B|C|D|E|F|G|H> <TW|CN> <YYYY-MM-DD>
  *
- * 字母對照（2026-04-21 rename）：
+ * 字母對照：
  *   B=回後買上漲、C=盤整突破、D=一字底、E=缺口、F=V形反轉
+ *   G=ABC 突破（寶典 Part 11-1 位置 6，2026-05-04 新增）
+ *   H=突破大量黑 K（寶典 Part 11-1 位置 8，2026-05-04 新增）
  *
  * 例：
  *   npx tsx scripts/scan-buy-method.ts E TW 2026-04-08  # 台積電 4/8 跳空（缺口）
  *   npx tsx scripts/scan-buy-method.ts D TW 2026-04-17  # 一字底突破
  *   npx tsx scripts/scan-buy-method.ts B CN 2026-04-17  # 回後買上漲
  *   npx tsx scripts/scan-buy-method.ts F TW 2026-04-17  # V 形反轉
+ *   npx tsx scripts/scan-buy-method.ts G TW 2026-05-03  # ABC 突破
+ *   npx tsx scripts/scan-buy-method.ts H TW 2026-05-03  # 突破大量黑 K
  */
 
 import fs from 'fs';
@@ -21,9 +25,11 @@ import { detectStrategyE } from '@/lib/analysis/highWinRateEntry';
 import { detectStrategyD } from '@/lib/analysis/gapEntry';
 import { detectBreakoutEntry, detectConsolidationBreakout } from '@/lib/analysis/breakoutEntry';
 import { detectVReversal } from '@/lib/analysis/vReversalDetector';
+import { detectABCBreakout } from '@/lib/analysis/abcBreakoutEntry';
+import { detectBlackKBreakout } from '@/lib/analysis/blackKBreakoutEntry';
 import type { CandleWithIndicators } from '@/types';
 
-type Method = 'B' | 'C' | 'D' | 'E' | 'F';
+type Method = 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
 
 const method = (process.argv[2] ?? 'D').toUpperCase() as Method;
 const market = (process.argv[3] ?? 'TW').toUpperCase() as 'TW' | 'CN';
@@ -35,6 +41,8 @@ const METHOD_NAMES: Record<Method, string> = {
   D: '一字底突破',
   E: '缺口進場',
   F: 'V 形反轉',
+  G: 'ABC 突破',
+  H: '突破大量黑 K',
 };
 
 interface Hit {
@@ -83,12 +91,20 @@ function runDetector(method: Method, candles: CandleWithIndicators[], idx: numbe
       const r = detectVReversal(candles, idx);
       return r?.isVReversal ? r.detail : null;
     }
+    case 'G': {
+      const r = detectABCBreakout(candles, idx);
+      return r?.isABCBreakout ? r.detail : null;
+    }
+    case 'H': {
+      const r = detectBlackKBreakout(candles, idx);
+      return r?.isBlackKBreakout ? r.detail : null;
+    }
   }
 }
 
 function main() {
-  if (!(['B', 'C', 'D', 'E', 'F'] as Method[]).includes(method)) {
-    console.error('買法必須是 B/C/D/E/F');
+  if (!(['B', 'C', 'D', 'E', 'F', 'G', 'H'] as Method[]).includes(method)) {
+    console.error('買法必須是 B/C/D/E/F/G/H');
     process.exit(1);
   }
 

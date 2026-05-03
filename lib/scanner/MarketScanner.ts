@@ -1144,10 +1144,15 @@ export abstract class MarketScanner {
 
   /**
    * 獨立買法掃描（不過 A 六條件）
-   * 全市場依 B/C/D/E 偵測器各自篩選，與 scanSOP 完全並列
+   * 全市場依 B/C/D/E/F/G/H 偵測器各自篩選，與 scanSOP 完全並列
+   *
+   * 字母對照：
+   *   B=回後買上漲、C=盤整突破、D=一字底、E=缺口、F=V形反轉
+   *   G=ABC 突破（寶典 Part 11-1 位置 6，2026-05-04 新增）
+   *   H=突破大量黑 K（寶典 Part 11-1 位置 8，2026-05-04 新增）
    */
   async scanBuyMethod(
-    method: 'B' | 'C' | 'D' | 'E' | 'F',
+    method: 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
     stocks: StockEntry[],
     asOfDate?: string,
   ): Promise<StockScanResult[]> {
@@ -1199,6 +1204,16 @@ export abstract class MarketScanner {
             const { detectVReversal } = await import('@/lib/analysis/vReversalDetector');
             const r = detectVReversal(candles, lastIdx);
             if (r?.isVReversal) { matched = true; detail = r.detail; }
+          } else if (method === 'G') {
+            // G=ABC 突破（寶典 Part 11-1 位置 6，2026-05-04 新增）
+            const { detectABCBreakout } = await import('@/lib/analysis/abcBreakoutEntry');
+            const r = detectABCBreakout(candles, lastIdx);
+            if (r?.isABCBreakout) { matched = true; detail = r.detail; }
+          } else if (method === 'H') {
+            // H=突破大量黑 K（寶典 Part 11-1 位置 8，2026-05-04 新增）
+            const { detectBlackKBreakout } = await import('@/lib/analysis/blackKBreakoutEntry');
+            const r = detectBlackKBreakout(candles, lastIdx);
+            if (r?.isBlackKBreakout) { matched = true; detail = r.detail; }
           }
 
           if (!matched) return null;
@@ -1249,7 +1264,19 @@ export abstract class MarketScanner {
               if (detectVReversal(candles, lastIdx)?.isVReversal) matchedMethods.push('F');
             } catch { /* */ }
           }
-          const sortedMatched = ['A', 'B', 'C', 'D', 'E', 'F'].filter(m => matchedMethods.includes(m));
+          if (method !== 'G') {
+            try {
+              const { detectABCBreakout } = await import('@/lib/analysis/abcBreakoutEntry');
+              if (detectABCBreakout(candles, lastIdx)?.isABCBreakout) matchedMethods.push('G');
+            } catch { /* */ }
+          }
+          if (method !== 'H') {
+            try {
+              const { detectBlackKBreakout } = await import('@/lib/analysis/blackKBreakoutEntry');
+              if (detectBlackKBreakout(candles, lastIdx)?.isBlackKBreakout) matchedMethods.push('H');
+            } catch { /* */ }
+          }
+          const sortedMatched = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].filter(m => matchedMethods.includes(m));
 
           return {
             symbol,

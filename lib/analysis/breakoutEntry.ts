@@ -58,9 +58,9 @@ function checkCommonTrigger(
   }
   // 紅 K
   if (c.close <= c.open) return { pass: false, bodyPct: 0, volumeRatio: 0, breakoutPrice };
-  // 實體 ≥ 2.5%
+  // 實體 ≥ 2%（寶典 2024 短線做多 SOP p.55 ⑤；2026-05-04 從 2.5% 對齊寶典）
   const bodyPct = (c.close - c.open) / c.open * 100;
-  if (bodyPct < 2.5) return { pass: false, bodyPct, volumeRatio: 0, breakoutPrice };
+  if (bodyPct < 2.0) return { pass: false, bodyPct, volumeRatio: 0, breakoutPrice };
   // 量比 ≥ 1.3
   const volumeRatio = c.volume / prev.volume;
   if (volumeRatio < 1.3) return { pass: false, bodyPct, volumeRatio, breakoutPrice };
@@ -123,7 +123,7 @@ function detectConsolidation(candles: CandleWithIndicators[], idx: number): Cons
 //   1. 多頭趨勢（detectTrend === '多頭'）— 頭頭高底底高，等同「沒跌破前底」
 //   2. 昨日 close < MA5（昨日仍在 MA5 之下，代表還在回檔中）
 //   3. 今日 close > MA5（今日才剛漲過 MA5，止跌反攻）
-// 扳機（主流程）：紅K 實體 ≥ 2.5% + 量 ≥ 1.3x + 收盤突破前K高
+// 扳機（主流程）：紅K 實體 ≥ 2% + 量 ≥ 1.3x + 收盤突破前K高（寶典 2024 對齊）
 
 interface PullbackState {
   isPullback: boolean;
@@ -234,9 +234,9 @@ export function detectBreakoutEntry(
   if (!prev || prev.volume <= 0 || c.open <= 0) return null;
   // 紅K
   if (c.close <= c.open) return null;
-  // 實體 ≥ 2.5%
+  // 實體 ≥ 2%（寶典 2024 短線做多 SOP p.55 ⑤；2026-05-04 從 2.5% 對齊寶典）
   const bodyPct = (c.close - c.open) / c.open * 100;
-  if (bodyPct < 2.5) return null;
+  if (bodyPct < 2.0) return null;
   // 量 ≥ 前日 × 1.3
   const volumeRatio = c.volume / prev.volume;
   if (volumeRatio < 1.3) return null;

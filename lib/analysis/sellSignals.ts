@@ -1,4 +1,5 @@
 import { CandleWithIndicators } from '@/types';
+import { findPivots } from '@/lib/analysis/trendAnalysis';
 
 export type SellSignalType =
   | 'DEATH_CROSS'         // MA5 crosses below MA20
@@ -15,7 +16,9 @@ export type SellSignalType =
   | 'STRONG_COVER'        // 強覆蓋：黑K跌破前日紅K 1/2 + K值下彎（第11條）
   | 'HIGH_VOL_2DAY_3BLACK' // 高檔連2日爆量+回檔連3黑（第14條）
   | 'WEEKLY_RESIST_BREAK_MA5' // 週線遇壓+黑K跌破MA5（第19條）
-  | 'SEASON_LINE_DOWN_BREAK'; // 季線向下回檔跌破5均（第20條）
+  | 'SEASON_LINE_DOWN_BREAK' // 季線向下回檔跌破5均（第20條）
+  // 寶典 Part 11-1 停損 5 法第 5 條「支阻停損」（p.703）
+  | 'SUPPORT_BREAK_STOPLOSS'; // 跌破關鍵支撐（前波低點 / 季線 MA60）→ 多單停損
 
 export interface SellSignal {
   type: SellSignalType;
@@ -234,6 +237,35 @@ export function detectSellSignals(
         label: '季線下彎破5均',
         detail: `MA60(${c.ma60.toFixed(1)})仍下彎，回檔跌破MA5(${ma5.toFixed(1)})，多單先出場`,
         severity: 'medium',
+      });
+    }
+  }
+
+  // 寶典 Part 11-1 停損 5 法第 5 條「支阻停損」（p.703）
+  // 做多時關鍵支撐跌破停損。支撐來源（寶典 Part 6）：月線/季線、上升切線、前低、下方大量跳空缺口
+  // 月線跌破已由 BREAK_MA20 涵蓋，這裡補：(1) 跌破前波低點 (2) 跌破季線 MA60
+  if (index >= 21) {
+    const reasons: string[] = [];
+
+    // (1) 跌破前波低點（findPivots 最近的 low pivot）— 破壞多頭結構
+    // 限制：之前股價有站上該低點之上（避免本來就在低點下方的個股誤觸）
+    const pivots = findPivots(candles, index - 1, 8);
+    const lastLow = pivots.find(p => p.type === 'low');
+    if (lastLow && prev && prev.close >= lastLow.price && c.close < lastLow.price) {
+      reasons.push(`跌破前波低點 ${lastLow.price.toFixed(2)}`);
+    }
+
+    // (2) 跌破季線 MA60（中長期支撐）
+    if (c.ma60 != null && prev?.ma60 != null && prev.close >= prev.ma60 && c.close < c.ma60) {
+      reasons.push(`跌破季線 MA60(${c.ma60.toFixed(2)})`);
+    }
+
+    if (reasons.length > 0) {
+      signals.push({
+        type: 'SUPPORT_BREAK_STOPLOSS',
+        label: '關鍵支撐跌破',
+        detail: `${reasons.join('、')}，依寶典停損 5 法第 5 條「支阻停損」多單應出場`,
+        severity: 'high',
       });
     }
   }

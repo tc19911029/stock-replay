@@ -262,17 +262,18 @@ export const ZHU_FLAT_BOTTOM: StrategyConfig = {
  * E 缺口進場策略（並列買法架構，Phase 2，2026-04-20）
  *
  * 朱家泓《做對5個實戰步驟》p.40 做多位置 4「跳空上漲」：
- *   向上跳空缺口 + 量≥1.3 + 紅K實體≥2.5%
+ *   向上跳空缺口 + 量≥1.3 + 紅K實體≥2%
  *
  * 不套戒律（strategyType='kline-pattern'），不限大盤趨勢。
  * 底層偵測用 lib/analysis/gapEntry.ts 的 detectStrategyD()（保留原函數名，alias 相容）。
  * 2026-04-21 rename：買法字母 D→E。
+ * 2026-05-04：紅K實體 2.5% → 2%，對齊《活用技術分析寶典》2024 短線做多 SOP（衝突取寶典）。
  */
 export const ZHU_GAP: StrategyConfig = {
   id:          'zhu-gap',
   name:        '缺口進場（E）',
-  description: '《5步驟》位置 4 跳空上漲：開盤>前日最高+量比≥1.3+紅K實體≥2.5%',
-  version:     '1.0.0',
+  description: '《5步驟》位置 4 跳空上漲：開盤>前日最高+量比≥1.3+紅K實體≥2%',
+  version:     '1.1.0',
   author:      '朱家泓',
   createdAt:   '2026-04-20T00:00:00.000Z',
   isBuiltIn:   true,
@@ -282,7 +283,7 @@ export const ZHU_GAP: StrategyConfig = {
   thresholds:  {
     ...BASE_THRESHOLDS,
     volumeRatioMin: 1.3,
-    kbarMinBodyPct: 0.025,
+    kbarMinBodyPct: 0.02,   // 寶典 2024 短線做多 SOP p.55 ⑤：紅K實體 > 2%
     minScore:       0,
     marketTrendFilter: false,
   },
@@ -294,12 +295,13 @@ export const ZHU_GAP: StrategyConfig = {
  * 《5步驟》位置 1：前置盤整（detectTrend==='盤整'）+ 大量長紅突破上頸線
  * 底層偵測用 lib/analysis/breakoutEntry.ts 的 detectConsolidationBreakout()。
  * 不套戒律（strategyType='kline-pattern'）。
+ * 2026-05-04：紅K實體 2.5% → 2%，對齊寶典 2024 短線做多 SOP。
  */
 export const ZHU_CONSOLIDATION_BREAKOUT: StrategyConfig = {
   id:          'zhu-consolidation-breakout',
   name:        '盤整突破（C）',
   description: '《5步驟》位置1：盤整期（detectTrend=盤整）+大量長紅突破上頸線，停損盤整低點',
-  version:     '1.0.0',
+  version:     '1.1.0',
   author:      '朱家泓',
   createdAt:   '2026-04-21T00:00:00.000Z',
   isBuiltIn:   true,
@@ -309,7 +311,7 @@ export const ZHU_CONSOLIDATION_BREAKOUT: StrategyConfig = {
   thresholds:  {
     ...BASE_THRESHOLDS,
     volumeRatioMin: 1.3,
-    kbarMinBodyPct: 0.025,
+    kbarMinBodyPct: 0.02,   // 寶典 2024 短線做多 SOP p.55 ⑤：紅K實體 > 2%
     minScore:       0,
     marketTrendFilter: false,
   },
@@ -321,12 +323,13 @@ export const ZHU_CONSOLIDATION_BREAKOUT: StrategyConfig = {
  * 《5步驟》位置 2：多頭趨勢 + 昨日<MA5 + 今日站回MA5 + 大量長紅突破前K高
  * 底層偵測用 lib/analysis/breakoutEntry.ts 的 detectBreakoutEntry()。
  * 不套戒律（strategyType='kline-pattern'）。
+ * 2026-05-04：紅K實體 2.5% → 2%，對齊寶典 2024 短線做多 SOP。
  */
 export const ZHU_BREAKOUT: StrategyConfig = {
   id:          'zhu-breakout',
   name:        '回後買上漲（B）',
   description: '《5步驟》位置2：多頭回檔+昨日<MA5+今日站回MA5+大量長紅突破前K高，停損回檔低點',
-  version:     '1.0.0',
+  version:     '1.1.0',
   author:      '朱家泓',
   createdAt:   '2026-04-20T00:00:00.000Z',
   isBuiltIn:   true,
@@ -336,7 +339,7 @@ export const ZHU_BREAKOUT: StrategyConfig = {
   thresholds:  {
     ...BASE_THRESHOLDS,
     volumeRatioMin: 1.3,
-    kbarMinBodyPct: 0.025,
+    kbarMinBodyPct: 0.02,   // 寶典 2024 短線做多 SOP p.55 ⑤：紅K實體 > 2%
     minScore:       0,
     marketTrendFilter: false,
   },
@@ -370,6 +373,70 @@ export const ZHU_V_REVERSAL: StrategyConfig = {
   },
 };
 
+/**
+ * G ABC 突破策略（並列買法架構，2026-05-04）
+ *
+ * 朱家泓《活用技術分析寶典》Part 11-1 8 種進場位置「位置 6：等 ABC 突破」（p.697）
+ * + 寶典 Part 12-4 18 祕笈圖第 16 圖「突破 ABC 上漲圖」（p.815）
+ *
+ * 多頭上漲一波後，ABC 3 波修正形成短空，反彈大量紅 K 突破下降切線 + 站上 MA20 → 做多。
+ *
+ * 用戶 Step 2 第 3 條「ABC 突破」直接源頭。
+ * 底層偵測用 lib/analysis/abcBreakoutEntry.ts 的 detectABCBreakout()。
+ * 不套戒律（strategyType='kline-pattern'）。
+ */
+export const ZHU_ABC_BREAKOUT: StrategyConfig = {
+  id:          'zhu-abc-breakout',
+  name:        'ABC 突破（G）',
+  description: '寶典 Part 11-1 位置 6：多頭一波後 ABC 修正→反彈大量紅 K 突破下降切線+站上 MA20',
+  version:     '1.0.0',
+  author:      '朱家泓',
+  createdAt:   '2026-05-04T00:00:00.000Z',
+  isBuiltIn:   true,
+  strategyType: 'kline-pattern',
+  buyMethod:    'G',
+  conditions:  ALL_CONDITIONS_ON,
+  thresholds:  {
+    ...BASE_THRESHOLDS,
+    volumeRatioMin: 1.3,
+    kbarMinBodyPct: 0.02,   // 寶典 2024 短線做多 SOP p.55 ⑤
+    minScore:       0,
+    marketTrendFilter: false,
+  },
+};
+
+/**
+ * H 突破大量黑 K 策略（並列買法架構，2026-05-04）
+ *
+ * 朱家泓《活用技術分析寶典》Part 11-1 8 種進場位置「位置 8：等突破大量黑 K」（p.699）
+ * + 寶典 Part 12-4 18 祕笈圖第 9 圖「突破大量黑 K 買進」（p.806）
+ *
+ * 多頭一波後出大量黑 K（跌破前低或 MA5），3 日內紅 K 突破大量黑 K 最高 → 做多。
+ *
+ * 用戶 Step 2 第 5 條「過大量黑 K 高」直接源頭。
+ * 底層偵測用 lib/analysis/blackKBreakoutEntry.ts 的 detectBlackKBreakout()。
+ * 不套戒律（strategyType='kline-pattern'）。
+ */
+export const ZHU_BLACK_K_BREAKOUT: StrategyConfig = {
+  id:          'zhu-black-k-breakout',
+  name:        '突破大量黑 K（H）',
+  description: '寶典 Part 11-1 位置 8：多頭中大量黑 K 跌破前低/MA5，3 日內紅 K 突破黑 K 最高',
+  version:     '1.0.0',
+  author:      '朱家泓',
+  createdAt:   '2026-05-04T00:00:00.000Z',
+  isBuiltIn:   true,
+  strategyType: 'kline-pattern',
+  buyMethod:    'H',
+  conditions:  ALL_CONDITIONS_ON,
+  thresholds:  {
+    ...BASE_THRESHOLDS,
+    volumeRatioMin: 1.3,
+    kbarMinBodyPct: 0.02,   // 寶典 2024 短線做多 SOP p.55 ⑤
+    minScore:       0,
+    marketTrendFilter: false,
+  },
+};
+
 export const BUILT_IN_STRATEGIES: StrategyConfig[] = [
   ZHU_PURE_BOOK,              // 純書本版（A = long-daily 六條件的 thresholds）
   ZHU_FLAT_BOTTOM,            // D：一字底突破（2026-04-21 rename from E）
@@ -377,6 +444,8 @@ export const BUILT_IN_STRATEGIES: StrategyConfig[] = [
   ZHU_CONSOLIDATION_BREAKOUT, // C：盤整突破（2026-04-21 從 B 拆出）
   ZHU_BREAKOUT,               // B：回後買上漲（2026-04-21 rename）
   ZHU_V_REVERSAL,             // F：V 形反轉（2026-04-21 rename from C）
+  ZHU_ABC_BREAKOUT,           // G：ABC 突破（2026-05-04 新增，寶典 Part 11-1 位置 6）
+  ZHU_BLACK_K_BREAKOUT,       // H：突破大量黑 K（2026-05-04 新增，寶典 Part 11-1 位置 8）
 ];
 
 // ── P0-3: 策略參數邊界驗證 ──────────────────────────────────────────────────────
