@@ -297,24 +297,31 @@ export function detectSellSignals(
 
   // ════════════════════════════════════════════════════════════════
   // 寶典 Part 11-1 短線 K 線出場法：收盤跌破最後一根「中長紅 K」低點
-  //   找近 5 根中最後一根中長紅 K（實體 ≥ 2%，視為有意義的進場/動能 K），
-  //   收盤跌破該紅 K low → 短線出場（書本本意是進場那根紅K，無進場資訊
-  //   時用近期中長紅K近似，避免被小紅K觸發太多 noise）
+  //   找近 5 根中最後一根中長紅 K（實體 ≥ 2%），收盤跌破該紅 K low → 短線出場
+  //   事件型：今日為「自該紅 K 形成以來首次 close < lastRedK.low」才報
   // ════════════════════════════════════════════════════════════════
   if (index >= 5) {
-    let lastRedK: typeof c | null = null;
+    let lastRedKIdx = -1;
     for (let i = index - 1; i >= Math.max(0, index - 5); i--) {
       const k = candles[i];
       const kBodyPct = k.open > 0 ? (k.close - k.open) / k.open : 0;
-      if (k.close > k.open && kBodyPct >= 0.02) { lastRedK = k; break; }
+      if (k.close > k.open && kBodyPct >= 0.02) { lastRedKIdx = i; break; }
     }
-    if (lastRedK && c.close < lastRedK.low) {
-      signals.push({
-        type: 'RED_K_LOW_BREAK',
-        label: '跌破紅K低點',
-        detail: `收盤(${c.close}) 跌破近期中長紅 K(${lastRedK.date}) 低點 ${lastRedK.low.toFixed(2)}，短線 K 線出場法`,
-        severity: 'high',
-      });
+    if (lastRedKIdx >= 0) {
+      const lastRedK = candles[lastRedKIdx];
+      // 自 lastRedK 形成後首次 close < lastRedK.low 才觸發
+      let firstBreakIdx = -1;
+      for (let i = lastRedKIdx + 1; i <= index; i++) {
+        if (candles[i].close < lastRedK.low) { firstBreakIdx = i; break; }
+      }
+      if (firstBreakIdx === index) {
+        signals.push({
+          type: 'RED_K_LOW_BREAK',
+          label: '跌破紅K低點',
+          detail: `收盤(${c.close}) 跌破近期中長紅 K(${lastRedK.date}) 低點 ${lastRedK.low.toFixed(2)}，短線 K 線出場法`,
+          severity: 'high',
+        });
+      }
     }
   }
 

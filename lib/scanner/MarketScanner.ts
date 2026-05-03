@@ -488,6 +488,18 @@ export abstract class MarketScanner {
         const { detectVReversal } = await import('@/lib/analysis/vReversalDetector');
         if (detectVReversal(candles, lastIdx)) matchedMethods.push('F');
       } catch { /* non-critical */ }
+      try {
+        const { detectABCBreakout } = await import('@/lib/analysis/abcBreakoutEntry');
+        if (detectABCBreakout(candles, lastIdx)?.isABCBreakout) matchedMethods.push('G');
+      } catch { /* non-critical */ }
+      try {
+        const { detectBlackKBreakout } = await import('@/lib/analysis/blackKBreakoutEntry');
+        if (detectBlackKBreakout(candles, lastIdx)?.isBlackKBreakout) matchedMethods.push('H');
+      } catch { /* non-critical */ }
+      try {
+        const { detectKlineConsolidationBreakout } = await import('@/lib/analysis/klineConsolidationBreakout');
+        if (detectKlineConsolidationBreakout(candles, lastIdx)?.isBreakout) matchedMethods.push('I');
+      } catch { /* non-critical */ }
 
       return {
         symbol,

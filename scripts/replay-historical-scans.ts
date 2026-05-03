@@ -304,8 +304,8 @@ async function main() {
     const rows = diffs.filter(d => d.market === market);
     if (rows.length === 0) continue;
     console.log(`### ${market}\n`);
-    console.log('| 日期 | daily | mtf | B | C | D | E | F | 動作 |');
-    console.log('|------|-------|-----|---|---|---|---|---|------|');
+    console.log('| 日期 | daily | mtf | B | C | D | E | F | G | H | I | 動作 |');
+    console.log('|------|-------|-----|---|---|---|---|---|---|---|---|------|');
     for (const d of rows) {
       const cell = (m: string) => {
         const v = d.perMethod[m];
@@ -314,7 +314,7 @@ async function main() {
         return `${v.old}→${v.new}`;
       };
       console.log(
-        `| ${d.date} | ${cell('daily')} | ${cell('mtf')} | ${cell('B')} | ${cell('C')} | ${cell('D')} | ${cell('E')} | ${cell('F')} | ${d.rewroteAny ? '已覆寫' : '無變化'} |`
+        `| ${d.date} | ${cell('daily')} | ${cell('mtf')} | ${cell('B')} | ${cell('C')} | ${cell('D')} | ${cell('E')} | ${cell('F')} | ${cell('G')} | ${cell('H')} | ${cell('I')} | ${d.rewroteAny ? '已覆寫' : '無變化'} |`
       );
     }
     console.log('');
