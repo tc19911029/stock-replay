@@ -40,7 +40,7 @@ export interface ABCBreakoutResult {
 const MIN_LOOKBACK = 30;
 const MAX_LOOKBACK = 80;
 const MIN_PRIOR_RUN_PCT = 8;       // 多頭波至少漲 8% 才認可為「上漲一波」
-const TRENDLINE_PIVOT_GAP = 8;     // findPivots 用的最小擺幅天數
+const MAX_PIVOTS = 8;              // findPivots 取最近 8 個 pivot（足以涵蓋 ABC 結構的 4 個轉折）
 const MIN_CORRECTION_DROP_PCT = 3; // ABC 修正最低跌幅 (legAHigh→legCLow)，避免太淺的修正誤判
 const MIN_CORRECTION_SPAN_DAYS = 6; // ABC 修正最低天數 (legAHigh→legCLow)，避免太快的修正誤判
 
@@ -68,7 +68,7 @@ function findABCStructure(
 ): ABCStructure | null {
   if (idx < MIN_LOOKBACK) return null;
 
-  const pivots = findPivots(candles, idx - 1, TRENDLINE_PIVOT_GAP);
+  const pivots = findPivots(candles, idx - 1, MAX_PIVOTS);
   if (pivots.length < 4) return null;
 
   // pivots 由近至遠（findPivots 慣例：index 由大到小）
