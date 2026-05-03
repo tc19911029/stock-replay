@@ -312,7 +312,7 @@ export function ScanResultsTable({ onSelectStock }: ScanResultsTableProps = {}) 
                   </div>
                   <div className="flex gap-0.5 mt-0.5">
                     {activeBuyMethod && activeBuyMethod !== 'A' ? (
-                      // B/C/D/E/F：顯示策略觸發條件
+                      // B/C/D/E/F/G/H/I：顯示策略觸發條件
                       (() => {
                         const rule = r.triggeredRules?.[0];
                         const methodColors: Record<string, string> = {
@@ -321,6 +321,9 @@ export function ScanResultsTable({ onSelectStock }: ScanResultsTableProps = {}) 
                           D: 'bg-purple-800/80 text-purple-300',
                           E: 'bg-orange-800/80 text-orange-300',
                           F: 'bg-rose-800/80 text-rose-300',
+                          G: 'bg-cyan-800/80 text-cyan-300',
+                          H: 'bg-fuchsia-800/80 text-fuchsia-300',
+                          I: 'bg-lime-800/80 text-lime-300',
                         };
                         const color = methodColors[activeBuyMethod] ?? 'bg-sky-800/80 text-sky-300';
                         return (
