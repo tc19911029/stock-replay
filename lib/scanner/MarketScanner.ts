@@ -1245,7 +1245,7 @@ export abstract class MarketScanner {
 
           const mtfResult = evaluateMultiTimeframe(candles, BASE_THRESHOLDS);
 
-          // 跨策略命中：A 六條件 + 其他 5 個 detector
+          // 跨策略命中：A 六條件 + 其他 7 個 detector（B/C/D/E/F/G/H/I 排除 self）
           const matchedMethods: string[] = [method];
           try {
             const { evaluateSixConditions } = await import('@/lib/analysis/trendAnalysis');
