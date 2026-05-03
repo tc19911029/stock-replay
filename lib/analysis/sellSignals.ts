@@ -288,20 +288,23 @@ export function detectSellSignals(
   }
 
   // ════════════════════════════════════════════════════════════════
-  // 寶典 Part 11-1 短線 K 線出場法：收盤跌破最後一根紅 K 低點
-  //   找近 5 根中最後一根紅 K（含進場 K），收盤跌破該紅 K low → 短線出場
+  // 寶典 Part 11-1 短線 K 線出場法：收盤跌破最後一根「中長紅 K」低點
+  //   找近 5 根中最後一根中長紅 K（實體 ≥ 2%，視為有意義的進場/動能 K），
+  //   收盤跌破該紅 K low → 短線出場（書本本意是進場那根紅K，無進場資訊
+  //   時用近期中長紅K近似，避免被小紅K觸發太多 noise）
   // ════════════════════════════════════════════════════════════════
   if (index >= 5) {
     let lastRedK: typeof c | null = null;
     for (let i = index - 1; i >= Math.max(0, index - 5); i--) {
       const k = candles[i];
-      if (k.close > k.open) { lastRedK = k; break; }
+      const kBodyPct = k.open > 0 ? (k.close - k.open) / k.open : 0;
+      if (k.close > k.open && kBodyPct >= 0.02) { lastRedK = k; break; }
     }
     if (lastRedK && c.close < lastRedK.low) {
       signals.push({
         type: 'RED_K_LOW_BREAK',
         label: '跌破紅K低點',
-        detail: `收盤(${c.close}) 跌破近期紅 K(${lastRedK.date}) 低點 ${lastRedK.low.toFixed(2)}，短線 K 線出場法`,
+        detail: `收盤(${c.close}) 跌破近期中長紅 K(${lastRedK.date}) 低點 ${lastRedK.low.toFixed(2)}，短線 K 線出場法`,
         severity: 'high',
       });
     }
@@ -363,17 +366,20 @@ export function detectSellSignals(
     }
   }
 
-  // 第 6 條：高檔陰包陽 — 今日是黑K，當日創新高，收盤吞噬昨日紅K實體
+  // 第 6 條：高檔陰包陽（吞噬）
+  //   書本原文：「當日創新高、收盤跌破前最低」
+  //   = 今日吞噬昨日紅 K + 創新高 + 收盤跌破昨日最低
   if (isHighLevel && prev) {
     const isPrevRed = prev.close > prev.open;
     const isCurBlack = c.close < c.open;
     const newHighToday = c.high > prev.high;
     const engulf = c.open >= prev.close && c.close <= prev.open; // 今日黑K包覆昨日紅K
-    if (isPrevRed && isCurBlack && newHighToday && engulf) {
+    const breakPrevLow = c.close < prev.low; // 書本明列「收盤跌破前最低」
+    if (isPrevRed && isCurBlack && newHighToday && engulf && breakPrevLow) {
       signals.push({
         type: 'HIGH_LEVEL_BEARISH_ENGULF',
         label: '高檔陰包陽',
-        detail: `今日創新高 ${c.high.toFixed(2)} 後收長黑吞噬昨日紅K（寶典 8 下殺第 6 條）`,
+        detail: `今日創新高 ${c.high.toFixed(2)} 後收長黑吞噬昨日紅K，收盤跌破昨日低 ${prev.low.toFixed(2)}（寶典 8 下殺第 6 條）`,
         severity: 'high',
       });
     }

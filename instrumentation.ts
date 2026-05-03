@@ -42,7 +42,7 @@ export async function register() {
   console.log('[local-cron] L2：每 5 分鐘 | 六條件盤中：每 10 分鐘 | 買法 BCDEF：每 10 分鐘 | 盤後：L1+scan 14:10 TW / 16:10 CN');
 
   // ── 盤中：買法掃描（B/C/D/E/F），輪流觸發 —— 獨立於 A 六條件避免單輪超時 ──
-  async function scanBuyMethodIntraday(market: 'TW' | 'CN', method: 'B' | 'C' | 'D' | 'E' | 'F') {
+  async function scanBuyMethodIntraday(market: 'TW' | 'CN', method: 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I') {
     if (!isMarketOpen(market) && !isPostCloseWindow(market)) return;
     const data = await callRoute(
       `/api/cron/update-intraday-bm?market=${market}&method=${method}`,
@@ -115,7 +115,7 @@ export async function register() {
   // TW：收盤後 14:10 CST（UTC+8 = 06:10 UTC），確保 L1 已下載
   // CN：收盤後 16:10 CST（UTC+8 = 08:10 UTC），確保 L1 已下載
   const postCloseBmDone = { TW: '', CN: '' };
-  async function scanBuyMethodPostClose(market: 'TW' | 'CN', method: 'B' | 'C' | 'D' | 'E' | 'F') {
+  async function scanBuyMethodPostClose(market: 'TW' | 'CN', method: 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I') {
     const tz = market === 'TW' ? 'Asia/Taipei' : 'Asia/Shanghai';
     const nowLocal = new Date(new Date().toLocaleString('en-US', { timeZone: tz }));
     const todayLocal = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
@@ -217,10 +217,14 @@ export async function register() {
     scanIntradayDaily('CN').catch(err => console.error('[local-cron] CN scan-intraday:', err));
   }, 10 * 60 * 1000);
 
-  // 買法 B/C/D/E/F 錯開：每分鐘檢查，:02→B :04→C :06→D :08→E :00→F（10 分鐘輪一圈）
+  // 買法 B/C/D/E/F/G/H/I 錯開：每分鐘檢查，每 10 分鐘輪一圈
+  // :01→B :02→C :03→D :04→E :05→F :06→G :07→H :08→I（剩 :00/:09 留空給其他 cron）
   setInterval(() => {
     const rem = new Date().getMinutes() % 10;
-    const method = rem === 2 ? 'B' : rem === 4 ? 'C' : rem === 6 ? 'D' : rem === 8 ? 'E' : rem === 0 ? 'F' : null;
+    const method =
+      rem === 1 ? 'B' : rem === 2 ? 'C' : rem === 3 ? 'D' :
+      rem === 4 ? 'E' : rem === 5 ? 'F' : rem === 6 ? 'G' :
+      rem === 7 ? 'H' : rem === 8 ? 'I' : null;
     if (!method) return;
     scanBuyMethodIntraday('TW', method).catch(err => console.error(`[local-cron] TW bm ${method}:`, err));
     scanBuyMethodIntraday('CN', method).catch(err => console.error(`[local-cron] CN bm ${method}:`, err));
@@ -236,9 +240,9 @@ export async function register() {
     appendL1FromSnapshot('CN').catch(err => console.error('[local-cron] CN appendL1FromSnapshot:', err));
   }, 5 * 60 * 1000);
 
-  // 盤後買法掃描：每分鐘檢查，時間窗口內對 B/C/D/E/F 各觸發一次
+  // 盤後買法掃描：每分鐘檢查，時間窗口內對 B/C/D/E/F/G/H/I 各觸發一次
   setInterval(() => {
-    for (const method of ['B', 'C', 'D', 'E', 'F'] as const) {
+    for (const method of ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'] as const) {
       scanBuyMethodPostClose('TW', method).catch(err => console.error(`[local-cron] TW scan-bm ${method}:`, err));
       scanBuyMethodPostClose('CN', method).catch(err => console.error(`[local-cron] CN scan-bm ${method}:`, err));
     }
