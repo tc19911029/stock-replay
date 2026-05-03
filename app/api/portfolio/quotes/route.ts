@@ -56,14 +56,19 @@ async function fetchTWSEQuotes(symbols: string[]): Promise<QuoteTick[]> {
 
     const found = new Set<string>();
     for (const d of json?.msgArray ?? []) {
+      const sym = (d.c as string) || '';
       const price = parsePrice(d.z);
       const prevClose = parsePrice(d.y);
       const actualPrice = price > 0 ? price : parsePrice(d.l) || prevClose;
-      const changePct = actualPrice > 0 && prevClose > 0
+
+      // mis 對不存在的 channel（例如 6187 上櫃但被送 tse_）會回 d.c="" + 全 0 的空殼，
+      // 直接跳過避免產生 ".TW" / ".TWO" 空殼結果
+      if (!sym || actualPrice <= 0) continue;
+
+      const changePct = prevClose > 0
         ? +((actualPrice - prevClose) / prevClose * 100).toFixed(2)
         : 0;
 
-      const sym = d.c as string;
       found.add(sym);
 
       // Find the original symbol with suffix
@@ -87,13 +92,14 @@ async function fetchTWSEQuotes(symbols: string[]): Promise<QuoteTick[]> {
         );
         const otcJson = await otcRes.json();
         for (const d of otcJson?.msgArray ?? []) {
+          const sym = (d.c as string) || '';
           const price = parsePrice(d.z);
           const prevClose = parsePrice(d.y);
           const actualPrice = price > 0 ? price : parsePrice(d.l) || prevClose;
-          const changePct = actualPrice > 0 && prevClose > 0
+          if (!sym || actualPrice <= 0) continue;
+          const changePct = prevClose > 0
             ? +((actualPrice - prevClose) / prevClose * 100).toFixed(2)
             : 0;
-          const sym = d.c as string;
           const original = missing.find(s => s.replace(/\.(TW|TWO)$/i, '') === sym);
           results.push({
             symbol: original ?? `${sym}.TWO`,

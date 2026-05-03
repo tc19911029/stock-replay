@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 import { dataProvider } from '@/lib/datasource/MultiMarketProvider';
+import { loadLocalCandles } from '@/lib/datasource/LocalCandleStore';
 import { evaluateSixConditions, detectTrendPosition } from '@/lib/analysis/trendAnalysis';
 import { resolveThresholds } from '@/lib/strategy/resolveThresholds';
 import { evaluateHighWinRateEntry } from '@/lib/analysis/highWinRateEntry';
@@ -40,7 +41,27 @@ export async function GET(req: NextRequest) {
   const minScore = parseInt(parsed.data.minScore ?? String(thresholds.minScore));
 
   try {
-    const candles = await dataProvider.getHistoricalCandles(symbol, period);
+    // 優先讀 L1（與 /api/stock?local=1、/api/watchlist/conditions 同源），帶 .TW/.TWO 雙 fallback 避免 6187 類上櫃股繞外部 API
+    const pureCode = symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
+    const isTw = /^\d+$/.test(symbol) || /\.(TW|TWO)$/i.test(symbol);
+    const isCn = /\.(SS|SZ)$/i.test(symbol);
+    let candles: Awaited<ReturnType<typeof loadLocalCandles>> = null;
+    if (isTw) {
+      const list = /\.TWO$/i.test(symbol)
+        ? [`${pureCode}.TWO`, `${pureCode}.TW`]
+        : [`${pureCode}.TW`, `${pureCode}.TWO`];
+      for (const t of list) {
+        candles = await loadLocalCandles(t, 'TW');
+        if (candles && candles.length > 0) break;
+      }
+    } else if (isCn) {
+      // CN SS/SZ 獨立代碼空間，不加 cross-fallback
+      candles = await loadLocalCandles(symbol.toUpperCase(), 'CN');
+    }
+    // L1 沒命中才退到外部 API
+    if (!candles || candles.length === 0) {
+      candles = await dataProvider.getHistoricalCandles(symbol, period);
+    }
     if (!candles || candles.length < 30) {
       return apiError('資料不足', 404);
     }

@@ -50,6 +50,8 @@ function resolveSymbol(symbol: string): { ticker: string; candidates: string[]; 
 
   let candidates: string[];
   if (isCN) {
+    // CN 不加 fallback：000001.SS（上證指數）vs 000001.SZ（平安銀行）是完全不同股票，
+    // 跨後綴 fallback 會誤抓別人的資料。SS/SZ 是獨立代碼空間。
     if (/\.(SZ|SS)$/i.test(symbol)) {
       candidates = [symbol.toUpperCase()];
     } else {
@@ -58,8 +60,13 @@ function resolveSymbol(symbol: string): { ticker: string; candidates: string[]; 
         : [`${pureCode}.SZ`, `${pureCode}.SS`];
     }
   } else if (isTW) {
-    if (/\.(TW|TWO)$/i.test(symbol)) {
-      candidates = [symbol.toUpperCase()];
+    // 即使指定了 .TW/.TWO 後綴，也加另一個變體當 fallback：
+    // 上市/上櫃股票代號相同（如 6187 上櫃存於 6187.TWO.json），用戶或 client 帶錯後綴
+    // 不應該讓本地 L1 路徑直接 miss 然後 fallthrough 去打外部 API（會拿到不一致的數字）
+    if (/\.TWO$/i.test(symbol)) {
+      candidates = [`${pureCode}.TWO`, `${pureCode}.TW`];
+    } else if (/\.TW$/i.test(symbol)) {
+      candidates = [`${pureCode}.TW`, `${pureCode}.TWO`];
     } else {
       candidates = [`${pureCode}.TW`, `${pureCode}.TWO`];
     }

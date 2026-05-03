@@ -17,9 +17,38 @@ const querySchema = z.object({
 });
 
 async function fetchCandles(symbol: string): Promise<{ candles: CandleWithIndicators[]; name: string; ticker: string } | null> {
+  const pureCode = symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
   const isTwDigits = /^\d+$/.test(symbol);
-  const candidates = isTwDigits ? [`${symbol}.TW`, `${symbol}.TWO`] : [symbol.toUpperCase()];
+  const isTw = isTwDigits || /\.(TW|TWO)$/i.test(symbol);
+  const isCn = /\.(SS|SZ)$/i.test(symbol);
 
+  // Candidates 排序：先用 user 指定的後綴，再 fallback；為避免 .TW 帶後綴卡死無 fallback 的 bug
+  let candidates: string[];
+  if (isTw) {
+    if (/\.TWO$/i.test(symbol)) candidates = [`${pureCode}.TWO`, `${pureCode}.TW`];
+    else candidates = [`${pureCode}.TW`, `${pureCode}.TWO`];
+  } else if (isCn) {
+    // CN SS/SZ 是獨立代碼空間（000001.SS=上證指數 vs 000001.SZ=平安銀行），不加 cross-fallback
+    candidates = [symbol.toUpperCase()];
+  } else {
+    candidates = [symbol.toUpperCase()];
+  }
+
+  // 優先讀 L1（與 /api/stock?local=1 路徑同源），避免外部 API 跟 L1 不一致
+  const market: 'TW' | 'CN' | null = isTw ? 'TW' : isCn ? 'CN' : null;
+  if (market) {
+    const { loadLocalCandles } = await import('@/lib/datasource/LocalCandleStore');
+    for (const ticker of candidates) {
+      try {
+        const candles = await loadLocalCandles(ticker, market);
+        if (candles && candles.length > 0) {
+          return { candles, name: ticker, ticker };
+        }
+      } catch { continue; }
+    }
+  }
+
+  // L1 沒命中（少見，例如剛上市未下載）才打外部 API
   for (const ticker of candidates) {
     try {
       const candles = await dataProvider.getHistoricalCandles(ticker, '1y');
