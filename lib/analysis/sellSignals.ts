@@ -332,11 +332,15 @@ export function detectSellSignals(
   const isHighLevel = ma5 != null && ma20 != null && ma5 > ma20;
 
   // 第 1 條：跌破上升切線長黑 K（用 MA20 上升 + 黑K跌破前 2 日最低當近似切線）
+  // 事件型 dedup：若昨日 close 已 < 昨日的 prev2Low（前天昨天兩根低點較小者），
+  // 表示切線昨日已破，今日是續跌而非新破，不重複觸發。
   if (isHighLevel && index >= 22) {
     const ma20Up = c.ma20 != null && candles[index - 5]?.ma20 != null && c.ma20 > candles[index - 5].ma20!;
     const isLongBlack = c.close < c.open && c.open > 0 && (c.open - c.close) / c.open >= 0.02;
     const prev2Low = Math.min(candles[index - 1]?.low ?? Infinity, candles[index - 2]?.low ?? Infinity);
-    if (ma20Up && isLongBlack && c.close < prev2Low) {
+    const prevPrev2Low = Math.min(candles[index - 2]?.low ?? Infinity, candles[index - 3]?.low ?? Infinity);
+    const trendAlreadyBroken = prev != null && prev.close < prevPrev2Low;
+    if (ma20Up && isLongBlack && c.close < prev2Low && !trendAlreadyBroken) {
       signals.push({
         type: 'TRENDLINE_BREAK_BLACK',
         label: '跌破切線長黑',
