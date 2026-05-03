@@ -1,6 +1,6 @@
-// GET /api/cron/update-intraday-bm?market=TW|CN&method=B|C|D|E|F
+// GET /api/cron/update-intraday-bm?market=TW|CN&method=B|C|D|E|F|G|H|I
 //
-// 盤中買法掃描（B/C/D/E/F 各自獨立 cron，錯開觸發）
+// 盤中買法掃描（B/C/D/E/F/G/H/I 各自獨立 cron，錯開觸發）
 //
 // 跟 update-intraday 分工：
 //   - update-intraday：每 5 分鐘刷新 L2 + 跑 A 六條件

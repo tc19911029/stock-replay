@@ -1,5 +1,5 @@
 /**
- * GET /api/cron/scan-bm?market=TW|CN&method=B|C|D|E|F|G|H
+ * GET /api/cron/scan-bm?market=TW|CN&method=B|C|D|E|F|G|H|I
  *
  * 盤後買法獨立 cron — 每個買法單獨一個 Vercel cron job，
  * 避免全部塞在 scan-tw/scan-cn 造成 300s 超時。
@@ -8,6 +8,7 @@
  *   B=回後買上漲、C=盤整突破、D=一字底、E=缺口、F=V形反轉
  *   G=ABC 突破（寶典 Part 11-1 位置 6，2026-05-04 新增）
  *   H=突破大量黑 K（寶典 Part 11-1 位置 8，2026-05-04 新增）
+ *   I=K 線橫盤突破（寶典 Part 11-1 位置 3，2026-05-04 新增）
  *
  * 流程：
  *   1. 驗證 CRON_SECRET
