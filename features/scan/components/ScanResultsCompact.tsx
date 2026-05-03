@@ -156,7 +156,7 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
               {/* Row 3: 條件 badges */}
               <div className="flex items-center gap-1 mb-1">
                 {activeBuyMethod && activeBuyMethod !== 'A' ? (
-                  // B/C/D/E/F：顯示策略觸發條件 + 跨策略命中徽章
+                  // B/C/D/E/F/G/H/I：顯示策略觸發條件 + 跨策略命中徽章
                   (() => {
                     const rule = r.triggeredRules?.[0];
                     const methodColors: Record<string, string> = {
