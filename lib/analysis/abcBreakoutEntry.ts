@@ -41,6 +41,8 @@ const MIN_LOOKBACK = 30;
 const MAX_LOOKBACK = 80;
 const MIN_PRIOR_RUN_PCT = 8;       // 多頭波至少漲 8% 才認可為「上漲一波」
 const TRENDLINE_PIVOT_GAP = 8;     // findPivots 用的最小擺幅天數
+const MIN_CORRECTION_DROP_PCT = 3; // ABC 修正最低跌幅 (legAHigh→legCLow)，避免太淺的修正誤判
+const MIN_CORRECTION_SPAN_DAYS = 6; // ABC 修正最低天數 (legAHigh→legCLow)，避免太快的修正誤判
 
 interface ABCStructure {
   legAHigh: number;
@@ -94,6 +96,14 @@ function findABCStructure(
   // 結構檢查：頭頭低（legAHigh > legBHigh）+ 底底低（legALow > legCLow）
   if (legAHigh.price <= legB.price) return null;
   if (legA.price <= legC.price) return null;
+
+  // 修正深度檢查：legAHigh → legCLow 跌幅 ≥ MIN_CORRECTION_DROP_PCT
+  const correctionDropPct = ((legAHigh.price - legC.price) / legAHigh.price) * 100;
+  if (correctionDropPct < MIN_CORRECTION_DROP_PCT) return null;
+
+  // 修正天數檢查：legAHigh → legCLow 至少跨 MIN_CORRECTION_SPAN_DAYS 天
+  const correctionSpanDays = legC.index - legAHigh.index;
+  if (correctionSpanDays < MIN_CORRECTION_SPAN_DAYS) return null;
 
   // 多頭波幅檢查：legAHigh 相對更早的低點 ≥ MIN_PRIOR_RUN_PCT
   const earlierLow = recent.find(p => p.type === 'low' && p.index < legAHigh.index);
