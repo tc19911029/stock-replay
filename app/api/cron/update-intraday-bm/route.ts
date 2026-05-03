@@ -89,6 +89,13 @@ export async function GET(req: NextRequest) {
       console.warn(`[cron/update-intraday-bm] ${market} ${method} TurnoverRank 讀取失敗（繼續）:`, err);
     }
 
+    // 注入 marketTrend（與 scan-bm 一致，供 UI 顯示）
+    let marketTrend: string | undefined;
+    try {
+      const trend = await scanner.getMarketTrend(date);
+      marketTrend = String(trend);
+    } catch { /* non-critical */ }
+
     const session = {
       id: `${market}-long-${method}-${date}-intraday-${Date.now()}`,
       market,
@@ -99,6 +106,7 @@ export async function GET(req: NextRequest) {
       scanTime: new Date().toISOString(),
       resultCount: bmResults.length,
       results: bmResults,
+      marketTrend,
       buyMethod: method as 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I',
     };
     await saveScanSession(session);
