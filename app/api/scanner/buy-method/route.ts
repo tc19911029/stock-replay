@@ -43,7 +43,7 @@ const querySchema = z.object({
 type Method = z.infer<typeof querySchema>['method'];
 
 /**
- * 跨策略命中：給定一支股票，回傳當天還命中哪些策略字母（A/B/C/D/E/F）
+ * 跨策略命中：給定一支股票，回傳當天還命中哪些策略字母（A/B/C/D/E/F/G/H/I）
  * 主命中策略 method 一定在裡面；其他 5 個各跑一次 detector。
  */
 function detectCrossMatches(

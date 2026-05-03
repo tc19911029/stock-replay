@@ -1,5 +1,5 @@
 /**
- * 並列買法歷史批次掃描（B/C/D/E 過去 N 日）
+ * 並列買法歷史批次掃描（B-I 買法 過去 N 日）
  *
  * 用法：
  *   npx tsx scripts/scan-buy-methods-history.ts                  # TW+CN 過去 20 日
@@ -216,7 +216,7 @@ async function main(): Promise<void> {
     const allStocks = await scanner.getStockList();
     let dates = listRecentTradingDays(mkt, days);
     if (onlyDate) dates = dates.filter(d => d === onlyDate);
-    console.log(`\n📅 [${mkt}] B/C/D/E 歷史掃描 ${dates.length} 天: ${dates[0]} ~ ${dates[dates.length - 1]}`);
+    console.log(`\n📅 [${mkt}] B-I 買法 歷史掃描 ${dates.length} 天: ${dates[0]} ~ ${dates[dates.length - 1]}`);
 
     // 名字 map：優先用 scanner 股票清單（TW/TWO 都有），TW 再用 TWSE API 補漏
     let nameMap = new Map<string, string>();
@@ -237,7 +237,7 @@ async function main(): Promise<void> {
     }
 
     for (const date of dates) {
-      console.log(`🔍 [${mkt} ${date}] B/C/D/E 掃描...`);
+      console.log(`🔍 [${mkt} ${date}] B-I 買法 掃描...`);
       try {
         await scanMarketDate(mkt, date, allStocks, nameMap);
       } catch (err) {
@@ -246,7 +246,7 @@ async function main(): Promise<void> {
     }
   }
 
-  console.log('\n🎉 B/C/D/E 歷史掃描完成');
+  console.log('\n🎉 B-I 買法 歷史掃描完成');
 }
 
 main().catch(err => {

@@ -1,5 +1,5 @@
 import { ScanSession, MarketId, ScanDirection, MtfMode } from '@/lib/scanner/types';
-import { isWeekday } from '@/lib/utils/tradingDay';
+import { isTradingDay } from '@/lib/utils/tradingDay';
 
 // ── Storage abstraction for scan sessions ────────────────────────────────────
 // Production (Vercel): uses Vercel Blob for durable persistence
@@ -95,7 +95,7 @@ async function fsListPrefix(prefix: string): Promise<string[]> {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-/** Derive MTF mode from session — 買法 session (buyMethod=B/C/D/E/F) 優先 */
+/** Derive MTF mode from session — 買法 session (buyMethod=B-I) 優先 */
 function sessionMtfMode(session: ScanSession): MtfMode {
   if (session.buyMethod) return session.buyMethod;
   return session.multiTimeframeEnabled ? 'mtf' : 'daily';
@@ -448,7 +448,7 @@ export async function listScanDates(
     rankIdx = await readTurnoverRank(market as 'TW' | 'CN');
   } catch { /* 索引讀失敗 → 不套 filter，保持原 count */ }
 
-  const filtered = [...seen.values()].filter(e => isWeekday(e.date, e.market as 'TW' | 'CN'));
+  const filtered = [...seen.values()].filter(e => isTradingDay(e.date, e.market as 'TW' | 'CN'));
 
   if (rankIdx) {
     // 實際讀每個日期的最佳 session，算 filter 後 count
