@@ -128,8 +128,15 @@ export async function readCandleFile(
   }
 }
 
+// Per-(symbol, market) 序列化 read-merge-write，避免並行 caller lose update。
+// e.g. download-batch 對同一支同時跑 fast-path L2 注入 + 全量 API 下載：
+//   A read existing(485) + merge X → write 486
+//   B read existing(485) + merge Y → write 486（X 被 lose）
+// 鎖把這兩個寫入接龍：A 完成後 B 再 read，看得到 X，最終 487 根都在。
+const _writeInflight = new Map<string, Promise<void>>();
+
 /**
- * 寫入 K 線原始 JSON（merge-safe）
+ * 寫入 K 線原始 JSON（merge-safe + 並行序列化）
  *
  * 不直接覆蓋既有 L1，而是把新舊資料以 date 為 key 合併：
  *   - 同日 K 棒：新資料覆蓋舊（以 incoming 為權威）
@@ -144,7 +151,28 @@ export async function writeCandleFile(
   candles: Candle[],
 ): Promise<void> {
   if (candles.length === 0) return;
+  const key = `${market}:${symbol}`;
+  const prev = _writeInflight.get(key);
+  const next = (async () => {
+    if (prev) {
+      try { await prev; } catch { /* 前一個失敗不影響後續，新寫入仍要做 */ }
+    }
+    await _writeCandleFileImpl(symbol, market, candles);
+  })();
+  _writeInflight.set(key, next);
+  try {
+    await next;
+  } finally {
+    // 只有當鏈尾仍是自己時才清除（防止 race 把後續 caller 的 inflight 條目誤刪）
+    if (_writeInflight.get(key) === next) _writeInflight.delete(key);
+  }
+}
 
+async function _writeCandleFileImpl(
+  symbol: string,
+  market: 'TW' | 'CN',
+  candles: Candle[],
+): Promise<void> {
   const incoming: Candle[] = candles.map(c => ({
     date: c.date, open: c.open, high: c.high,
     low: c.low, close: c.close, volume: c.volume,
