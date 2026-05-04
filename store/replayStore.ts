@@ -373,7 +373,12 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
           if (allCandles.length === 0) return;
 
           const ticker = currentStock?.ticker ?? symbol;
-          const isTW = /\.(TW|TWO)$/i.test(ticker) || /^\d{4,6}$/.test(ticker);
+          // suffix 權威：.SS/.SZ → CN；.TW/.TWO → TW；無 suffix 用位數判斷（4-5 位 TW、6 位 CN）
+          const hasCnSuffix = /\.(SS|SZ)$/i.test(ticker);
+          const hasTwSuffix = /\.(TW|TWO)$/i.test(ticker);
+          const pure = ticker.replace(/\.(TW|TWO|SS|SZ)$/i, '');
+          const isCN = hasCnSuffix || (!hasTwSuffix && /^\d{6}$/.test(pure));
+          const isTW = !isCN;
           const tz = isTW ? 'Asia/Taipei' : 'Asia/Shanghai';
           const market: 'TW' | 'CN' = isTW ? 'TW' : 'CN';
           const today = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
