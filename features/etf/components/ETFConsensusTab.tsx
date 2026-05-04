@@ -7,23 +7,40 @@ import type { ETFConsensusEntry } from '@/lib/etf/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatWeight } from '../utils/format';
 
+interface ConsensusData {
+  key: number;
+  entries: ETFConsensusEntry[];
+  date: string | null;
+  windowDays: number;
+}
+
 export function ETFConsensusTab() {
   const { consensusMinEtfs, setConsensusMinEtfs } = useETFStore();
-  const [entries, setEntries] = useState<ETFConsensusEntry[] | null>(null);
-  const [date, setDate] = useState<string | null>(null);
-  const [windowDays, setWindowDays] = useState(0);
+  const [data, setData] = useState<ConsensusData | null>(null);
 
   useEffect(() => {
-    setEntries(null);
+    let cancelled = false;
     fetch(`/api/etf/consensus?minEtfs=${consensusMinEtfs}`)
       .then((r) => r.json())
       .then((d) => {
-        setEntries(d.entries ?? []);
-        setDate(d.date ?? null);
-        setWindowDays(d.windowDays ?? 0);
+        if (cancelled) return;
+        setData({
+          key: consensusMinEtfs,
+          entries: d.entries ?? [],
+          date: d.date ?? null,
+          windowDays: d.windowDays ?? 0,
+        });
       })
-      .catch(() => setEntries([]));
+      .catch(() => {
+        if (!cancelled) setData({ key: consensusMinEtfs, entries: [], date: null, windowDays: 0 });
+      });
+    return () => { cancelled = true; };
   }, [consensusMinEtfs]);
+
+  // Derived state: 切換 minEtfs 後 fetch 完成前，data.key 不匹配 → entries=null 顯示 loading
+  const entries = data?.key === consensusMinEtfs ? data.entries : null;
+  const date = data?.key === consensusMinEtfs ? data.date : null;
+  const windowDays = data?.key === consensusMinEtfs ? data.windowDays : 0;
 
   return (
     <div className="mt-4">

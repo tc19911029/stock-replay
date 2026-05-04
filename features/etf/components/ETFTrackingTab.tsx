@@ -8,20 +8,35 @@ import type { ETFTrackingEntry } from '@/lib/etf/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatPct } from '../utils/format';
 
+interface TrackingData {
+  key: string;
+  entries: ETFTrackingEntry[];
+}
+
 export function ETFTrackingTab() {
   const { selectedEtfCode, setSelectedEtfCode, trackingShowOpen, setTrackingShowOpen } = useETFStore();
-  const [entries, setEntries] = useState<ETFTrackingEntry[] | null>(null);
+  const [data, setData] = useState<TrackingData | null>(null);
+
+  const currentKey = `${selectedEtfCode ?? ''}|${trackingShowOpen ? 'open' : 'all'}`;
 
   useEffect(() => {
-    setEntries(null);
+    let cancelled = false;
     const qs = new URLSearchParams();
     if (selectedEtfCode) qs.set('etfCode', selectedEtfCode);
     if (trackingShowOpen) qs.set('open', 'true');
     fetch(`/api/etf/tracking?${qs.toString()}`)
       .then((r) => r.json())
-      .then((d) => setEntries(d.entries ?? []))
-      .catch(() => setEntries([]));
-  }, [selectedEtfCode, trackingShowOpen]);
+      .then((d) => {
+        if (!cancelled) setData({ key: currentKey, entries: d.entries ?? [] });
+      })
+      .catch(() => {
+        if (!cancelled) setData({ key: currentKey, entries: [] });
+      });
+    return () => { cancelled = true; };
+  }, [selectedEtfCode, trackingShowOpen, currentKey]);
+
+  // Derived: 切換 ETF / 開關 toggle 後 data.key 不匹配 → entries=null 顯示 loading
+  const entries = data?.key === currentKey ? data.entries : null;
 
   return (
     <div className="mt-4">

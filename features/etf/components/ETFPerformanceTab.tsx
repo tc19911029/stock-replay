@@ -15,23 +15,40 @@ const PERIOD_LABELS: Record<PeriodKey, string> = {
   inception: '成立以來',
 };
 
+interface PerformanceData {
+  key: PeriodKey;
+  entries: ETFPerformanceEntry[];
+  latestDate: string;
+  message: string | null;
+}
+
 export function ETFPerformanceTab() {
   const { performancePeriod, setPerformancePeriod, setActiveTab, setSelectedEtfCode } = useETFStore();
-  const [entries, setEntries] = useState<ETFPerformanceEntry[] | null>(null);
-  const [latestDate, setLatestDate] = useState('');
-  const [message, setMessage] = useState<string | null>(null);
+  const [data, setData] = useState<PerformanceData | null>(null);
 
   useEffect(() => {
-    setEntries(null);
+    let cancelled = false;
     fetch(`/api/etf/performance?period=${performancePeriod}&top=20`)
       .then((r) => r.json())
       .then((d) => {
-        setEntries(d.entries ?? []);
-        setLatestDate(d.latestDate ?? '');
-        setMessage(d.message ?? null);
+        if (cancelled) return;
+        setData({
+          key: performancePeriod,
+          entries: d.entries ?? [],
+          latestDate: d.latestDate ?? '',
+          message: d.message ?? null,
+        });
       })
-      .catch(() => setEntries([]));
+      .catch(() => {
+        if (!cancelled) setData({ key: performancePeriod, entries: [], latestDate: '', message: null });
+      });
+    return () => { cancelled = true; };
   }, [performancePeriod]);
+
+  // Derived: 切換 period 後 data.key 不匹配 → entries=null 顯示 loading
+  const entries = data?.key === performancePeriod ? data.entries : null;
+  const latestDate = data?.key === performancePeriod ? data.latestDate : '';
+  const message = data?.key === performancePeriod ? data.message : null;
 
   return (
     <div className="mt-4">
