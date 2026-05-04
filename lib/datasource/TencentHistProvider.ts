@@ -32,6 +32,12 @@ function extractCNCode(symbol: string): string | null {
   return m ? m[1] : null;
 }
 
+/** 從 symbol 取出 SS/SZ 後綴（避免 000001.SS 上證指數誤路由到 000001.SZ 平安銀行） */
+function extractCNSuffix(symbol: string): 'SS' | 'SZ' | undefined {
+  const m = symbol.match(/\.(SS|SZ)$/i);
+  return m ? (m[1].toUpperCase() as 'SS' | 'SZ') : undefined;
+}
+
 function extractUSTicker(symbol: string): string | null {
   if (/^\d/.test(symbol)) return null;
   if (/\.(TW|TWO|SS|SZ)$/i.test(symbol)) return null;
@@ -39,8 +45,10 @@ function extractUSTicker(symbol: string): string | null {
   return null;
 }
 
-/** A 股代碼 → 騰訊格式 (sh/sz prefix) */
-function cnTencentCode(code: string): string {
+/** A 股代碼 → 騰訊格式 (sh/sz prefix)；suffix 權威，避免 000001.SS 指數誤路由 */
+function cnTencentCode(code: string, suffix?: 'SS' | 'SZ' | null): string {
+  if (suffix === 'SS') return `sh${code}`;
+  if (suffix === 'SZ') return `sz${code}`;
   return (code[0] === '6' || code[0] === '9') ? `sh${code}` : `sz${code}`;
 }
 
@@ -244,7 +252,7 @@ export class TencentHistProvider implements DataProvider {
 
     let dailyCandles: Candle[];
     if (isCN) {
-      dailyCandles = await fetchAllTencentKlines(cnTencentCode(cnCode!), startDate, endDate, true);
+      dailyCandles = await fetchAllTencentKlines(cnTencentCode(cnCode!, extractCNSuffix(symbol)), startDate, endDate, true);
     } else {
       dailyCandles = await fetchUSKlinesFromTencent(usTicker!, startDate, endDate);
     }
@@ -274,7 +282,7 @@ export class TencentHistProvider implements DataProvider {
 
     let result: Candle[];
     if (isCN) {
-      result = await fetchAllTencentKlines(cnTencentCode(cnCode!), startDate, endDate, true);
+      result = await fetchAllTencentKlines(cnTencentCode(cnCode!, extractCNSuffix(symbol)), startDate, endDate, true);
     } else {
       result = await fetchUSKlinesFromTencent(usTicker!, startDate, endDate);
     }

@@ -159,9 +159,12 @@ async function fetchTWSEQuotes(symbols: string[]): Promise<QuoteTick[]> {
 // ── 陸股即時報價（騰訊 → 東方財富 fallback）────────────────────────────────
 
 /** 騰訊一次拿 close+prevClose+name；EastMoney clist 收盤後 f2 不等於日K收盤（疑似盤後參考價），改 fallback */
-async function fetchCNTencentQuote(code: string): Promise<{ close: number; prevClose: number; name: string } | null> {
+async function fetchCNTencentQuote(code: string, suffix?: 'SS' | 'SZ'): Promise<{ close: number; prevClose: number; name: string } | null> {
   try {
-    const prefix = code[0] === '6' || code[0] === '9' ? 'sh' : 'sz';
+    // suffix 權威：避免 000001.SS 上證指數誤路由到 sz000001 平安銀行
+    const prefix = suffix === 'SS' ? 'sh'
+      : suffix === 'SZ' ? 'sz'
+      : code[0] === '6' || code[0] === '9' ? 'sh' : 'sz';
     const url = `https://qt.gtimg.cn/q=${prefix}${code}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
     const buf = await res.arrayBuffer();
@@ -186,9 +189,10 @@ async function fetchCNQuotes(symbols: string[]): Promise<QuoteTick[]> {
 
   await Promise.allSettled(symbols.map(async (sym) => {
     const code = sym.replace(/\.(SS|SZ)$/i, '');
+    const cnSuffix = /\.SS$/i.test(sym) ? 'SS' : /\.SZ$/i.test(sym) ? 'SZ' : undefined;
 
     // Tencent 優先：close 與日K收盤一致
-    const tencent = await fetchCNTencentQuote(code);
+    const tencent = await fetchCNTencentQuote(code, cnSuffix);
     if (tencent && tencent.close > 0) {
       const changePct = tencent.prevClose > 0
         ? +((tencent.close - tencent.prevClose) / tencent.prevClose * 100).toFixed(2)
@@ -204,7 +208,6 @@ async function fetchCNQuotes(symbols: string[]): Promise<QuoteTick[]> {
 
     // Fallback: EastMoney
     try {
-      const cnSuffix = /\.SS$/i.test(sym) ? 'SS' : /\.SZ$/i.test(sym) ? 'SZ' : undefined;
       const quote = await getEastMoneyQuote(code, cnSuffix);
       if (quote && quote.close > 0) {
         const prevClose = quote.prevClose ?? 0;
