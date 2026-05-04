@@ -558,7 +558,8 @@ export abstract class MarketScanner {
   }
 
   /**
-   * @deprecated 已合併到 scanOne()，保留為向下相容別名
+   * 純朱老師 SOP 掃描（minScore=0 一律輸出，由 caller 自行過濾）
+   * 內部簡寫呼叫 scanOne() 的常用組合
    */
   private scanOnePure(
     symbol: string,
@@ -935,21 +936,6 @@ export abstract class MarketScanner {
   // ══════════════════════════════════════════════════════════════════════════
   // V2 簡化版掃描：純朱老師 SOP（六條件+戒律+淘汰法）
   // ══════════════════════════════════════════════════════════════════════════
-
-  /**
-   * @deprecated 已合併到 scanOne()，保留為向下相容別名
-   */
-  private scanOneSOPOnly(
-    symbol: string,
-    rawName: string,
-    config: MarketConfig,
-    thresholds: StrategyThresholds,
-    asOfDate?: string,
-    industry?: string,
-    diag?: ScanDiagnostics,
-  ): Promise<StockScanResult | null> {
-    return this.scanOne(symbol, rawName, config, 0, thresholds, asOfDate, industry, diag);
-  }
 
   /**
    * V2 簡化版掃描入口
