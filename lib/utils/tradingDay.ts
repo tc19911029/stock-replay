@@ -146,14 +146,6 @@ export function isTradingDay(dateStr: string, market?: Market): boolean {
 }
 
 /**
- * Check if a date string (YYYY-MM-DD) falls on a trading day
- * @deprecated 請改用 isTradingDay()
- */
-export function isWeekday(dateStr: string, market?: Market): boolean {
-  return isTradingDay(dateStr, market);
-}
-
-/**
  * 計算兩個日期之間的交易日數量（不含起始日，含結束日）
  * @param from 起始日期 YYYY-MM-DD
  * @param to 結束日期 YYYY-MM-DD

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
-import { isWeekday } from '@/lib/utils/tradingDay';
+import { isTradingDay } from '@/lib/utils/tradingDay';
 import { runScanPipeline } from '@/lib/scanner/ScanPipeline';
 
 export const runtime = 'nodejs';
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 
   const { market, date, direction, mtf, force } = parsed.data;
 
-  if (!isWeekday(date, market as 'TW' | 'CN')) {
+  if (!isTradingDay(date, market as 'TW' | 'CN')) {
     return apiOk({ skipped: true, reason: 'non-trading day (weekend)', date });
   }
 

@@ -25,7 +25,7 @@ import { saveLocalCandles, batchCheckFreshness, getLocalCandleDir } from '../lib
 import { readCandleFile } from '../lib/datasource/CandleStorageAdapter';
 import { readIntradaySnapshot } from '../lib/datasource/IntradayCache';
 import { spotCheckL1 } from '../lib/datasource/L1SpotCheck';
-import { isWeekday } from '../lib/utils/tradingDay';
+import { isTradingDay } from '../lib/utils/tradingDay';
 
 const CONCURRENCY = 8;
 const BATCH_DELAY_MS = 300;
@@ -220,7 +220,7 @@ async function buildRankIndex(market: 'TW' | 'CN') {
 async function runScans(market: 'TW' | 'CN') {
   const date = getTodayDate(market);
 
-  if (!isWeekday(date, market)) {
+  if (!isTradingDay(date, market)) {
     console.log(`\n🔇 [${market}] ${date} 非交易日，跳過掃描`);
     return;
   }
