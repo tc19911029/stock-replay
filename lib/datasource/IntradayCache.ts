@@ -159,7 +159,19 @@ async function fsPut(filename: string, data: string): Promise<void> {
   const path = await import('path');
   const dir = path.join(process.cwd(), 'data');
   await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(path.join(dir, filename), data, 'utf-8');
+  // Atomic write: temp file + rename。fs.writeFile 是 truncate+write，並行寫
+  // 同一檔會發生 interleaving 造成 JSON 尾巴重複（0424 incident）；
+  // POSIX rename 是 atomic，能保證讀者只看到舊版或新版完整檔。
+  const target = path.join(dir, filename);
+  const tmp = `${target}.tmp.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}`;
+  await fs.writeFile(tmp, data, 'utf-8');
+  try {
+    await fs.rename(tmp, target);
+  } catch (err) {
+    // rename 失敗時清理 temp，避免殘留
+    try { await fs.unlink(tmp); } catch { /* ignore */ }
+    throw err;
+  }
 }
 
 async function fsGet(filename: string): Promise<string | null> {
@@ -250,7 +262,24 @@ export function isSnapshotFresh(snapshot: IntradaySnapshot | null, maxAgeMs = 12
  * TW: TWSE mis + TPEx
  * CN: EastMoney push2
  */
+const _refreshInflight = new Map<string, Promise<IntradaySnapshot>>();
+
 export async function refreshIntradaySnapshot(market: 'TW' | 'CN'): Promise<IntradaySnapshot> {
+  // Inflight 保護：避免 cron + scanner/coarse + DabanScanner 併發呼叫時
+  // 並行 fetch 全市場 + 並行寫同一檔案（0424 L2 JSON 尾巴重複根因之一）。
+  // 同一 (market) inflight 中時，後到的 caller 等同一個 promise。
+  const existing = _refreshInflight.get(market);
+  if (existing) return existing;
+  const promise = _refreshIntradaySnapshotImpl(market);
+  _refreshInflight.set(market, promise);
+  try {
+    return await promise;
+  } finally {
+    _refreshInflight.delete(market);
+  }
+}
+
+async function _refreshIntradaySnapshotImpl(market: 'TW' | 'CN'): Promise<IntradaySnapshot> {
   // 記錄嘗試時間（不論成功或失敗），讓 health API 區分 cron 沒跑 vs API 掛了
   _lastRefreshAttempt[market] = new Date().toISOString();
 
