@@ -14,6 +14,7 @@ import { readFile } from 'fs/promises';
 import path from 'path';
 import { clearCache, getCacheStats, invalidateEntry } from '@/lib/datasource/L1CandleCache';
 import { readCandleFile } from '@/lib/datasource/CandleStorageAdapter';
+import { checkAdminAuth } from '@/lib/api/adminAuth';
 
 export const runtime = 'nodejs';
 
@@ -39,6 +40,9 @@ async function readDiskRaw(symbol: string, market: 'TW' | 'CN'): Promise<{ candl
 }
 
 export async function GET(req: NextRequest) {
+  const authError = checkAdminAuth(req);
+  if (authError) return authError;
+
   const action = req.nextUrl.searchParams.get('action') ?? 'verify';
   const marketFilter = req.nextUrl.searchParams.get('market') as 'TW' | 'CN' | null;
 
@@ -125,6 +129,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const authError = checkAdminAuth(req);
+  if (authError) return authError;
+
   const action = req.nextUrl.searchParams.get('action') ?? 'clear';
 
   if (action === 'clear') {

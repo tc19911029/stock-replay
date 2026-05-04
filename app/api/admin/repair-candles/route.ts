@@ -15,6 +15,7 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
+import { checkAdminAuth } from '@/lib/api/adminAuth';
 import { readCandleFile } from '@/lib/datasource/CandleStorageAdapter';
 import { saveLocalCandles } from '@/lib/datasource/LocalCandleStore';
 import { getLastTradingDay } from '@/lib/datasource/marketHours';
@@ -41,6 +42,9 @@ interface StockInfo {
 }
 
 export async function GET(req: NextRequest) {
+  const authError = checkAdminAuth(req);
+  if (authError) return authError;
+
   const params = Object.fromEntries(new URL(req.url).searchParams);
   const parsed = querySchema.safeParse(params);
   if (!parsed.success) return apiValidationError(parsed.error);
