@@ -125,7 +125,8 @@ export async function GET(req: NextRequest) {
 
     // 嘗試取得中文名稱
     const code = symbol.replace(/\D/g, '');
-    const cnName = await getCNChineseName(code) ?? await getTWChineseName(code);
+    const cnSuffix = /\.SS$/i.test(symbol) ? 'SS' : /\.SZ$/i.test(symbol) ? 'SZ' : undefined;
+    const cnName = await getCNChineseName(code, cnSuffix) ?? await getTWChineseName(code);
     const displayName = cnName ?? data.name;
 
     return apiOk({

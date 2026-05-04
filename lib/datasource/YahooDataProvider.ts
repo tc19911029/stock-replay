@@ -18,6 +18,12 @@ function extractCNCode(symbol: string): string | null {
   return m ? m[1] : null;
 }
 
+/** 從 symbol 提取 A 股後綴（SS/SZ），用於區分指數 vs 同代碼個股 */
+function extractCNSuffix(symbol: string): 'SS' | 'SZ' | undefined {
+  const m = symbol.match(/\.(SS|SZ)$/i);
+  return m ? (m[1].toUpperCase() as 'SS' | 'SZ') : undefined;
+}
+
 /** 從 symbol 提取美股 ticker，非美股回傳 null */
 function extractUSTicker(symbol: string): string | null {
   // 美股 ticker: 純字母（1-5字母），不帶交易所後綴
@@ -150,7 +156,7 @@ async function overlayRealtimeQuote(
     const quote = twCode
       ? await getTWSEQuote(twCode)
       : cnCode
-        ? await getEastMoneyQuote(cnCode)
+        ? await getEastMoneyQuote(cnCode, extractCNSuffix(symbol))
         : await getUSStockQuote(usTicker!);
     if (!quote || quote.close <= 0) return;
 

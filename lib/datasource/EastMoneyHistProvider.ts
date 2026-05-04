@@ -38,6 +38,12 @@ function extractCNCode(symbol: string): string | null {
   return m ? m[1] : null;
 }
 
+/** 從 symbol 提取 SS / SZ suffix（小寫），非 A 股回傳 null */
+function extractCNSuffix(symbol: string): 'SS' | 'SZ' | null {
+  const m = symbol.match(/^\d{6}\.(SS|SZ)$/i);
+  return m ? (m[1].toUpperCase() as 'SS' | 'SZ') : null;
+}
+
 /** 從 symbol 提取美股 ticker，非美股回傳 null */
 function extractUSTicker(symbol: string): string | null {
   if (/^\d/.test(symbol)) return null;
@@ -46,10 +52,14 @@ function extractUSTicker(symbol: string): string | null {
   return null;
 }
 
-/** A 股代碼 → secid */
-function cnSecid(code: string): string {
+/** A 股代碼 → secid（suffix 優先，否則用首字判斷） */
+function cnSecid(code: string, suffix?: 'SS' | 'SZ' | null): string {
+  // suffix 是權威來源：000001.SS = 上證指數 (market=1)、000001.SZ = 平安銀行 (market=0)
+  // 不可只看首字判斷，否則 000001.SS 會被誤路由到 0.000001（平安銀行）
+  if (suffix === 'SS') return `1.${code}`;
+  if (suffix === 'SZ') return `0.${code}`;
   const first = code[0];
-  // 6, 9 開頭 → 上海 (market=1)；0, 3 開頭 → 深圳 (market=0)
+  // fallback：6, 9 開頭 → 上海 (market=1)；0, 3 開頭 → 深圳 (market=0)
   return first === '6' || first === '9' ? `1.${code}` : `0.${code}`;
 }
 
@@ -231,8 +241,9 @@ export class EastMoneyHistProvider implements DataProvider {
       : '20500101';
 
     // 前復權（fqt=1）用於歷史K線，保持均線連續
+    const cnSuffix = extractCNSuffix(symbol);
     const klines = cnCode
-      ? await fetchEMKlines(cnSecid(cnCode), beg, end, klt, 1)
+      ? await fetchEMKlines(cnSecid(cnCode, cnSuffix), beg, end, klt, 1)
       : await fetchUSKlines(usTicker!, beg, end, klt, 1);
 
     const candles = parseKlines(klines, !!cnCode);
@@ -267,8 +278,9 @@ export class EastMoneyHistProvider implements DataProvider {
     const end = endDate.replace(/-/g, '');
 
     // 不復權（fqt=0）用於回測前向分析
+    const cnSuffix2 = extractCNSuffix(symbol);
     const klines = cnCode
-      ? await fetchEMKlines(cnSecid(cnCode), beg, end, klt, 0)
+      ? await fetchEMKlines(cnSecid(cnCode, cnSuffix2), beg, end, klt, 0)
       : await fetchUSKlines(usTicker!, beg, end, klt, 0);
 
     const result = parseKlines(klines, !!cnCode);

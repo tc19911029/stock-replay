@@ -151,14 +151,19 @@ async function fetchTWSERange(symbol: string, startDate: string, endDate: string
 
 // ── EastMoney fetch (CN stocks) ──────────────────────────────────────────────
 
-function cnSecid(code: string): string {
+function cnSecid(code: string, suffix?: 'SS' | 'SZ' | null): string {
+  // suffix 是權威來源：000001.SS = 上證指數 (market=1)、000001.SZ = 平安銀行 (market=0)
+  // 不可只看首字判斷，否則 000001.SS 會被誤路由到 0.000001（平安銀行）
+  if (suffix === 'SS') return `1.${code}`;
+  if (suffix === 'SZ') return `0.${code}`;
   return code.startsWith('6') || code.startsWith('9') ? `1.${code}` : `0.${code}`;
 }
 
 async function fetchEMKlines(symbol: string, startDate: string, endDate: string): Promise<Candle[]> {
   const m = symbol.match(/^(\d{6})\.(SS|SZ)$/i);
   if (!m) throw new Error(`Invalid CN symbol: ${symbol}`);
-  const secid = cnSecid(m[1]);
+  const suffix = m[2].toUpperCase() as 'SS' | 'SZ';
+  const secid = cnSecid(m[1], suffix);
   const beg = startDate.replace(/-/g, '');
   const end = endDate.replace(/-/g, '');
 

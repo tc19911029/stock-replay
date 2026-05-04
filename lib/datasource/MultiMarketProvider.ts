@@ -39,6 +39,11 @@ function extractCNCode(symbol: string): string | null {
   return m ? m[1] : null;
 }
 
+function extractCNSuffix(symbol: string): 'SS' | 'SZ' | undefined {
+  const m = symbol.match(/\.(SS|SZ)$/i);
+  return m ? (m[1].toUpperCase() as 'SS' | 'SZ') : undefined;
+}
+
 function extractUSTicker(symbol: string): string | null {
   if (/^\d/.test(symbol)) return null;
   if (/\.(TW|TWO|SS|SZ)$/i.test(symbol)) return null;
@@ -132,7 +137,7 @@ export async function overlayRealtimeQuote(
     const quote = twCode
       ? ((await getTWSERealtimeIntraday()).get(twCode) ?? await getTWSEQuote(twCode))
       : cnCode
-        ? await getEastMoneyQuote(cnCode)
+        ? await getEastMoneyQuote(cnCode, extractCNSuffix(symbol))
         : await getUSStockQuote(usTicker!);
     if (!quote || quote.close <= 0) return;
 
@@ -198,7 +203,7 @@ function prefetchRealtimeQuote(
       .catch(() => null);
   }
   if (cnCode && isCNMarketOpen()) {
-    return getEastMoneyQuote(cnCode).catch(() => null);
+    return getEastMoneyQuote(cnCode, extractCNSuffix(symbol)).catch(() => null);
   }
   if (usTicker && isUSMarketOpen()) {
     return getUSStockQuote(usTicker).catch(() => null);

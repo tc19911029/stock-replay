@@ -44,22 +44,27 @@ function persistCNName(code: string, name: string): void {
  * @param code  純數字代號，例如 "603986"
  * @returns     中文公司名，若查無則回傳 null
  */
-export async function getCNChineseName(code: string): Promise<string | null> {
+export async function getCNChineseName(code: string, suffix?: 'SS' | 'SZ'): Promise<string | null> {
   // 1. 快取（動態 API 取過的最新名字優先）
-  const cacheKey = `cn:name:${code}`;
+  // 注意：suffix 不同代表不同 symbol（000001.SS 上證指數 vs 000001.SZ 平安銀行），需分開快取
+  const cacheKey = suffix ? `cn:name:${code}.${suffix}` : `cn:name:${code}`;
   const cached = globalCache.get<string>(cacheKey);
   if (cached) return cached;
 
   // 2. 靜態對照表（CN_STOCKS + 檔案快取，立即返回不打 API）
   // 大多數主板股票都在 CN_NAME_MAP，直接回傳避免 500 支股票 × 5s API timeout
-  if (CN_NAME_MAP[code]) {
+  // 帶 suffix 時跳過靜態表（因 CN_NAME_MAP 不分 SS/SZ，會誤抓股票名給指數）
+  if (!suffix && CN_NAME_MAP[code]) {
     globalCache.set(cacheKey, CN_NAME_MAP[code], 24 * 60 * 60 * 1000);
     return CN_NAME_MAP[code];
   }
 
   // 3. 東方財富 API 動態查詢（僅靜態清單查無時才打 API）
   try {
-    const secid = code.startsWith('6') ? `1.${code}` : `0.${code}`;
+    // suffix 權威：SS=上海(1.code)、SZ=深圳(0.code)。否則退回首字判斷
+    const secid = suffix === 'SS' ? `1.${code}`
+      : suffix === 'SZ' ? `0.${code}`
+      : code.startsWith('6') ? `1.${code}` : `0.${code}`;
     const url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${secid}&fields=f58&_=${Date.now()}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
     if (res.ok) {
@@ -76,7 +81,7 @@ export async function getCNChineseName(code: string): Promise<string | null> {
 
   // 4. 騰訊財經 API（備援，GBK 編碼）
   try {
-    const prefix = code.startsWith('6') ? 'sh' : 'sz';
+    const prefix = suffix === 'SS' ? 'sh' : suffix === 'SZ' ? 'sz' : code.startsWith('6') ? 'sh' : 'sz';
     const url = `https://qt.gtimg.cn/q=${prefix}${code}`;
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0' },
@@ -88,16 +93,19 @@ export async function getCNChineseName(code: string): Promise<string | null> {
       const match = text.match(/~([^~]+)~/);
       if (match?.[1] && /[一-鿿]/.test(match[1])) {
         const name = match[1];
-        CN_NAME_MAP[code] = name;
+        // 不帶 suffix 時才寫回 CN_NAME_MAP（避免指數名覆蓋同代碼股票名）
+        if (!suffix) {
+          CN_NAME_MAP[code] = name;
+          persistCNName(code, name);
+        }
         globalCache.set(cacheKey, name, 24 * 60 * 60 * 1000);
-        persistCNName(code, name);
         return name;
       }
     }
   } catch { /* 騰訊也失敗 */ }
 
-  // 5. 最後 fallback：靜態清單（可能名字過期但總比沒有好）
-  return CN_NAME_MAP[code] ?? null;
+  // 5. 最後 fallback：靜態清單（可能名字過期但總比沒有好；帶 suffix 時跳過避免錯誤）
+  return suffix ? null : (CN_NAME_MAP[code] ?? null);
 }
 
 const NAMES_CACHE_KEY = 'twse:names:all';

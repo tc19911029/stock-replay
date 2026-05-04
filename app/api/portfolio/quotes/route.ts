@@ -204,7 +204,8 @@ async function fetchCNQuotes(symbols: string[]): Promise<QuoteTick[]> {
 
     // Fallback: EastMoney
     try {
-      const quote = await getEastMoneyQuote(code);
+      const cnSuffix = /\.SS$/i.test(sym) ? 'SS' : /\.SZ$/i.test(sym) ? 'SZ' : undefined;
+      const quote = await getEastMoneyQuote(code, cnSuffix);
       if (quote && quote.close > 0) {
         const prevClose = quote.prevClose ?? 0;
         const changePct = prevClose > 0

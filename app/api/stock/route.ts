@@ -133,7 +133,8 @@ export async function GET(req: NextRequest) {
                 console.warn(`[stock] 即時報價跳過 ${symbol}: close=${q.close}, date=${(q as { date?: string }).date}, today=${today}`);
               }
             } else if (isCN) {
-              const q = await getEastMoneySingleQuote(pureCode);
+              const cnSuffix = /\.SS$/i.test(symbol) ? 'SS' : /\.SZ$/i.test(symbol) ? 'SZ' : undefined;
+              const q = await getEastMoneySingleQuote(pureCode, cnSuffix);
               if (q && q.close > 0) {
                 todayQuote = q;
               } else if (q) {
@@ -282,7 +283,8 @@ export async function GET(req: NextRequest) {
           const twName = await getTWChineseName(pureCode).catch(() => null);
           if (twName) name = twName;
         } else if (isCN) {
-          const cnName = await getCNChineseName(pureCode);
+          const cnSuffix = /\.SS$/i.test(symbol) ? 'SS' : /\.SZ$/i.test(symbol) ? 'SZ' : undefined;
+          const cnName = await getCNChineseName(pureCode, cnSuffix);
           if (cnName) name = cnName;
         }
         const indexName = INDEX_NAMES[candidates[0].toUpperCase()];
@@ -357,7 +359,8 @@ export async function GET(req: NextRequest) {
       const twName = await getTWChineseName(pureCode).catch(() => null);
       if (twName) name = twName;
     } else if (isCN) {
-      const cnName = await getCNChineseName(pureCode);
+      const cnSuffix = /\.SS$/i.test(symbol) ? 'SS' : /\.SZ$/i.test(symbol) ? 'SZ' : undefined;
+      const cnName = await getCNChineseName(pureCode, cnSuffix);
       if (cnName) name = cnName;
     }
     const indexName = INDEX_NAMES[ticker.toUpperCase()];

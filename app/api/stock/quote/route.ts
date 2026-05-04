@@ -24,8 +24,11 @@ export async function GET(req: NextRequest) {
 
   const { symbol } = parsed.data;
   const pureCode = symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
-  const isTW = /^\d{4,6}$/.test(pureCode);
-  const isCN = !isTW && /^\d{6}$/.test(pureCode);
+  // suffix 權威：.SS/.SZ → CN；.TW/.TWO → TW；無 suffix 用位數 fallback（4-5 位 TW、6 位 CN）
+  const hasCnSuffix = /\.(SS|SZ)$/i.test(symbol);
+  const hasTwSuffix = /\.(TW|TWO)$/i.test(symbol);
+  const isCN = hasCnSuffix || (!hasTwSuffix && /^\d{6}$/.test(pureCode));
+  const isTW = !isCN && (hasTwSuffix || /^\d{4,5}[A-Za-z]?$/.test(pureCode));
   const market = isCN ? 'CN' : (isTW ? 'TW' : null);
 
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
@@ -56,7 +59,8 @@ export async function GET(req: NextRequest) {
   // ── CN ──
   if (isCN) {
     try {
-      const q = await getEastMoneySingleQuote(pureCode);
+      const cnSuffix = /\.SS$/i.test(symbol) ? 'SS' : /\.SZ$/i.test(symbol) ? 'SZ' : undefined;
+      const q = await getEastMoneySingleQuote(pureCode, cnSuffix);
       if (q && q.close > 0) {
         quote = { open: q.open, high: q.high, low: q.low, close: q.close, volume: q.volume };
       }

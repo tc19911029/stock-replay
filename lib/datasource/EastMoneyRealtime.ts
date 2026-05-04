@@ -58,8 +58,15 @@ export async function getEastMoneyRealtime(): Promise<Map<string, EastMoneyQuote
 /**
  * 取得單一 A 股的即時報價
  * @param code 6 位純數字代碼（不含 .SS/.SZ）
+ * @param suffix 'SS'|'SZ'，避免 000001.SS 上證指數誤命中 cache 中 000001.SZ 平安銀行
  */
-export async function getEastMoneyQuote(code: string): Promise<EastMoneyQuote | null> {
+export async function getEastMoneyQuote(code: string, suffix?: 'SS' | 'SZ'): Promise<EastMoneyQuote | null> {
+  // 全市場快取只裝 A 股個股；若 suffix 與首字判斷不一致（指數類），改走 single API
+  const naturalSS = code[0] === '6' || code[0] === '9';
+  const suffixConsistent = suffix == null
+    || (suffix === 'SS' && naturalSS)
+    || (suffix === 'SZ' && !naturalSS);
+  if (!suffixConsistent) return getEastMoneySingleQuote(code, suffix);
   const map = await getEastMoneyRealtime();
   return map.get(code) ?? null;
 }
@@ -69,15 +76,26 @@ export async function getEastMoneyQuote(code: string): Promise<EastMoneyQuote | 
  * 先查 memory cache，命中就 O(1)；miss 則用 push2 API 單股查詢
  * 避免為了 1 檔走圖而拉全市場 4000 檔報價
  */
-export async function getEastMoneySingleQuote(code: string): Promise<EastMoneyQuote | null> {
-  // 先查全市場快取
-  const cached = globalCache.get<Map<string, EastMoneyQuote>>(CN_CACHE_KEY);
-  if (cached) return cached.get(code) ?? null;
+export async function getEastMoneySingleQuote(code: string, suffix?: 'SS' | 'SZ'): Promise<EastMoneyQuote | null> {
+  // 先查全市場快取（cache 用純 code 為 key，不含 suffix）
+  // 全市場快取只裝 A 股個股；若 caller 指定 suffix 且與首字判斷不一致（典型：000001.SS 上證指數），
+  // 直接跳過 cache 改走 single API，避免誤回 000001.SZ 平安銀行的報價
+  const naturalSS = code[0] === '6' || code[0] === '9';
+  const suffixConsistent = suffix == null
+    || (suffix === 'SS' && naturalSS)
+    || (suffix === 'SZ' && !naturalSS);
+  if (suffixConsistent) {
+    const cached = globalCache.get<Map<string, EastMoneyQuote>>(CN_CACHE_KEY);
+    if (cached) return cached.get(code) ?? null;
+  }
 
   // 快取 miss：只查這一檔
   try {
-    // 判斷市場：6/9 開頭 = 上海(m:1)，其他 = 深圳(m:0)
-    const secId = code[0] === '6' || code[0] === '9' ? `1.${code}` : `0.${code}`;
+    // suffix 是權威來源（避免 000001.SS 上證指數 vs 000001.SZ 平安銀行誤判）
+    // 否則 fallback：6/9 開頭 = 上海(m:1)、其他 = 深圳(m:0)
+    const secId = suffix === 'SS' ? `1.${code}`
+      : suffix === 'SZ' ? `0.${code}`
+      : code[0] === '6' || code[0] === '9' ? `1.${code}` : `0.${code}`;
     // push2 會 302 redirect 到 push2delay；同時帶 live (f2/f15-f17) 與 delay (f43-f60) 欄位，哪邊有資料就用哪邊
     const fields = 'f2,f5,f12,f14,f15,f16,f17,f43,f44,f45,f46,f47,f60';
     const url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${secId}&fields=${fields}&ut=fa5fd1943c7b386f172d6893dbfba10b`;
