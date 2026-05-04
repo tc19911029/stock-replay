@@ -2,29 +2,10 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
   StrategyConfig,
-  StrategyThresholds,
   BUILT_IN_STRATEGIES,
   ZHU_PURE_BOOK,
   clampThresholds,
 } from '@/lib/strategy/StrategyConfig';
-
-/** @deprecated Use StrategyThresholds from StrategyConfig instead */
-export type StrategyParams = Pick<
-  StrategyThresholds,
-  'kdMaxEntry' | 'deviationMax' | 'volumeRatioMin' | 'upperShadowMax' | 'minScore' | 'marketTrendFilter' | 'bullMinScore' | 'sidewaysMinScore' | 'bearMinScore'
->;
-
-export const DEFAULT_STRATEGY: StrategyParams = {
-  kdMaxEntry: 88,
-  deviationMax: 0.20,
-  volumeRatioMin: 1.5,
-  upperShadowMax: 0.20,
-  minScore: 4,
-  marketTrendFilter: true,
-  bullMinScore: 4,
-  sidewaysMinScore: 5,
-  bearMinScore: 6,
-};
 
 /** 漲跌色彩主題：asia = 紅漲綠跌（台灣/大陸），western = 綠漲紅跌（歐美） */
 export type ColorTheme = 'asia' | 'western';
@@ -34,18 +15,13 @@ interface SettingsStore {
   notifyMinScore: number;
   colorTheme: ColorTheme;
   stopLossPercent: number;
-  strategy: StrategyParams;
-  // 策略版本管理
+  // 策略版本管理（書本門檻寫死於 StrategyConfig，UI 不再開放編輯）
   activeStrategyId: string;
   customStrategies: StrategyConfig[];
   setNotifyEmail: (email: string) => void;
   setNotifyMinScore: (score: number) => void;
   setColorTheme: (theme: ColorTheme) => void;
   setStopLossPercent: (pct: number) => void;
-  /** @deprecated Use getActiveStrategy().thresholds instead */
-  setStrategy: (params: Partial<StrategyParams>) => void;
-  /** @deprecated Use getActiveStrategy().thresholds instead */
-  resetStrategy: () => void;
   // 策略版本管理 actions
   setActiveStrategy: (id: string) => void;
   addCustomStrategy: (s: StrategyConfig) => void;
@@ -61,7 +37,6 @@ export const useSettingsStore = create<SettingsStore>()(
       notifyMinScore: 5,
       colorTheme: 'asia' as ColorTheme,
       stopLossPercent: 7,
-      strategy: DEFAULT_STRATEGY,
       activeStrategyId: 'zhu-pure-book',
       customStrategies: [],
       setNotifyEmail: (email) => set({ notifyEmail: email }),
@@ -77,8 +52,6 @@ export const useSettingsStore = create<SettingsStore>()(
         }
       },
       setStopLossPercent: (pct) => set({ stopLossPercent: Math.max(1, Math.min(20, pct)) }),
-      setStrategy: (params) => set(s => ({ strategy: { ...s.strategy, ...params } })),
-      resetStrategy: () => set({ strategy: DEFAULT_STRATEGY }),
       setActiveStrategy: (id) => {
         set({ activeStrategyId: id });
         // 同步寫 server，讓 cron / ScanPipeline 使用同一套策略

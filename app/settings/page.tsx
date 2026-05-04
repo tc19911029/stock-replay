@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -9,8 +9,85 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
+interface ActiveStrategySnapshot {
+  id: string;
+  name: string;
+  thresholds: {
+    deviationMax: number;
+    volumeRatioMin: number;
+    kdMaxEntry: number;
+    upperShadowMax: number;
+    minScore: number;
+    bullMinScore?: number;
+    sidewaysMinScore?: number;
+    bearMinScore?: number;
+    marketTrendFilter?: boolean;
+  };
+}
+
+function ActiveStrategyCard() {
+  const [active, setActive] = useState<ActiveStrategySnapshot | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/strategy/active')
+      .then(r => r.json())
+      .then(json => {
+        if (!alive) return;
+        if (!json.ok) { setError('讀取失敗'); return; }
+        setActive({ id: json.strategyId, name: json.name, thresholds: json.thresholds });
+      })
+      .catch(() => alive && setError('讀取失敗'));
+    return () => { alive = false; };
+  }, []);
+
+  return (
+    <div className="bg-secondary border border-border rounded-xl p-4 space-y-3">
+      <div>
+        <h2 className="text-sm font-bold text-foreground/90 mb-0.5">🎯 選股策略</h2>
+        <p className="text-xs text-muted-foreground">
+          所有條件 / 戒律 / 淘汰法均依寶典 2024，不開放 UI 調整以避免偏離書本（CLAUDE.md Rule 5）
+        </p>
+      </div>
+      {error && <div className="text-xs text-bear">{error}</div>}
+      {active && (
+        <>
+          <div className="text-xs text-foreground/90">
+            目前生效：<span className="font-bold text-blue-400">{active.name}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] font-mono">
+            <Row label="MA20 乖離上限" value={`${(active.thresholds.deviationMax * 100).toFixed(0)}%`} />
+            <Row label="量比門檻" value={`${active.thresholds.volumeRatioMin.toFixed(1)}x`} />
+            <Row label="KD 進場上限" value={active.thresholds.kdMaxEntry >= 100 ? '不限' : String(active.thresholds.kdMaxEntry)} />
+            <Row label="上影線上限" value={active.thresholds.upperShadowMax >= 1 ? '不限' : `${(active.thresholds.upperShadowMax * 100).toFixed(0)}%`} />
+            <Row label="最低分" value={`${active.thresholds.minScore}/6`} />
+            <Row label="大盤趨勢過濾" value={active.thresholds.marketTrendFilter ? '開' : '關'} />
+            {active.thresholds.marketTrendFilter && (
+              <Row
+                label="多/盤/空門檻"
+                value={`${active.thresholds.bullMinScore ?? '-'}/${active.thresholds.sidewaysMinScore ?? '-'}/${active.thresholds.bearMinScore ?? '-'}`}
+                colSpan={2}
+              />
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Row({ label, value, colSpan }: { label: string; value: string; colSpan?: number }) {
+  return (
+    <div className={`flex justify-between ${colSpan === 2 ? 'col-span-2' : ''}`}>
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-foreground/90 font-bold">{value}</span>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
-  const { notifyEmail, notifyMinScore, setNotifyEmail, setNotifyMinScore, strategy, setStrategy, resetStrategy, colorTheme, setColorTheme, stopLossPercent, setStopLossPercent } = useSettingsStore();
+  const { notifyEmail, notifyMinScore, setNotifyEmail, setNotifyMinScore, colorTheme, setColorTheme, stopLossPercent, setStopLossPercent } = useSettingsStore();
   const [emailInput, setEmailInput] = useState(notifyEmail);
   const [testLoading, setTestLoading] = useState(false);
 
@@ -89,124 +166,8 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Strategy Parameters */}
-        <div className="bg-secondary border border-border rounded-xl p-4 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-bold text-foreground/90 mb-0.5">🎯 選股策略參數</h2>
-              <p className="text-xs text-muted-foreground">調整六大條件的判斷門檻（朱老師預設值）</p>
-            </div>
-            <Button onClick={resetStrategy} variant="secondary" size="xs">
-              重設預設
-            </Button>
-          </div>
-
-          {/* KD上限 */}
-          <div className="space-y-1.5">
-            <div className="flex justify-between text-xs">
-              <Tooltip>
-                <TooltipTrigger className="text-foreground/80 cursor-help">KD 進場上限 <span className="text-muted-foreground/60">ⓘ</span></TooltipTrigger>
-                <TooltipContent side="bottom" align="start" className="max-w-[14rem] text-[10px]">
-                  KD 指標衡量股價超買/超賣程度。數值越低表示只在 KD 較低（未超買）時才進場，更保守。常見設定：短線 70-80、保守 60-65。
-                </TooltipContent>
-              </Tooltip>
-              <span className="text-blue-400 font-mono font-bold">{strategy.kdMaxEntry}</span>
-            </div>
-            <input type="range" min={60} max={95} step={1}
-              value={strategy.kdMaxEntry}
-              onChange={e => setStrategy({ kdMaxEntry: +e.target.value })}
-              className="w-full h-1.5 rounded-full accent-blue-500 bg-muted" />
-            <div className="flex justify-between text-[10px] text-muted-foreground">
-              <span>60（保守）</span><span>95（寬鬆）</span>
-            </div>
-          </div>
-
-          {/* 乖離上限 */}
-          <div className="space-y-1.5">
-            <div className="flex justify-between text-xs">
-              <Tooltip>
-                <TooltipTrigger className="text-foreground/80 cursor-help">MA20 乖離上限 <span className="text-muted-foreground/60">ⓘ</span></TooltipTrigger>
-                <TooltipContent side="bottom" align="start" className="max-w-[14rem] text-[10px]">
-                  乖離率 = 股價偏離20日均線的程度。乖離越大，表示短線漲太多，回檔風險越高。設 15% 表示漲超過15%就不進場。
-                </TooltipContent>
-              </Tooltip>
-              <span className="text-blue-400 font-mono font-bold">{(strategy.deviationMax * 100).toFixed(0)}%</span>
-            </div>
-            <input type="range" min={10} max={35} step={1}
-              value={Math.round(strategy.deviationMax * 100)}
-              onChange={e => setStrategy({ deviationMax: +e.target.value / 100 })}
-              className="w-full h-1.5 rounded-full accent-blue-500 bg-muted" />
-            <div className="flex justify-between text-[10px] text-muted-foreground">
-              <span>10%（嚴格）</span><span>35%（寬鬆）</span>
-            </div>
-          </div>
-
-          {/* 量比 */}
-          <div className="space-y-1.5">
-            <div className="flex justify-between text-xs">
-              <Tooltip>
-                <TooltipTrigger className="text-foreground/80 cursor-help">量比門檻（倍） <span className="text-muted-foreground/60">ⓘ</span></TooltipTrigger>
-                <TooltipContent side="bottom" align="start" className="max-w-[14rem] text-[10px]">
-                  量比 = 今日成交量 ÷ 近期平均成交量。1.5x 表示今天的量是平常的1.5倍，代表有資金關注。設越高越嚴格。
-                </TooltipContent>
-              </Tooltip>
-              <span className="text-blue-400 font-mono font-bold">{strategy.volumeRatioMin.toFixed(1)}x</span>
-            </div>
-            <input type="range" min={10} max={30} step={1}
-              value={Math.round(strategy.volumeRatioMin * 10)}
-              onChange={e => setStrategy({ volumeRatioMin: +e.target.value / 10 })}
-              className="w-full h-1.5 rounded-full accent-blue-500 bg-muted" />
-            <div className="flex justify-between text-[10px] text-muted-foreground">
-              <span>1.0x（寬鬆）</span><span>3.0x（嚴格）</span>
-            </div>
-          </div>
-
-          {/* 最低分數 */}
-          <div className="space-y-1.5">
-            <div className="flex justify-between text-xs">
-              <span className="text-foreground/80">最低六大條件分數</span>
-              <span className="text-blue-400 font-mono font-bold">{strategy.minScore}/6</span>
-            </div>
-            <div className="flex gap-2">
-              {[3, 4, 5, 6].map(n => (
-                <Button key={n} onClick={() => setStrategy({ minScore: n })} size="sm"
-                  variant={strategy.minScore === n ? 'default' : 'secondary'}
-                  className={`flex-1 font-bold ${strategy.minScore === n ? 'bg-blue-600 hover:bg-blue-500' : ''}`}>
-                  {n}分
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          {/* P2-3: 大盤多空過濾器 */}
-          <div className="pt-1 border-t border-border/50 space-y-2">
-            <div className="flex items-center justify-between">
-              <Tooltip>
-                <TooltipTrigger className="text-xs text-foreground/80 cursor-help">
-                  大盤趨勢自動調分 <span className="text-muted-foreground/60">ⓘ</span>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" align="start" className="max-w-[16rem] text-[10px]">
-                  開啟後，掃描時自動依大盤狀態提高門檻：多頭維持標準、盤整+1分、空頭要求6/6。防止大盤空頭期間全力做多（朱老師：順勢而為）。
-                </TooltipContent>
-              </Tooltip>
-              <button
-                onClick={() => setStrategy({ marketTrendFilter: !strategy.marketTrendFilter })}
-                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${strategy.marketTrendFilter ? 'bg-blue-600' : 'bg-muted'}`}
-                role="switch"
-                aria-checked={strategy.marketTrendFilter}
-              >
-                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${strategy.marketTrendFilter ? 'translate-x-4' : 'translate-x-1'}`} />
-              </button>
-            </div>
-            {strategy.marketTrendFilter && (
-              <div className="flex gap-2 text-[10px] text-muted-foreground pl-1">
-                <span className="text-bull">多頭 ≥{strategy.bullMinScore}分</span>
-                <span className="text-yellow-400">盤整 ≥{strategy.sidewaysMinScore}分</span>
-                <span className="text-bear">空頭 ≥{strategy.bearMinScore}分</span>
-              </div>
-            )}
-          </div>
-        </div>
+        {/* Active strategy (read-only — 朱家泓純書本版固定，不再開放 UI 調整) */}
+        <ActiveStrategyCard />
 
         {/* Stop-loss setting */}
         <div className="bg-secondary border border-border rounded-xl p-4 space-y-3">
