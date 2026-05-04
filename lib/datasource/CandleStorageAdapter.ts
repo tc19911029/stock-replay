@@ -56,11 +56,24 @@ import path from 'path';
 
 const DATA_ROOT = path.join(process.cwd(), 'data', 'candles');
 
+// 合法 symbol 格式：4-6 位數字 + 可選 .TW / .TWO / .SS / .SZ 後綴，或 ^TWII 等指數
+// 拒絕包含 / \ .. 等 path-traversal 字元的 symbol，避免 user-supplied symbol
+// 透過 watchlist/price-at 等 endpoint 讀取 DATA_ROOT 外的檔案。
+const SYMBOL_RE = /^(?:\^[A-Za-z0-9]+|[A-Za-z0-9]{1,8}(?:\.[A-Za-z]{1,4})?)$/;
+
+function assertSafeSymbol(symbol: string): void {
+  if (!SYMBOL_RE.test(symbol)) {
+    throw new Error(`invalid symbol format: ${JSON.stringify(symbol)}`);
+  }
+}
+
 function localPath(symbol: string, market: 'TW' | 'CN'): string {
+  assertSafeSymbol(symbol);
   return path.join(DATA_ROOT, market, `${symbol}.json`);
 }
 
 function blobKey(symbol: string, market: 'TW' | 'CN'): string {
+  assertSafeSymbol(symbol);
   return `candles/${market}/${symbol}.json`;
 }
 
