@@ -157,21 +157,10 @@ async function blobGet(pathname: string): Promise<string | null> {
 async function fsPut(filename: string, data: string): Promise<void> {
   const { promises: fs } = await import('fs');
   const path = await import('path');
+  const { atomicFsPut } = await import('@/lib/storage/atomicFsPut');
   const dir = path.join(process.cwd(), 'data');
   await fs.mkdir(dir, { recursive: true });
-  // Atomic write: temp file + rename。fs.writeFile 是 truncate+write，並行寫
-  // 同一檔會發生 interleaving 造成 JSON 尾巴重複（0424 incident）；
-  // POSIX rename 是 atomic，能保證讀者只看到舊版或新版完整檔。
-  const target = path.join(dir, filename);
-  const tmp = `${target}.tmp.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}`;
-  await fs.writeFile(tmp, data, 'utf-8');
-  try {
-    await fs.rename(tmp, target);
-  } catch (err) {
-    // rename 失敗時清理 temp，避免殘留
-    try { await fs.unlink(tmp); } catch { /* ignore */ }
-    throw err;
-  }
+  await atomicFsPut(path.join(dir, filename), data);
 }
 
 async function fsGet(filename: string): Promise<string | null> {

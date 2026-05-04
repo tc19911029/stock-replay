@@ -42,8 +42,9 @@ export async function saveCapitalFlowCN(
       access: 'private', addRandomSuffix: false, allowOverwrite: true,
     });
   } else {
+    const { atomicFsPut } = await import('./atomicFsPut');
     await fs.mkdir(DATA_DIR, { recursive: true });
-    await fs.writeFile(localPath(date), data);
+    await atomicFsPut(localPath(date), data);
   }
 }
 

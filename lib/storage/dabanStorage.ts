@@ -7,9 +7,10 @@ const IS_VERCEL = !!process.env.VERCEL;
 async function fsPut(filename: string, data: string): Promise<void> {
   const { promises: fs } = await import('fs');
   const path = await import('path');
+  const { atomicFsPut } = await import('./atomicFsPut');
   const dir = path.join(process.cwd(), 'data');
   await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(path.join(dir, filename), data, 'utf-8');
+  await atomicFsPut(path.join(dir, filename), data);
 }
 
 async function fsGet(filename: string): Promise<string | null> {

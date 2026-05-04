@@ -50,7 +50,7 @@ import { getFromCache, updateCache, triggerPreload } from './L1CandleCache';
 
 // ── Filesystem helpers ───────────────────────────────────────────────────────
 
-import { readFile, writeFile, mkdir } from 'fs/promises';
+import { readFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 
@@ -167,11 +167,12 @@ export async function writeCandleFile(
 
   // 也嘗試寫本地（Vercel warm instance 可用；本地開發主要路徑）
   try {
+    const { atomicFsPut } = await import('@/lib/storage/atomicFsPut');
     const dir = path.join(DATA_ROOT, market);
     if (!existsSync(dir)) {
       await mkdir(dir, { recursive: true });
     }
-    await writeFile(localPath(symbol, market), json, 'utf-8');
+    await atomicFsPut(localPath(symbol, market), json);
   } catch {
     // Vercel 部署目錄可能是只讀的，忽略
   }

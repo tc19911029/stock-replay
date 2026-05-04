@@ -60,10 +60,11 @@ async function blobListPrefix(prefix: string): Promise<Array<{ pathname: string;
 async function fsPut(filename: string, data: string): Promise<void> {
   const { promises: fs } = await import('fs');
   const path = await import('path');
+  const { atomicFsPut } = await import('./atomicFsPut');
   const dir = path.join(process.cwd(), 'data');
   await fs.mkdir(dir, { recursive: true });
   const fullPath = path.join(dir, filename);
-  await fs.writeFile(fullPath, data, 'utf-8');
+  await atomicFsPut(fullPath, data);
   // 寫入驗證：避免「掃完了卻沒檔」靜默失敗（2026-04-17 加）
   const stat = await fs.stat(fullPath).catch(() => null);
   if (!stat || stat.size === 0) {

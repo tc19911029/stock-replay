@@ -43,8 +43,9 @@ export async function saveInstitutionalTW(
       allowOverwrite: true,
     });
   } else {
+    const { atomicFsPut } = await import('./atomicFsPut');
     await fs.mkdir(DATA_DIR, { recursive: true });
-    await fs.writeFile(localPath(date), data);
+    await atomicFsPut(localPath(date), data);
   }
 }
 
