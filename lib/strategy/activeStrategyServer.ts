@@ -64,8 +64,9 @@ async function writeRaw(data: string): Promise<void> {
       allowOverwrite: true,
     });
   } else {
+    const { atomicFsPut } = await import('@/lib/storage/atomicFsPut');
     await fs.mkdir(DATA_DIR, { recursive: true });
-    await fs.writeFile(LOCAL_FILE, data);
+    await atomicFsPut(LOCAL_FILE, data);
   }
 }
 

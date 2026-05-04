@@ -68,8 +68,9 @@ async function writeJSON(blobKey: string, localFile: string, payload: unknown): 
     const { put } = await import('@vercel/blob');
     await put(blobKey, data, { access: 'public', addRandomSuffix: false, allowOverwrite: true });
   } else {
+    const { atomicFsPut } = await import('@/lib/storage/atomicFsPut');
     await fs.mkdir(path.dirname(localFile), { recursive: true });
-    await fs.writeFile(localFile, data);
+    await atomicFsPut(localFile, data);
   }
 }
 

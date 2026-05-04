@@ -59,7 +59,8 @@ export async function writeInstStock(
     updatedAt: new Date().toISOString(),
     data: merged,
   };
-  await fs.writeFile(path.join(INST_DIR, `${code}.json`), JSON.stringify(file), 'utf8');
+  const { atomicFsPut } = await import('@/lib/storage/atomicFsPut');
+  await atomicFsPut(path.join(INST_DIR, `${code}.json`), JSON.stringify(file));
   return file;
 }
 
@@ -104,7 +105,8 @@ export async function appendTdccDay(
     updatedAt: new Date().toISOString(),
     data: merged,
   };
-  await fs.writeFile(path.join(TDCC_DIR, `${code}.json`), JSON.stringify(file), 'utf8');
+  const { atomicFsPut } = await import('@/lib/storage/atomicFsPut');
+  await atomicFsPut(path.join(TDCC_DIR, `${code}.json`), JSON.stringify(file));
 }
 
 // ── CN 主力資金（EastMoney FFlow，每股一檔）─────────────────────────────────
@@ -143,7 +145,8 @@ export async function writeCnFlowStock(
     updatedAt: new Date().toISOString(),
     data: merged,
   };
-  await fs.writeFile(path.join(CN_FLOW_DIR, `${code}.json`), JSON.stringify(file), 'utf8');
+  const { atomicFsPut } = await import('@/lib/storage/atomicFsPut');
+  await atomicFsPut(path.join(CN_FLOW_DIR, `${code}.json`), JSON.stringify(file));
   return file;
 }
 

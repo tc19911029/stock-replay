@@ -63,8 +63,9 @@ async function writeIndexRaw(market: 'TW' | 'CN', data: string): Promise<void> {
       allowOverwrite: true,
     });
   } else {
+    const { atomicFsPut } = await import('@/lib/storage/atomicFsPut');
     await fs.mkdir(INDEX_DIR, { recursive: true });
-    await fs.writeFile(path.join(INDEX_DIR, `${market}.json`), data);
+    await atomicFsPut(path.join(INDEX_DIR, `${market}.json`), data);
   }
 }
 

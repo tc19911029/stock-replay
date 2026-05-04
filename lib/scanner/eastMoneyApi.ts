@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir } from 'fs/promises';
+import { readFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 import { StockEntry } from './MarketScanner';
@@ -34,7 +34,8 @@ async function saveCachedStockList(stocks: StockEntry[]): Promise<void> {
     const dir = path.dirname(STOCKLIST_CACHE_PATH);
     if (!existsSync(dir)) await mkdir(dir, { recursive: true });
     const cache: StockListCache = { updatedAt: new Date().toISOString(), stocks };
-    await writeFile(STOCKLIST_CACHE_PATH, JSON.stringify(cache), 'utf-8');
+    const { atomicFsPut } = await import('@/lib/storage/atomicFsPut');
+    await atomicFsPut(STOCKLIST_CACHE_PATH, JSON.stringify(cache));
   } catch { /* 寫入失敗不影響主流程 */ }
 }
 

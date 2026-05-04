@@ -5,7 +5,7 @@
  * 用途: 掃描前快速判斷本地資料覆蓋率，不需逐檔檢查
  */
 
-import { readFile, writeFile, mkdir } from 'fs/promises';
+import { readFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 
@@ -34,7 +34,8 @@ export async function saveDownloadManifest(
     await mkdir(MANIFEST_DIR, { recursive: true });
   }
   const manifest = { ...data, timestamp: new Date().toISOString() };
-  await writeFile(getManifestPath(market, date), JSON.stringify(manifest), 'utf-8');
+  const { atomicFsPut } = await import('@/lib/storage/atomicFsPut');
+  await atomicFsPut(getManifestPath(market, date), JSON.stringify(manifest));
 }
 
 export async function loadDownloadManifest(

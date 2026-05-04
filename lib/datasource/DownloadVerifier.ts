@@ -97,12 +97,13 @@ async function saveReportToBlob(report: VerifyReport): Promise<void> {
 
   // 也存本地（開發環境 + Vercel warm instance）
   try {
-    const { writeFile, mkdir } = await import('fs/promises');
+    const { mkdir } = await import('fs/promises');
     const { existsSync } = await import('fs');
     const path = await import('path');
+    const { atomicFsPut } = await import('@/lib/storage/atomicFsPut');
     const dir = path.join(process.cwd(), 'data', 'reports');
     if (!existsSync(dir)) await mkdir(dir, { recursive: true });
-    await writeFile(path.join(dir, `verify-${report.market}-${report.date}.json`), json, 'utf-8');
+    await atomicFsPut(path.join(dir, `verify-${report.market}-${report.date}.json`), json);
   } catch { /* 只讀環境跳過 */ }
 }
 
