@@ -9,11 +9,10 @@ export const runtime = 'nodejs';
 export const maxDuration = 300;
 
 export async function GET(req: NextRequest) {
-  // TEMP bypass for local dev
-  // const authHeader = req.headers.get('authorization');
-  // if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-  //   return apiError('Unauthorized', 401);
-  // }
+  const authHeader = req.headers.get('authorization');
+  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return apiError('Unauthorized', 401);
+  }
 
   const market = (req.nextUrl.searchParams.get('market') ?? 'TW') as MarketId;
   if (market !== 'TW' && market !== 'CN') {
