@@ -398,115 +398,13 @@ function DatePicker({
 }
 
 // ── 主元件 ────────────────────────────────────────────────────────────
+//
+// 設計筆記：ETF 切換的所有 state 重置都靠「key={selectedEtfCode ?? 'ALL'}」
+// 強制 ETFChangesContent 子元件 unmount/remount 處理，子元件 effect body 不
+// 需要同步呼叫 setState reset（避免 React 19 set-state-in-effect 違規 +
+// cascading renders）。
 export function ETFChangesTab() {
   const { selectedEtfCode, setSelectedEtfCode } = useETFStore();
-
-  // diff state
-  const [changes, setChanges] = useState<ETFChange[] | null>(null);
-  const [availableDates, setAvailableDates] = useState<string[]>([]);
-  const [toDate, setToDate] = useState<string | null>(null);
-
-  // fromDate 自動為 toDate 的前一個快照日
-  const fromDate = (() => {
-    if (!toDate || availableDates.length < 2) return null;
-    const idx = availableDates.indexOf(toDate);
-    return idx >= 0 && idx < availableDates.length - 1 ? availableDates[idx + 1] : null;
-  })();
-
-  // snapshot state
-  const [holdings, setHoldings] = useState<ETFHolding[] | null>(null);
-  const [disclosureDate, setDisclosureDate] = useState<string | null>(null);
-
-  // strategy signals state
-  const [strategyMap, setStrategyMap] = useState<Record<string, HoldingWithStrategies> | null>(null);
-  const [strategyLoading, setStrategyLoading] = useState(false);
-
-  // refs to prevent redundant fetches when we programmatically set toDate
-  const prevEtfCodeRef = useRef<string | null | undefined>(undefined);
-  const autoSkipRef = useRef(false); // true when toDate was set by us (not the user)
-
-  // Unified fetch effect: handles both ETF switch and user date selection in one pass.
-  // On ETF switch: fetch without toDate (let API pick default), mark the subsequent
-  // programmatic setToDate calls to skip re-fetch via autoSkipRef.
-  useEffect(() => {
-    const etfJustChanged = prevEtfCodeRef.current !== selectedEtfCode;
-    prevEtfCodeRef.current = selectedEtfCode;
-
-    // Skip re-renders caused by our own setToDate calls (programmatic, not user-driven)
-    if (autoSkipRef.current && !etfJustChanged) {
-      autoSkipRef.current = false;
-      return;
-    }
-
-    setChanges(null);
-
-    let effectiveDate: string | null;
-    if (etfJustChanged) {
-      setAvailableDates([]);
-      setStrategyMap(null);
-      // Reset date picker immediately; mark as auto so the null→null re-render is skipped
-      autoSkipRef.current = true;
-      setToDate(null);
-      effectiveDate = null; // always fetch the API default on ETF switch
-    } else {
-      autoSkipRef.current = false;
-      effectiveDate = toDate;
-    }
-
-    const qs = new URLSearchParams();
-    if (selectedEtfCode) qs.set('etfCode', selectedEtfCode);
-    if (effectiveDate) qs.set('toDate', effectiveDate);
-
-    fetch(`/api/etf/changes?${qs.toString()}`)
-      .then(r => r.json())
-      .then(d => {
-        setChanges(d.changes ?? []);
-        if (d.availableDates?.length) {
-          setAvailableDates(d.availableDates);
-          if (!effectiveDate) {
-            const defaultDate = d.date ?? (d.availableDates as string[] | undefined)?.[0];
-            if (defaultDate) {
-              autoSkipRef.current = true; // skip the re-fetch triggered by setToDate
-              setToDate(defaultDate);
-            }
-          }
-        }
-      })
-      .catch(() => setChanges([]));
-  }, [selectedEtfCode, toDate]);
-
-  // fetch snapshot
-  useEffect(() => {
-    setHoldings(null);
-    setDisclosureDate(null);
-    setStrategyMap(null);
-    if (!selectedEtfCode) return;
-
-    fetch(`/api/etf/snapshot/${selectedEtfCode}`)
-      .then(r => r.json())
-      .then(d => {
-        setHoldings(d.snapshot?.holdings ?? null);
-        setDisclosureDate(d.snapshot?.disclosureDate ?? null);
-      })
-      .catch(() => setHoldings(null));
-  }, [selectedEtfCode]);
-
-  // auto-load strategy signals once holdings are ready
-  useEffect(() => {
-    if (!selectedEtfCode || !holdings || holdings.length === 0) return;
-    setStrategyLoading(true);
-    fetch(`/api/etf/holdings-conditions?etfCode=${selectedEtfCode}`)
-      .then(r => r.json())
-      .then(d => {
-        if (d.holdings) {
-          const map: Record<string, HoldingWithStrategies> = {};
-          for (const h of d.holdings) map[h.symbol] = h;
-          setStrategyMap(map);
-        }
-      })
-      .catch(() => { /* ignore */ })
-      .finally(() => setStrategyLoading(false));
-  }, [selectedEtfCode, holdings]);
 
   return (
     <div className="mt-4 space-y-4">
@@ -533,8 +431,107 @@ export function ETFChangesTab() {
         ))}
       </div>
 
+      {/* 子元件用 key reset：切 ETF → unmount → 所有 state 自動重置 */}
+      <ETFChangesContent key={selectedEtfCode ?? 'ALL'} etfCode={selectedEtfCode} />
+    </div>
+  );
+}
+
+// ── 內容元件（per-ETF 生命週期） ──────────────────────────────────────
+function ETFChangesContent({ etfCode }: { etfCode: string | null }) {
+  // diff state
+  const [changes, setChanges] = useState<ETFChange[] | null>(null);
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [toDate, setToDate] = useState<string | null>(null);
+
+  // snapshot state
+  const [holdings, setHoldings] = useState<ETFHolding[] | null>(null);
+  const [disclosureDate, setDisclosureDate] = useState<string | null>(null);
+
+  // strategy signals
+  const [strategyMap, setStrategyMap] = useState<Record<string, HoldingWithStrategies> | null>(null);
+
+  // 防止 programmatic setToDate 觸發 re-fetch
+  const autoSkipRef = useRef(false);
+
+  // fromDate 自動為 toDate 的前一個快照日
+  const fromDate = (() => {
+    if (!toDate || availableDates.length < 2) return null;
+    const idx = availableDates.indexOf(toDate);
+    return idx >= 0 && idx < availableDates.length - 1 ? availableDates[idx + 1] : null;
+  })();
+
+  // 抓 changes：mount 時無 toDate（API 用 default），user 改 toDate 後 re-fetch
+  useEffect(() => {
+    if (autoSkipRef.current) {
+      autoSkipRef.current = false;
+      return;
+    }
+
+    let cancelled = false;
+    const qs = new URLSearchParams();
+    if (etfCode) qs.set('etfCode', etfCode);
+    if (toDate) qs.set('toDate', toDate);
+
+    fetch(`/api/etf/changes?${qs.toString()}`)
+      .then(r => r.json())
+      .then(d => {
+        if (cancelled) return;
+        setChanges(d.changes ?? []);
+        if (d.availableDates?.length) {
+          setAvailableDates(d.availableDates);
+          if (!toDate) {
+            const defaultDate = d.date ?? (d.availableDates as string[] | undefined)?.[0];
+            if (defaultDate) {
+              autoSkipRef.current = true; // 跳過 setToDate 觸發的 re-fetch
+              setToDate(defaultDate);
+            }
+          }
+        }
+      })
+      .catch(() => { if (!cancelled) setChanges([]); });
+
+    return () => { cancelled = true; };
+  }, [etfCode, toDate]);
+
+  // 抓 snapshot：mount 時跑一次（etfCode 是 prop，子元件 lifetime 內不變）
+  useEffect(() => {
+    if (!etfCode) return;
+    let cancelled = false;
+    fetch(`/api/etf/snapshot/${etfCode}`)
+      .then(r => r.json())
+      .then(d => {
+        if (cancelled) return;
+        setHoldings(d.snapshot?.holdings ?? null);
+        setDisclosureDate(d.snapshot?.disclosureDate ?? null);
+      })
+      .catch(() => { if (!cancelled) setHoldings(null); });
+    return () => { cancelled = true; };
+  }, [etfCode]);
+
+  // 抓 strategy signals：holdings ready 後一次
+  useEffect(() => {
+    if (!etfCode || !holdings || holdings.length === 0) return;
+    let cancelled = false;
+    fetch(`/api/etf/holdings-conditions?etfCode=${etfCode}`)
+      .then(r => r.json())
+      .then(d => {
+        if (cancelled) return;
+        const map: Record<string, HoldingWithStrategies> = {};
+        if (d.holdings) for (const h of d.holdings) map[h.symbol] = h;
+        setStrategyMap(map);
+      })
+      .catch(() => { if (!cancelled) setStrategyMap({}); }); // 空 map = loaded but no data
+    return () => { cancelled = true; };
+  }, [etfCode, holdings]);
+
+  // strategyLoading 從 holdings ready 但 strategyMap 未 set 推導（避免 effect 同步 setState）
+  const strategyLoading = holdings != null && holdings.length > 0 && strategyMap === null;
+
+  return (
+    <>
       {/* 日期選擇器（只在單一 ETF 時顯示） */}
-      {selectedEtfCode && (
+      {etfCode && (
         <DatePicker
           availableDates={availableDates}
           toDate={toDate}
@@ -552,7 +549,7 @@ export function ETFChangesTab() {
         if (nonEmpty.length > 0) {
           return nonEmpty.map(c => <ChangeCard key={c.etfCode} change={c} />);
         }
-        if (selectedEtfCode === null) {
+        if (etfCode === null) {
           return (
             <div className="border border-dashed border-border rounded-lg p-5 text-center">
               <p className="text-sm text-muted-foreground">選擇上方 ETF 查看持股與異動</p>
@@ -572,12 +569,12 @@ export function ETFChangesTab() {
       })()}
 
       {/* 目前持股表格 */}
-      {selectedEtfCode && (
+      {etfCode && (
         holdings === null ? (
           <Skeleton className="h-64 w-full" />
         ) : holdings && holdings.length > 0 ? (
           <HoldingsTable
-            etfCode={selectedEtfCode}
+            etfCode={etfCode}
             holdings={holdings}
             disclosureDate={disclosureDate ?? '—'}
             strategyMap={strategyMap}
@@ -589,6 +586,6 @@ export function ETFChangesTab() {
           </div>
         )
       )}
-    </div>
+    </>
   );
 }
