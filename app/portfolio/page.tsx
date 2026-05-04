@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { classifyMarket } from '@/lib/market/classify';
 import { calcNetPnL, formatPrice } from '@/lib/portfolio/fees';
-import { formatPercent, bullBearClass } from '@/lib/format';
 import { formatSharesAsLots, marketFromSymbol } from '@/lib/utils/shareUnits';
 
 interface PriceData {

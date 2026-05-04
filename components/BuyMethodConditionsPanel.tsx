@@ -21,7 +21,6 @@ import { detectABCBreakout } from '@/lib/analysis/abcBreakoutEntry';
 import { detectBlackKBreakout } from '@/lib/analysis/blackKBreakoutEntry';
 import { detectKlineConsolidationBreakout } from '@/lib/analysis/klineConsolidationBreakout';
 import type { CandleWithIndicators } from '@/types';
-import { EmptyState } from '@/components/shared';
 
 type BuyMethod = 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I';
 

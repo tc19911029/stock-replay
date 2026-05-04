@@ -4,7 +4,7 @@
  * 回傳 ETF 績效排行（依 period 排序）。若快取無資料，現場用 L1 K 棒計算。
  */
 import { NextRequest } from 'next/server';
-import { apiOk, apiError } from '@/lib/api/response';
+import { apiOk } from '@/lib/api/response';
 import { getLastTradingDay } from '@/lib/datasource/marketHours';
 import { loadLocalCandles } from '@/lib/datasource/LocalCandleStore';
 import { ACTIVE_ETF_LIST } from '@/lib/etf/etfList';
