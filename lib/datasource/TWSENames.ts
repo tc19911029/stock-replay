@@ -126,11 +126,14 @@ async function buildNameMap(): Promise<NameMap> {
       { signal: AbortSignal.timeout(15000) }),
   ]);
 
+  // 代號 regex：4-5 位數字，允許尾巴帶單一字母（ETF 後綴 A/B/T 等，例如 00981A、00981T）
+  const CODE_RE = /^\d{4,5}[A-Z]?$/;
+
   // 上市股票（TWSE STOCK_DAY_ALL，僅含當日有成交的股票）
   if (listedRes.status === 'fulfilled' && listedRes.value.ok) {
     const data = await listedRes.value.json() as { Code: string; Name: string }[];
     for (const s of data) {
-      if (/^\d{4,5}$/.test(s.Code)) map[s.Code] = s.Name;
+      if (CODE_RE.test(s.Code)) map[s.Code] = s.Name;
     }
   }
 
@@ -138,7 +141,7 @@ async function buildNameMap(): Promise<NameMap> {
   if (otcRes.status === 'fulfilled' && otcRes.value.ok) {
     const data = await otcRes.value.json() as { SecuritiesCompanyCode: string; CompanyName: string }[];
     for (const s of data) {
-      if (/^\d{4,5}$/.test(s.SecuritiesCompanyCode)) {
+      if (CODE_RE.test(s.SecuritiesCompanyCode)) {
         map[s.SecuritiesCompanyCode] ??= s.CompanyName;
       }
     }

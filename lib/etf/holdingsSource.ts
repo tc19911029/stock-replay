@@ -44,7 +44,10 @@ export async function fetchHoldings(
 
 const CMONEY_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 const CMONEY_DTNO = '59449513';
-const STOCK_CODE_RE = /^\d{4,6}$/;
+/** 接受台股 4-6 位純數字、或美股 1-5 位純大寫字母（CMoney 格式：「TSLA US」→ symbol = "TSLA"） */
+const STOCK_CODE_RE = /^(?:\d{4,6}|[A-Z]{1,5})$/;
+/** 跳過現金 / 外幣現金 row（symbol 開頭為 "C_" 或為 "CASH"） */
+const CASH_ROW_RE = /^(?:C_|CASH$)/i;
 
 interface CMoneyResponse {
   Title: string[];
@@ -78,7 +81,10 @@ function parseCMoneyHoldings(rows: string[][]): ETFHolding[] {
   const holdings: ETFHolding[] = [];
   for (const r of rows) {
     // r = [date, symbol, name, weight%, shares, unit]
-    const sym = r[1];
+    // CMoney 美股回傳 "TSLA US" / "AMD US" 格式 — 取空白前的代號部分
+    const symRaw = r[1] ?? '';
+    if (CASH_ROW_RE.test(symRaw)) continue;
+    const sym = symRaw.split(/\s+/)[0];
     if (!STOCK_CODE_RE.test(sym)) continue;
     const weightStr = r[3];
     if (!weightStr) continue;

@@ -152,6 +152,10 @@ async function createTrackingEntries(
     const existing = await loadTrackingEntry(etf.etfCode, holding.symbol, date);
     if (existing) continue;
 
+    // 美股持股（純字母 symbol）目前 L1 只存台股 / 陸股，跳過建立 tracking entry
+    // 否則 priceAtAdd=0 會讓 forward perf 欄全部錯亂。未來若支援美股 L1 再開放。
+    if (!/^\d{4,6}[A-Z]?$/.test(holding.symbol)) continue;
+
     const candles = await loadLocalCandles(`${holding.symbol}.TW`, 'TW');
     let priceAtAdd = 0;
     if (candles && candles.length > 0) {

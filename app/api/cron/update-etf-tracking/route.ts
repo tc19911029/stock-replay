@@ -1,7 +1,8 @@
 /**
  * Cron：每日更新 ETF tracking entries 的 forward returns + ETF 績效快照
  *
- * 排程：週一至五 23:00 UTC（07:00 CST 隔日）
+ * 排程：週一至五 23:00 CST（vercel.json `0 15 * * 1-5` UTC = 23:00 CST 1-5）
+ * 同日 18:00 CST fetch-etf-holdings 之後跑，吃當日新建 tracking 的 D+0 進場價。
  */
 import { NextRequest } from 'next/server';
 import { apiOk, apiError } from '@/lib/api/response';

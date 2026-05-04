@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useETFStore } from '@/store/etfStore';
-import { ACTIVE_ETF_LIST } from '@/lib/etf/etfList';
+import { ACTIVE_ETF_LIST, chartLoadSymbol, shortETFName } from '@/lib/etf/etfList';
 import type { ETFTrackingEntry } from '@/lib/etf/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatPct } from '../utils/format';
@@ -55,13 +55,15 @@ export function ETFTrackingTab() {
           <button
             key={etf.etfCode}
             onClick={() => setSelectedEtfCode(etf.etfCode)}
-            className={`px-3 py-1 text-xs rounded-md font-mono transition-colors ${
+            title={etf.etfName}
+            className={`px-3 py-1 text-xs rounded-md transition-colors ${
               selectedEtfCode === etf.etfCode
                 ? 'bg-sky-500 text-white'
                 : 'bg-secondary text-muted-foreground hover:text-foreground'
             }`}
           >
-            {etf.etfCode}
+            <span className="font-mono">{etf.etfCode}</span>
+            <span className="ml-1 opacity-80">{shortETFName(etf.etfName)}</span>
           </button>
         ))}
         <span className="w-px h-4 bg-border mx-2" />
@@ -111,9 +113,12 @@ export function ETFTrackingTab() {
                 >
                   <td className="px-2 py-2 font-mono">{e.etfCode}</td>
                   <td className="px-2 py-2">
-                    <Link href={`/?load=${e.symbol}.TW`} className="font-mono hover:text-sky-400">
-                      {e.symbol}
-                    </Link>{' '}
+                    {(() => {
+                      const ls = chartLoadSymbol(e.symbol);
+                      return ls
+                        ? <Link href={`/?load=${ls}`} className="font-mono hover:text-sky-400">{e.symbol}</Link>
+                        : <span className="font-mono text-muted-foreground">{e.symbol}</span>;
+                    })()}{' '}
                     <span className="text-muted-foreground">{e.stockName}</span>
                   </td>
                   <td className="px-2 py-2">

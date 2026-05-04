@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useETFStore } from '@/store/etfStore';
+import { findETF, chartLoadSymbol } from '@/lib/etf/etfList';
 import type { ETFConsensusEntry } from '@/lib/etf/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatWeight } from '../utils/format';
@@ -15,7 +16,12 @@ interface ConsensusData {
 }
 
 export function ETFConsensusTab() {
-  const { consensusMinEtfs, setConsensusMinEtfs } = useETFStore();
+  const { consensusMinEtfs, setConsensusMinEtfs, setActiveTab, setSelectedEtfCode } = useETFStore();
+
+  const goToEtfChanges = (etfCode: string) => {
+    setSelectedEtfCode(etfCode);
+    setActiveTab('changes');
+  };
   const [data, setData] = useState<ConsensusData | null>(null);
 
   useEffect(() => {
@@ -89,11 +95,21 @@ export function ETFConsensusTab() {
               {entries.map((e) => (
                 <tr key={e.symbol} className="border-t border-border hover:bg-muted/30">
                   <td className="px-3 py-2">
-                    <Link href={`/?load=${e.symbol}.TW`} className="font-mono hover:text-sky-400">
-                      {e.symbol}
-                    </Link>
+                    {(() => {
+                      const ls = chartLoadSymbol(e.symbol);
+                      return ls
+                        ? <Link href={`/?load=${ls}`} className="font-mono hover:text-sky-400">{e.symbol}</Link>
+                        : <span className="font-mono text-muted-foreground">{e.symbol}</span>;
+                    })()}
                   </td>
-                  <td className="px-3 py-2">{e.stockName}</td>
+                  <td className="px-3 py-2">
+                    {(() => {
+                      const ls = chartLoadSymbol(e.symbol);
+                      return ls
+                        ? <Link href={`/?load=${ls}`} className="hover:text-sky-400">{e.stockName}</Link>
+                        : <span>{e.stockName}</span>;
+                    })()}
+                  </td>
                   <td className="px-3 py-2 text-center">
                     <span className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-md bg-sky-500/15 text-sky-400 text-xs font-medium">
                       {e.etfCodes.length}
@@ -106,7 +122,19 @@ export function ETFConsensusTab() {
                     )}
                   </td>
                   <td className="px-3 py-2 text-xs text-muted-foreground">
-                    {e.etfCodes.join('、')}
+                    {e.etfCodes.map((code, i) => (
+                      <span key={code}>
+                        {i > 0 && '、'}
+                        <button
+                          type="button"
+                          onClick={() => goToEtfChanges(code)}
+                          title={findETF(code)?.etfName ?? code}
+                          className="font-mono hover:text-sky-400 transition-colors"
+                        >
+                          {code}
+                        </button>
+                      </span>
+                    ))}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{formatWeight(e.avgWeight)}</td>
                   <td className="px-3 py-2 text-xs text-muted-foreground">{e.firstAddedDate}</td>

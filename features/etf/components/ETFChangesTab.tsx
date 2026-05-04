@@ -4,15 +4,13 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { RefreshCw, ChevronDown, ExternalLink } from 'lucide-react';
 import { useETFStore } from '@/store/etfStore';
-import { ACTIVE_ETF_LIST } from '@/lib/etf/etfList';
+import { ACTIVE_ETF_LIST, shortETFName, chartLoadSymbol, formatHoldingShares, formatHoldingShareDelta } from '@/lib/etf/etfList';
 import type { ETFChange, ETFHolding } from '@/lib/etf/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Calendar } from '@/components/ui/calendar';
 import { formatWeight } from '../utils/format';
-import { formatPercent, formatShares as fmtShares } from '@/lib/format';
+import { formatPercent } from '@/lib/format';
 import type { StrategySignals, HoldingWithStrategies } from '@/lib/etf/strategySignals';
-
-const formatShares = fmtShares;
 
 // ── 策略 A-F 標籤 ─────────────────────────────────────────────────────
 const STRAT_KEYS: (keyof StrategySignals)[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
@@ -27,14 +25,6 @@ const STRAT_TITLES: Record<string, string> = {
   H: '突破大量黑K',
   I: 'K線橫盤突破',
 };
-
-// ── 格式化股數變動（依大小選張/股） ──────────────────────────────────
-function fmtShareDelta(delta: number): string {
-  const abs = Math.abs(delta);
-  const sign = delta >= 0 ? '+' : '-';
-  if (abs >= 1000) return `${sign}${Math.round(abs / 1000).toLocaleString('zh-TW')}張`;
-  return `${sign}${abs.toLocaleString('zh-TW')}股`;
-}
 
 function fmtPosPct(deltaShares: number, priorShares: number): string {
   const pct = (deltaShares / priorShares) * 100;
@@ -160,8 +150,18 @@ function ChangeCard({ change }: { change: ETFChange }) {
     <div className="border border-border rounded-lg overflow-hidden mb-4">
       {/* header */}
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-muted/20">
-        <span className="font-mono text-sm font-semibold">{change.etfCode}</span>
-        <span className="text-xs text-muted-foreground">{change.etfName}</span>
+        <Link
+          href={`/?load=${change.etfCode}.TW`}
+          className="font-mono text-sm font-semibold hover:text-sky-400 transition-colors"
+        >
+          {change.etfCode}
+        </Link>
+        <Link
+          href={`/?load=${change.etfCode}.TW`}
+          className="text-xs text-muted-foreground hover:text-sky-400 transition-colors"
+        >
+          {change.etfName}
+        </Link>
       </div>
 
       {/* summary 方格 */}
@@ -197,7 +197,7 @@ function ChangeCard({ change }: { change: ETFChange }) {
         {rows.map(row => {
           const meta = ROW_TYPE_META[row.type];
           const deltaWeight = row.currentWeight - row.prevWeight;
-          const sharesDeltaStr = row.deltaShares !== undefined ? fmtShareDelta(row.deltaShares) : '—';
+          const sharesDeltaStr = row.deltaShares !== undefined ? formatHoldingShareDelta(row.deltaShares, row.symbol) : '—';
           const posPctStr = row.type === 'new' ? '+100%'
             : row.type === 'exit' ? '-100%'
             : row.deltaShares !== undefined && row.priorShares
@@ -206,12 +206,20 @@ function ChangeCard({ change }: { change: ETFChange }) {
           const weightStr = row.type === 'exit' ? '—' : `${row.currentWeight.toFixed(2)}%`;
           const weightDeltaStr = `${deltaWeight >= 0 ? '+' : ''}${deltaWeight.toFixed(2)}%`;
 
+          const loadSym = chartLoadSymbol(row.symbol);
+          const stockBlock = (
+            <>
+              <div className="text-xs text-foreground/90 truncate group-hover:underline">{row.name}</div>
+              <div className={`text-[10px] font-mono ${meta.textColor}`}>{row.symbol}</div>
+            </>
+          );
           return (
             <li key={`${row.type}-${row.symbol}`} className={`grid ${COLS} gap-x-2 px-3 py-2 border-b border-border/30 hover:bg-muted/20 items-center`}>
-              <Link href={`/?load=${row.symbol}.TW`} className="group min-w-0">
-                <div className="text-xs text-foreground/90 truncate group-hover:underline">{row.name}</div>
-                <div className={`text-[10px] font-mono ${meta.textColor}`}>{row.symbol}</div>
-              </Link>
+              {loadSym ? (
+                <Link href={`/?load=${loadSym}`} className="group min-w-0">{stockBlock}</Link>
+              ) : (
+                <div className="min-w-0">{stockBlock}</div>
+              )}
               <div className="flex justify-center">
                 <span className={`text-[9px] font-medium px-1 py-0.5 rounded border ${meta.badge}`}>{meta.label}</span>
               </div>
@@ -253,12 +261,14 @@ function StrategyBadges({ strategies }: { strategies: StrategySignals }) {
 // ── 目前持股表格 ──────────────────────────────────────────────────────
 function HoldingsTable({
   etfCode,
+  etfName,
   holdings,
   disclosureDate,
   strategyMap,
   loading,
 }: {
   etfCode: string;
+  etfName: string | null;
   holdings: ETFHolding[];
   disclosureDate: string;
   strategyMap: Record<string, HoldingWithStrategies> | null;
@@ -275,6 +285,7 @@ function HoldingsTable({
           {etfCode}
           <ExternalLink className="w-3 h-3 opacity-60" />
         </Link>
+        {etfName && <span className="text-sm text-foreground/80">{etfName}</span>}
         <span className="text-xs text-muted-foreground">目前持股 {holdings.length} 支</span>
         <span className="text-xs text-muted-foreground">揭露日：{disclosureDate}</span>
         {loading && (
@@ -288,18 +299,23 @@ function HoldingsTable({
       <ul>
         {holdings.map((h, i) => {
           const data = strategyMap?.[h.symbol];
+          const loadSym = chartLoadSymbol(h.symbol);
+          const codeNode = loadSym
+            ? <Link href={`/?load=${loadSym}`} className="font-mono text-sky-400 hover:underline shrink-0">{h.symbol}</Link>
+            : <span className="font-mono text-muted-foreground shrink-0">{h.symbol}</span>;
+          const nameNode = loadSym
+            ? <Link href={`/?load=${loadSym}`} className="flex-1 truncate min-w-0 text-foreground/80 hover:text-sky-400 hover:underline transition-colors">{data?.name ?? h.name}</Link>
+            : <span className="flex-1 truncate min-w-0 text-foreground/80">{data?.name ?? h.name}</span>;
           return (
             <li key={h.symbol} className="px-3 py-2 border-b border-border/30 hover:bg-muted/20">
               {/* line 1: rank · code · name · weight */}
               <div className="flex items-center gap-2 text-xs mb-0.5">
                 <span className="text-muted-foreground/40 tabular-nums w-4 shrink-0 text-right">{i + 1}</span>
-                <Link href={`/?load=${h.symbol}.TW`} className="font-mono text-sky-400 hover:underline shrink-0">
-                  {h.symbol}
-                </Link>
-                <span className="flex-1 truncate min-w-0 text-foreground/80">{data?.name ?? h.name}</span>
+                {codeNode}
+                {nameNode}
                 <span className="tabular-nums text-muted-foreground shrink-0">
                   {h.shares !== undefined
-                    ? `${formatShares(h.shares)} (${formatWeight(h.weight)})`
+                    ? `${formatHoldingShares(h.shares, h.symbol)} (${formatWeight(h.weight)})`
                     : formatWeight(h.weight)}
                 </span>
               </div>
@@ -422,11 +438,13 @@ export function ETFChangesTab() {
           <button
             key={etf.etfCode}
             onClick={() => setSelectedEtfCode(etf.etfCode)}
-            className={`px-2 py-0.5 rounded text-xs font-mono whitespace-nowrap transition-colors shrink-0 ${
+            title={etf.etfName}
+            className={`px-2 py-0.5 rounded text-xs whitespace-nowrap transition-colors shrink-0 ${
               selectedEtfCode === etf.etfCode ? 'bg-sky-500 text-white' : 'bg-secondary text-muted-foreground hover:text-foreground'
             }`}
           >
-            {etf.etfCode}
+            <span className="font-mono">{etf.etfCode}</span>
+            <span className="ml-1 opacity-80">{shortETFName(etf.etfName)}</span>
           </button>
         ))}
       </div>
@@ -575,6 +593,7 @@ function ETFChangesContent({ etfCode }: { etfCode: string | null }) {
         ) : holdings && holdings.length > 0 ? (
           <HoldingsTable
             etfCode={etfCode}
+            etfName={ACTIVE_ETF_LIST.find(e => e.etfCode === etfCode)?.etfName ?? null}
             holdings={holdings}
             disclosureDate={disclosureDate ?? '—'}
             strategyMap={strategyMap}

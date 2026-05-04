@@ -149,6 +149,6 @@
     { "path": "/api/cron/auto-repair-watchdog?market=TW", "schedule": "0 6 * * 1-5" },
     { "path": "/api/cron/auto-repair-watchdog?market=CN", "schedule": "50 7 * * 1-5" },
     { "path": "/api/cron/fetch-etf-holdings", "schedule": "0 10 * * 1-5" },
-    { "path": "/api/cron/update-etf-tracking", "schedule": "0 23 * * 1-5" }
+    { "path": "/api/cron/update-etf-tracking", "schedule": "0 15 * * 1-5" }
   ]
 }

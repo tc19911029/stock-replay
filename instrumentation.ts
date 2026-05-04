@@ -39,7 +39,7 @@ export async function register() {
   if (process.env.VERCEL || process.env.NODE_ENV === 'test') return;
 
   console.log('[local-cron] 本地開發模式：定期呼叫 API route 模擬 Vercel Cron');
-  console.log('[local-cron] L2：每 5 分鐘 | 六條件盤中：每 10 分鐘 | 買法 BCDEF：每 10 分鐘 | 盤後：L1+scan 14:10 TW / 16:10 CN');
+  console.log('[local-cron] L2：每 5 分鐘 | 六條件盤中：每 10 分鐘 | 買法 BCDEF：每 10 分鐘 | 盤後：L1+scan 14:10 TW / 16:10 CN | ETF：18:00/23:00 CST 1-5');
 
   // ── 盤中：買法掃描（B/C/D/E/F/G/H/I），輪流觸發 —— 獨立於 A 六條件避免單輪超時 ──
   async function scanBuyMethodIntraday(market: 'TW' | 'CN', method: 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I') {
@@ -260,6 +260,44 @@ export async function register() {
     callRoute('/api/cron/auto-repair-watchdog?market=CN', 'CN auto-repair watchdog')
       .catch(err => console.error('[local-cron] CN watchdog:', err));
   }, 30 * 60 * 1000);
+
+  // ETF 主動式持股：每週一至五 18:00 / 23:00 CST 自動跑（鏡像 vercel.json 排程）
+  // 18:00 fetch-etf-holdings、23:00 update-etf-tracking；用旗標避免同一天重跑
+  let lastEtfFetchDate = '';
+  let lastEtfTrackDate = '';
+  setInterval(() => {
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Taipei',
+      hour12: false,
+      weekday: 'short',
+      hour: '2-digit', minute: '2-digit',
+    }).formatToParts(now);
+    const get = (t: string) => parts.find(p => p.type === t)?.value ?? '';
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(now);
+    const wd = get('weekday');
+    const isWeekday = wd !== 'Sat' && wd !== 'Sun';
+    if (!isWeekday) return;
+    const hour = parseInt(get('hour'), 10);
+    const min = parseInt(get('minute'), 10);
+
+    // 用 ≥ 而非 == 比對，dev server 中途啟動（例如 18:30）也能補跑當日；旗標避免重觸發
+    const minutesSinceMidnight = hour * 60 + min;
+    if (minutesSinceMidnight >= 18 * 60 && today !== lastEtfFetchDate) {
+      lastEtfFetchDate = today;
+      console.log('[local-cron] ETF fetch-holdings 觸發');
+      callRoute('/api/cron/fetch-etf-holdings', 'ETF fetch-holdings').catch(err =>
+        console.error('[local-cron] ETF fetch failed:', err),
+      );
+    }
+    if (minutesSinceMidnight >= 23 * 60 && today !== lastEtfTrackDate) {
+      lastEtfTrackDate = today;
+      console.log('[local-cron] ETF update-tracking 觸發');
+      callRoute('/api/cron/update-etf-tracking', 'ETF update-tracking').catch(err =>
+        console.error('[local-cron] ETF tracking failed:', err),
+      );
+    }
+  }, 60 * 1000);
 
   // TDCC 大戶持股：每週四 18:30 CST 自動抓最新一週（公布時間 ~17:00）
   // 用 60s interval 偵測，命中當週四 18:30 CST 才執行；用旗標避免同一天重跑

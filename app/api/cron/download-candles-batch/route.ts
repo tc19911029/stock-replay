@@ -25,6 +25,7 @@ import { getLastTradingDay } from '@/lib/datasource/marketHours';
 import { verifyDownload } from '@/lib/datasource/DownloadVerifier';
 import { spotCheckL1 } from '@/lib/datasource/L1SpotCheck';
 import { detectCandleGaps } from '@/lib/datasource/validateCandles';
+import { ACTIVE_ETF_LIST } from '@/lib/etf/etfList';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -166,22 +167,32 @@ export async function GET(req: NextRequest) {
 
     // ── 大盤代理 ETF + 主動式 ETF 下載（只在 batch 1 執行，避免重複）──────────────
     if (batch === 1) {
-      const ACTIVE_ETF_SYMBOLS = [
-        '00980A.TW', '00981A.TW', '00982A.TW', '00984A.TW', '00985A.TW',
-        '00987A.TW', '00991A.TW', '00992A.TW', '00993A.TW', '00994A.TW', '00995A.TW',
-      ];
+      // 主動式 ETF 清單從 etfList.ts 單一來源讀取，新增 ETF 時不必雙寫
+      const ACTIVE_ETF_SYMBOLS = ACTIVE_ETF_LIST.map((e) => `${e.etfCode}.TW`);
       const proxySymbols = market === 'TW'
         ? ['0050.TW', ...ACTIVE_ETF_SYMBOLS]
         : ['000300.SS'];
+      // 對 proxy ETF 直接走 TWSE 官方 API（避開 scanner 內 30 根門檻），
+      // 因為新發行 ETF 歷史可能 <30 根仍要追蹤。
+      const { fetchCandlesTWSE } = market === 'TW'
+        ? await import('@/lib/datasource/TWSEDataSource')
+        : { fetchCandlesTWSE: null as null | ((c: string) => Promise<unknown[]>) };
       for (const proxy of proxySymbols) {
         try {
           const proxyExisting = await readCandleFile(proxy, market);
-          if (!proxyExisting || proxyExisting.lastDate < lastTradingDate) {
-            const candles = await scanner.fetchCandles(proxy);
-            if (candles.length > 0) {
-              await saveLocalCandles(proxy, market, candles);
-              console.info(`[download-batch] ${market} proxy ${proxy}: ${candles.length} candles saved`);
-            }
+          if (proxyExisting && proxyExisting.lastDate >= lastTradingDate) continue;
+          let candles = await scanner.fetchCandles(proxy);
+          // scanner 內 ≥30 根才回傳；對新 ETF 落 fallback：直接打 TWSE STOCK_DAY 官方 API
+          if (candles.length === 0 && fetchCandlesTWSE && /\.TW$/i.test(proxy)) {
+            const code = proxy.replace(/\.TW$/i, '');
+            const direct = await fetchCandlesTWSE(code).catch(() => []);
+            candles = direct as typeof candles;
+          }
+          if (candles.length > 0) {
+            await saveLocalCandles(proxy, market, candles);
+            console.info(`[download-batch] ${market} proxy ${proxy}: ${candles.length} candles saved`);
+          } else {
+            console.warn(`[download-batch] ${market} proxy ${proxy}: no candles from any source (likely too new)`);
           }
         } catch (err) {
           console.warn(`[download-batch] ${market} proxy ${proxy} failed:`, err);
