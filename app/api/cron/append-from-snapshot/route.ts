@@ -9,6 +9,7 @@ import { isPostCloseWindow, isMarketOpen, getLastTradingDay } from '@/lib/dataso
 import { isTradingDay } from '@/lib/utils/tradingDay';
 import { readCandleFile } from '@/lib/datasource/CandleStorageAdapter';
 import { saveLocalCandles } from '@/lib/datasource/LocalCandleStore';
+import { suspectsLimitOverwrite } from '@/lib/datasource/limitMoveGuard';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -65,6 +66,8 @@ export async function GET(req: NextRequest) {
 
   let appended = 0;
   let already = 0;
+  let skippedLimitUp = 0;
+  const limitUpSkipped: string[] = [];
 
   await Promise.allSettled(stocks.map(async ({ symbol }) => {
     const code = symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
@@ -73,6 +76,20 @@ export async function GET(req: NextRequest) {
     if (existing.lastDate > date) { already++; return; }
     const q = quotes.get(code);
     if (!q) return;
+
+    // Limit-up close-overwrite guard（lib/datasource/limitMoveGuard.ts）：
+    // 漲跌停股 close 在收盤集合競價，盤中 snapshot tick 可能不是真正收盤。
+    const prev = existing.candles[existing.candles.length - 1];
+    if (suspectsLimitOverwrite(prev?.close, q, market, code)) {
+      console.warn(
+        `[append-from-snapshot] ${symbol} ${date} 漲跌停 close 異常 ` +
+        `(prev=${prev.close} h=${q.high} l=${q.low} c=${q.close})，skip 寫入避免 L1 污染`
+      );
+      skippedLimitUp++;
+      if (limitUpSkipped.length < 20) limitUpSkipped.push(symbol);
+      return;
+    }
+
     await saveLocalCandles(symbol, market, [
       ...existing.candles,
       { date, open: q.open, high: q.high, low: q.low, close: q.close, volume: q.volume },
@@ -80,5 +97,5 @@ export async function GET(req: NextRequest) {
     appended++;
   }));
 
-  return apiOk({ market, date, appended, already, total: stocks.length });
+  return apiOk({ market, date, appended, already, skippedLimitUp, limitUpSkipped, total: stocks.length });
 }
