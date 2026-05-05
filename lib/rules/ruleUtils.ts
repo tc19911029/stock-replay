@@ -5,14 +5,14 @@ export function bodyPct(c: CandleWithIndicators): number {
   return Math.abs(c.close - c.open) / c.open;
 }
 
-/** 是否為實體長紅K（實體 > 開盤價2%，且收紅） */
+/** 是否為實體長紅K（實體 ≥ 開盤價2%，且收紅；對齊其他模組） */
 export function isLongRedCandle(c: CandleWithIndicators): boolean {
-  return c.close > c.open && bodyPct(c) > 0.02;
+  return c.close > c.open && bodyPct(c) >= 0.02;
 }
 
-/** 是否為實體長黑K（實體 > 開盤價2%，且收黑） */
+/** 是否為實體長黑K（實體 ≥ 開盤價2%，且收黑；對齊其他模組） */
 export function isLongBlackCandle(c: CandleWithIndicators): boolean {
-  return c.close < c.open && bodyPct(c) > 0.02;
+  return c.close < c.open && bodyPct(c) >= 0.02;
 }
 
 /** K棒1/2價（最高+最低）÷2 */
@@ -288,20 +288,20 @@ export function isHighPosition(c: CandleWithIndicators, candles: CandleWithIndic
   return false;
 }
 
-/** 找最近 lookback 根內的 swing high 價位 */
+/** 找最近 lookback 根內的最高價位（與 indicators.recentHigh 對齊起點 0） */
 export function findSwingHigh(candles: CandleWithIndicators[], index: number, lookback = 60): number | null {
   let maxHigh = -Infinity;
-  const start = Math.max(1, index - lookback);
+  const start = Math.max(0, index - lookback);
   for (let i = start; i < index; i++) {
     if (candles[i].high > maxHigh) maxHigh = candles[i].high;
   }
   return maxHigh === -Infinity ? null : maxHigh;
 }
 
-/** 找最近 lookback 根內的 swing low 價位 */
+/** 找最近 lookback 根內的最低價位（與 indicators.recentLow 對齊起點 0） */
 export function findSwingLow(candles: CandleWithIndicators[], index: number, lookback = 60): number | null {
   let minLow = Infinity;
-  const start = Math.max(1, index - lookback);
+  const start = Math.max(0, index - lookback);
   for (let i = start; i < index; i++) {
     if (candles[i].low < minLow) minLow = candles[i].low;
   }

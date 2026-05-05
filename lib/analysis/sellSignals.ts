@@ -11,7 +11,6 @@ export type SellSignalType =
   | 'TREND_BEARISH'       // Trend has turned bearish
   // 朱老師獲利方程式（《活用技術分析寶典》p.54）
   | 'LOWER_LOW'           // 收盤出現「頭頭低」
-  | 'PROFIT_BREAK_MA5'    // 獲利>10% + 跌破MA5（寶典 p.711 第 18 條）
   | 'PROFIT_CLIMAX_EXIT'  // 獲利>20% 或連續急漲+長黑覆蓋
   // 朱老師短線20條守則補充（p.711-712）
   | 'STRONG_COVER'        // 強覆蓋：黑K跌破前日紅K 1/2 + K值下彎（第11條）
@@ -72,9 +71,9 @@ export function detectSellSignals(
     }
   }
 
-  // 2. KD 高位死叉：K 從高位（>70）向下交叉 D
+  // 2. KD 高位死叉：K 從高位（>80，書本超買標準）向下交叉 D
   if (kd_k != null && kd_d != null && prevKdK != null && prevKdD != null) {
-    if (prevKdK > 70 && prevKdK >= prevKdD && kd_k < kd_d) {
+    if (prevKdK > 80 && prevKdK >= prevKdD && kd_k < kd_d) {
       signals.push({
         type: 'KD_DEATH_CROSS',
         label: 'KD高位死叉',
@@ -258,26 +257,9 @@ export function detectSellSignals(
     }
   }
 
-  // ════════════════════════════════════════════════════════════════
-  // 寶典 p.711 第 18 條：上漲 > 10% + 跌破 MA5 → 停利
-  // 推算「上漲 %」：用近 20 根 K 的最低收盤當基準（短線進場後的相對漲幅）
-  // ════════════════════════════════════════════════════════════════
-  if (index >= 20 && ma5 != null && prev?.ma5 != null) {
-    const window = candles.slice(Math.max(0, index - 20), index);
-    const minClose = Math.min(...window.map(k => k.close).filter(v => v > 0));
-    if (minClose > 0) {
-      const gainPct = (c.close - minClose) / minClose * 100;
-      const breakMa5Now = prev.close >= prev.ma5 && c.close < ma5;
-      if (gainPct > 10 && breakMa5Now) {
-        signals.push({
-          type: 'PROFIT_BREAK_MA5',
-          label: '獲利>10%破MA5',
-          detail: `近20日最低${minClose.toFixed(2)}→今日${c.close.toFixed(2)}（+${gainPct.toFixed(1)}%），跌破 MA5(${ma5.toFixed(2)}) 停利`,
-          severity: 'high',
-        });
-      }
-    }
-  }
+  // 註：寶典 p.711 第 18 條「獲利>10%+跌破MA5 停利」已由 zhuRules.ts 的 zhuTakeProfit10Pct 處理
+  // 該規則用 ctx.avgCost（持倉成本）作為錨點，符合書本本意
+  // 此處不再用「近 20 日最低收盤」當錨點（會誤觸，使用者不一定買在起漲點）
 
   // ════════════════════════════════════════════════════════════════
   // 朱家泓「長短線綜合操作法」核心出場線：跌破 MA10

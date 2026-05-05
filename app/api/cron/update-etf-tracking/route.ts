@@ -5,7 +5,8 @@
  * 同日 18:00 CST fetch-etf-holdings 之後跑，吃當日新建 tracking 的 D+0 進場價。
  */
 import { NextRequest } from 'next/server';
-import { apiOk, apiError } from '@/lib/api/response';
+import { apiOk } from '@/lib/api/response';
+import { checkCronAuth } from '@/lib/api/cronAuth';
 import { getLastTradingDay } from '@/lib/datasource/marketHours';
 import { loadLocalCandles } from '@/lib/datasource/LocalCandleStore';
 import { ACTIVE_ETF_LIST } from '@/lib/etf/etfList';
@@ -22,10 +23,8 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return apiError('Unauthorized', 401);
-  }
+  const authDenied = checkCronAuth(req);
+  if (authDenied) return authDenied;
 
   const date = req.nextUrl.searchParams.get('date') ?? getLastTradingDay('TW');
   let trackingUpdated = 0;

@@ -21,6 +21,7 @@
 
 import { NextRequest } from 'next/server';
 import { apiOk, apiError } from '@/lib/api/response';
+import { checkCronAuth } from '@/lib/api/cronAuth';
 import { isTradingDay } from '@/lib/utils/tradingDay';
 import { getLastTradingDay } from '@/lib/datasource/marketHours';
 
@@ -32,10 +33,8 @@ type BuyMethod = typeof VALID_METHODS[number];
 
 export async function GET(req: NextRequest) {
   // ── Auth ────────────────────────────────────────────────────────────────
-  const authHeader = req.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return apiError('Unauthorized', 401);
-  }
+  const authDenied = checkCronAuth(req);
+  if (authDenied) return authDenied;
 
   // ── Params ──────────────────────────────────────────────────────────────
   const market = req.nextUrl.searchParams.get('market') as 'TW' | 'CN' | null;

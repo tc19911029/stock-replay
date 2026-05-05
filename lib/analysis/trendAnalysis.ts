@@ -65,8 +65,6 @@ export function findPivots(
   candles: CandleWithIndicators[],
   endIndex: number,
   maxPivots = 10,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  minSwingPct = 0.02,
   includeOpen = false,
 ): Pivot[] {
   const lookback = Math.min(endIndex, 120);
@@ -153,7 +151,7 @@ export function detectTrend(
   //   provisional 的「開放段 running min/max」在段內若尚未突破/跌破前一確認 pivot，
   //   會偽造出「底底高」或「頭頭低」假象（例如 603626 今日 low 23.23 > 確認底 22.9
   //   會把真正的確認底底低 22.9 < 23.47 蓋掉，誤判為盤整）。
-  const confirmedPivots = findPivots(candles, index, 8, 0.02, false);
+  const confirmedPivots = findPivots(candles, index, 8, false);
   const highs = confirmedPivots.filter(p => p.type === 'high').slice(0, 2);
   const lows  = confirmedPivots.filter(p => p.type === 'low').slice(0, 2);
 
@@ -295,17 +293,6 @@ export function detectTrendlineBreakout(
  * 空頭方向對稱（用底底低次數判斷）。
  */
 
-function _countHeadHighsSinceBottom(pivots: Pivot[]): number {
-  // pivots 已 newest-first；從最新往舊數，連續頭頭高的個數
-  const highs = pivots.filter(p => p.type === 'high');
-  let count = 0;
-  for (let i = 0; i < highs.length - 1; i++) {
-    if (highs[i].price > highs[i + 1].price) count++;
-    else break;
-  }
-  return count;
-}
-
 /** 連續 n 根大量長紅 K（p.46 特性 5：連漲 3 天以上容易賣壓）
  *  「大量」對齊書本 p.54 第 4 條：量 ≥ 前日 × 1.3 */
 function hasConsecLongRed(candles: CandleWithIndicators[], index: number, n = 3): boolean {
@@ -372,7 +359,7 @@ function hasVolumePriceDivergence(
   return c.volume < prevHighCandle.volume;
 }
 
-/** 遛狗理論：MA5 乖離 >15% OR MA20 乖離 >20%（股價遛太遠，隨時拉回） */
+/** 遛狗理論：MA5 乖離 >15% OR MA20 乖離 >15%（股價遛太遠，隨時拉回；對齊 2026-04-22 用戶設定） */
 function isBiasOverExtended(candles: CandleWithIndicators[], index: number): boolean {
   const c = candles[index];
   if (!c) return false;
@@ -382,7 +369,7 @@ function isBiasOverExtended(candles: CandleWithIndicators[], index: number): boo
   }
   if (c.ma20 != null && c.ma20 > 0) {
     const ma20Dev = (c.close - c.ma20) / c.ma20;
-    if (ma20Dev > 0.20) return true;
+    if (ma20Dev > 0.15) return true;
   }
   return false;
 }
@@ -441,7 +428,7 @@ export function evaluateSixConditions(
   params?: Partial<StrategyThresholds>,
 ): SixConditionsResult {
   const kdMax     = params?.kdMaxEntry      ?? 88;   // 與 BASE_THRESHOLDS 一致
-  const devMax    = params?.deviationMax    ?? 0.20; // 與 BASE_THRESHOLDS 一致（20%）
+  const devMax    = params?.deviationMax    ?? 0.15; // 與 BASE_THRESHOLDS 一致（15%，2026-04-22 用戶設定）
   const volMin    = params?.volumeRatioMin  ?? 1.3;  // 書上p.54：前一日×1.3
   // upperShadowMax 已棄用：書本定義「長上影線 = 上影 > 實體」，不用比例門檻
 
@@ -454,9 +441,9 @@ export function evaluateSixConditions(
   const trendState = detectTrend(candles, index);
   const trendPass  = trendState === '多頭';
   const trendDetail = trendState === '多頭'
-    ? '✅ 多頭趨勢（頭頭高底底高 + MA5>MA20）'
+    ? '✅ 多頭趨勢（頭頭高、底底高）'
     : trendState === '空頭'
-    ? '❌ 空頭趨勢（頭頭低底底低）—— 不宜做多'
+    ? '❌ 空頭趨勢（頭頭低、底底低）—— 不宜做多'
     : '⚠️ 盤整趨勢（方向不明）—— 觀望';
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -528,6 +515,8 @@ export function evaluateSixConditions(
     const upperToday = upperAt(index);
     const lowerToday = lowerAt(index);
     if (lowerToday <= 0) return false;
+    // 防衛：下降楔形可能讓 upper 跌穿 lower，幾何崩潰時不算盤整
+    if (upperToday <= lowerToday) return false;
     const tightness = (upperToday - lowerToday) / lowerToday;
     if (tightness > 0.15) return false;
 

@@ -8,15 +8,14 @@ import { isTradingDay } from '@/lib/utils/tradingDay';
 import { getLastTradingDay } from '@/lib/datasource/marketHours';
 import { fetchTWSEInstitutional } from '@/lib/datasource/TWSEInstitutional';
 import { saveInstitutionalTW, readInstitutionalTW } from '@/lib/storage/institutionalStorage';
+import { checkCronAuth } from '@/lib/api/cronAuth';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return apiError('Unauthorized', 401);
-  }
+  const authDenied = checkCronAuth(req);
+  if (authDenied) return authDenied;
 
   const dateParam = req.nextUrl.searchParams.get('date');
   const date = dateParam ?? getLastTradingDay('TW');

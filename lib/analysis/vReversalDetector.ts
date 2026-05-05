@@ -42,9 +42,9 @@ export interface VReversalResult {
 
 const LOOKBACK_STOP_BAR = 15; // 變盤線搜尋距離（允許止跌等待多天）
 const PRE_DROP_WINDOW = 6;    // 變盤線之前的下跌段觀察窗（含變盤線當天）
-const MIN_DOWN_DAYS = 3;       // 連跌天數門檻
-const MIN_DROP_PCT = 8;       // 跌幅門檻 %（段首高 → 變盤線低）
-const VOLUME_MULT = 1.4;      // 今日帶量門檻
+const MIN_DOWN_DAYS = 3;       // 連跌天數門檻（書本：連跌5根中3根下跌）
+const MIN_DROP_PCT = 10;      // 跌幅門檻 %（書本《抓住K線》第7篇 V反轉：跌幅 ≥10%）
+const VOLUME_MULT = 1.5;      // 今日帶量門檻（書本：紅K帶量 ×1.5 前5日均量）
 
 /** 判斷 K 棒是否為變盤線（十字 / 紡錘 / 長下影） */
 function classifyReversalShape(c: CandleWithIndicators): StopBarShape | null {

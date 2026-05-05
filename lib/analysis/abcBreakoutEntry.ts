@@ -22,7 +22,7 @@
  */
 
 import type { CandleWithIndicators } from '@/types';
-import { findPivots } from '@/lib/analysis/trendAnalysis';
+import { findPivots, detectTrend } from '@/lib/analysis/trendAnalysis';
 
 export interface ABCBreakoutResult {
   isABCBreakout: boolean;
@@ -156,6 +156,9 @@ export function detectABCBreakout(
   const c = candles[idx];
   const prev = candles[idx - 1];
   if (!c || !prev || prev.volume <= 0 || c.open <= 0) return null;
+
+  // 0. 多頭背景（書本 Part 11-1 p.697「多頭一波後 ABC 修正再攻」）
+  if (detectTrend(candles, idx) !== '多頭') return null;
 
   // 1. 找 ABC 修正結構
   const abc = findABCStructure(candles, idx);

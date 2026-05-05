@@ -59,6 +59,8 @@ const reqSchema = z.object({
   }).optional(),
   signals: z.array(signalSchema).max(30).default([]),
   prohibitions: z.array(z.string()).max(10).default([]),
+  winnerBullishPatterns: z.array(z.string()).max(20).default([]),
+  winnerBearishPatterns: z.array(z.string()).max(20).default([]),
   hasPosition: z.boolean().default(false),
   positionCost: z.number().nullable().optional(),
 });
@@ -169,6 +171,17 @@ function buildUserPrompt(input: DigestInput): string {
     lines.push('');
     lines.push(`## 戒律違反`);
     for (const p of input.prohibitions) lines.push(`⚠️ ${p}`);
+  }
+
+  if (input.winnerBullishPatterns.length > 0 || input.winnerBearishPatterns.length > 0) {
+    lines.push('');
+    lines.push(`## 贏家圖像（朱家泓寶典 Part 12 P771-825）`);
+    if (input.winnerBullishPatterns.length > 0) {
+      lines.push(`🎯 空轉多：${input.winnerBullishPatterns.join('、')}`);
+    }
+    if (input.winnerBearishPatterns.length > 0) {
+      lines.push(`⛔ 多轉空：${input.winnerBearishPatterns.join('、')}`);
+    }
   }
 
   lines.push('');

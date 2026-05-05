@@ -67,7 +67,7 @@ export function evaluateShortSixConditions(
   const trendState = detectTrend(candles, index);
   const trendPass  = trendState === '空頭';
   const trendDetail = trendState === '空頭'
-    ? '✅ 空頭趨勢（頭頭低底底低 + MA5<MA20）'
+    ? '✅ 空頭趨勢（頭頭低、底底低）'
     : trendState === '多頭'
     ? '❌ 多頭趨勢 — 不宜做空'
     : '⚠️ 盤整 — 觀望';
@@ -195,7 +195,7 @@ export function detectShortExitSignals(
     }
   }
 
-  // 第7條：獲利>10%、收盤突破MA5 → 回補
+  // 第7條：收盤從 MA5 之下突破上來 → 空單考慮回補（書本「獲利>10% + 突破MA5 出場」需 ctx.avgCost 才能精確判斷，這裡只發 MA5 結構訊號）
   if (c.ma5 != null && prev?.ma5 != null) {
     if (prev.close <= prev.ma5 && c.close > c.ma5) {
       signals.push({

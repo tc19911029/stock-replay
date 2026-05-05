@@ -11,13 +11,14 @@
  */
 
 import { NextRequest } from 'next/server';
-import { apiOk, apiError } from '@/lib/api/response';
+import { apiOk } from '@/lib/api/response';
 import { fetchCnMainFlow } from '@/lib/datasource/EastMoneyChips';
 import { writeCnFlowStock, readCnFlowStock } from '@/lib/chips/ChipStorage';
 import { getLastTradingDay } from '@/lib/datasource/marketHours';
 import { isTradingDay } from '@/lib/utils/tradingDay';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { checkCronAuth } from '@/lib/api/cronAuth';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -35,10 +36,8 @@ async function listExistingCnFlowCodes(): Promise<string[]> {
 }
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return apiError('Unauthorized', 401);
-  }
+  const authDenied = checkCronAuth(req);
+  if (authDenied) return authDenied;
 
   const dateParam = req.nextUrl.searchParams.get('date');
   const date = dateParam ?? getLastTradingDay('CN');

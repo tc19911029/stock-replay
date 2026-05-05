@@ -89,7 +89,7 @@ describe('findPivots 最小波幅 + 交替', () => {
       { date: '2026-01-05', open: 60, high: 60.5, low: 59.5, close: 60.1, volume: 1000 },
     ];
     const candles = computeIndicators([...base, ...tail]);
-    const pivots = findPivots(candles, candles.length - 1, 10, 0.02);
+    const pivots = findPivots(candles, candles.length - 1, 10);
     // 微凹 60.0 不該出現在 pivot 列表
     const hasMicroDip = pivots.some((p) => p.type === 'low' && Math.abs(p.price - 60.0) < 0.01);
     expect(hasMicroDip).toBe(false);
@@ -113,7 +113,7 @@ describe('findPivots 最小波幅 + 交替', () => {
       { date: '2026-01-05', open: 60, high: 60.5, low: 59.5, close: 60.5, volume: 1000 },
     ];
     const candles = computeIndicators([...base, ...tail]);
-    const pivots = findPivots(candles, candles.length - 1, 10, 0.02);
+    const pivots = findPivots(candles, candles.length - 1, 10);
     const highs = pivots.filter((p) => p.type === 'high');
     // 正價區持續中（close 一直站上 MA5），沒結束 → 不產生頭
     expect(highs.length).toBe(0);

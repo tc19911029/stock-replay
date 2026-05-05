@@ -80,11 +80,25 @@ export const usePortfolioStore = create<PortfolioStore>()(
         const h = s.holdings.find(x => x.id === id);
         if (!h) return s;
         const market: MarketId = (h.market ?? 'TW') as MarketId;
-        const proceeds = sellPrice * h.shares;
-        const cost = h.costPrice * h.shares;
-        const realizedPL = proceeds - cost;
-        const realizedPLPct = h.costPrice > 0
-          ? ((sellPrice - h.costPrice) / h.costPrice) * 100
+        const grossProceeds = sellPrice * h.shares;
+        const buyAmount = h.costPrice * h.shares;
+        // 雙邊交易成本（與 lib/portfolio/fees.ts FEE_RATES 一致）：
+        //   TW: 買賣手續費 0.1425% + 賣出證交稅 0.3%
+        //   CN: 買賣手續費 0.031%（含過戶費）+ 賣出印花稅 0.05%（2023.8 起；舊 0.1% 已過期）
+        const roundTripCost = market === 'TW'
+          ? Math.max(20, Math.round(buyAmount * 0.001425))   // 買進手續費（最低 20）
+            + Math.max(20, Math.round(grossProceeds * 0.001425))  // 賣出手續費
+            + Math.round(grossProceeds * 0.003)                   // 證交稅
+          : Math.max(5, Math.round(buyAmount * 0.00031))        // 陸股佣金（最低 5）
+            + Math.max(5, Math.round(grossProceeds * 0.00031))
+            + Math.round(grossProceeds * 0.0005);                 // 印花稅 0.05%（2023.8 後）
+        // netProceeds = 賣出總金額 - 賣出手續費 - 賣出稅（買進手續費已在買入時扣除）
+        const netProceeds = market === 'TW'
+          ? grossProceeds - Math.max(20, Math.round(grossProceeds * 0.001425)) - Math.round(grossProceeds * 0.003)
+          : grossProceeds - Math.max(5, Math.round(grossProceeds * 0.00031)) - Math.round(grossProceeds * 0.0005);
+        const realizedPL = grossProceeds - buyAmount - roundTripCost;
+        const realizedPLPct = buyAmount > 0
+          ? (realizedPL / buyAmount) * 100
           : 0;
         const trade: RealizedTrade = {
           id: `r${Date.now()}${Math.random().toString(36).slice(2, 6)}`,
@@ -103,7 +117,8 @@ export const usePortfolioStore = create<PortfolioStore>()(
         return {
           holdings: s.holdings.filter(x => x.id !== id),
           realizedTrades: [trade, ...s.realizedTrades].slice(0, 200),
-          cashBalance: { ...s.cashBalance, [market]: s.cashBalance[market] + proceeds },
+          // cashBalance 加實收（已扣賣出手續費+稅，未扣買進手續費因買進當時應已扣）
+          cashBalance: { ...s.cashBalance, [market]: s.cashBalance[market] + netProceeds },
         };
       }),
       removeRealized: (id) => set(s => ({

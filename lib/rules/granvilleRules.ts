@@ -344,3 +344,8 @@ export const granvilleSell8: TradingRule = {
     };
   },
 };
+
+export const GRANVILLE_RULES: TradingRule[] = [
+  granvilleBuy1, granvilleBuy2, granvilleBuy3, granvilleBuy4,
+  granvilleSell5, granvilleSell6, granvilleSell7, granvilleSell8,
+];

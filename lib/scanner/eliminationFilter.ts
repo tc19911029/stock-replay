@@ -59,15 +59,19 @@ function rule02_resistanceBlockBreakMA5(candles: CandleWithIndicators[], idx: nu
 
 /**
  * 4. 沒有量能：上漲行進中成交量明顯縮小
+ * 書本 p.660 原文：「上漲行進中成交量明顯縮小，沒有量能」— 必須在上漲中才適用。
  * 注：朱師書本/網路資料只分「有量（>=5MA）/ 無量（<5MA）」，未定「嚴重萎縮」倍數。
  *     <0.5× 採市場通用「嚴重縮量」定義。
  */
 function rule04_noVolume(candles: CandleWithIndicators[], idx: number): string | null {
   const c = candles[idx];
   if (c.avgVol5 == null || c.avgVol5 <= 0) return null;
+  // 書本要求「上漲行進中」才檢查縮量；盤整/空頭縮量是常態，不應淘汰
+  const trend = detectTrend(candles, idx);
+  if (trend !== '多頭') return null;
   // 量比 < 0.5（量萎縮到均量一半以下，市場通用「嚴重縮量」定義）
   if (c.volume < c.avgVol5 * 0.5) {
-    return '淘汰4: 成交量嚴重萎縮（量比<0.5）';
+    return '淘汰4: 上漲中成交量嚴重萎縮（量比<0.5）';
   }
   return null;
 }
@@ -97,14 +101,17 @@ function rule05_overExtended(candles: CandleWithIndicators[], idx: number): stri
 function rule06_resistanceLongBlack(candles: CandleWithIndicators[], idx: number): string | null {
   if (idx < 10) return null;
   // 過去10天在高檔出現2次以上大量長黑
+  // 「高檔」前置：每根長黑日當天的 close 必須在 MA20 之上（書本「壓力線附近」= 高檔）
+  // 修復前任何位置都會觸發 → false positive on 反彈中的長黑
   const recent = candles.slice(idx - 10, idx + 1);
   const bigBlacks = recent.filter(c =>
     c.close < c.open &&
     Math.abs(c.close - c.open) / c.open >= 0.02 &&
-    c.avgVol5 != null && c.avgVol5 > 0 && c.volume >= c.avgVol5 * 1.5
+    c.avgVol5 != null && c.avgVol5 > 0 && c.volume >= c.avgVol5 * 1.5 &&
+    c.ma20 != null && c.close > c.ma20  // 高檔：當日收盤在月線之上
   );
   if (bigBlacks.length >= 2) {
-    return '淘汰6: 近10天出現2次以上大量長黑K';
+    return '淘汰6: 近10天高檔出現2次以上大量長黑K';
   }
   return null;
 }

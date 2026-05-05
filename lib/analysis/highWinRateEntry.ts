@@ -16,7 +16,14 @@
  */
 
 import { CandleWithIndicators } from '@/types';
-import { findPivots, detectTrend } from '@/lib/analysis/trendAnalysis';
+import { findPivots } from '@/lib/analysis/trendAnalysis';
+// 位置 1/4/5/6 的書本嚴格定義在 highWinPositions.ts，這裡 delegate 過去確保兩套 detector 結果一致
+import {
+  detectBottomTrendConfirmation,
+  detectMaClusterBreak,
+  detectStrongPullbackResume,
+  detectFalseBreakRebound,
+} from '@/lib/analysis/highWinPositions';
 
 /** 高勝率進場位置類型 */
 export type HighWinRateEntryType =
@@ -201,14 +208,9 @@ function checkBottomConfirm(
   candles: CandleWithIndicators[],
   idx: number,
 ): boolean {
-  if (idx < 30) return false;
-  const c = candles[idx];
-  // ③ 收盤突破 MA5 + ④ 大量 + ⑤ 實體紅K
-  if (!isStrongRedCandle(c) || !isHighVolume(c) || !closeAboveMA5(c)) return false;
-  // ② 均線 4 線多排
-  if (!is4MABullish(c)) return false;
-  // ① 頭頭高底底高（趨勢多頭）
-  return detectTrend(candles, idx) === '多頭';
+  // delegate 到 highWinPositions.detectBottomTrendConfirmation（含「前日 close<MA5」轉折檢查）
+  // 保證跟 highWinTags 顯示一致
+  return detectBottomTrendConfirmation(candles, idx);
 }
 
 /**
@@ -226,10 +228,13 @@ function checkPullbackBuy(
 ): boolean {
   if (idx < 10) return false;
   const c = candles[idx];
+  const prev = candles[idx - 1];
   // ③④⑤ 紅K + 突MA5 + 大量
   if (!isStrongRedCandle(c) || !isHighVolume(c) || !closeAboveMA5(c)) return false;
   // ② 4 線多排
   if (!is4MABullish(c)) return false;
+  // 真正的「回後」：昨日收盤必須 < MA5（與 pulledBackBuy in trendAnalysis 對齊；用戶 0421 確認）
+  if (!prev || prev.ma5 == null || prev.close >= prev.ma5) return false;
   // ① 不破前低（findPivots 無底底低，0 容差）
   const pivots = findPivots(candles, idx - 1, 8);
   const lows = pivots.filter(p => p.type === 'low').slice(0, 2);
@@ -279,17 +284,8 @@ function checkMAClusterBreak(
   candles: CandleWithIndicators[],
   idx: number,
 ): boolean {
-  if (idx < 5) return false;
-  const c = candles[idx];
-  // 實體紅K + 大量
-  if (!isStrongRedCandle(c) || !isHighVolume(c)) return false;
-  // 前日均線糾結（MA5/10/20 spread < 3% 實務值，書本未量化）
-  const prev = candles[idx - 1];
-  if (!isMAClustered(prev)) return false;
-  // 今日收盤突破三線
-  const { ma5, ma10, ma20 } = c;
-  if (ma5 == null || ma10 == null || ma20 == null) return false;
-  return c.close > ma5 && c.close > ma10 && c.close > ma20;
+  // delegate 到 highWinPositions.detectMaClusterBreak，保證兩套 detector 一致
+  return detectMaClusterBreak(candles, idx);
 }
 
 /**
@@ -306,26 +302,8 @@ function checkStrongResume(
   candles: CandleWithIndicators[],
   idx: number,
 ): boolean {
-  if (idx < 5) return false;
-  const c = candles[idx];
-  // ④⑤ 續攻紅K大量
-  if (!isStrongRedCandle(c) || !isHighVolume(c)) return false;
-  // ① 強勢股 = 4 線多排
-  if (!is4MABullish(c)) return false;
-
-  // ② 前 1-2 天黑K
-  const d1 = candles[idx - 1];
-  const d2 = candles[idx - 2];
-  const pullbackDays = [d1, d2].filter(x => x && x.close < x.open);
-  if (pullbackDays.length === 0 || pullbackDays.length > 2) return false;
-
-  // ③ 黑K 也大量（圖 12-1-6 標示）
-  const allBlackHighVol = pullbackDays.every(x => isHighVolume(x));
-  if (!allBlackHighVol) return false;
-
-  // ⑥ 突破下跌黑K高點
-  const pullbackHighest = Math.max(...pullbackDays.map(x => x.high));
-  return c.close > pullbackHighest;
+  // delegate 到 highWinPositions.detectStrongPullbackResume，保證兩套 detector 一致
+  return detectStrongPullbackResume(candles, idx);
 }
 
 /**
@@ -342,39 +320,8 @@ function checkFakeBreakdown(
   candles: CandleWithIndicators[],
   idx: number,
 ): boolean {
-  if (idx < 10) return false;
-  const c = candles[idx];
-  if (!isStrongRedCandle(c) || !isHighVolume(c)) return false;
-
-  // findPivots 找兩頭兩底
-  const pivots = findPivots(candles, idx - 1, 8);
-  const highs = pivots.filter(p => p.type === 'high').slice(0, 2);
-  const lows = pivots.filter(p => p.type === 'low').slice(0, 2);
-  if (highs.length < 2 || lows.length < 2) return false;
-
-  const [latestHigh, earlierHigh] = highs;
-  const [latestLow, earlierLow] = lows;
-
-  // 上頸線 = 兩頭連線今日延伸值
-  const hiSlope = (latestHigh.price - earlierHigh.price) / (latestHigh.index - earlierHigh.index);
-  const upperNeckline = latestHigh.price + hiSlope * (idx - latestHigh.index);
-
-  // 下頸線 = 兩底連線今日延伸值
-  const loSlope = (latestLow.price - earlierLow.price) / (latestLow.index - earlierLow.index);
-  const lowerNecklineToday = latestLow.price + loSlope * (idx - latestLow.index);
-
-  // 前 1-3 天曾跌破下頸線（假跌破）
-  let brokeBelow = false;
-  for (let i = Math.max(0, idx - 3); i < idx; i++) {
-    const k = candles[i];
-    const lowerNecklineI = latestLow.price + loSlope * (i - latestLow.index);
-    if (k.low < lowerNecklineI) { brokeBelow = true; break; }
-  }
-  if (!brokeBelow) return false;
-  void lowerNecklineToday; // 今日不需再檢查下頸線（只要前 1-3 天跌破即可）
-
-  // 今日收盤突破上頸線（真上漲）
-  return c.close > upperNeckline;
+  // delegate 到 highWinPositions.detectFalseBreakRebound，保證兩套 detector 一致
+  return detectFalseBreakRebound(candles, idx);
 }
 
 // ── Main Evaluator ──────────────────────────────────────────────────────────────

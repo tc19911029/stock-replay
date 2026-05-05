@@ -3,6 +3,7 @@ import { confirmDabanAtOpen } from '@/lib/scanner/DabanScanner';
 import { getLastTradingDay } from '@/lib/datasource/marketHours';
 import { isTradingDay } from '@/lib/utils/tradingDay';
 import { apiOk, apiError } from '@/lib/api/response';
+import { checkCronAuth } from '@/lib/api/cronAuth';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -17,10 +18,8 @@ export const maxDuration = 60;
  * 此時 IntradayCache 已有最新集合競價價格（intraday cron 每 2 分鐘更新）。
  */
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return apiError('Unauthorized', 401);
-  }
+  const authDenied = checkCronAuth(req);
+  if (authDenied) return authDenied;
 
   try {
     // 允許 query 覆寫（用於歷史重算）

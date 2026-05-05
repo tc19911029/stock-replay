@@ -70,6 +70,8 @@ export async function GET(req: NextRequest) {
 
     for (let i = 30; i < candles.length - 1; i++) {
       const six = evaluateSixConditions(candles, i, thresholds);
+      // 與 production scan（MarketScanner.scanOne）一致：必須 isCoreReady（前5條件全過）+ totalScore ≥ minScore
+      if (!six.isCoreReady) continue;
       if (six.totalScore < minScore) continue;
 
       const position = detectTrendPosition(candles, i);

@@ -39,7 +39,10 @@ export default function AnalysisChat({ sidebar = false }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
 
-  const { allCandles, currentIndex, currentSignals, currentStock, currentInterval } = useReplayStore();
+  const {
+    allCandles, currentIndex, currentSignals, currentStock, currentInterval,
+    trendState, trendPosition, winnerPatterns,
+  } = useReplayStore();
 
   function buildContext(): string {
     const stock = currentStock ? `股票：${currentStock.name}（${currentStock.ticker}）` : '股票：未選擇';
@@ -64,10 +67,18 @@ export default function AnalysisChat({ sidebar = false }: Props) {
       c.kdK != null ? `KD K：${c.kdK.toFixed(2)}` : '',
       c.kdD != null ? `KD D：${c.kdD.toFixed(2)}` : '',
     ].filter(Boolean).join('\n');
+    const trendInfo = (trendState || trendPosition)
+      ? `\n\n趨勢：${trendState ?? '—'}　位置：${trendPosition ?? '—'}`
+      : '';
     const signals = currentSignals.length > 0
       ? `\n\n當前系統訊號：\n${currentSignals.map(s => `- [${s.type}] ${s.label}：${s.description}`).join('\n')}`
       : '\n\n當前無系統訊號';
-    return `${stock}　${interval}\n\n當前K棒資料：\n${candleInfo}${signals}`;
+    const wpBull = winnerPatterns?.bullishPatterns.map(p => p.name).join('、') ?? '';
+    const wpBear = winnerPatterns?.bearishPatterns.map(p => p.name).join('、') ?? '';
+    const winnerInfo = (wpBull || wpBear)
+      ? `\n\n贏家圖像（寶典 Part 12）：${wpBull ? `🎯空轉多 ${wpBull}` : ''}${wpBull && wpBear ? '；' : ''}${wpBear ? `⛔多轉空 ${wpBear}` : ''}`
+      : '';
+    return `${stock}　${interval}\n\n當前K棒資料：\n${candleInfo}${trendInfo}${signals}${winnerInfo}`;
   }
 
   useEffect(() => {

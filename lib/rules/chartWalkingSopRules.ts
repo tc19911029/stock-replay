@@ -27,19 +27,19 @@ const BODY_MIN = 0.02; // 實體 > 2% 才有攻擊力道
 
 /** KD 多單進場條件：K值向上 / KD多排(K>D) / KD黃金交叉，符合其一 */
 function kdBullish(c: CandleWithIndicators, prev: CandleWithIndicators): boolean {
-  if (c.kdK == null || c.kdD == null || prev.kdK == null) return false;
+  if (c.kdK == null || c.kdD == null || prev.kdK == null || prev.kdD == null) return false;
   const kUp = c.kdK > prev.kdK;
   const kAboveD = c.kdK > c.kdD;
-  const goldenCross = prev.kdK <= prev.kdD! && c.kdK > c.kdD;
+  const goldenCross = prev.kdK <= prev.kdD && c.kdK > c.kdD;
   return kUp || kAboveD || goldenCross;
 }
 
 /** KD 空單進場條件：K值向下 / KD空排(K<D) / KD死亡交叉，符合其一 */
 function kdBearish(c: CandleWithIndicators, prev: CandleWithIndicators): boolean {
-  if (c.kdK == null || c.kdD == null || prev.kdK == null) return false;
+  if (c.kdK == null || c.kdD == null || prev.kdK == null || prev.kdD == null) return false;
   const kDown = c.kdK < prev.kdK;
   const kBelowD = c.kdK < c.kdD;
-  const deathCross = prev.kdK >= prev.kdD! && c.kdK < c.kdD;
+  const deathCross = prev.kdK >= prev.kdD && c.kdK < c.kdD;
   return kDown || kBelowD || deathCross;
 }
 
@@ -194,8 +194,9 @@ export const sopBullPullbackBuy: TradingRule = {
     // 必須有回檔跡象：前日收盤 ≤ 5MA（代表之前有回檔修正）
     if (prev.ma5 == null || prev.close > prev.ma5) return null;
 
-    // ③ K棒：實體紅K，收盤站上5MA，且站上前日K棒最高價
+    // ③ K棒：實體紅K（書本要求 ≥ 2% 才算「上漲確認」），收盤站上5MA，且站上前日K棒最高價
     if (c.close <= c.open) return null;
+    if (bodyPct(c) < BODY_MIN) return null;
     if (c.close < c.ma5) return null;
     if (c.close <= prev.high) return null;
 
@@ -337,8 +338,9 @@ export const sopBearBounceSell: TradingRule = {
     // 必須有反彈跡象：前日收盤 ≥ 5MA（代表之前有反彈）
     if (prev.ma5 == null || prev.close < prev.ma5) return null;
 
-    // ③ K棒：實體黑K，收盤跌破5MA，且跌破前日K棒最低價
+    // ③ K棒：實體黑K（書本要求 ≥ 2% 才算「下跌確認」），收盤跌破5MA，且跌破前日K棒最低價
     if (c.close >= c.open) return null;
+    if (bodyPct(c) < BODY_MIN) return null;
     if (c.close > c.ma5) return null;
     if (c.close >= prev.low) return null;
 

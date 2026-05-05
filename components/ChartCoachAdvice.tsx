@@ -141,7 +141,10 @@ function buildFollowupContext(
 }
 
 export default function ChartCoachAdvice() {
-  const { currentSignals, allCandles, currentIndex, currentStock } = useReplayStore();
+  const {
+    currentSignals, allCandles, currentIndex, currentStock,
+    trendState, trendPosition, sixConditions, longProhibitions, winnerPatterns,
+  } = useReplayStore();
   const { holdings } = usePortfolioStore();
 
   const candle = allCandles[currentIndex];
@@ -241,10 +244,21 @@ export default function ChartCoachAdvice() {
             kdK: candle.kdK, kdD: candle.kdD,
             macdDIF: candle.macdDIF, macdSignal: candle.macdSignal, macdOSC: candle.macdOSC,
           },
-          trend: '', // 若 replay state 有可以填，目前簡化
-          trendPosition: '',
+          trend: trendState ?? '',
+          trendPosition: trendPosition ?? '',
+          sixCond: sixConditions?.totalScore,
+          sixCondBreakdown: sixConditions ? {
+            trend:     sixConditions.trend.pass,
+            position:  sixConditions.position.pass,
+            kbar:      sixConditions.kbar.pass,
+            ma:        sixConditions.ma.pass,
+            volume:    sixConditions.volume.pass,
+            indicator: sixConditions.indicator.pass,
+          } : undefined,
           signals,
-          prohibitions: [],
+          prohibitions: longProhibitions?.reasons ?? [],
+          winnerBullishPatterns: winnerPatterns?.bullishPatterns.map(p => p.name) ?? [],
+          winnerBearishPatterns: winnerPatterns?.bearishPatterns.map(p => p.name) ?? [],
           hasPosition,
           positionCost: held?.costPrice ?? null,
         }),

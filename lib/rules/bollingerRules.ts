@@ -91,3 +91,7 @@ export const bollingerSqueezeDown: TradingRule = {
     };
   },
 };
+
+export const BOLLINGER_RULES: TradingRule[] = [
+  bollingerSqueezeUp, bollingerSqueezeDown,
+];

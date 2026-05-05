@@ -10,6 +10,7 @@
 
 import { NextRequest } from 'next/server';
 import { apiOk, apiError } from '@/lib/api/response';
+import { checkCronAuth } from '@/lib/api/cronAuth';
 import { readIntradaySnapshot } from '@/lib/datasource/IntradayCache';
 import { isMarketOpen, isPostCloseWindow, getCurrentTradingDay } from '@/lib/datasource/marketHours';
 import { isTradingDay } from '@/lib/utils/tradingDay';
@@ -20,10 +21,8 @@ export const maxDuration = 120;
 const VALID_METHODS = new Set(['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']);
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return apiError('Unauthorized', 401);
-  }
+  const authDenied = checkCronAuth(req);
+  if (authDenied) return authDenied;
 
   const market = (req.nextUrl.searchParams.get('market') ?? 'TW') as 'TW' | 'CN';
   const method = req.nextUrl.searchParams.get('method') as 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | null;

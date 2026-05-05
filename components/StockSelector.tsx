@@ -40,7 +40,8 @@ function rawSymbol(ticker: string) {
 export default function StockSelector() {
   const { loadStock, isLoadingStock, currentStock, targetDate, startPolling, stopPolling } = useReplayStore();
   const [input,    setInput]    = useState('');
-  const [interval, setInterval] = useState<ScanInterval>('1d');
+  // 不用 setInterval 命名，避免 mask global window.setInterval
+  const [chartInterval, setChartInterval] = useState<ScanInterval>('1d');
   const [showDrop, setShowDrop] = useState(false);
   const [error,    setError]    = useState('');
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -59,7 +60,7 @@ export default function StockSelector() {
     return () => { stopPolling(); };
   }, [stopPolling]);
 
-  const handleLoad = useCallback(async (symbol: string, iv: ScanInterval = interval, keepTarget = false) => {
+  const handleLoad = useCallback(async (symbol: string, iv: ScanInterval = chartInterval, keepTarget = false) => {
     setError('');
     setShowDrop(false);
     stopPolling(); // 切換股票/週期前先停止
@@ -71,11 +72,11 @@ export default function StockSelector() {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '載入失敗');
     }
-  }, [interval, targetDate, loadStock, startPolling, stopPolling]);
+  }, [chartInterval, targetDate, loadStock, startPolling, stopPolling]);
 
   // Auto-reload when interval changes — 保留訊號日定位
   const handleIntervalChange = (newIv: ScanInterval) => {
-    setInterval(newIv);
+    setChartInterval(newIv);
     if (currentStock) handleLoad(rawSymbol(currentStock.ticker), newIv, true);
   };
 
@@ -132,7 +133,7 @@ export default function StockSelector() {
       <span className="text-muted-foreground/60 text-xs shrink-0">|</span>
 
       {/* Interval buttons — auto-reload on click */}
-      <IntervalSwitcher value={interval} onChange={handleIntervalChange} />
+      <IntervalSwitcher value={chartInterval} onChange={handleIntervalChange} />
 
       {error && <span className="text-xs text-red-400 truncate">{error}</span>}
     </div>

@@ -86,6 +86,8 @@ function bearish02_highLongUpperShadow(
   if (!isAtHighLevel(c)) return null;
   const upper = upperShadow(c);
   const body = bodySize(c);
+  // 長上影線需有實體當基準（doji 由 gravestone 規則處理，避免重複觸發）
+  if (body <= 0) return null;
   if (upper < body * 2 || !isHighVolume(c, 1.5)) return null;
   return {
     id: 'bear02', name: '高檔長上影線變盤',
@@ -155,7 +157,8 @@ function bearish06_gapDownBlack(
   const c = candles[idx];
   const prev = get(candles, idx, -1);
   if (!prev || !isAtHighLevel(prev)) return null;
-  if (c.open >= prev.low) return null; // 無跳空
+  // 真正跳空：今日最高仍 < 前日最低（gapDown 標準定義）
+  if (c.high >= prev.low) return null;
   if (!isBlack(c)) return null;
   return {
     id: 'bear06', name: '高檔跳空黑K',
@@ -275,7 +278,11 @@ function bearish12_highVolNoRise(
 ): PatternSignal | null {
   const c = candles[idx];
   if (!isAtHighLevel(c) || !isHighVolume(c, 2.0)) return null;
-  const changePct = (c.close - c.open) / c.open;
+  // 「大量不漲」用相對前日收盤的漲幅（書本本意），不是日內 open-close
+  // 跳空後盤整不漲（前日 close 100 → 今 102 跳空但收 102）也應觸發
+  const prev = get(candles, idx, -1);
+  if (!prev || prev.close <= 0) return null;
+  const changePct = (c.close - prev.close) / prev.close;
   if (changePct > -0.005 && changePct < 0.01) {
     return {
       id: 'bear12', name: '多頭大量不漲',
@@ -546,13 +553,21 @@ function bullish10_doubleLegConfirm(
   if (idx < 20) return null;
   const c = candles[idx];
   if (!isLongRed(c)) return null;
-  // 底部兩支腳：找前20天有兩個接近的低點
+  // 底部兩支腳：找前20天有兩個「分開」的低點（≥5天間隔），中間有反彈才算雙底
   const lookback = candles.slice(idx - 20, idx);
   const lows = lookback.map(x => x.low);
   const minLow = Math.min(...lows);
   if (minLow <= 0) return null;
-  const nearLows = lows.filter(l => l <= minLow * 1.03);
-  if (nearLows.length >= 2 && c.close > Math.max(...lookback.map(x => x.close))) {
+  // 標出每個距底部 3% 內的點，並要求兩個低點時間間隔 > 5 天（過濾連續觸底偽 W 底；對齊 bullish07/surgeStockDoubleBottom）
+  const lowIdxs: number[] = [];
+  for (let i = 0; i < lows.length; i++) {
+    if (lows[i] <= minLow * 1.03) {
+      if (lowIdxs.length === 0 || i - lowIdxs[lowIdxs.length - 1] > 5) {
+        lowIdxs.push(i);
+      }
+    }
+  }
+  if (lowIdxs.length >= 2 && c.close > Math.max(...lookback.map(x => x.close))) {
     return {
       id: 'bull10', name: '底部2支腳確認',
       direction: 'bullish', confidence: 75,
@@ -587,7 +602,10 @@ function bullish12_highVolNoFall(
 ): PatternSignal | null {
   const c = candles[idx];
   if (!isAtLowLevel(c) || !isHighVolume(c, 2.0)) return null;
-  const changePct = (c.close - c.open) / c.open;
+  // 「大量不跌」用相對前日收盤的跌幅（書本本意），不是日內 open-close
+  const prev = get(candles, idx, -1);
+  if (!prev || prev.close <= 0) return null;
+  const changePct = (c.close - prev.close) / prev.close;
   if (changePct > -0.005 && changePct < 0.01) {
     return {
       id: 'bull12', name: '空頭大量不跌',
@@ -627,10 +645,11 @@ function bullish14_fakeBreakdownRealUp(
   if (lookback.length < 5) return null;
   const lows = lookback.map(x => x.low);
   const supportLow = Math.min(...lows);
-  // 前1-2天跌破支撐
+  // 前1-2天「收盤」跌破支撐（書本：close 收盤確認跌破才算真跌破，盤中下影線不算）
+  // 與 highWinPositions.detectFalseBreakRebound 一致
   const d1 = get(candles, idx, -1);
   const d2 = get(candles, idx, -2);
-  const brokeDown = (d1 && d1.low < supportLow) || (d2 && d2.low < supportLow);
+  const brokeDown = (d1 && d1.close < supportLow) || (d2 && d2.close < supportLow);
   if (brokeDown && c.close > supportLow) {
     return {
       id: 'bull14', name: '假跌破真上漲',
@@ -656,11 +675,13 @@ function bullish15_strongResumeAfterPullback(
   const d3 = get(candles, idx, -3);
   const d4 = get(candles, idx, -4);
   if (d3 && d4 && isRed(d3) && isRed(d4)) {
-    if (c.close > d1.high) {
+    // 突破回檔期最高點（涵蓋 1-2 天回檔，書本「強勢股回檔續攻」要求過回檔高）
+    const pullbackHigh = d2 ? Math.max(d1.high, d2.high) : d1.high;
+    if (c.close > pullbackHigh) {
       return {
         id: 'bull15', name: '強勢股回檔續攻',
         direction: 'bullish', confidence: 75,
-        description: '回檔1-2天後大量紅K突破黑K高點',
+        description: '回檔1-2天後大量紅K突破回檔期最高點',
       };
     }
   }

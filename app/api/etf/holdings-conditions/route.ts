@@ -7,6 +7,14 @@ import { loadLocalCandles } from '@/lib/datasource/LocalCandleStore';
 import { loadLatestETFSnapshot } from '@/lib/etf/etfStorage';
 import type { StrategySignals, HoldingWithStrategies } from '@/lib/etf/strategySignals';
 import type { CandleWithIndicators } from '@/types';
+// 提到 top-level：避免 hot path 每次重複 await import 同模組（Round 10 修復）
+import { detectBreakoutEntry, detectConsolidationBreakout } from '@/lib/analysis/breakoutEntry';
+import { detectStrategyE } from '@/lib/analysis/highWinRateEntry';
+import { detectStrategyD } from '@/lib/analysis/gapEntry';
+import { detectVReversal } from '@/lib/analysis/vReversalDetector';
+import { detectABCBreakout } from '@/lib/analysis/abcBreakoutEntry';
+import { detectBlackKBreakout } from '@/lib/analysis/blackKBreakoutEntry';
+import { detectKlineConsolidationBreakout } from '@/lib/analysis/klineConsolidationBreakout';
 
 export const runtime = 'nodejs';
 
@@ -14,64 +22,27 @@ const querySchema = z.object({
   etfCode: z.string().min(1),
 });
 
-async function detectStrategies(
+function detectStrategies(
   candles: CandleWithIndicators[],
   lastIdx: number,
   thresholds: ReturnType<typeof resolveThresholds>,
-): Promise<StrategySignals> {
+): StrategySignals {
   const sixConds = evaluateSixConditions(candles, lastIdx, thresholds);
   const A = sixConds.isCoreReady ?? false;
-
-  let B = false;
-  let C = false;
-  let D = false;
-  let E = false;
-  let F = false;
-  let G = false;
-  let H = false;
-  let I = false;
-
-  try {
-    const { detectBreakoutEntry } = await import('@/lib/analysis/breakoutEntry');
-    B = !!detectBreakoutEntry(candles, lastIdx);
-  } catch { /* non-critical */ }
-
-  try {
-    const { detectConsolidationBreakout } = await import('@/lib/analysis/breakoutEntry');
-    C = !!detectConsolidationBreakout(candles, lastIdx);
-  } catch { /* non-critical */ }
-
-  try {
-    const { detectStrategyE } = await import('@/lib/analysis/highWinRateEntry');
-    D = !!detectStrategyE(candles, lastIdx);
-  } catch { /* non-critical */ }
-
-  try {
-    const { detectStrategyD } = await import('@/lib/analysis/gapEntry');
-    E = !!detectStrategyD(candles, lastIdx);
-  } catch { /* non-critical */ }
-
-  try {
-    const { detectVReversal } = await import('@/lib/analysis/vReversalDetector');
-    F = !!detectVReversal(candles, lastIdx);
-  } catch { /* non-critical */ }
-
-  try {
-    const { detectABCBreakout } = await import('@/lib/analysis/abcBreakoutEntry');
-    G = !!detectABCBreakout(candles, lastIdx);
-  } catch { /* non-critical */ }
-
-  try {
-    const { detectBlackKBreakout } = await import('@/lib/analysis/blackKBreakoutEntry');
-    H = !!detectBlackKBreakout(candles, lastIdx);
-  } catch { /* non-critical */ }
-
-  try {
-    const { detectKlineConsolidationBreakout } = await import('@/lib/analysis/klineConsolidationBreakout');
-    I = !!detectKlineConsolidationBreakout(candles, lastIdx);
-  } catch { /* non-critical */ }
-
-  return { A, B, C, D, E, F, G, H, I };
+  const safe = <T,>(fn: () => T | undefined | null): boolean => {
+    try { return !!fn(); } catch { return false; }
+  };
+  return {
+    A,
+    B: safe(() => detectBreakoutEntry(candles, lastIdx)),
+    C: safe(() => detectConsolidationBreakout(candles, lastIdx)),
+    D: safe(() => detectStrategyE(candles, lastIdx)),
+    E: safe(() => detectStrategyD(candles, lastIdx)),
+    F: safe(() => detectVReversal(candles, lastIdx)),
+    G: safe(() => detectABCBreakout(candles, lastIdx)),
+    H: safe(() => detectBlackKBreakout(candles, lastIdx)),
+    I: safe(() => detectKlineConsolidationBreakout(candles, lastIdx)),
+  };
 }
 
 async function processHolding(
@@ -99,7 +70,7 @@ async function processHolding(
       ? +((last.close - prev.close) / prev.close * 100).toFixed(2)
       : 0;
 
-    const strategies = await detectStrategies(candles, lastIdx, thresholds);
+    const strategies = detectStrategies(candles, lastIdx, thresholds);
 
     const result: HoldingWithStrategies = { symbol, name, weight, price: last.close, changePct, strategies };
     return result;

@@ -24,9 +24,10 @@ import {
 } from '@/lib/analysis/trendAnalysis';
 import { checkLongProhibitions, checkShortProhibitions, type ProhibitionResult } from '@/lib/rules/entryProhibitions';
 import { evaluateShortSixConditions, type ShortSixConditionsResult } from '@/lib/analysis/shortAnalysis';
-import { evaluateWinnerPatterns, type WinnerPatternResult } from '@/lib/rules/winnerPatternRules';
+import { type WinnerPatternResult } from '@/lib/rules/winnerPatternRules';
 import { useSettingsStore } from '@/store/settingsStore';
 import { ensureEngineUpToDate, getActiveEngine, getCachedMarkers } from './signalCache';
+import { ensureWinnerPatternsCache, getWinnerPatternsAt } from './winnerPatternsCache';
 
 export interface DerivedState {
   visibleCandles: CandleWithIndicators[];
@@ -53,6 +54,7 @@ export function buildState(
   account: AccountState,
 ): DerivedState {
   ensureEngineUpToDate(allCandles);
+  ensureWinnerPatternsCache(allCandles);
 
   const currentPrice = allCandles[index]?.close ?? 0;
   const metrics = computeMetrics(account, currentPrice);
@@ -84,7 +86,7 @@ export function buildState(
   const longProhibitions  = index >= 5 ? checkLongProhibitions(allCandles, index)  : null;
   const shortProhibitions = index >= 5 ? checkShortProhibitions(allCandles, index) : null;
   const shortConditions   = index >= 5 ? evaluateShortSixConditions(allCandles, index) : null;
-  const winnerPatterns    = index >= 5 ? evaluateWinnerPatterns(allCandles, index)    : null;
+  const winnerPatterns    = index >= 5 ? getWinnerPatternsAt(index)                   : null;
 
   return {
     visibleCandles,

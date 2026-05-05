@@ -163,12 +163,15 @@ export const useScannerStore = create<ScannerStore>()(
                   results?: StockScanResult[];
                   scanTime?: string;
                   resultCount?: number;
+                  marketTrend?: string;
                 }>;
               };
               const session = savedJson.sessions?.[0];
               if (session && session.results && session.results.length > 0) {
                 const results = session.results.map(sanitizeScanResult);
                 const now = session.scanTime || new Date().toISOString();
+                // 用 session 真實 marketTrend；沒有時保留現值，避免硬寫「多頭」誤導 UI
+                const trend = (session.marketTrend ?? get()[mKey].marketTrend) as '多頭' | '空頭' | '盤整';
                 set(s => ({
                   [mKey]: {
                     ...s[mKey],
@@ -177,7 +180,7 @@ export const useScannerStore = create<ScannerStore>()(
                     scanningStock: '',
                     results,
                     lastScanTime: now,
-                    marketTrend: '多頭',
+                    marketTrend: trend,
                     error: null,
                     scanningTotal: results.length,
                   },
@@ -235,7 +238,7 @@ export const useScannerStore = create<ScannerStore>()(
                 ...s[mKey],
                 isScanning: false, progress: 100, scanningStock: '',
                 results: [], lastScanTime: new Date().toISOString(),
-                marketTrend: '多頭',
+                // 不硬寫「多頭」誤導；保留上次的 marketTrend
                 error: `全市場 ${coarseTotal} 檔粗掃後無候選股票。\n`
                   + '可能原因：目前無股票同時滿足「站穩MA20 + 有量 + 上漲」等基本條件。\n'
                   + '這是正常現象，表示盤面整體偏弱或無明確方向。',

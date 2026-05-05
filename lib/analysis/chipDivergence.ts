@@ -87,7 +87,7 @@ export function detectChipDivergence(
       priceChangePct,
       instAccumNet,
       strength,
-      detail: `${windowDays}日內價跌 ${Math.abs(priceChangePct).toFixed(1)}% 但法人累積買超 ${instAccumNet.toLocaleString()} 張（隱性吸籌）`,
+      detail: `${windowDays}日內價跌 ${Math.abs(priceChangePct).toFixed(1)}% 但法人累積買超 ${instAccumNet.toLocaleString('zh-TW')} 張（隱性吸籌）`,
     };
   }
 
@@ -101,7 +101,7 @@ export function detectChipDivergence(
       priceChangePct,
       instAccumNet,
       strength,
-      detail: `${windowDays}日內價漲 ${priceChangePct.toFixed(1)}% 但法人累積賣超 ${Math.abs(instAccumNet).toLocaleString()} 張（隱性出貨）`,
+      detail: `${windowDays}日內價漲 ${priceChangePct.toFixed(1)}% 但法人累積賣超 ${Math.abs(instAccumNet).toLocaleString('zh-TW')} 張（隱性出貨）`,
     };
   }
 

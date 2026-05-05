@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { apiOk, apiError } from '@/lib/api/response';
+import { checkCronAuth } from '@/lib/api/cronAuth';
 import { loadScanSession } from '@/lib/storage/scanStorage';
 import { isTradingDay } from '@/lib/utils/tradingDay';
 import { getLastTradingDay } from '@/lib/datasource/marketHours';
@@ -11,10 +12,8 @@ export const maxDuration = 300;
 type MarketType = 'TW' | 'CN';
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return apiError('Unauthorized', 401);
-  }
+  const authDenied = checkCronAuth(req);
+  if (authDenied) return authDenied;
 
   const market = req.nextUrl.searchParams.get('market') as MarketType | null;
   if (market !== 'TW' && market !== 'CN') {

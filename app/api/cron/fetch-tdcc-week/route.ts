@@ -11,15 +11,14 @@ import { NextRequest } from 'next/server';
 import { apiOk, apiError } from '@/lib/api/response';
 import { fetchTdccLatestWeek } from '@/lib/datasource/TdccProvider';
 import { appendTdccDay, readTdccStock } from '@/lib/chips/ChipStorage';
+import { checkCronAuth } from '@/lib/api/cronAuth';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // TDCC CSV 約 2.3 MB，需較長 timeout
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return apiError('Unauthorized', 401);
-  }
+  const authDenied = checkCronAuth(req);
+  if (authDenied) return authDenied;
 
   try {
     console.log('[cron/fetch-tdcc-week] 開始抓取 TDCC 集保資料...');

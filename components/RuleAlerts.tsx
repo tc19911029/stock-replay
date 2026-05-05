@@ -308,6 +308,8 @@ export default function RuleAlerts() {
         </div>
       )}
 
+      {/* 贏家圖像（33 種寶典 Part 12）由 WinnerPatternAlerts 元件單獨顯示，避免重複 */}
+
       <p className="text-xs text-muted-foreground/50 mt-3 text-center">
         僅供練習參考，實際交易需自行判斷
       </p>

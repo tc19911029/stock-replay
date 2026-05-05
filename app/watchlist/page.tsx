@@ -223,7 +223,7 @@ export default function WatchlistPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-foreground">{item.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</span>
-                      <span className="text-xs text-muted-foreground truncate">{d?.name ?? item.name}</span>
+                      <span className="text-xs text-muted-foreground truncate" title={d?.name ?? item.name}>{d?.name ?? item.name}</span>
                     </div>
                     {/* Strategy chips：只顯示有命中的買法 */}
                     {d && !d.loading && !d.error && (d.matchedMethods?.length ?? 0) > 0 && (

@@ -57,7 +57,9 @@ export async function GET(req: NextRequest): Promise<Response> {
   try {
     // 1. 蒐集 lookbackDays 內所有掃描日期
     const dates = await listScanDates(market as MarketId, direction as ScanDirection);
-    const today = new Date().toISOString().slice(0, 10);
+    // CST 為主：UTC slice 在凌晨 00:00–08:00 CST 會回傳前一天，今日 scan 會被誤排除
+    const tz = market === 'CN' ? 'Asia/Shanghai' : 'Asia/Taipei';
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
     const cutoff = subtractDays(today, lookbackDays);
     const recentDates = dates
       .filter(d => d.date >= cutoff && d.date <= today)

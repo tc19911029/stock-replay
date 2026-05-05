@@ -299,6 +299,23 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                     </div>
                   </div>
                 )}
+                {/* 33 種贏家圖像（寶典 Part 12） */}
+                {((r.winnerBullishPatterns ?? []).length > 0 || (r.winnerBearishPatterns ?? []).length > 0) && (
+                  <div>
+                    {(r.winnerBullishPatterns ?? []).length > 0 && (
+                      <div className="mb-0.5">
+                        <span className="text-blue-400 font-medium">🎯 贏家圖像（空轉多）：</span>
+                        <span className="text-blue-300/80 text-[9px]">{r.winnerBullishPatterns!.join('、')}</span>
+                      </div>
+                    )}
+                    {(r.winnerBearishPatterns ?? []).length > 0 && (
+                      <div>
+                        <span className="text-purple-400 font-medium">⛔ 贏家圖像（多轉空）：</span>
+                        <span className="text-purple-300/80 text-[9px]">{r.winnerBearishPatterns!.join('、')}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {/* Elimination reasons */}
                 {r.eliminationReasons && r.eliminationReasons.length > 0 && (
                   <div>

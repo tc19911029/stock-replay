@@ -36,6 +36,7 @@ import {
   getCachedMarkers,
   setSignalStrengthMin as _setStrengthMin,
 } from './replay/signalCache';
+import { clearWinnerPatternsCache } from './replay/winnerPatternsCache';
 
 const INITIAL_CAPITAL = 1_000_000;
 
@@ -115,6 +116,9 @@ function calcStartIndex(candles: CandleWithIndicators[]): number {
 // ── Polling（盤中自動刷新） ──────────────────────────────────
 let pollingTimer: ReturnType<typeof setInterval> | null = null;
 
+// ── loadStock race-guard：每次呼叫 +1，applyData 時檢查仍是當前 token 才寫入 ──
+let _loadStockToken = 0;
+
 /** 根據 interval 決定 polling 頻率 (ms) */
 function getPollingInterval(interval: string): number {
   switch (interval) {
@@ -185,6 +189,10 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
     // 切換股票前先停止舊的 polling（ScanChartPanel 等外部呼叫路徑不經過 StockSelector）
     get().stopPolling();
 
+    // race guard：每次呼叫拿一個 token，applyData 寫 store 前確認 token 仍然有效
+    // 防止「連續切兩支股票時第一支 fetch 晚到把第二支結果蓋掉」
+    const myToken = ++_loadStockToken;
+
     const defaultPeriod: Record<string, string> = {
       '1m': '5d', '5m': '60d', '15m': '60d', '30m': '60d', '60m': '6mo',
       '1d': '2y', '1wk': '5y', '1mo': '10y',
@@ -194,9 +202,12 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
 
     set({ isLoadingStock: true, isPlaying: false });
     clearCachedMarkers();
+    clearWinnerPatternsCache();
 
-    /** 共用：把 API 回傳的 json 塞進 store */
+    /** 共用：把 API 回傳的 json 塞進 store（會檢查 race token） */
     const applyData = (json: { ticker: string; name: string; candles: unknown[] }, showLoading: boolean) => {
+      // 已被新的 loadStock 取代 → 放棄寫入
+      if (myToken !== _loadStockToken) return false;
       const allCandles = computeIndicators(json.candles as { date: string; open: number; high: number; low: number; close: number; volume: number }[]);
       if (allCandles.length === 0) return false;
 

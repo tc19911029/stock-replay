@@ -2,14 +2,16 @@ import { AccountState, AccountMetrics, Trade } from '@/types';
 
 const TRADE_FEE_RATE = 0.001425; // 0.1425% 買賣手續費
 const SELL_TAX_RATE  = 0.003;    // 0.3%  賣出證交稅 (台股)
+const TW_MIN_FEE     = 20;       // 台股券商最低手續費 20 元（與 lib/backtest/CostModel.ts 一致）
 
 /**
  * Calculate transaction fee (買賣手續費)
+ * 對齊 CostModel：手續費取 max(rate × amount, 20 元最低)
  */
 export function calcFee(amount: number, action: 'BUY' | 'SELL'): number {
-  const fee = amount * TRADE_FEE_RATE;
-  const tax = action === 'SELL' ? amount * SELL_TAX_RATE : 0;
-  return Math.round(fee + tax);
+  const fee = Math.max(TW_MIN_FEE, Math.round(amount * TRADE_FEE_RATE));
+  const tax = action === 'SELL' ? Math.round(amount * SELL_TAX_RATE) : 0;
+  return fee + tax;
 }
 
 /**
@@ -60,11 +62,11 @@ export function executeBuy(
     fee,
   };
 
-  // Update average cost (加權平均成本)
+  // Update average cost (加權平均成本) — 包含買進手續費，這樣 sell 時的 realizedPnL 會正確扣到雙邊費
   const totalCurrentValue = state.shares * state.avgCost;
   const newShares = state.shares + shares;
   const newAvgCost = newShares > 0
-    ? (totalCurrentValue + amount) / newShares
+    ? (totalCurrentValue + amount + fee) / newShares
     : 0;
 
   return {
@@ -148,12 +150,31 @@ export function computeMetrics(
 }
 
 /**
+ * 最多能買幾股（考慮手續費 max(20, rate × amount)）
+ *
+ * 兩種情況：
+ *   小額：fee = 20 → 解 cash >= price × n + 20
+ *   大額：fee = rate × amount → 解 cash >= price × n × (1 + rate)
+ */
+function maxSharesForBudget(budget: number, price: number): number {
+  if (budget <= 0 || price <= 0) return 0;
+  // 假設用 floor rate 的解；若手續費走最低 20 會更嚴格，再縮一股直到 totalCost ≤ budget
+  let n = Math.floor(budget / (price * (1 + TRADE_FEE_RATE)));
+  while (n > 0) {
+    const amount = price * n;
+    const fee = Math.max(TW_MIN_FEE, Math.round(amount * TRADE_FEE_RATE));
+    if (amount + fee <= budget) return n;
+    n--;
+  }
+  return 0;
+}
+
+/**
  * Calculate max buy shares given available cash and price.
  * Rounds down to whole shares.
  */
 export function maxBuyShares(cash: number, price: number): number {
-  // Account for fee: totalCost = price * n * (1 + feeRate)
-  return Math.floor(cash / (price * (1 + TRADE_FEE_RATE)));
+  return maxSharesForBudget(cash, price);
 }
 
 /**
@@ -165,6 +186,5 @@ export function sharesFromPercent(
   price: number,
   percent: number
 ): number {
-  const targetCash = cash * percent;
-  return Math.floor(targetCash / (price * (1 + TRADE_FEE_RATE)));
+  return maxSharesForBudget(cash * percent, price);
 }

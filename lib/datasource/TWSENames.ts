@@ -26,16 +26,47 @@ try {
   }
 } catch { /* 檔案不存在或讀取失敗，忽略 */ }
 
-/** 將動態查詢到的名稱寫回檔案快取 */
-function persistCNName(code: string, name: string): void {
+/**
+ * 將動態查詢到的名稱寫回檔案快取
+ *
+ * 用 in-memory pendingWrites 緩衝 + atomic rename 解決 read-merge-write 並行問題：
+ * - 多個並行 persistCNName 呼叫先合併到 pending Map，再 batched flush
+ * - flush 時讀檔→merge in-memory→atomic rename 寫回
+ * - 同個 process 不會 lose update（單執行緒事件迴圈保證 flush 內 atomic）
+ */
+const _pendingWrites = new Map<string, string>();
+let _flushTimer: NodeJS.Timeout | null = null;
+
+function flushCNNamesPending(): void {
+  if (_pendingWrites.size === 0) return;
   try {
+    const snapshot = new Map(_pendingWrites);
+    _pendingWrites.clear();
+
     let saved: Record<string, string> = {};
     try { saved = JSON.parse(fs.readFileSync(CN_FILE_CACHE, 'utf-8')); } catch { /* 新檔 */ }
-    if (saved[code] === name) return; // 已存在，不重寫
-    saved[code] = name;
+
+    let dirty = false;
+    for (const [code, name] of snapshot) {
+      if (saved[code] !== name) { saved[code] = name; dirty = true; }
+    }
+    if (!dirty) return;
+
     fs.mkdirSync(path.dirname(CN_FILE_CACHE), { recursive: true });
-    fs.writeFileSync(CN_FILE_CACHE, JSON.stringify(saved, null, 2), 'utf-8');
+    // atomic write：先寫 tmp 再 rename，避免 partial write
+    const tmp = `${CN_FILE_CACHE}.tmp.${process.pid}`;
+    fs.writeFileSync(tmp, JSON.stringify(saved, null, 2), 'utf-8');
+    fs.renameSync(tmp, CN_FILE_CACHE);
   } catch { /* 寫入失敗，不影響主流程 */ }
+}
+
+function persistCNName(code: string, name: string): void {
+  _pendingWrites.set(code, name);
+  if (_flushTimer) return;
+  _flushTimer = setTimeout(() => {
+    _flushTimer = null;
+    flushCNNamesPending();
+  }, 200);  // 200ms 批次 flush
 }
 
 /**

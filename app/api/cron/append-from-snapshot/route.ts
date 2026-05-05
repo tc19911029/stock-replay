@@ -4,12 +4,13 @@
 // instrumentation.ts 在 isPostCloseWindow 後 30 分鐘觸發
 
 import { NextRequest } from 'next/server';
-import { apiOk, apiError } from '@/lib/api/response';
+import { apiOk } from '@/lib/api/response';
 import { isPostCloseWindow, isMarketOpen, getLastTradingDay } from '@/lib/datasource/marketHours';
 import { isTradingDay } from '@/lib/utils/tradingDay';
 import { readCandleFile } from '@/lib/datasource/CandleStorageAdapter';
 import { saveLocalCandles } from '@/lib/datasource/LocalCandleStore';
 import { suspectsLimitOverwrite } from '@/lib/datasource/limitMoveGuard';
+import { checkCronAuth } from '@/lib/api/cronAuth';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -38,10 +39,8 @@ async function fetchCNQuotes(): Promise<Map<string, { open: number; high: number
 }
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return apiError('Unauthorized', 401);
-  }
+  const authDenied = checkCronAuth(req);
+  if (authDenied) return authDenied;
 
   const market = (req.nextUrl.searchParams.get('market') ?? 'TW') as 'TW' | 'CN';
   const date = getLastTradingDay(market);

@@ -86,7 +86,11 @@ export function detectBollingerSignals(
   const buyFromLower     = prev.close < bbPrev.lower && c.close >= bb.lower && c.close > c.open;
   const buyBreakMiddle   = prev.close < bbPrev.middle && c.close >= bb.middle && c.close > c.open;
   const buyAboveMiddle   = c.close > bb.middle && c.close < bb.upper && bb.middle > bbPrev.middle;
-  const parallel         = Math.abs((bb.upper - bb.lower) - (bbPrev5.upper - bbPrev5.lower)) / bb.middle < 0.02;
+  // parallel 軌：今日寬度與 5 日前寬度差距 ≤ 10%（除以寬度而非 middle，否則寬度倍增也會被視為 parallel）
+  const widthNow = bb.upper - bb.lower;
+  const widthPrev5 = bbPrev5.upper - bbPrev5.lower;
+  const refWidth = Math.max(widthNow, widthPrev5);
+  const parallel = refWidth > 0 && Math.abs(widthNow - widthPrev5) / refWidth < 0.10;
   const buyParallelBreak = parallel && c.close > bb.upper && c.close > c.open;
 
   // 4 賣訊（鏡像）

@@ -36,8 +36,10 @@ const EXIT_STRONG_PATTERNS: readonly (string | RegExp)[] = [
   '長黑吞噬',
   '長黑K',
   '跌破支撐',
+  '布林壓縮跌破',           // 布林通道跌破下軌
   /^ma5-exit/i,
   /^sell-break-/i,
+  /^granville-sell-(5|6|7)/i,  // 葛蘭碧⑤⑥⑦：跌破均線、反彈失敗、急跌警示
 ];
 
 /** 情境出場（需搭配其他訊號才有意義） */
@@ -50,6 +52,8 @@ const EXIT_SOFT_PATTERNS: readonly (string | RegExp)[] = [
   '量能轉弱',
   '智慧K線賣出',
   '上缺回補',
+  '葛蘭碧⑧停利',             // 急漲停利建議減碼
+  /^granville-sell-8/i,
 ];
 
 /** 明確進場（書本 6 位置+攻擊買進） */
@@ -62,14 +66,25 @@ const ENTRY_STRONG_PATTERNS: readonly (string | RegExp)[] = [
   '攻擊買進',
   '買上漲',
   '打底突破',
+  '葛蘭碧①',                 // 突破均線買進
+  '葛蘭碧②',                 // 回測支撐買進
+  '葛蘭碧③',                 // 加碼買進
+  '布林壓縮突破',             // 布林通道突破上軌
   /^breakout-/i,
   /^entry-/i,
+  /^granville-buy-(1|2|3)/i,
+  /^bollinger-squeeze-up/i,
+  /^zhu-bull-pullback-entry/i,    // 朱進場位置①：回檔再上漲
+  /^zhu-bull-breakout-entry/i,    // 朱進場位置②：盤整突破
+  /^zhu-bull-ma-support-entry/i,  // 朱進場位置④：均線支撐再上漲
 ];
 
 /** 軟進場（進場但需搭配其他條件） */
 const ENTRY_SOFT_PATTERNS: readonly (string | RegExp)[] = [
   '可能買點',
   '觀察買點',
+  '葛蘭碧④反彈',             // WATCH 型，已自動歸 warn 但保留以防 BUY 誤標
+  /^granville-buy-4/i,
 ];
 
 /** 趨勢/持股標籤（不觸發動作） */

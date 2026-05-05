@@ -22,6 +22,7 @@ import { getLastTradingDay } from '@/lib/datasource/marketHours';
 import { saveDownloadManifest } from '@/lib/datasource/DownloadManifest';
 import { verifyDownload } from '@/lib/datasource/DownloadVerifier';
 import { spotCheckL1 } from '@/lib/datasource/L1SpotCheck';
+import { checkCronAuth } from '@/lib/api/cronAuth';
 
 // ── TWSE MI_INDEX 官方日收盤（上市，集合競價後才更新） ───────────────────────────
 
@@ -65,10 +66,8 @@ const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
 export async function GET(req: NextRequest) {
   // 驗證 cron secret
-  const authHeader = req.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return apiError('Unauthorized', 401);
-  }
+  const authDenied = checkCronAuth(req);
+  if (authDenied) return authDenied;
 
   const market = req.nextUrl.searchParams.get('market') as 'TW' | 'CN' | null;
   if (market !== 'TW' && market !== 'CN') {

@@ -13,16 +13,15 @@ import { NextRequest } from 'next/server';
 import { scanDabanWithPrefilter, enrichSentimentWithStrategyHealth } from '@/lib/scanner/DabanScanner';
 import { saveDabanSession } from '@/lib/storage/dabanStorage';
 import { apiOk, apiError } from '@/lib/api/response';
+import { checkCronAuth } from '@/lib/api/cronAuth';
 import { isTradingDay } from '@/lib/utils/tradingDay';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return apiError('Unauthorized', 401);
-  }
+  const authDenied = checkCronAuth(req);
+  if (authDenied) return authDenied;
 
   try {
     const { getLastTradingDay, getCurrentTradingDay } = await import('@/lib/datasource/marketHours');

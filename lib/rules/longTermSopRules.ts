@@ -292,21 +292,39 @@ export const longTermSecondWaveEntry: TradingRule = {
 export const longTermDoubledWarning: TradingRule = {
   id: 'long-term-doubled-warning',
   name: '長線警示：漲幅超100%不再操作',
-  description: '股價上漲約一倍後不再做長線操作',
-  evaluate(candles: CandleWithIndicators[], index: number) {
+  description: '股價上漲約一倍後不再做長線操作（持倉時依實際成本算）',
+  evaluate(candles: CandleWithIndicators[], index: number, ctx) {
     if (index < 60) return null;
     const c = candles[index];
 
+    const avgCost = ctx?.avgCost;
+
+    // Portfolio 版：用實際成本算漲幅，>=100% 為 SELL（書本「操作8: 漲一倍後不再做長線」）
+    if (avgCost && avgCost > 0) {
+      const gainPct = (c.close - avgCost) / avgCost;
+      if (gainPct >= 1.0) {
+        return {
+          type: 'SELL' as const,
+          label: '長線操作8',
+          description: `成本${avgCost.toFixed(2)}→${c.close} 獲利${(gainPct * 100).toFixed(0)}%已達一倍`,
+          reason: `長線操作8: 成本${avgCost.toFixed(2)}→${c.close}，獲利${(gainPct * 100).toFixed(0)}%已達一倍，停利出場`,
+          ruleId: this.id,
+        };
+      }
+      return null;
+    }
+
+    // 結構版：近120日低點當漲幅錨點，觸發 WATCH 警示（不直接 SELL，因使用者可能不是從低點買進）
     const low120 = Math.min(...candles.slice(Math.max(0, index - 120), index).map(x => x.low));
     if (low120 <= 0) return null;
     const gainPct = (c.close - low120) / low120;
 
     if (gainPct >= 1.0) {
       return {
-        type: 'SELL' as const,
-        label: '長線操作8',
-        description: `漲幅${(gainPct * 100).toFixed(0)}%已達一倍`,
-        reason: `長線操作8: 漲幅${(gainPct * 100).toFixed(0)}%，股價上漲約1倍後不再做長線`,
+        type: 'WATCH' as const,
+        label: '⚠近期已漲一倍',
+        description: `近120日低點${low120.toFixed(2)}起漲${(gainPct * 100).toFixed(0)}%`,
+        reason: `近120日低點${low120.toFixed(2)}起漲${(gainPct * 100).toFixed(0)}%，已達書本「漲一倍不再操作」警示。若有持倉請以實際成本判斷是否停利。`,
         ruleId: this.id,
       };
     }

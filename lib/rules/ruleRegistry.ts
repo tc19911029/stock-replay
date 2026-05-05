@@ -26,14 +26,6 @@ export type RuleGroupId =
   | 'lin-sop'          // 林穎走圖 SOP
   | 'granville'        // 葛蘭碧八大法則
   | 'bollinger'        // 布林通道
-  | 'rsi'              // RSI 進階
-  | 'edwards-magee'    // Edwards & Magee 經典圖表型態
-  | 'trend-ma'         // 趨勢/均線（通用基礎）
-  | 'volume'           // 量價（通用基礎）
-  | 'oscillator'       // MACD/KD（通用基礎）
-  | 'consensus'        // 大師共識/共振
-  | 'larry-williams'   // Larry Williams 短線交易秘訣
-  | 'murphy'           // Murphy《金融市場技術分析》
   | 'cond-2'           // 回測虛擬：六大條件≥2
   | 'cond-3'           // 回測虛擬：六大條件≥3
   | 'cond-4'           // 回測虛擬：六大條件≥4
@@ -157,6 +149,9 @@ import {
   sopBearConfirmEntry, sopBearBounceSell, sopConsolidationBreakdown,
 } from './chartWalkingSopRules';
 import { sopHighReversalWarning, sopLowReversalSignal } from './reversalPatternRules';
+// 葛蘭碧八大法則（朱家泓《抓住飆股》）+ 布林通道（朱家泓寶典 Part 8）
+import { GRANVILLE_RULES } from './granvilleRules';
+import { BOLLINGER_RULES } from './bollingerRules';
 
 // ── 註冊所有群組 ──────────────────────────────────────────────────────────────
 
@@ -244,6 +239,22 @@ function createDefaultRegistry(): RuleRegistry {
       sopBearConfirmEntry, sopBearBounceSell, sopConsolidationBreakdown,
       sopHighReversalWarning, sopLowReversalSignal,
     ],
+  });
+
+  registry.register({
+    id: 'granville',
+    name: '葛蘭碧八大法則',
+    author: '朱家泓《抓住飆股》',
+    description: '8 條 MA20 進出場法則：4 買 + 4 賣（突破/拉回/急漲/急跌）',
+    rules: [...GRANVILLE_RULES],
+  });
+
+  registry.register({
+    id: 'bollinger',
+    name: '布林通道',
+    author: '朱家泓寶典 Part 8',
+    description: '帶寬擠壓後的方向性突破：向上突破 + 向下跌破',
+    rules: [...BOLLINGER_RULES],
   });
 
   return registry;

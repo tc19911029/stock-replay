@@ -85,6 +85,34 @@ export default function PortfolioPage() {
     setForm({ ...EMPTY_FORM, buyDate: new Date().toISOString().split('T')[0] });
   }
 
+  async function autoFillCostPrice() {
+    if (!form.symbol || !form.buyDate) return;
+    setFormLoading(true);
+    try {
+      const params = new URLSearchParams({
+        symbol: form.symbol.trim(),
+        interval: '1d',
+        period: '1y',
+      });
+      const res = await fetch(`/api/stock?${params}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      const candles = json?.data?.candles ?? json?.candles ?? [];
+      const target = candles.find((k: { date: string }) => k.date === form.buyDate);
+      if (target?.close > 0) {
+        setForm(f => ({ ...f, costPrice: String(target.close) }));
+      } else {
+        // 找不到該日（可能假日或資料缺失），找最近一日
+        const before = candles.filter((k: { date: string }) => k.date <= form.buyDate);
+        const nearest = before[before.length - 1];
+        if (nearest?.close > 0) {
+          setForm(f => ({ ...f, costPrice: String(nearest.close), buyDate: nearest.date }));
+        }
+      }
+    } catch { /* silent fail; user can input manually */ }
+    finally { setFormLoading(false); }
+  }
+
   async function handleAdd() {
     if (!form.symbol || !form.shares || !form.costPrice) return;
     setFormLoading(true);
@@ -267,7 +295,17 @@ export default function PortfolioPage() {
                   className="bg-muted border-border focus:border-blue-500" />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">成本價（買進均價）</label>
+                <label className="text-xs text-muted-foreground mb-1 block flex items-center justify-between">
+                  <span>成本價（買進均價）</span>
+                  <button
+                    type="button"
+                    onClick={autoFillCostPrice}
+                    disabled={!form.symbol || !form.buyDate || formLoading}
+                    className="text-[10px] text-blue-400 hover:text-blue-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    📥 用當日收盤
+                  </button>
+                </label>
                 <Input type="number" step="0.0001" value={form.costPrice} onChange={e => setForm(f => ({ ...f, costPrice: e.target.value }))}
                   placeholder="150.0000（陸股均價常為 4 位小數）"
                   className="bg-muted border-border focus:border-blue-500" />
@@ -320,7 +358,7 @@ export default function PortfolioPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-foreground">{h.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</span>
-                      <span className="text-xs text-muted-foreground truncate">{p?.name || h.name || h.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</span>
+                      <span className="text-xs text-muted-foreground truncate" title={p?.name || h.name || h.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}>{p?.name || h.name || h.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</span>
                     </div>
                     <div className="text-[10px] text-muted-foreground mt-0.5">
                       {formatSharesAsLots(h.shares, marketFromSymbol(h.symbol))} · 均價 <span className="text-yellow-400 font-mono">${formatPrice(h.costPrice)}</span>

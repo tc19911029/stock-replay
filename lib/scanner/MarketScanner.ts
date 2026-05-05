@@ -8,6 +8,7 @@ import type { StrategyThresholds } from '@/lib/strategy/StrategyConfig';
 import { BASE_THRESHOLDS } from '@/lib/strategy/StrategyConfig';
 import { evaluateHighWinRateEntry } from '@/lib/analysis/highWinRateEntry';
 import { evaluateElimination } from '@/lib/scanner/eliminationFilter';
+import { evaluateWinnerPatterns } from '@/lib/rules/winnerPatternRules';
 import { evaluateMultiTimeframe, MultiTimeframeResult } from '@/lib/analysis/multiTimeframeFilter';
 import { getScannerCache, setScannerCache, getScannerCacheStats } from '@/lib/datasource/ScannerCache';
 import { loadLocalCandlesWithTolerance, saveLocalCandles, batchCheckFreshness } from '@/lib/datasource/LocalCandleStore';
@@ -356,9 +357,11 @@ export abstract class MarketScanner {
       let name = rawName;
       if (/\.(SZ|SS)$/i.test(symbol)) {
         try {
-          const code = symbol.replace(/\.(SZ|SS)$/i, '');
+          const m = symbol.match(/^(\d+)\.(SS|SZ)$/i);
+          const code = m?.[1] ?? symbol.replace(/\.(SZ|SS)$/i, '');
+          const cnSuffix = (m?.[2]?.toUpperCase() === 'SS' ? 'SS' : 'SZ') as 'SS' | 'SZ';
           const { getCNChineseName } = await import('@/lib/datasource/TWSENames');
-          const cnName = await getCNChineseName(code);
+          const cnName = await getCNChineseName(code, cnSuffix);
           if (cnName) name = cnName;
         } catch { /* 查不到就用東方財富的名字 */ }
       }
@@ -460,6 +463,15 @@ export abstract class MarketScanner {
         highWinRateEntry = evaluateHighWinRateEntry(candles, lastIdx);
       } catch { /* non-critical */ }
 
+      // ── 33 種贏家圖像（朱家泓《活用技術分析寶典》Part 12, P771-825）──────
+      let winnerBullishPatterns: string[] = [];
+      let winnerBearishPatterns: string[] = [];
+      try {
+        const winner = evaluateWinnerPatterns(candles, lastIdx);
+        winnerBullishPatterns = winner.bullishPatterns.map(p => p.name);
+        winnerBearishPatterns = winner.bearishPatterns.map(p => p.name);
+      } catch { /* non-critical */ }
+
       const changePercent = lastIdx > 0 && candles[lastIdx - 1]?.close > 0
         ? +((last.close - candles[lastIdx - 1].close) / candles[lastIdx - 1].close * 100).toFixed(2)
         : 0;
@@ -530,6 +542,9 @@ export abstract class MarketScanner {
         // ── 淘汰法（資訊保留，供 UI 顯示）──────────────────────────────
         eliminationReasons: elimination.reasons,
         eliminationPenalty: elimination.penalty,
+        // ── 33 種贏家圖像（寶典 Part 12）─────────────────────────────────
+        winnerBullishPatterns,
+        winnerBearishPatterns,
         // ── 長線保護短線（多時間框架）──────────────────────────────────
         ...(mtfResult ? {
           mtfScore: mtfResult.totalScore,
@@ -732,9 +747,11 @@ export abstract class MarketScanner {
       let name = rawName;
       if (/\.(SZ|SS)$/i.test(symbol)) {
         try {
-          const code = symbol.replace(/\.(SZ|SS)$/i, '');
+          const m = symbol.match(/^(\d+)\.(SS|SZ)$/i);
+          const code = m?.[1] ?? symbol.replace(/\.(SZ|SS)$/i, '');
+          const cnSuffix = (m?.[2]?.toUpperCase() === 'SS' ? 'SS' : 'SZ') as 'SS' | 'SZ';
           const { getCNChineseName } = await import('@/lib/datasource/TWSENames');
-          const cnName = await getCNChineseName(code);
+          const cnName = await getCNChineseName(code, cnSuffix);
           if (cnName) name = cnName;
         } catch { /* fallback */ }
       }

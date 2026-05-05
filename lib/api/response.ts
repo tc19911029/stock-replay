@@ -1,32 +1,21 @@
 /**
  * Standardized API response helpers.
  *
- * All API routes should use these helpers to ensure consistent
- * response shapes across the application:
+ * 實際 wire format（與下方 helper 行為一致）：
+ *   Success: { ok: true, ...data }      ← apiOk(data) 把 data 物件 spread 到頂層
+ *   Error:   { error: string }          ← apiError(message, status)
  *
- *   Success: { success: true, data: T }
- *   Error:   { success: false, error: string }
+ * 注意：這跟一般 envelope 慣例 `{ success, data }` 不同，是歷史遺留向下相容形狀；
+ * 客戶端要讀 ok 而非 success，且要在頂層拿 data 欄位。
  *
  * Usage:
- *   return apiOk({ candles, ticker });
+ *   return apiOk({ candles, ticker });    → { ok: true, candles, ticker }
  *   return apiError('找不到股票資料', 404);
  *   return apiValidationError(zodResult.error);
  */
 
 import { NextResponse } from 'next/server';
 import type { ZodError } from 'zod';
-
-interface ApiSuccessResponse<T> {
-  success: true;
-  data: T;
-}
-
-interface ApiErrorResponse {
-  success: false;
-  error: string;
-}
-
-export type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;
 
 /** Return a success response — spreads data at top level for backwards compatibility */
 export function apiOk<T>(data: T, init?: ResponseInit): NextResponse {

@@ -125,7 +125,7 @@ export function checkLongProhibitions(
   // 書本原意：回檔不破前低 = 維持多頭結構；跌破前低即非多頭，不進場。
   // 用 findPivots 的已確認波谷比較最新兩個波低（無時間窗、無容差）。
   {
-    const confirmedLows = findPivots(candles, index, 10, 0.02, false)
+    const confirmedLows = findPivots(candles, index, 10, false)
       .filter(p => p.type === 'low')
       .slice(0, 2); // findPivots 回傳新→舊順序
 
@@ -235,8 +235,8 @@ export function checkShortProhibitions(
     // KD低檔：K值 < 20
     const kdLow = kd != null && kd < 20;
 
-    // 乖離過大（做空）：距MA20 < -12%（跌太多）
-    const deviationLarge = deviation < -0.12;
+    // 乖離過大（做空）：距MA20 < -15%（跌太多，與做多側 0.15 對稱）
+    const deviationLarge = deviation < -0.15;
 
     if (volumeDivergence && kdLow && deviationLarge) {
       reasons.push('戒律3：量價背離+KD低檔+乖離過大同時成立，勿進場做空');
@@ -295,20 +295,21 @@ export function checkShortProhibitions(
   }
 
   // ── 戒律9：連續急跌的大量長黑K低檔，勿進場做空 ─────────────────────
+  // 「大量」=爆量（前日×2），與做多側戒律9對稱（朱家泓《抓住飆股》定義）
   {
     const lookback = 3;
     if (index >= lookback + 5) {
       let bigBlackCount = 0;
       for (let i = index - lookback + 1; i <= index; i++) {
         const c = candles[i];
+        const pv = candles[i - 1]?.volume ?? 0;
         const bodyPct = c.open > 0 ? (c.open - c.close) / c.open : 0;
-        const avg5Vol = c.avgVol5 ?? 0;
         const isLargeBlackCandle = bodyPct >= 0.02 && c.close < c.open;
-        const isHighVolume = avg5Vol > 0 && c.volume > avg5Vol * 1.5;
+        const isHighVolume = pv > 0 && c.volume > pv * 2;
         if (isLargeBlackCandle && isHighVolume) bigBlackCount++;
       }
       if (bigBlackCount >= 3) {
-        reasons.push('戒律9：連續急跌大量長黑K（3根以上），勿殺低做空');
+        reasons.push('戒律9：連續急跌爆量長黑K（3根以上，量>前日×2），勿殺低做空');
       }
     }
   }

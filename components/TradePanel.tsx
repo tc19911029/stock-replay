@@ -39,11 +39,12 @@ export default function TradePanel() {
   const estimatedSharesFromAmount = currentPrice > 0 ? Math.floor(inputNum / currentPrice) : 0;
   const estimatedCostFromShares   = inputNum * currentPrice;
 
-  // ── Fee estimate ──────────────────────────────────────────────────────────
+  // ── Fee estimate（與 lib/backtest/CostModel.ts 一致）─────────────────────
   const FEE_RATE = 0.001425;
+  const TW_MIN_FEE = 20;  // 台股券商最低手續費 20 元（書本 + 業界標準）
   function calcCommission(shares: number, price: number, isBuy: boolean) {
     const amount = shares * price;
-    const fee = Math.max(1, Math.round(amount * FEE_RATE));
+    const fee = Math.max(TW_MIN_FEE, Math.round(amount * FEE_RATE));
     const tax = isBuy ? 0 : Math.round(amount * 0.003);
     return fee + tax;
   }

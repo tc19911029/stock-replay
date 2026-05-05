@@ -51,10 +51,16 @@ function volumeRatio(c: CandleWithIndicators): number | null {
   return c.volume / c.avgVol5;
 }
 
-/** 是否為大量 (量比 >= 1.5) */
-function isHighVolume(c: CandleWithIndicators): boolean {
+/**
+ * 是否為大量
+ *
+ * mult 預設 1.3 = 書本「攻擊量」（p.55）— 進場用
+ * mult = 1.5 = 中等大量 — 一般大量判定
+ * mult = 2.0 = 爆大量 — 高檔急漲、出貨判斷用
+ */
+function isHighVolume(c: CandleWithIndicators, mult = 1.3): boolean {
   const vr = volumeRatio(c);
-  return vr != null && vr >= 1.5;
+  return vr != null && vr >= mult;
 }
 
 /** 判斷最近 N 日是否在盤整 (振幅 < threshold) */
@@ -148,19 +154,19 @@ export const zhuShortBullSOP: TradingRule = {
     // 3. 股價在MA5之上
     if (c.close < c.ma5) return null;
 
-    // 4. 量價配合：今日量 >= 5日均量 × 1.2
+    // 4. 量價配合：今日量 >= 5日均量 × 1.3（書本 p.55 攻擊量標準）
     const vr = volumeRatio(c);
-    if (vr == null || vr < 1.2) return null;
+    if (vr == null || vr < 1.3) return null;
 
     // 5. KD 金叉或 K > D 向上，MACD 多頭
     const kdBullish = c.kdK != null && c.kdD != null && c.kdK > c.kdD;
     if (!kdBullish) return null;
     if (!isMACDBullish(c)) return null;
 
-    // 6. 確認有進場位置 (長紅K且突破前高)
+    // 6. 確認有進場位置 (長紅K且收盤嚴格突破前高)
     if (!isLongRedCandle(c)) return null;
     const prevHigh = recentHigh(candles, index, 5);
-    if (c.close < prevHigh) return null;
+    if (c.close <= prevHigh) return null;
 
     return {
       type: 'BUY',
@@ -200,19 +206,19 @@ export const zhuShortBearSOP: TradingRule = {
     // 3. 股價在MA5之下
     if (c.close > c.ma5) return null;
 
-    // 4. 量價
+    // 4. 量價配合：今日量 >= 5日均量 × 1.3（書本 p.55 攻擊量標準對齊）
     const vr = volumeRatio(c);
-    if (vr == null || vr < 1.2) return null;
+    if (vr == null || vr < 1.3) return null;
 
     // 5. KD 死叉或 K < D，MACD 空頭
     const kdBearish = c.kdK != null && c.kdD != null && c.kdK < c.kdD;
     if (!kdBearish) return null;
     if (!isMACDBearish(c)) return null;
 
-    // 6. 長黑K且跌破前低
+    // 6. 長黑K且收盤嚴格跌破前低
     if (!isLongBlackCandle(c)) return null;
     const prevLow = recentLow(candles, index, 5);
-    if (c.close > prevLow) return null;
+    if (c.close >= prevLow) return null;
 
     return {
       type: 'SELL',
@@ -331,14 +337,15 @@ export const zhuBullMASupportEntry: TradingRule = {
     // 多頭趨勢
     if (!isUptrendWave(candles, index, 10)) return null;
 
-    // 前日接近MA10或MA20（低點距離均線在2%以內）
+    // 前日接近MA10或MA20（低點距離均線在2%以內，須用前日的均線值不是今日的）
     const distMA10 = prev.ma10 != null ? Math.abs(prev.low - prev.ma10) / prev.ma10 : 1;
-    const distMA20 = Math.abs(prev.low - c.ma20) / c.ma20;
+    const distMA20 = prev.ma20 != null ? Math.abs(prev.low - prev.ma20) / prev.ma20 : 1;
     const nearMA = distMA10 < 0.02 || distMA20 < 0.02;
     if (!nearMA) return null;
 
-    // 今日長紅上漲
+    // 今日長紅上漲（書本：均線支撐再上漲須帶量確認）
     if (!isLongRedCandle(c)) return null;
+    if (!isHighVolume(c)) return null;
     if (c.close <= prev.high) return null;
 
     const supportMA = distMA10 < distMA20 ? 'MA10' : 'MA20';
@@ -377,11 +384,14 @@ export const zhuBearBounceEntry: TradingRule = {
     if (!isBearishMAAlignment(c)) return null;
     if (!isDowntrendWave(candles, index, 10)) return null;
 
-    // 前幾日有反彈（小紅K縮量）
+    // 前幾日有反彈：必須是紅 K 或十字線（doji），收黑長黑都不是反彈
     let bounceCount = 0;
     for (let i = index - 3; i < index; i++) {
       if (i < 0) continue;
-      if (candles[i].close > candles[i].open || bodyPct(candles[i]) < 0.02) bounceCount++;
+      const k = candles[i];
+      const isRed = k.close > k.open;
+      const isDoji = bodyPct(k) < 0.005;
+      if (isRed || isDoji) bounceCount++;
     }
     if (bounceCount < 2) return null;
 
@@ -515,27 +525,37 @@ export const zhuBearEngulfEntry: TradingRule = {
 // 步驟3：停損規則
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/** 停損方法1：跌破進場K線最低點（做多） */
+/**
+ * 停損方法1：跌破進場K線最低點（做多）
+ *
+ * 兩種行為依 ctx.avgCost 分流（對齊 zhuTakeProfit10Pct 的 0422 修復）：
+ * - Portfolio 持倉（avgCost>0）：用真實成本對應的進場 K（找成本價最近的長紅 K）
+ * - 走圖/掃描（無 avgCost）：不發訊號（原本用「近 5 日漲幅最大紅 K」當進場 K 是錯的，
+ *   使用者不一定買在那根；同 zhuTakeProfit10Pct 的設計）
+ */
 export const zhuStopLossKlineLow: TradingRule = {
   id: 'zhu-stoploss-kline-low',
   name: '朱·跌破進場K線低點',
-  description: '收盤跌破近期進場長紅K線的最低點，執行停損出場',
-  evaluate(candles, index): RuleSignal | null {
+  description: '收盤跌破進場長紅K線的最低點，執行停損出場（需持倉成本）',
+  evaluate(candles, index, ctx): RuleSignal | null {
     if (index < 5) return null;
     const c = candles[index];
 
-    // 找最近5日內的進場長紅K（最大漲幅的那根）
+    const avgCost = ctx?.avgCost;
+    if (!avgCost || avgCost <= 0) return null;
+
+    // 用 avgCost 在最近 30 日找最接近成本的長紅 K（最可能是真實進場 K）
     let entryCandle: CandleWithIndicators | null = null;
-    let maxGain = 0;
-    for (let i = index - 4; i < index; i++) {
-      if (i < 0) continue;
+    let bestDiff = Infinity;
+    const lookbackStart = Math.max(0, index - 30);
+    for (let i = lookbackStart; i < index; i++) {
       const cd = candles[i];
-      if (isLongRedCandle(cd) && changePct(cd) > maxGain) {
-        maxGain = changePct(cd);
-        entryCandle = cd;
-      }
+      if (!isLongRedCandle(cd)) continue;
+      const diff = Math.abs(cd.close - avgCost);
+      if (diff < bestDiff) { bestDiff = diff; entryCandle = cd; }
     }
     if (entryCandle == null) return null;
+    const maxGain = changePct(entryCandle);
 
     // 計算停損價
     // 2026-05-04 寶典對齊：高檔嚴控閾值 4.5% → 5%（《活用技術分析寶典》2024 Part 11-1
@@ -608,30 +628,34 @@ export const zhuStopLossTrendChange: TradingRule = {
   },
 };
 
-/** 停損上限10%：超過10%強制出場 */
+/**
+ * 停損上限10%：從進場成本下跌超過10%強制出場
+ *
+ * 兩種行為依 ctx.avgCost 分流（對齊 zhuTakeProfit10Pct 的 0422 修復）：
+ * - Portfolio 持倉（avgCost>0）：用真實成本算虧損，達 -10% → SELL「10%停損」
+ * - 走圖/掃描（無 avgCost）：不發訊號（原本用近10日高點當成本是錯的，書本本意是進場成本）
+ */
 export const zhuStopLossMax10Pct: TradingRule = {
   id: 'zhu-stoploss-max-10pct',
   name: '朱·停損上限10%',
-  description: '從近期高點下跌超過10%，強制停損出場',
-  evaluate(candles, index): RuleSignal | null {
-    if (index < 10) return null;
+  description: '從進場成本下跌超過10%強制停損出場（需持倉成本）',
+  evaluate(candles, index, ctx): RuleSignal | null {
+    if (index < 1) return null;
     const c = candles[index];
 
-    // 找近10日最高收盤價
-    let maxClose = 0;
-    for (let i = index - 9; i <= index; i++) {
-      if (candles[i].close > maxClose) maxClose = candles[i].close;
-    }
+    const avgCost = ctx?.avgCost;
+    if (!avgCost || avgCost <= 0) return null;
 
-    const drawdown = (maxClose - c.close) / maxClose;
+    const drawdown = (avgCost - c.close) / avgCost;
     if (drawdown < 0.10) return null;
 
     return {
       type: 'SELL',
       label: '10%停損',
-      description: `從近期高點${maxClose.toFixed(2)}下跌${(drawdown * 100).toFixed(1)}%，觸發10%停損上限`,
+      description: `從進場成本${avgCost.toFixed(2)}下跌${(drawdown * 100).toFixed(1)}%，觸發10%停損上限`,
       reason: [
         '【朱家泓停損認知⑥】停損最多10%',
+        `持倉成本 ${avgCost.toFixed(2)} → 今日 ${c.close}，虧損 ${(drawdown * 100).toFixed(1)}%。`,
         '一檔股票如果進場前充分研判，符合進場條件才買進，',
         '結果走勢卻背道而馳，不能奢望它會大漲。',
         '停損不能超過10%，否則日後難以反敗為勝。絕不向下攤平！',
@@ -834,8 +858,8 @@ export const zhuTakeProfitHighClimaxBull: TradingRule = {
     // 前3根連續長紅
     if (!consecutiveLongRed(candles, index - 1, 3)) return null;
 
-    // 今日爆大量
-    if (!isHighVolume(c)) return null;
+    // 今日爆大量（高檔急漲停利語境用 1.5x）
+    if (!isHighVolume(c, 1.5)) return null;
 
     // 今日出現轉折訊號：長黑、長上影線、十字線
     const upperShadow = (c.high - Math.max(c.open, c.close)) / c.high;
@@ -869,8 +893,8 @@ export const zhuTakeProfitLowClimaxBear: TradingRule = {
     // 前3根連續長黑
     if (!consecutiveLongBlack(candles, index - 1, 3)) return null;
 
-    // 今日爆大量
-    if (!isHighVolume(c)) return null;
+    // 今日爆大量（低檔急跌停利語境用 1.5x）
+    if (!isHighVolume(c, 1.5)) return null;
 
     // 今日出現止跌訊號：長紅、長下影線
     const lowerShadow = (Math.min(c.open, c.close) - c.low) / c.low;
@@ -908,8 +932,8 @@ export const zhuTakeProfitResistance: TradingRule = {
     const distToResist = (high60 - c.close) / high60;
     if (distToResist > 0.03 || distToResist < -0.01) return null;
 
-    // 爆大量 + 出現止漲K線
-    if (!isHighVolume(c)) return null;
+    // 爆大量 + 出現止漲K線（壓力區停利語境用 1.5x）
+    if (!isHighVolume(c, 1.5)) return null;
     const isWeakK = isLongBlackCandle(c) || bodyPct(c) < 0.005;
     if (!isWeakK) return null;
 

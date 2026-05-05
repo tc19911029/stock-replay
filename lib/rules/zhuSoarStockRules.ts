@@ -692,11 +692,14 @@ export const surgeStockVolumeJudge: TradingRule = {
   evaluate(candles: CandleWithIndicators[], index: number) {
     if (index < 5) return null;
     const c = candles[index];
+    const prev = candles[index - 1];
     if (c.avgVol5 == null || c.avgVol5 <= 0) return null;
+    if (!prev || prev.close <= 0) return null;
 
     const volRatio = c.volume / c.avgVol5;
     const isRedK = c.close > c.open;
-    const changePct = Math.abs(c.close - c.open) / c.open;
+    // 用跨日漲跌幅（vs 前日收盤），不是日內 close-open；跳空場景才不會被當「價平」誤判
+    const changePct = Math.abs(c.close - prev.close) / prev.close;
 
     // 1. 攻擊量 + 紅K
     if (volRatio >= 2.0 && volRatio < 3.0 && isRedK && changePct > 0.015) {

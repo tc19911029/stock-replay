@@ -215,12 +215,12 @@ export const sopHighReversalWarning: TradingRule = {
     // 收集觸發的訊號
     const signals: string[] = [];
 
-    // K棒訊號
+    // K棒訊號（更專一的型態優先：倒T/天劍 比一般「十字變盤」更精確）
     if (isMidLongBlack(c) && isVolumeBlast(c, prev)) {
       signals.push('大量中長黑K');
     }
     if (isGravestoneDoji(c)) signals.push('倒T變盤線');
-    if (isDoji(c)) signals.push('十字變盤線');
+    else if (isDoji(c)) signals.push('十字變盤線');  // gravestone 已涵蓋十字，避免重複
     if (isShootingStar(c)) signals.push('天劍線');
     if (isSpinningTop(c)) signals.push('紡錘線');
 
@@ -263,12 +263,12 @@ export const sopLowReversalSignal: TradingRule = {
     // 收集觸發的訊號
     const signals: string[] = [];
 
-    // K棒訊號
+    // K棒訊號（更專一型態優先：T字 比一般「十字變盤」更精確）
     if (isMidLongRed(c) && isVolumeBlast(c, prev)) {
       signals.push('大量中長紅K');
     }
     if (isDragonflyDoji(c)) signals.push('T字變盤線');
-    if (isDoji(c)) signals.push('十字變盤線');
+    else if (isDoji(c)) signals.push('十字變盤線');  // dragonfly 已涵蓋十字
     if (isHammer(c)) signals.push('蜻蜓線');
     if (isSpinningTop(c)) signals.push('紡錘線');
 

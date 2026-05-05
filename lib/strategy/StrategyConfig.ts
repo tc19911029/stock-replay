@@ -36,7 +36,7 @@ export interface StrategyThresholds {
   kdMaxEntry:      number;   // KD 進場上限（預設 88）
 
   // 乖離條件
-  deviationMax:    number;   // MA20 乖離上限（預設 0.20 = 20%）
+  deviationMax:    number;   // MA20 乖離上限（預設 0.15 = 15%，2026-04-22 用戶設定）
 
   // 進場門檻
   minScore:        number;   // 最低六大條件分數（預設 4）
@@ -127,18 +127,13 @@ export interface StrategyConfig {
 
 // ── 規則群組預設組合 ─────────────────────────────────────────────────────────
 
-/** 通用基礎群組（趨勢/均線/量價/指標），多數策略都需要 */
-const BASE_GROUPS: RuleGroupId[] = ['trend-ma', 'volume', 'oscillator'];
-
-/** 朱家泓全部群組 */
-const _ALL_ZHU_GROUPS: RuleGroupId[] = [
-  'zhu-5steps', 'zhu-kline', 'zhu-reversal',
-  'zhu-ma-strategy', 'zhu-momentum', 'zhu-advanced', 'zhu-soar-stock',
-];
+// 注意：'zhu-reversal' 與 'zhu-soar-stock' 是 RuleGroupId 上的 type-level 別名，
+// 實際 rules 已併進 'zhu-kline' / 'zhu-momentum'（見 ruleRegistry.ts line 174-184/207-208），
+// registry 不會註冊它們，list 帶它們也只是被 filter(Boolean) 靜默丟棄。所以不寫進策略清單。
 
 /** 朱家泓核心群組（不含進階寶典） */
 const CORE_ZHU_GROUPS: RuleGroupId[] = [
-  'zhu-5steps', 'zhu-kline', 'zhu-reversal',
+  'zhu-5steps', 'zhu-kline',
   'zhu-ma-strategy', 'zhu-momentum',
 ];
 
@@ -224,7 +219,7 @@ export const ZHU_PURE_BOOK: StrategyConfig = {
     multiTimeframeFilter: false,
     reentry: BOOK_REENTRY,   // 戰法 1 波浪：跌破 MA5 出場後再站上即可再進場
   },
-  ruleGroups:  [...CORE_ZHU_GROUPS, ...BASE_GROUPS],
+  ruleGroups:  [...CORE_ZHU_GROUPS],
 };
 
 /**

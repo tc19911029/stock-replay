@@ -171,13 +171,22 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── 2) 大戶持股 TDCC L1 + 3) 融資融券、當沖、借券（FinMind 並行） ──
-    const [tdccFile, marginInfo, dayTradeInfo, lendingInfo] = await Promise.all([
+    // ── 2) 大戶持股 TDCC L1 + 3) 融資融券、當沖、借券（FinMind 並行）──
+    // 用 allSettled：任何單一資料源失敗不應打掉整個籌碼面板（書本實務以外資+融資為主，借券缺值可接受）
+    const settled = await Promise.allSettled([
       readTdccStock(code),
       fetchMarginForStock(code, date),
       fetchDayTradeForStock(code, date),
       fetchLendingForStock(code, date),
     ]);
+    const pickFulfilled = <T,>(idx: number): T | null => {
+      const r = settled[idx];
+      return r.status === 'fulfilled' ? (r.value as T) : null;
+    };
+    const tdccFile = pickFulfilled<Awaited<ReturnType<typeof readTdccStock>>>(0);
+    const marginInfo = pickFulfilled<Awaited<ReturnType<typeof fetchMarginForStock>>>(1);
+    const dayTradeInfo = pickFulfilled<Awaited<ReturnType<typeof fetchDayTradeForStock>>>(2);
+    const lendingInfo = pickFulfilled<Awaited<ReturnType<typeof fetchLendingForStock>>>(3);
     const latestTdcc = tdccFile?.data[tdccFile.data.length - 1];
     const prevTdcc = tdccFile?.data[tdccFile.data.length - 2];
 

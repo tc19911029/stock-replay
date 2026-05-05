@@ -26,6 +26,7 @@ import { verifyDownload } from '@/lib/datasource/DownloadVerifier';
 import { spotCheckL1 } from '@/lib/datasource/L1SpotCheck';
 import { detectCandleGaps } from '@/lib/datasource/validateCandles';
 import { ACTIVE_ETF_LIST } from '@/lib/etf/etfList';
+import { checkCronAuth } from '@/lib/api/cronAuth';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -37,10 +38,8 @@ const SOFT_DEADLINE_MS = 280_000;
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return apiError('Unauthorized', 401);
-  }
+  const authDenied = checkCronAuth(req);
+  if (authDenied) return authDenied;
 
   const market = req.nextUrl.searchParams.get('market') as 'TW' | 'CN' | null;
   if (market !== 'TW' && market !== 'CN') {
