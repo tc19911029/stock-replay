@@ -338,8 +338,13 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
 
   // ── Polling（盤中自動刷新） ──────────────────────────────
   startPolling: () => {
-    const { currentStock, currentInterval } = get();
+    const { currentStock, currentInterval, targetDate } = get();
     if (!currentStock || currentStock.ticker === 'DEMO') return;
+
+    // 歷史 scan 模式不要 poll：targetDate 是過去日，盤中報價跟它無關，
+    // 而 polling 每 30s 重抓+全量 precomputeMarkers 很貴，純浪費
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
+    if (targetDate && targetDate < today) return;
 
     // 先清除舊 timer
     if (pollingTimer) { clearInterval(pollingTimer); pollingTimer = null; }
