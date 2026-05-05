@@ -72,7 +72,11 @@ export interface MultiTimeframeResult {
  *
  * 通過條件：①-⑤ 全過（⑥ 加分不當 gate）
  */
-function checkWeekly(weeklyCandles: CandleWithIndicators[]): {
+function checkWeekly(
+  weeklyCandles: CandleWithIndicators[],
+  /** 最後一根日 K 的日期；用來判斷最新週是否已收盤完整 */
+  lastDailyDate?: string,
+): {
   score: number;
   trend: TrendState;
   nearResistance: boolean;
@@ -80,7 +84,14 @@ function checkWeekly(weeklyCandles: CandleWithIndicators[]): {
   detail: string;
   checks: WeeklyChecks;
 } {
-  const evalIdx = weeklyCandles.length - 2;
+  // 判斷最新週是否已收盤：最後 daily K 落在週五（含）以後 → 該週已收
+  // 否則最新週 bar 是「進行中」，只有 1-4 天資料，跳到上一週評估
+  const lastDaily = lastDailyDate ?? weeklyCandles[weeklyCandles.length - 1]?.date;
+  const dow = lastDaily ? new Date(lastDaily + 'T00:00:00').getDay() : 0;
+  // dow: 0=Sun, 1=Mon..5=Fri, 6=Sat
+  // 週五（5）之後 → 本週收盤完成（用 length-1）；否則仍進行中（用 length-2）
+  const isWeekClosed = dow === 0 || dow === 5 || dow === 6;
+  const evalIdx = isWeekClosed ? weeklyCandles.length - 1 : weeklyCandles.length - 2;
   if (evalIdx < 20) {
     return {
       score: 6,
@@ -206,12 +217,19 @@ function checkWeekly(weeklyCandles: CandleWithIndicators[]): {
  * 月線檢查 #4: 趨勢不是空頭
  * 回傳 0-1 分
  */
-function checkMonthly(monthlyCandles: CandleWithIndicators[]): {
+function checkMonthly(
+  monthlyCandles: CandleWithIndicators[],
+  lastDailyDate?: string,
+): {
   score: number;
   trend: TrendState;
   detail: string;
 } {
-  const evalIdx = monthlyCandles.length - 2;
+  // 月底（最後 daily 日 ≥ 25）→ 該月已基本收盤完成；否則用上個月
+  const lastDaily = lastDailyDate ?? monthlyCandles[monthlyCandles.length - 1]?.date;
+  const dom = lastDaily ? parseInt(lastDaily.slice(8, 10), 10) : 0;
+  const isMonthClosed = dom >= 25;
+  const evalIdx = isMonthClosed ? monthlyCandles.length - 1 : monthlyCandles.length - 2;
   if (evalIdx < 5) {
     return {
       score: 1, // 數據不足，不懲罰
@@ -324,8 +342,9 @@ export function evaluateMultiTimeframe(
   const weeklyCandles = getCachedAggregation(dailyCandles, '1wk');
   const monthlyCandles = getCachedAggregation(dailyCandles, '1mo');
 
-  const weekly = checkWeekly(weeklyCandles);
-  const monthly = checkMonthly(monthlyCandles);
+  const lastDailyDate = dailyCandles[dailyCandles.length - 1]?.date;
+  const weekly = checkWeekly(weeklyCandles, lastDailyDate);
+  const monthly = checkMonthly(monthlyCandles, lastDailyDate);
 
   // 通過條件（對齊日線六條件）：
   //   週線前 5 項（①-⑤）全過 = gate
