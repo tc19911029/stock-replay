@@ -40,4 +40,22 @@ Layer 4: 掃描結果層（複合主鍵，intraday vs post_close）
 
 ## 溝通慣例
 
-- **時間一律用台灣時間（CST, UTC+8）**，不寫 UTC。例如：15:45 CST 而非 7:45 UTC。
+- **時區永遠是台灣 (CST, UTC+8)**。對話、log、cron 排程討論一律用 CST，不寫 UTC。
+  - 例：15:45 CST 而非 07:45 UTC。
+  - 注意 `fetchedAt` 等 ISO 字串底層是 UTC，**讀取時務必 +8h** 才是台灣時間（曾因此誤判 0505 凌晨 01:14 抓到的 mislabel snapshot）。
+  - `vercel.json` cron 表達式是 UTC（Vercel 平台規定），例如 `"0 10 * * 1-5"` = CST 18:00。
+  - 本地 launchd plist 的 Hour 是機器 local time，台灣機器直接寫 CST 數字（18 = 18:00 CST）。
+
+## ETF 持股資料規則（避免 mislabel）
+
+主動式 ETF 揭露時間：盤後 17:00-21:00 CST。**禁止在揭露時間前抓資料寫成「當日」snapshot**：
+
+- `disclosureDate` **必須**用資料源回傳的日期欄位（CMoney row[0]、MoneyDJ HTML 揭露日），不可直接用 cron 觸發當下的日期。
+- 既存 snapshot 不可只看 `existing && !force` 就跳寫；應比對 holdings 內容 hash，不同就覆寫（盤後揭露完整版 wins）。
+- 排查資料正確性時，**先打 CMoney API 對 ground truth**，不可只看本地 diff 結果就下「無變化」結論。CMoney 端點：
+  ```
+  https://www.cmoney.tw/MobileService/ashx/GetDtnoData.ashx
+    ?action=getdtnodata&DtNo=59449513
+    &ParamStr=AssignID={etfCode};MTPeriod=0;DTMode=0;DTRange=5;DTOrder=1;MajorTable=M722;
+    &FilterNo=0
+  ```

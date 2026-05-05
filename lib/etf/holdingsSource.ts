@@ -12,8 +12,14 @@
  */
 import type { ETFHolding, ETFListItem, ETFSnapshot } from './types';
 
-/** 已知的發行商來源 hook */
-export type HoldingsFetchResult = { holdings: ETFHolding[]; source: ETFSnapshot['source'] } | null;
+/**
+ * 已知的發行商來源 hook
+ * `disclosureDate`：資料源實際揭露的日期（YYYY-MM-DD）。CMoney 回傳；MoneyDJ/STUB 不提供。
+ * 由 cron route 用於決定 snapshot 該存哪一天，避免「凌晨抓到舊資料卻 label 成今天」。
+ */
+export type HoldingsFetchResult =
+  | { holdings: ETFHolding[]; source: ETFSnapshot['source']; disclosureDate?: string }
+  | null;
 
 /**
  * 主入口：依優先序嘗試各 source。
@@ -24,11 +30,13 @@ export async function fetchHoldings(
   date: string,
   options: { allowStub?: boolean } = {},
 ): Promise<HoldingsFetchResult> {
-  // 1) CMoney：完整持股含張數，JSON API
+  // 1) CMoney：完整持股含張數，JSON API（含實際揭露日）
   const cmoney = await fetchFromCMoney(etf.etfCode);
-  if (cmoney && cmoney.length > 0) return { holdings: cmoney, source: 'issuer' };
+  if (cmoney && cmoney.holdings.length > 0) {
+    return { holdings: cmoney.holdings, source: 'issuer', disclosureDate: cmoney.disclosureDate };
+  }
 
-  // 2) MoneyDJ：fallback，HTML server-rendered
+  // 2) MoneyDJ：fallback，HTML server-rendered（HTML 無揭露日，沿用 cron date）
   const moneydj = await fetchFromMoneyDJ(etf.etfCode);
   if (moneydj && moneydj.length > 0) return { holdings: moneydj, source: 'issuer' };
 
@@ -57,8 +65,13 @@ interface CMoneyResponse {
 /**
  * 從 CMoney GetDtnoData API 抓取當日完整持股（免登入，JSON）
  * 欄位：[日期, 標的代號, 標的名稱, 權重(%), 持有數, 單位]
+ *
+ * 回傳含 `disclosureDate`（YYYY-MM-DD）—— 從 row[0] (YYYYMMDD) 取最大值，
+ * 避免「凌晨呼叫但 CMoney 尚未揭露今日資料時，舊資料被 cron 直接 label 成今天」。
  */
-async function fetchFromCMoney(etfCode: string): Promise<ETFHolding[] | null> {
+async function fetchFromCMoney(
+  etfCode: string,
+): Promise<{ holdings: ETFHolding[]; disclosureDate: string } | null> {
   try {
     const paramStr = `AssignID=${etfCode};MTPeriod=0;DTMode=0;DTRange=1;DTOrder=1;MajorTable=M722;`;
     const url = `https://www.cmoney.tw/MobileService/ashx/GetDtnoData.ashx?action=getdtnodata&DtNo=${CMONEY_DTNO}&ParamStr=${encodeURIComponent(paramStr)}&FilterNo=0`;
@@ -77,10 +90,20 @@ async function fetchFromCMoney(etfCode: string): Promise<ETFHolding[] | null> {
   }
 }
 
-function parseCMoneyHoldings(rows: string[][]): ETFHolding[] {
+/** YYYYMMDD → YYYY-MM-DD；不合法回 null */
+function normalizeCMoneyDate(s: string | undefined): string | null {
+  if (!s || !/^\d{8}$/.test(s)) return null;
+  return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
+}
+
+function parseCMoneyHoldings(
+  rows: string[][],
+): { holdings: ETFHolding[]; disclosureDate: string } | null {
   const holdings: ETFHolding[] = [];
+  let maxDate: string | null = null;
   for (const r of rows) {
     // r = [date, symbol, name, weight%, shares, unit]
+    const rowDate = normalizeCMoneyDate(r[0]);
     // CMoney 美股回傳 "TSLA US" / "AMD US" 格式 — 取空白前的代號部分
     const symRaw = r[1] ?? '';
     if (CASH_ROW_RE.test(symRaw)) continue;
@@ -95,8 +118,10 @@ function parseCMoneyHoldings(rows: string[][]): ETFHolding[] {
     // Skip rows that are both 0% and have no shares (truly empty)
     if (weight === 0 && !shares) continue;
     holdings.push({ symbol: sym, name: r[2], weight, ...(shares !== undefined ? { shares } : {}) });
+    if (rowDate && (!maxDate || rowDate > maxDate)) maxDate = rowDate;
   }
-  return holdings;
+  if (!maxDate) return null;
+  return { holdings, disclosureDate: maxDate };
 }
 
 // ── MoneyDJ scraper (fallback) ───────────────────────────────

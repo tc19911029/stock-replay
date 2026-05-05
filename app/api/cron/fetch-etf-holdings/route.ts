@@ -5,7 +5,7 @@
  * 手動觸發：?force=true&date=YYYY-MM-DD&allowStub=true
  */
 import { NextRequest } from 'next/server';
-import { apiOk, apiError } from '@/lib/api/response';
+import { apiOk } from '@/lib/api/response';
 import { isTradingDay } from '@/lib/utils/tradingDay';
 import { getLastTradingDay } from '@/lib/datasource/marketHours';
 import { loadLocalCandles } from '@/lib/datasource/LocalCandleStore';
@@ -24,6 +24,18 @@ import {
 import { computeETFChange } from '@/lib/etf/holdingsDiff';
 import { computeConsensus } from '@/lib/etf/consensusCalc';
 import type { ETFSnapshot, ETFChange, ETFTrackingEntry, ETFListItem, ETFHoldingDelta, ETFHolding } from '@/lib/etf/types';
+import { checkCronAuth } from '@/lib/api/cronAuth';
+
+/**
+ * 內容簽章：用於判定既存 snapshot 是否與本次抓到的內容一致。
+ * 若一致就略過寫入（避免無謂 IO）；不同就覆寫（盤後完整版蓋過凌晨舊版）。
+ */
+function holdingsSignature(holdings: ETFHolding[]): string {
+  return holdings
+    .map((h) => `${h.symbol}:${h.shares ?? 0}:${h.weight.toFixed(4)}`)
+    .sort()
+    .join('|');
+}
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -38,10 +50,8 @@ interface CronSummary {
 }
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return apiError('Unauthorized', 401);
-  }
+  const authDenied = checkCronAuth(req);
+  if (authDenied) return authDenied;
 
   const dateParam = req.nextUrl.searchParams.get('date');
   const force = req.nextUrl.searchParams.get('force') === 'true';
@@ -62,6 +72,8 @@ export async function GET(req: NextRequest) {
   };
 
   // 1) 對每檔 ETF 抓持股
+  // 收集每檔實際使用的「資料日」(actualDate) → 後面共識榜以實際揭露日為準。
+  const actualDates = new Set<string>();
   for (const etf of ACTIVE_ETF_LIST) {
     try {
       const result = await fetchHoldings(etf, date, { allowStub });
@@ -70,13 +82,26 @@ export async function GET(req: NextRequest) {
         continue;
       }
 
-      const existing = await loadETFSnapshot(etf.etfCode, date);
-      if (existing && !force) continue;
+      // 用資料源實際揭露日（CMoney row[0]）為儲存 key；fallback：cron date。
+      // 修正凌晨抓到舊資料卻 label 成今天的 mislabel bug。
+      const actualDate = result.disclosureDate ?? date;
+      actualDates.add(actualDate);
+
+      const existing = await loadETFSnapshot(etf.etfCode, actualDate);
+      // 既存 snapshot 內容簽章相同 → 略過寫入（盤後完整版 vs 凌晨舊版會內容不同 → 覆寫）。
+      // force=true 仍強制覆寫（用於手動修復 / 重抓除錯）。
+      if (
+        existing &&
+        !force &&
+        holdingsSignature(existing.holdings) === holdingsSignature(result.holdings)
+      ) {
+        continue;
+      }
 
       const snap: ETFSnapshot = {
         etfCode: etf.etfCode,
         etfName: etf.etfName,
-        disclosureDate: date,
+        disclosureDate: actualDate,
         fetchedAt: new Date().toISOString(),
         holdings: result.holdings,
         source: result.source,
@@ -85,7 +110,7 @@ export async function GET(req: NextRequest) {
       summary.newSnapshots++;
 
       // 2) 比對前一期 → 產生 ETFChange
-      const prior = await loadPriorSnapshot(etf.etfCode, date);
+      const prior = await loadPriorSnapshot(etf.etfCode, actualDate);
       if (!prior) continue;
 
       const change = computeETFChange(prior, snap);
@@ -93,7 +118,7 @@ export async function GET(req: NextRequest) {
       summary.updatedDiffs++;
 
       // 3) 對 newEntries + increased 建立 tracking entries
-      const created = await createTrackingEntries(etf, change, date);
+      const created = await createTrackingEntries(etf, change, actualDate);
       summary.newTrackingEntries += created;
     } catch (err) {
       summary.errors.push(
@@ -102,15 +127,19 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // 4) 共識榜（取當日所有 ETFChange）
+  // 4) 共識榜（取每個實際揭露日所有 ETFChange）
+  // 通常一次 cron 只會有一個 actualDate；極少數情境（部分 ETF CMoney 有 0505、部分還只到 0504）
+  // 會跨日，分開計算各自共識。
   try {
-    const todaysChanges = await loadAllChangesForDate(
-      date,
-      ACTIVE_ETF_LIST.map((e) => e.etfCode),
-    );
-    const consensus = computeConsensus(todaysChanges, 2);
-    await saveConsensus(date, consensus);
-    summary.consensusCount = consensus.length;
+    for (const actualDate of actualDates) {
+      const todaysChanges = await loadAllChangesForDate(
+        actualDate,
+        ACTIVE_ETF_LIST.map((e) => e.etfCode),
+      );
+      const consensus = computeConsensus(todaysChanges, 2);
+      await saveConsensus(actualDate, consensus);
+      summary.consensusCount += consensus.length;
+    }
   } catch (err) {
     summary.errors.push(`consensus: ${err instanceof Error ? err.message : String(err)}`);
   }
