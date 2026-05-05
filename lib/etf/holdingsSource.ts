@@ -11,6 +11,23 @@
  *   DtNo=59449513, ParamStr=AssignID={code};MTPeriod=0;DTMode=0;DTRange=1;DTOrder=1;MajorTable=M722;
  */
 import type { ETFHolding, ETFListItem, ETFSnapshot } from './types';
+import { getTWChineseName } from '@/lib/datasource/TWSENames';
+
+/**
+ * 對 TW 股票代號（4-6 純數字）用本地 nameMap 蓋過資料源 name。
+ * 為什麼：摩根 (00401A) 等發行商揭露用英文 ("TAIWAN SEMICONDUCTOR MANUFAC")，
+ * 統一/國泰用中文（"台積電"）。CMoney 直接 mirror，造成同支股票跨 ETF 顯示不一致。
+ * 解決：寫進 snapshot 前一律用本地中文名；查不到才保留原 name。
+ */
+async function normalizeHoldingNames(holdings: ETFHolding[]): Promise<ETFHolding[]> {
+  return Promise.all(
+    holdings.map(async (h) => {
+      if (!/^\d{4,6}$/.test(h.symbol)) return h; // 美股/其他保留
+      const tw = await getTWChineseName(h.symbol);
+      return tw ? { ...h, name: tw } : h;
+    }),
+  );
+}
 
 /**
  * 已知的發行商來源 hook
@@ -33,12 +50,16 @@ export async function fetchHoldings(
   // 1) CMoney：完整持股含張數，JSON API（含實際揭露日）
   const cmoney = await fetchFromCMoney(etf.etfCode);
   if (cmoney && cmoney.holdings.length > 0) {
-    return { holdings: cmoney.holdings, source: 'issuer', disclosureDate: cmoney.disclosureDate };
+    const holdings = await normalizeHoldingNames(cmoney.holdings);
+    return { holdings, source: 'issuer', disclosureDate: cmoney.disclosureDate };
   }
 
   // 2) MoneyDJ：fallback，HTML server-rendered（HTML 無揭露日，沿用 cron date）
   const moneydj = await fetchFromMoneyDJ(etf.etfCode);
-  if (moneydj && moneydj.length > 0) return { holdings: moneydj, source: 'issuer' };
+  if (moneydj && moneydj.length > 0) {
+    const holdings = await normalizeHoldingNames(moneydj);
+    return { holdings, source: 'issuer' };
+  }
 
   // 3) STUB：產出可信的 demo 資料供開發/驗證
   if (options.allowStub) {
