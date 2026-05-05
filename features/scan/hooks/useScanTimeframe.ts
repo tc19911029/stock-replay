@@ -39,11 +39,17 @@ export function useScanTimeframe(
       return { displayCandles: dailyCandles, anchorIndex: null, anchorDate: null, signalDateLabel: null };
     }
 
+    // 看歷史 scan 時切片：只顯示到 signalDate 為止的 K，避免「scan panel 是 04/27 但圖跑到今天」的時間錯亂
+    // 切片在「聚合前」做：只切 dailyCandles，再聚合，才不會讓最後一根週/月K 被未來日污染
+    const slicedDaily = signalDate
+      ? dailyCandles.filter(c => c.date.slice(0, 10) <= signalDate)
+      : dailyCandles;
+
     let displayCandles: CandleWithIndicators[];
     if (interval === '1d') {
-      displayCandles = dailyCandles;
+      displayCandles = slicedDaily;
     } else {
-      const rawAggregated = aggregateCandles(dailyCandles, interval);
+      const rawAggregated = aggregateCandles(slicedDaily, interval);
       displayCandles = computeIndicators(rawAggregated);
     }
 
