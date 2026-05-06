@@ -122,7 +122,7 @@ export default async function DiagnosePage({ params }: PageProps) {
       <section>
         <h2 className="text-lg font-semibold mb-2">波浪結構（findPivots 最近 8 個）</h2>
         {pivots.length < 2 ? (
-          <p className="text-sm text-gray-600">資料不足或波幅未達門檻（2%）。</p>
+          <p className="text-sm text-gray-600">資料不足，未取得 ≥2 個確認的 pivot（MA5 分段轉折波，書本 p.21-22）。</p>
         ) : (
           <table className="w-full text-sm border">
             <thead className="bg-gray-100">

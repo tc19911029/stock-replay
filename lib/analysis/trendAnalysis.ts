@@ -57,7 +57,6 @@ interface Pivot {
  * 也是新段的第一根 bar（因為它的 close 已在新段那一側）。
  * 下一次交界時的 pivot window = [上一交界日..本次交界日]。
  *
- * @param minSwingPct 保留參數相容，算法不使用（書本規則無振幅門檻）
  * @param includeOpen true 時把「進行中段」的 running max/min 當成 provisional pivot 加在最後
  *                    （用於即時趨勢判定；書本嚴格確認要等 MA5 反向穿越）
  */
