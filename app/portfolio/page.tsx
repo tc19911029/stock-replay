@@ -331,7 +331,7 @@ export default function PortfolioPage() {
                 className="bg-sky-600 hover:bg-sky-500 font-medium">
                 + 新增第一筆持倉
               </Button>
-              <Link href="/scanner"
+              <Link href="/"
                 className="text-xs px-4 py-2 bg-secondary hover:bg-muted text-foreground/80 rounded-lg transition border border-border">
                 去掃描選股
               </Link>

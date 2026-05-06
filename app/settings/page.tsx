@@ -252,7 +252,7 @@ export default function SettingsPage() {
           <Link href="/portfolio" className="flex-1 py-2 text-center bg-secondary border border-border rounded-lg text-sm text-muted-foreground hover:text-foreground hover:border-muted-foreground/40 transition">
             💼 持倉
           </Link>
-          <Link href="/scanner" className="flex-1 py-2 text-center bg-secondary border border-border rounded-lg text-sm text-muted-foreground hover:text-foreground hover:border-muted-foreground/40 transition">
+          <Link href="/" className="flex-1 py-2 text-center bg-secondary border border-border rounded-lg text-sm text-muted-foreground hover:text-foreground hover:border-muted-foreground/40 transition">
             🔍 掃描
           </Link>
         </div>

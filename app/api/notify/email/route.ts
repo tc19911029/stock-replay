@@ -79,7 +79,7 @@ function generateEmailHtml(results: StockScanResult[], market: string): string {
 
     <!-- CTA -->
     <div style="text-align:center;margin-bottom:16px;">
-      <a href="${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/scanner"
+      <a href="${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/"
         style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:bold;">
         查看完整掃描結果 →
       </a>

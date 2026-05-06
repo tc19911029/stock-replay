@@ -203,7 +203,7 @@ export default function WatchlistPage() {
             icon="⭐"
             title="尚未加入任何自選股"
             description="在上方輸入股票代號，或從掃描結果直接加入"
-            cta={{ label: '前往掃描', href: '/scanner' }}
+            cta={{ label: '前往掃描', href: '/' }}
           />
         )}
 
