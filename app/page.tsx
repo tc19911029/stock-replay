@@ -266,17 +266,23 @@ export default function HomePage() {
   const startSplitDrag = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     splitDraggingRef.current = true;
+    let latestSplit: number | null = null;
 
     const handleMove = (me: MouseEvent) => {
       if (!splitDraggingRef.current || !chartContainerRef.current) return;
       const rect = chartContainerRef.current.getBoundingClientRect();
       const newSplit = Math.min(Math.max((me.clientY - rect.top) / rect.height, 0.2), 0.85);
       setChartSplit(newSplit);
-      localStorage.setItem('chartSplit', String(newSplit));
+      latestSplit = newSplit;
+      // 不在每次 mousemove 寫 localStorage（拖一下就 100+ 次同步寫會卡 UI），
+      // 改在 mouseup 一次性 commit
     };
 
     const handleUp = () => {
       splitDraggingRef.current = false;
+      if (latestSplit !== null) {
+        try { localStorage.setItem('chartSplit', String(latestSplit)); } catch {}
+      }
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseup', handleUp);
     };
