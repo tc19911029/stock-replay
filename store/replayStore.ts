@@ -510,8 +510,15 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
   setPlaySpeed: (ms) => set({ playSpeed: ms }),
 
   resetReplay: () => {
-    const { allCandles } = get();
-    const index = calcStartIndex(allCandles);
+    const { allCandles, targetDate } = get();
+    // 歷史 scan 模式下 reset 應該回到 scanDate 那根，而不是跳到 allCandles 末端（= 今天）
+    // 否則 chart 切到 scanDate、但 signals/sixConditions 跑到今天，導致兩邊不同步
+    let index = calcStartIndex(allCandles);
+    if (targetDate) {
+      const dateOf = (d: string) => d.slice(0, 10);
+      const tIdx = allCandles.findIndex(c => dateOf(c.date) === targetDate);
+      if (tIdx !== -1) index = tIdx;
+    }
     const account = createAccount(INITIAL_CAPITAL);
     set({
       currentIndex: index,
