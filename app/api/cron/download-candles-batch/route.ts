@@ -168,11 +168,11 @@ export async function GET(req: NextRequest) {
     if (batch === 1) {
       // 主動式 ETF 清單從 etfList.ts 單一來源讀取，新增 ETF 時不必雙寫
       const ACTIVE_ETF_SYMBOLS = ACTIVE_ETF_LIST.map((e) => `${e.etfCode}.TW`);
-      // CN 大盤代理：上證指數 000001.SS（對齊 ChinaScanner.getMarketTrend 與走圖預設）
-      // 之前是 000300.SS（滬深300），但 ChinaScanner 改讀 000001.SS 之後就沒人下載 000300，
-      // 而 000001.SS 只在 scanner 首次 miss 時 self-warm，cron 應主動下載
+      // 大盤代理（對齊 *Scanner.getMarketTrend 實際讀的 symbol）：
+      // - TW: ^TWII（加權指數）— 之前下載 0050.TW 但沒人讀，^TWII 又只在 scanner 首次 miss 時 self-warm
+      // - CN: 000001.SS（上證指數）— 之前下載 000300.SS（滬深300）對應 source 已切換
       const proxySymbols = market === 'TW'
-        ? ['0050.TW', ...ACTIVE_ETF_SYMBOLS]
+        ? ['^TWII', ...ACTIVE_ETF_SYMBOLS]
         : ['000001.SS'];
       // 對 proxy ETF 直接走 TWSE 官方 API（避開 scanner 內 30 根門檻），
       // 因為新發行 ETF 歷史可能 <30 根仍要追蹤。

@@ -228,7 +228,8 @@ export class TaiwanScanner extends MarketScanner {
   }
 
   /**
-   * 大盤趨勢：以 0050.TW（元大台灣50 ETF）作為台股大盤代理指標
+   * 大盤趨勢：以 ^TWII（台灣加權指數）作為台股大盤代理指標
+   * （2026-04-24 從 0050.TW 改為 ^TWII，對齊走圖預設）
    *
    * 三重檢驗：
    * 1. 長期趨勢 (detectTrend)：確保大方向多頭結構
