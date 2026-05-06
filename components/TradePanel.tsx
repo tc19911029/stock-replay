@@ -39,12 +39,17 @@ export default function TradePanel() {
   const estimatedSharesFromAmount = currentPrice > 0 ? Math.floor(inputNum / currentPrice) : 0;
   const estimatedCostFromShares   = inputNum * currentPrice;
 
-  // ── Fee estimate（與 lib/backtest/CostModel.ts 一致）─────────────────────
-  const FEE_RATE = 0.001425;
-  const TW_MIN_FEE = 20;  // 台股券商最低手續費 20 元（書本 + 業界標準）
+  // ── Fee estimate（與 lib/backtest/CostModel.ts 一致；依 tradeMarket 切 TW/CN 費率）──
   function calcCommission(shares: number, price: number, isBuy: boolean) {
     const amount = shares * price;
-    const fee = Math.max(TW_MIN_FEE, Math.round(amount * FEE_RATE));
+    if (tradeMarket === 'CN') {
+      // CN: 佣金 0.031%（含過戶費 0.001%×2 折算，最低 5）+ 賣出印花稅 0.05%（2023.8 後）
+      const fee = Math.max(5, Math.round(amount * 0.00031));
+      const tax = isBuy ? 0 : Math.round(amount * 0.0005);
+      return fee + tax;
+    }
+    // TW: 手續費 0.1425%（最低 20）+ 賣出證交稅 0.3%
+    const fee = Math.max(20, Math.round(amount * 0.001425));
     const tax = isBuy ? 0 : Math.round(amount * 0.003);
     return fee + tax;
   }
