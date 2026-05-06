@@ -89,12 +89,21 @@ export const useSettingsStore = create<SettingsStore>()(
               : s
           ),
         })),
-      deleteCustomStrategy: (id) =>
+      deleteCustomStrategy: (id) => {
+        const wasActive = get().activeStrategyId === id;
         set(state => ({
           customStrategies: state.customStrategies.filter(s => s.id !== id),
-          activeStrategyId:
-            state.activeStrategyId === id ? 'zhu-pure-book' : state.activeStrategyId,
-        })),
+          activeStrategyId: wasActive ? 'zhu-pure-book' : state.activeStrategyId,
+        }));
+        // 刪到正在用的 → 同步 server，否則 cron / ScanPipeline 還會抓舊 customConfig
+        if (wasActive && typeof window !== 'undefined') {
+          fetch('/api/strategy/active', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ strategyId: 'zhu-pure-book', customConfig: null }),
+          }).catch(err => console.warn('[settingsStore] 刪策略後同步 active failed:', err));
+        }
+      },
       getActiveStrategy: () => {
         const { activeStrategyId, customStrategies } = get();
         const all = [...BUILT_IN_STRATEGIES, ...customStrategies];
