@@ -113,9 +113,10 @@ export function ETFPerformanceTab() {
 }
 
 function returnColor(v: number | null | undefined): string {
+  // text-bull/text-bear 跟隨 data-color-theme（asia 紅漲綠跌、western 反過來）
   if (v == null) return 'text-muted-foreground';
-  if (v > 0) return 'text-emerald-500';
-  if (v < 0) return 'text-rose-500';
+  if (v > 0) return 'text-bull';
+  if (v < 0) return 'text-bear';
   return 'text-muted-foreground';
 }
 

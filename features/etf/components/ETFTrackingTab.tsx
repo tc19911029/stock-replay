@@ -157,7 +157,8 @@ export function ETFTrackingTab() {
 }
 
 function Cell({ v }: { v: number | null | undefined }) {
+  // text-bull/text-bear 跟隨 data-color-theme（asia 紅漲綠跌、western 反過來）
   const color =
-    v == null ? 'text-muted-foreground/50' : v > 0 ? 'text-emerald-500' : v < 0 ? 'text-rose-500' : '';
+    v == null ? 'text-muted-foreground/50' : v > 0 ? 'text-bull' : v < 0 ? 'text-bear' : '';
   return <td className={`px-2 py-2 text-right tabular-nums ${color}`}>{formatPct(v)}</td>;
 }
