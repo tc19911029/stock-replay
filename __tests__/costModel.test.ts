@@ -35,14 +35,14 @@ describe('calcCNCost', () => {
 
   test('陸股賣出成本包含印花稅（深圳）', () => {
     const cost = calcCNCost(100000, 'sell', false);
-    // commission: 30, stamp: 100000 * 0.001 = 100
-    expect(cost).toBe(130);
+    // commission: 30, stamp: 100000 * 0.0005 = 50（2023.8 起 0.1% → 0.05%）
+    expect(cost).toBe(80);
   });
 
   test('陸股上海賣出包含過戶費', () => {
     const cost = calcCNCost(100000, 'sell', true);
-    // commission: 30, stamp: 100, transfer: round(100000 * 0.00002) = 2
-    expect(cost).toBe(132);
+    // commission: 30, stamp: 50, transfer: round(100000 * 0.00002) = 2
+    expect(cost).toBe(82);
   });
 
   test('小額交易使用最低佣金', () => {

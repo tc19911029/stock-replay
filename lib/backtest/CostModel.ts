@@ -2,7 +2,7 @@
  * CostModel.ts — 交易成本模型
  *
  * 台股：手續費 0.1425%（買賣均收）+ 證交稅 0.3%（賣出）
- * 陸股：佣金 0.03%（買賣均收，最低 5 元）+ 印花稅 0.1%（賣出）+ 過戶費 0.002%（滬股雙向）
+ * 陸股：佣金 0.03%（買賣均收，最低 5 元）+ 印花稅 0.05%（賣出，2023.8 起；舊 0.1% 已過期）+ 過戶費 0.002%（滬股雙向）
  */
 
 import { MarketId } from '@/lib/scanner/types';
@@ -48,7 +48,7 @@ export function calcTWCost(
 
 const CN_COMMISSION_RATE = 0.0003; // 0.03% 佣金
 const CN_MIN_COMMISSION  = 5;      // 最低佣金（元）
-const CN_STAMP_RATE      = 0.001;  // 0.1% 印花稅（賣出）
+const CN_STAMP_RATE      = 0.0005; // 0.05% 印花稅（賣出，2023.8.28 從 0.1% 減半起新制）
 const CN_TRANSFER_RATE   = 0.00002; // 0.002% 過戶費（滬市雙向）
 
 /**
