@@ -34,7 +34,9 @@ const safeStorage = {
 
 /** Strip heavy fields from scan results for storage (keep only top N) */
 function compactResults(results: StockScanResult[], topN = 20): StockScanResult[] {
-  return results
+  // ⚠️ 用 [...results] 複製：partialize 在 set/persist 流程中會跑，
+  //    若直接 .sort() 會 mutate live store array，造成 UI 排序被改寫
+  return [...results]
     .sort((a, b) => b.sixConditionsScore - a.sixConditionsScore)
     .slice(0, topN)
     .map(r => ({
@@ -282,7 +284,8 @@ export const useScannerStore = create<ScannerStore>()(
           const dataDate: string | undefined = fineResult.dataDate;
           const combinedDiag = fineResult.diagnostics;
 
-          const results: StockScanResult[] = fineResult.results
+          // [...] 複製：避免 mutate fineResult.results（API 回傳，可能被 caller cache）
+          const results: StockScanResult[] = [...fineResult.results]
             .sort((a, b) =>
               b.sixConditionsScore !== a.sixConditionsScore
                 ? b.sixConditionsScore - a.sixConditionsScore
@@ -342,9 +345,9 @@ export const useScannerStore = create<ScannerStore>()(
 
           const now = new Date().toISOString();
 
-          // 計算 Top 3 推薦（與 TodayPicks 組件相同邏輯）
+          // 計算 Top 3 推薦（results 已於上方排序，直接 slice 即可；
+          // 不再呼叫 .sort() 避免重複排序與意外 mutate）
           const topPicks = results
-            .sort((a, b) => b.sixConditionsScore - a.sixConditionsScore || b.changePercent - a.changePercent)
             .slice(0, 3)
             .map(r => ({
               symbol: r.symbol, name: r.name,

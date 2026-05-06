@@ -62,7 +62,8 @@ export default function TodayPicks({ results, isLoading }: Props) {
   if (results.length === 0) return null;
 
   // Select top 3: by sixConditionsScore, then changePercent
-  const scored = results
+  // [...] 複製避免 mutate props（results 來自 store，直接 sort 會改 store 內部排序）
+  const scored = [...results]
     .sort((a, b) => b.sixConditionsScore - a.sixConditionsScore || b.changePercent - a.changePercent)
     .slice(0, 3);
 
