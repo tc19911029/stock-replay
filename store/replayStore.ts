@@ -350,7 +350,7 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
     if (pollingTimer) { clearInterval(pollingTimer); pollingTimer = null; }
 
     const intervalMs = getPollingInterval(currentInterval);
-    if (intervalMs <= 0) return; // 週K/月K 不 poll
+    if (intervalMs <= 0) return; // 未知 interval（getPollingInterval default = 0）才不 poll；日/週/月K 都 60s
 
     set({ isPolling: true });
     const symbol = currentStock.ticker.replace(/\.(TW|TWO|SS|SZ)$/i, '');

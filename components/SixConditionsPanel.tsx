@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useReplayStore } from '@/store/replayStore';
 import { SixConditionsResult } from '@/lib/analysis/trendAnalysis';
 import { detectSellSignals } from '@/lib/analysis/sellSignals';
@@ -129,7 +129,11 @@ export default function SixConditionsPanel() {
   const currentIndex  = useReplayStore(s => s.currentIndex);
   const [expanded, setExpanded] = useState<ConditionKey | null>(null);
 
-  const sellSignals = detectSellSignals(allCandles, currentIndex);
+  // detectSellSignals 跑 15+ 條規則，沒 memo 會在每個 expand/click 重算
+  const sellSignals = useMemo(
+    () => detectSellSignals(allCandles, currentIndex),
+    [allCandles, currentIndex],
+  );
 
   if (!sixConditions) {
     return (
