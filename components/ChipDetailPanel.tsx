@@ -162,7 +162,8 @@ export default function ChipDetailPanel({ symbol, date }: { symbol: string; date
     setLoading(true);
     setError(null);
 
-    const chipDate = date || new Date().toISOString().slice(0, 10);
+    // 用 Asia/Taipei TZ 而非 UTC：CST 凌晨時 UTC 還在前一天，會造成籌碼日期偏差
+    const chipDate = date || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
 
     fetchWithRetry(`/api/chip?date=${chipDate}&symbol=${cleanSym}`, { maxRetries: 2 })
       .then(r => r.json())

@@ -53,7 +53,7 @@ export default function WatchlistPage() {
   const [tagInput, setTagInput] = useState<Record<string, string>>({});
   const [data, setData] = useState<Record<string, ConditionData>>({});
   const [addInput, setAddInput] = useState('');
-  const [addDate, setAddDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [addDate, setAddDate] = useState(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date()));
   const [addLoading, setAddLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -119,7 +119,7 @@ export default function WatchlistPage() {
 
       // 查詢加入日期的收盤價，用於計算加入至今漲幅
       let addedPrice: number | undefined;
-      const today = new Date().toISOString().slice(0, 10);
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
       if (addDate === today) {
         addedPrice = resolvedPrice > 0 ? resolvedPrice : undefined;
       } else {
@@ -192,7 +192,7 @@ export default function WatchlistPage() {
             <input
               type="date"
               value={addDate}
-              max={new Date().toISOString().slice(0, 10)}
+              max={new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date())}
               onChange={e => setAddDate(e.target.value)}
               className="bg-secondary border border-border rounded px-2 py-0.5 text-xs text-foreground focus:outline-none focus:border-blue-500"
             />

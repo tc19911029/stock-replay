@@ -145,7 +145,8 @@ export async function GET(req: NextRequest) {
   const parsed = chipQuerySchema.safeParse(Object.fromEntries(searchParams));
   if (!parsed.success) return apiValidationError(parsed.error);
 
-  const rawDate = parsed.data.date ?? new Date().toISOString().slice(0, 10);
+  // 用 Asia/Taipei TZ；UTC 在 CST 凌晨會回傳前一天，籌碼資料對不上
+  const rawDate = parsed.data.date ?? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
   const rawSymbol = parsed.data.symbol;
   if (!rawSymbol) return apiError('symbol required', 400);
   const code = rawSymbol.replace(/\.(TW|TWO)$/i, '');
