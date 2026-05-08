@@ -1404,7 +1404,39 @@ export abstract class MarketScanner {
               if (detectKlineConsolidationBreakout(candles, lastIdx)?.isBreakout) matchedMethods.push('I');
             } catch { /* */ }
           }
-          const sortedMatched = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'].filter(m => matchedMethods.includes(m));
+          // v12 新字母 J-Q 跨策略命中（議題 65/93/33）
+          // J=ABC alias of G、K=橫盤 alias of I、L=黑K alias of H — 跳過避免重複
+          if (method !== 'M') {
+            try {
+              const { detectLetterM } = await import('@/lib/analysis/v12LetterM');
+              if (detectLetterM(candles, lastIdx, config.marketId, symbol).triggered) matchedMethods.push('M');
+            } catch { /* */ }
+          }
+          if (method !== 'N') {
+            try {
+              const { detectLetterN } = await import('@/lib/analysis/v12LetterN');
+              if (detectLetterN(candles, lastIdx, config.marketId, symbol).triggered) matchedMethods.push('N');
+            } catch { /* */ }
+          }
+          if (method !== 'O') {
+            try {
+              const { detectLetterO } = await import('@/lib/analysis/v12LetterO');
+              if (detectLetterO(candles, lastIdx, config.marketId, symbol).triggered) matchedMethods.push('O');
+            } catch { /* */ }
+          }
+          if (method !== 'P') {
+            try {
+              const { detectLetterP } = await import('@/lib/analysis/v12LetterP');
+              if (detectLetterP(candles, lastIdx, config.marketId, symbol).triggered) matchedMethods.push('P');
+            } catch { /* */ }
+          }
+          if (method !== 'Q') {
+            try {
+              const { detectLetterQ } = await import('@/lib/analysis/v12LetterQ');
+              if (detectLetterQ(candles, lastIdx, config.marketId, symbol).triggered) matchedMethods.push('Q');
+            } catch { /* */ }
+          }
+          const sortedMatched = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'].filter(m => matchedMethods.includes(m));
 
           return {
             symbol,
@@ -1429,6 +1461,11 @@ export abstract class MarketScanner {
             mtfMonthlyPass: mtfResult.monthly.pass,
             mtfMonthlyDetail: mtfResult.monthly.detail,
             lockWatchPayload,
+            dataFreshness: {
+              lastCandleDate: fetchResult.lastCandleDate,
+              daysStale: fetchResult.staleDays,
+              source: fetchResult.source,
+            },
           } satisfies StockScanResult;
         } catch {
           return null;

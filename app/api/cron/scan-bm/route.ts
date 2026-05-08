@@ -151,6 +151,8 @@ export async function GET(req: NextRequest) {
     } catch { /* non-critical */ }
 
     // ── Step 6: 存入 L4 post_close session ─────────────────────────────
+    // v12 新字母（J-Q）標 schemaVersion='v12'，舊字母（B-I）保留 'v11' 向後相容
+    const isV12Letter = ['J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'].includes(method);
     const bmSession = {
       id: `${market}-long-${method}-${date}-${Date.now()}`,
       market: market as import('@/lib/scanner/types').MarketId,
@@ -163,6 +165,7 @@ export async function GET(req: NextRequest) {
       results: bmResults,
       marketTrend,
       buyMethod: method,
+      schemaVersion: (isV12Letter ? 'v12' : 'v11') as 'v11' | 'v12',
     };
     await saveScanSession(bmSession, { allowOverwritePostClose: true });
 
