@@ -8,6 +8,7 @@ export interface PortfolioHolding {
   symbol: string;
   name: string;
   shares: number;
+  /** 用戶實際進場成本價（議題 92：用戶實際買進價 = entryPrice）*/
   costPrice: number;
   buyDate: string;
   /** 市場（舊資料缺值時預設視為 TW） */
@@ -15,6 +16,52 @@ export interface PortfolioHolding {
   /** 進場當日 OHLC 快照，停損計算用（朱 5 步驟 S1） */
   entryKbar?: Candle;
   notes?: string;
+
+  // ── v12 Phase 0.3 新增欄位（議題 92 進場價分流）──────────────────────────
+
+  /**
+   * 系統觸發日鎖定的突破點價格（議題 92）
+   *
+   * 用於：
+   * - 真突破 3 天驗證（K/D 訊號）— close < triggerPrice → 撤銷
+   * - 系統訊號參考價
+   *
+   * 跟 costPrice（用戶實際買進價）分開：
+   * - costPrice 用於 Step 3 停損 / Step 5 停利（個人盈虧計算）
+   * - triggerPrice 用於系統訊號驗證
+   */
+  triggerPrice?: number;
+
+  /**
+   * 進場時觸發的訊號字母（B/P/C/J/K/L/M/D/F/N/O/E/Q/A）
+   * 用於 Step 3 停損方法對應、議題 28 再進場路徑判定等
+   */
+  triggerSignal?: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q';
+
+  /**
+   * 操作模式（Step 4 ② / ③）
+   * 'short' = 短線（MA5/MA10）；'long' = 長線（MA20）；'wave' = 波段
+   * 用戶手動切換（議題 Step 4 ③ 升級長線）
+   */
+  operationMode?: 'short' | 'long' | 'wave';
+
+  /**
+   * 進階紀律啟用 flag（議題 B 寶典 #5/#6）
+   * B/P 訊號累計獲利 ≥ 10% 後啟用「< 10% 續抱、≥ 10% 才停利」紀律
+   */
+  enhancedDisciplineEnabled?: boolean;
+
+  /**
+   * 末升段 flag（議題 13）
+   * 持倉中股價達末升段標準後 trigger，影響 Step 3 ④ 切 trailing 3%
+   */
+  endPhaseTriggered?: boolean;
+
+  /**
+   * 持倉中追蹤的最高 close（trailing stop 用，議題 S3-3）
+   * 用於末升段 SL = recentHigh × 0.97
+   */
+  recentHigh?: number;
 }
 
 /** 已賣出（已實現）的一筆交易紀錄 */
