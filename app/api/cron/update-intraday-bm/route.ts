@@ -18,18 +18,23 @@ import { isTradingDay } from '@/lib/utils/tradingDay';
 export const runtime = 'nodejs';
 export const maxDuration = 120;
 
-const VALID_METHODS = new Set(['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']);
+const VALID_METHODS = new Set([
+  // v11 字母（向後相容歷史 record）
+  'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I',
+  // v12 新字母
+  'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q',
+]);
 
 export async function GET(req: NextRequest) {
   const authDenied = checkCronAuth(req);
   if (authDenied) return authDenied;
 
   const market = (req.nextUrl.searchParams.get('market') ?? 'TW') as 'TW' | 'CN';
-  const method = req.nextUrl.searchParams.get('method') as 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | null;
+  const method = req.nextUrl.searchParams.get('method') as 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q' | null;
   const force = req.nextUrl.searchParams.get('force') === '1';
 
   if (!method || !VALID_METHODS.has(method)) {
-    return apiError(`method required (B|C|D|E|F|G|H|I), got: ${method}`, 400);
+    return apiError(`method required (B-I|J-Q), got: ${method}`, 400);
   }
 
   // ?force=1 跳過時間 gate（人工修復用）
@@ -108,7 +113,7 @@ export async function GET(req: NextRequest) {
       resultCount: bmResults.length,
       results: bmResults,
       marketTrend,
-      buyMethod: method as 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I',
+      buyMethod: method as 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q',
     };
     await saveScanSession(session);
 

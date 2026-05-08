@@ -97,7 +97,7 @@ async function fsListPrefix(prefix: string): Promise<string[]> {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-/** Derive MTF mode from session — 買法 session (buyMethod=B-I) 優先 */
+/** Derive MTF mode from session — 買法 session (buyMethod=B-Q) 優先 */
 function sessionMtfMode(session: ScanSession): MtfMode {
   if (session.buyMethod) return session.buyMethod;
   return session.multiTimeframeEnabled ? 'mtf' : 'daily';

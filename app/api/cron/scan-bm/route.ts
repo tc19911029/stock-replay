@@ -28,7 +28,12 @@ import { getLastTradingDay } from '@/lib/datasource/marketHours';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
-const VALID_METHODS = ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'] as const;
+const VALID_METHODS = [
+  // v11 字母（向後相容歷史 record）
+  'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I',
+  // v12 新字母 (J=ABC、K=K線橫盤、L=過大量黑 K，與 v11 G/I/H 共用 detector；M/N/O/P/Q 新訊號)
+  'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q',
+] as const;
 type BuyMethod = typeof VALID_METHODS[number];
 
 export async function GET(req: NextRequest) {
