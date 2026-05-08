@@ -72,7 +72,9 @@ export class ChinaScanner extends MarketScanner {
         }
         candles = fetched;
       }
-      if (candles.length < 20) return '多頭'; // 資料不足時歷史預設多頭（TW 統計同期大多是多頭）
+      // 2026-05-07 修：與 TW 對稱，candles 不足預設「盤整」（minScore=5 較嚴）。
+      // 原預設「多頭」會放寬 minScore，CN 歷史回測或 IPO 早期偏鬆，與 TW 不一致。
+      if (candles.length < 20) return '盤整';
 
       const lastIdx = candles.length - 1;
       const longTrend = detectTrend(candles, lastIdx);

@@ -248,7 +248,12 @@ async function analyzeOne(
     }
 
     // 以隔日開盤價為基準的報酬率（與 BacktestEngine 進場價一致）
-    const nextOpenPrice = forwardCandles.length > 0 ? forwardCandles[0].open : null;
+    // 2026-05-07：對齊 BacktestEngine.ts:284-292 加漲停鎖死偵測
+    // 開盤=最高 且 振幅<0.5% → 散戶買不到，nextOpenPrice 設 null 不誤導
+    const entryC = forwardCandles[0];
+    const lockUp = entryC && entryC.low > 0 &&
+      entryC.open === entryC.high && (entryC.high - entryC.low) / entryC.low < 0.005;
+    const nextOpenPrice = forwardCandles.length > 0 && !lockUp ? entryC.open : null;
     function retFromOpen(idx: number): number | null {
       if (nextOpenPrice == null || nextOpenPrice <= 0) return null;
       if (idx >= forwardCandles.length) return null;

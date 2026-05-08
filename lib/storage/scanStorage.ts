@@ -108,7 +108,7 @@ function sessionMtfMode(session: ScanSession): MtfMode {
  *
  * Key format (Fundamental Requirement R5):
  *   post_close: scans/{market}/{dir}/{mtf}/{date}.json (唯一正式結果)
- *   intraday:   scans/{market}/{dir}/{mtf}/{date}/intraday/{HHMM}.json (可多筆)
+ *   intraday:   scans/{market}/{dir}/{mtf}/{date}/intraday/{HHMMSS}.json (可多筆，秒級防同分鐘撞檔)
  *
  * post_close 封存後不可被非官方來源覆蓋（需傳 allowOverwritePostClose: true）
  * intraday 帶時間戳，不會互相覆蓋
@@ -121,19 +121,27 @@ interface SaveScanOptions {
   allowOverwritePostClose?: boolean;
 }
 
-/** 檢查指定日期是否已有 post_close 結果（封存檢查） */
+/** 檢查指定日期是否已有有效 post_close 結果（封存檢查）
+ *
+ * 2026-05-07 修：sealed 不只看「檔案存在」，還要 resultCount > 0。
+ * 原因：歷史回填產生的空 session 會永久 lock 該日，正式 cron 重跑被靜默擋。
+ */
 async function isPostCloseSealed(
   market: MarketId, direction: string, mtfMode: string, date: string,
 ): Promise<boolean> {
   const blobPath = `scans/${market}/${direction}/${mtfMode}/${date}.json`;
   const localName = `scan-${market}-${direction}-${mtfMode}-${date}.json`;
 
-  if (IS_VERCEL) {
-    const raw = await blobGet(blobPath).catch(() => null);
-    return raw !== null;
+  const raw = IS_VERCEL ? await blobGet(blobPath).catch(() => null) : await fsGet(localName);
+  if (raw === null) return false;
+  try {
+    const session = JSON.parse(raw) as { resultCount?: number };
+    // 空 session 不算 sealed，允許正式 cron 覆蓋（避免空結果永久 lock）
+    return (session.resultCount ?? 0) > 0;
+  } catch {
+    // JSON 損壞當沒 sealed，重寫機會
+    return false;
   }
-  const raw = await fsGet(localName);
-  return raw !== null;
 }
 
 export async function saveScanSession(
@@ -147,9 +155,11 @@ export async function saveScanSession(
 
   if (sessionType === 'intraday') {
     // 盤中快照：帶時間戳，不覆蓋正式結果
-    const hhmm = new Date(session.scanTime).toISOString().slice(11, 16).replace(':', '');
-    const blobPath = `scans/${session.market}/${dir}/${mtf}/${session.date}/intraday/${hhmm}.json`;
-    const localName = `scan-${session.market}-${dir}-${mtf}-${session.date}-intraday-${hhmm}.json`;
+    // 2026-05-07 修：HHMM (4 碼) → HHMMSS (6 碼)，避免同分鐘多 cron 並發互蓋
+    // （原 :08/:00 兩個 method cron 重啟後可能疊到同分鐘觸發）
+    const hhmmss = new Date(session.scanTime).toISOString().slice(11, 19).replace(/:/g, '');
+    const blobPath = `scans/${session.market}/${dir}/${mtf}/${session.date}/intraday/${hhmmss}.json`;
+    const localName = `scan-${session.market}-${dir}-${mtf}-${session.date}-intraday-${hhmmss}.json`;
 
     if (IS_VERCEL) {
       await blobPut(blobPath, data);
@@ -371,8 +381,9 @@ export async function listScanDates(
       for (const m of modes) {
         const blobs = await blobListPrefix(`scans/${market}/${direction}/${m}/`);
         for (const blob of blobs) {
-          // 匹配 intraday 路徑: {date}/intraday/{HHMM}.json
-          const intradayMatch = blob.pathname.match(/(\d{4}-\d{2}-\d{2})\/intraday\/\d{4}\.json$/);
+          // 匹配 intraday 路徑: {date}/intraday/{HHMM 或 HHMMSS}.json
+          // 2026-05-08：HHMM 4 碼 → HHMMSS 6 碼後相容兩種
+          const intradayMatch = blob.pathname.match(/(\d{4}-\d{2}-\d{2})\/intraday\/\d{4,6}\.json$/);
           if (!intradayMatch) continue;
           const dateStr = intradayMatch[1];
           // 不跳過：讓 intraday 與 post_close 共存，由 dedup 取最新 scanTime
@@ -388,7 +399,8 @@ export async function listScanDates(
     for (const m of modes) {
       const intradayFiles = await fsListPrefix(`scan-${market}-${direction}-${m}-`);
       for (const file of intradayFiles) {
-        const intradayMatch = file.match(/(\d{4}-\d{2}-\d{2})-intraday-\d{4}\.json$/);
+        // 2026-05-08：HHMM 4 碼 → HHMMSS 6 碼後相容兩種，避免新檔漏列
+        const intradayMatch = file.match(/(\d{4}-\d{2}-\d{2})-intraday-\d{4,6}\.json$/);
         if (!intradayMatch) continue;
         const dateStr = intradayMatch[1];
         // 不跳過也不加入 existingDates，讓同日多筆 intraday 都進 entries，由 dedup 取最新

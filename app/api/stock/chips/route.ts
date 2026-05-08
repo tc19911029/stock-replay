@@ -53,6 +53,9 @@ export async function GET(req: NextRequest) {
   if (!market) return apiOk({ symbol, inst: [], tdcc: [], note: '無法判斷市場' });
 
   const code = symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
+  // 2026-05-07：cnSecid bug 第 7 處 — suffix 必須傳給 fetchCnMainFlow
+  // 否則 000001.SS 走 EastMoney 預設 0.000001 → 拿到平安銀行籌碼，不是上證指數
+  const cnSuffix = /\.SS$/i.test(symbol) ? 'SS' : /\.SZ$/i.test(symbol) ? 'SZ' : undefined;
   const targetDate = getLastTradingDay(market);
 
   try {
@@ -63,7 +66,7 @@ export async function GET(req: NextRequest) {
       if (needsRefresh) {
         try {
           // EastMoney 直接抓最近 200 天，不分增量（API 一次回完）
-          const fetched = await fetchCnMainFlow(code, 200);
+          const fetched = await fetchCnMainFlow(code, 200, cnSuffix);
           if (fetched.size > 0) {
             const rows = Array.from(fetched.entries()).map(([date, v]) => ({ date, ...v }));
             await writeCnFlowStock(code, rows);

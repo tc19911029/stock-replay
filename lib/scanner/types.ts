@@ -134,6 +134,14 @@ export interface StockScanResult {
   d10Return?: number | null;
   d20Return?: number | null;
   d1ReturnFromOpen?: number | null;
+  // 2026-05-08：補齊 d5-d10ReturnFromOpen，原本只宣告 d1，導致 ScanPipeline 注入這些欄位時 TS 無類型保護
+  d5ReturnFromOpen?: number | null;
+  d6ReturnFromOpen?: number | null;
+  d7ReturnFromOpen?: number | null;
+  d8ReturnFromOpen?: number | null;
+  d9ReturnFromOpen?: number | null;
+  d10ReturnFromOpen?: number | null;
+  d20ReturnFromOpen?: number | null;
   maxGain?: number;
   maxLoss?: number;
 }

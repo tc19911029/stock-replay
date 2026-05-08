@@ -201,8 +201,21 @@ export abstract class MarketScanner {
     const tz = this.getMarketConfig().marketId === 'CN' ? 'Asia/Shanghai' : 'Asia/Taipei';
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
     // 有 L2 報價且日期匹配 asOfDate 時，視為「今日掃描」而非純歷史
+    // 2026-05-07 修：原 `values().next().value` 只看 Map 第一筆，若昨日殘留 + 今日新值
+    // 並存（例：cron 啟動時 partial refresh），第一筆若是昨日就誤判 isHistorical=true
+    // 整批走歷史路徑，當日 L2 全被忽略 → 漏訊號。
+    // 改抽樣前 20 筆，多數匹配才算「今日 L2」。
     const hasL2ForDate = this._realtimeQuotes && this._realtimeQuotes.size > 0 &&
-      asOfDate && (() => { const first = this._realtimeQuotes!.values().next().value; return first?.date === asOfDate; })();
+      asOfDate && (() => {
+        let total = 0;
+        let matched = 0;
+        for (const q of this._realtimeQuotes!.values()) {
+          total++;
+          if (q?.date === asOfDate) matched++;
+          if (total >= 20) break;
+        }
+        return total > 0 && matched / total >= 0.5;
+      })();
     const isHistorical = !!asOfDate && asOfDate < today && !hasL2ForDate;
     const market = this.getMarketConfig().marketId as 'TW' | 'CN';
 

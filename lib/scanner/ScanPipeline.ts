@@ -234,6 +234,13 @@ export async function runScanPipeline(options: ScanPipelineOptions): Promise<Sca
             r.maxLoss           = p.maxLoss;
             r.nextOpenPrice     = p.nextOpenPrice;
             r.d1ReturnFromOpen  = p.d1ReturnFromOpen;
+            // 2026-05-08：原本只注入 d1ReturnFromOpen，d5-d10 都漏 → UI 顯示 null
+            r.d5ReturnFromOpen  = p.d5ReturnFromOpen;
+            r.d6ReturnFromOpen  = p.d6ReturnFromOpen;
+            r.d7ReturnFromOpen  = p.d7ReturnFromOpen;
+            r.d8ReturnFromOpen  = p.d8ReturnFromOpen;
+            r.d9ReturnFromOpen  = p.d9ReturnFromOpen;
+            r.d10ReturnFromOpen = p.d10ReturnFromOpen;
           }
           console.info(`[ScanPipeline] ${market} ${direction} 注入 forward: ${fwdPerf.length}/${results.length}`);
         } catch (err) {
@@ -306,6 +313,37 @@ export async function runScanPipeline(options: ScanPipelineOptions): Promise<Sca
           for (const r of bmResults) {
             const rank = turnoverRanks.get(r.symbol);
             if (rank) r.turnoverRank = rank;
+          }
+        }
+
+        // 2026-05-08：buyMethod 結果也注入 forward perf（原本只 daily/mtf 有）
+        // → 用戶看 B/C/D/E/F/G/H/I tab 時 d1Return/d5Return/maxGain 不再全 null
+        if (bmResults.length > 0) {
+          try {
+            const { analyzeForwardBatch } = await import('@/lib/backtest/ForwardAnalyzer');
+            const fwdInput = bmResults.map(r => ({ symbol: r.symbol, name: r.name, scanPrice: r.price }));
+            const { results: fwdPerf } = await analyzeForwardBatch(fwdInput, date);
+            const fwdMap = new Map(fwdPerf.map(p => [p.symbol, p]));
+            for (const r of bmResults) {
+              const p = fwdMap.get(r.symbol);
+              if (!p) continue;
+              r.openReturn = p.openReturn;
+              r.d1Return = p.d1Return; r.d2Return = p.d2Return; r.d3Return = p.d3Return;
+              r.d4Return = p.d4Return; r.d5Return = p.d5Return; r.d6Return = p.d6Return;
+              r.d7Return = p.d7Return; r.d8Return = p.d8Return; r.d9Return = p.d9Return;
+              r.d10Return = p.d10Return; r.d20Return = p.d20Return;
+              r.maxGain = p.maxGain; r.maxLoss = p.maxLoss;
+              r.nextOpenPrice = p.nextOpenPrice;
+              r.d1ReturnFromOpen = p.d1ReturnFromOpen;
+              r.d5ReturnFromOpen = p.d5ReturnFromOpen;
+              r.d6ReturnFromOpen = p.d6ReturnFromOpen;
+              r.d7ReturnFromOpen = p.d7ReturnFromOpen;
+              r.d8ReturnFromOpen = p.d8ReturnFromOpen;
+              r.d9ReturnFromOpen = p.d9ReturnFromOpen;
+              r.d10ReturnFromOpen = p.d10ReturnFromOpen;
+            }
+          } catch (err) {
+            console.warn(`[ScanPipeline] ${market} 買法 ${method} forward 注入失敗（non-fatal）:`, err);
           }
         }
 
