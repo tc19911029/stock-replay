@@ -5,6 +5,7 @@ import { useBacktestStore } from '@/store/backtestStore';
 import { ScanResultsCompact } from './components/ScanResultsCompact';
 import { DabanResultsCompact } from './components/DabanResultsCompact';
 import { ScanCoachDigest } from './components/ScanCoachDigest';
+import { MarketTrendBanner } from './components/MarketTrendBanner';
 import { SectionBoundary } from '@/components/ErrorBoundary';
 import type { SelectedStock } from './components/ScanChartPanel';
 
@@ -201,6 +202,15 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
 
       {/* ── 釘住在最上：日期歷史 + 朱老師分析（不隨下方卡片滾動） ── */}
       <div className="shrink-0 border-b border-border bg-card/80">
+        {/* Step 0 大盤狀態 banner（v12 議題 69）— 進場做多最高前提 */}
+        {scanDirection !== 'daban' && (
+          <MarketTrendBanner
+            market={market}
+            marketTrend={marketTrend ?? null}
+            scanDate={scanDate ?? null}
+          />
+        )}
+
         {/* Date Navigator — vertical pill list */}
         {cronDates.some(c => c.market === market) && (
           <div className="px-2.5 py-1.5 border-b border-border/60">
