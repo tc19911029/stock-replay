@@ -889,9 +889,13 @@ async function crossValidateL2(
   _lastCrossValidation[market] = result;
 
   if (suspicious) {
-    console.error(
-      `[IntradayCache] ★ ${market} L2 交叉核驗可疑！` +
-      `${mismatched}/${total} 支偏差 > 2%（不一致率 ${(mismatchRate * 100).toFixed(1)}%）`
+    // 2026-05-08：降為 warn — TW 用 mis (即時) vs TWSEDailyAll (盤後) 對比，
+    // 盤中本來就會差異，不該觸發 production error alert。
+    // 真實源頭錯誤會由 consecutiveEmptyCount 跟 download verifier 抓到。
+    console.warn(
+      `[IntradayCache] ${market} L2 交叉核驗偏差較大: ` +
+      `${mismatched}/${total} 支偏差 > 2%（不一致率 ${(mismatchRate * 100).toFixed(1)}%）— ` +
+      `盤中 mis vs 盤後 daily 對比常態差異，不一定是 bug`
     );
   } else {
     console.info(
