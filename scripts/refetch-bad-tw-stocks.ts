@@ -20,7 +20,7 @@ const REPO_ROOT = '/Users/tzu-chienhsu/Desktop/rockstock';
 
 interface Candle { date: string; open: number; high: number; low: number; close: number; volume?: number; }
 
-const TARGETS = ['8476.TW', '7716.TWO', '7821.TW'];
+const TARGETS = ['8476.TW', '7716.TWO', '7821.TW', '4908.TWO', '3093.TWO', '4971.TWO', '4973.TWO', '7717.TWO'];
 
 async function refetch(symbol: string): Promise<{ ok: boolean; before?: number; after: number; reason?: string }> {
   console.log(`\n[${symbol}] 抓取最新 1y...`);
