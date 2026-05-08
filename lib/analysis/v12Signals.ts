@@ -27,6 +27,13 @@ import type { CandleWithIndicators } from '../../types';
 import { detectABCBreakout } from './abcBreakoutEntry';
 import { detectBlackKBreakout } from './blackKBreakoutEntry';
 import { detectKlineConsolidationBreakout } from './klineConsolidationBreakout';
+import { detectLetterM } from './v12LetterM';
+import { detectLetterN } from './v12LetterN';
+import { detectLetterO } from './v12LetterO';
+import { detectLetterP } from './v12LetterP';
+import { detectLetterQ } from './v12LetterQ';
+
+import type { MarketId } from '../scanner/types';
 
 // ── v12 統一訊號回傳結構 ─────────────────────────────────────────────────
 
@@ -234,27 +241,241 @@ export function detectV12L(
 
 // ── 統一入口：依字母 dispatch ─────────────────────────────────────────────
 
+// ── 字母 P 高檔拉回（v12 Phase 1.4B 新建）─────────────────────────────────
+
+export function detectV12P(
+  candles: CandleWithIndicators[],
+  idx: number,
+  market: MarketId = 'TW',
+  symbol = '',
+): V12SignalResult {
+  const result = detectLetterP(candles, idx, market, symbol);
+
+  if (!result.triggered) {
+    return {
+      triggered: false,
+      letter: 'P',
+      category: 'pullback',
+      track: 'long-trend',
+      detail: result.detail,
+      schemaVersion: 'v12',
+    };
+  }
+
+  return {
+    triggered: true,
+    letter: 'P',
+    category: 'pullback',
+    track: 'long-trend',
+    triggerPrice: result.triggerPrice,
+    bodyPct: result.bodyPct,
+    volumeRatio: result.volumeRatio,
+    detail: result.detail,
+    schemaVersion: 'v12',
+    meta: {
+      pullbackDays: result.pullbackDays,
+      prevSwingHigh: result.prevSwingHigh,
+    },
+  };
+}
+
+// ── 字母 M 突破軌道線（v12 Phase 1.4B 新建）───────────────────────────────
+
+export function detectV12M(
+  candles: CandleWithIndicators[],
+  idx: number,
+  market: MarketId = 'TW',
+  symbol = '',
+): V12SignalResult {
+  const result = detectLetterM(candles, idx, market, symbol);
+
+  if (!result.triggered) {
+    return {
+      triggered: false,
+      letter: 'M',
+      category: 'channel',
+      track: 'long-trend',
+      detail: result.detail,
+      schemaVersion: 'v12',
+    };
+  }
+
+  return {
+    triggered: true,
+    letter: 'M',
+    category: 'channel',
+    track: 'long-trend',
+    triggerPrice: result.channelValue,
+    bodyPct: result.bodyPct,
+    volumeRatio: result.volumeRatio,
+    detail: result.detail,
+    schemaVersion: 'v12',
+    meta: {
+      channelValue: result.channelValue,
+      breakoutThreshold: result.breakoutThreshold,
+      supportLow1: result.supportLow1Price,
+      supportLow2: result.supportLow2Price,
+      channelAnchor: result.channelAnchorPrice,
+    },
+  };
+}
+
+// ── 字母 O 打底完成（v12 Phase 1.4B 新建）─────────────────────────────────
+
+export function detectV12O(
+  candles: CandleWithIndicators[],
+  idx: number,
+  market: MarketId = 'TW',
+  symbol = '',
+): V12SignalResult {
+  const result = detectLetterO(candles, idx, market, symbol);
+
+  if (!result.triggered) {
+    return {
+      triggered: false,
+      letter: 'O',
+      category: 'pattern',
+      track: 'reversal',
+      detail: result.detail,
+      schemaVersion: 'v12',
+    };
+  }
+
+  return {
+    triggered: true,
+    letter: 'O',
+    category: 'pattern',
+    track: 'reversal',
+    triggerPrice: result.triggerPrice,
+    bodyPct: result.bodyPct,
+    volumeRatio: result.volumeRatio,
+    detail: result.detail,
+    schemaVersion: 'v12',
+    meta: {
+      breakoutThreshold: result.breakoutThreshold,
+      baseLow: result.baseLow,
+      baseRangeLow: result.baseRangeLow,
+      hadHighVolume: result.hadHighVolume,
+      aboveMA60: result.aboveMA60,  // 加分項：站上季線可長多
+    },
+  };
+}
+
+// ── 字母 N 型態確認（v12 Phase 1.4B 新建）─────────────────────────────────
+
+export function detectV12N(
+  candles: CandleWithIndicators[],
+  idx: number,
+  market: MarketId = 'TW',
+  symbol = '',
+): V12SignalResult {
+  const result = detectLetterN(candles, idx, market, symbol);
+
+  if (!result.triggered) {
+    return {
+      triggered: false,
+      letter: 'N',
+      category: 'pattern',
+      track: 'reversal',
+      detail: result.detail,
+      schemaVersion: 'v12',
+    };
+  }
+
+  return {
+    triggered: true,
+    letter: 'N',
+    category: 'pattern',
+    track: 'reversal',
+    triggerPrice: result.necklinePrice,
+    bodyPct: result.bodyPct,
+    volumeRatio: result.volumeRatio,
+    detail: result.detail,
+    schemaVersion: 'v12',
+    meta: {
+      patternType: result.patternType,
+      achievementRate: result.achievementRate,
+      necklinePrice: result.necklinePrice,
+      breakoutThreshold: result.breakoutThreshold,
+      patternTargetPrice: result.patternTargetPrice,
+      structureBrokenPrice: result.structureBrokenPrice,
+    },
+  };
+}
+
+// ── 字母 Q 三條均線戰法（v12 Phase 1.4B 新建，獨立軌）────────────────────
+
+export function detectV12Q(
+  candles: CandleWithIndicators[],
+  idx: number,
+  market: MarketId = 'TW',
+  symbol = '',
+): V12SignalResult {
+  const result = detectLetterQ(candles, idx, market, symbol);
+
+  if (!result.triggered) {
+    return {
+      triggered: false,
+      letter: 'Q',
+      category: 'system',
+      track: 'system',
+      detail: result.detail,
+      schemaVersion: 'v12',
+    };
+  }
+
+  return {
+    triggered: true,
+    letter: 'Q',
+    category: 'system',
+    track: 'system',
+    bodyPct: result.bodyPct,
+    detail: result.detail,
+    schemaVersion: 'v12',
+    meta: {
+      stopLossMA: result.stopLossMA,
+      ma3: result.ma3,
+      ma10: result.ma10,
+      ma24: result.ma24,
+      goldenCrossToday: result.goldenCrossToday,
+      ma24Up: result.ma24Up,
+    },
+  };
+}
+
+// ── 統一入口 ─────────────────────────────────────────────────────────────
+
 /**
  * 統一入口：依 v12 字母呼叫對應 detector
  *
- * Phase 1.4A 暫只支援 J/K/L（包裝既有）；M/N/O/P/Q 後續 Phase 1.4B 補入。
+ * Phase 1.4A：J/K/L（包裝既有）
+ * Phase 1.4B：M/N/O/P/Q（新建）
+ *
+ * 尚未實作：A/B/C/D/E/F（既有 v11 detector，後續 Phase 1.5 串接時統一處理）
  */
 export function detectV12Signal(
   letter: V12Letter,
   candles: CandleWithIndicators[],
   idx: number,
+  market: MarketId = 'TW',
+  symbol = '',
 ): V12SignalResult {
   switch (letter) {
     case 'J': return detectV12J(candles, idx);
     case 'K': return detectV12K(candles, idx);
     case 'L': return detectV12L(candles, idx);
+    case 'M': return detectV12M(candles, idx, market, symbol);
+    case 'N': return detectV12N(candles, idx, market, symbol);
+    case 'O': return detectV12O(candles, idx, market, symbol);
+    case 'P': return detectV12P(candles, idx, market, symbol);
+    case 'Q': return detectV12Q(candles, idx, market, symbol);
     default:
       return {
         triggered: false,
         letter,
         category: 'single-k',
         track: 'long-trend',
-        detail: `${letter} 訊號尚未實作（Phase 1.4B 後續補入）`,
+        detail: `${letter} 訊號將於 Phase 1.5 ScanPipeline 串接時整合既有 v11 detector`,
         schemaVersion: 'v12',
       };
   }
