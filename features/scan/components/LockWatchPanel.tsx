@@ -53,6 +53,7 @@ export function LockWatchPanel({ market }: LockWatchPanelProps) {
   const [snapshot, setSnapshot] = useState<LockWatchDailySnapshot | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [removingKey, setRemovingKey] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -71,6 +72,31 @@ export function LockWatchPanel({ market }: LockWatchPanelProps) {
       setLoading(false);
     }
   }, [market]);
+
+  const removeRecord = useCallback(
+    async (symbol: string, triggerSignal: 'F' | 'N') => {
+      const key = `${symbol}-${triggerSignal}`;
+      setRemovingKey(key);
+      try {
+        const res = await fetch('/api/lockwatch/remove', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ market, symbol, triggerSignal, reason: 'user' }),
+        });
+        const json = (await res.json()) as { ok: boolean; error?: string };
+        if (!json.ok) {
+          alert(`移除失敗：${json.error ?? 'unknown'}`);
+        } else {
+          await fetchData();
+        }
+      } catch (err) {
+        alert(`移除失敗：${String(err)}`);
+      } finally {
+        setRemovingKey(null);
+      }
+    },
+    [market, fetchData],
+  );
 
   useEffect(() => {
     if (!collapsed) fetchData();
@@ -119,7 +145,12 @@ export function LockWatchPanel({ market }: LockWatchPanelProps) {
           {!loading && !error && totalCount > 0 && (
             <div className="space-y-0.5 max-h-[40vh] overflow-y-auto">
               {(snapshot?.records ?? []).map((r) => (
-                <LockWatchRow key={`${r.symbol}-${r.triggerSignal}-${r.triggeredDate}`} record={r} />
+                <LockWatchRow
+                  key={`${r.symbol}-${r.triggerSignal}-${r.triggeredDate}`}
+                  record={r}
+                  onRemove={removeRecord}
+                  removing={removingKey === `${r.symbol}-${r.triggerSignal}`}
+                />
               ))}
             </div>
           )}
@@ -129,11 +160,22 @@ export function LockWatchPanel({ market }: LockWatchPanelProps) {
   );
 }
 
-function LockWatchRow({ record }: { record: LockWatchRecord }) {
+function LockWatchRow({
+  record,
+  onRemove,
+  removing,
+}: {
+  record: LockWatchRecord;
+  onRemove: (symbol: string, triggerSignal: 'F' | 'N') => void;
+  removing: boolean;
+}) {
   const sig = SIGNAL_LABEL[record.triggerSignal];
   const stage = STAGE_STYLE[record.currentStage];
   const patternName = record.patternType ? PATTERN_NAME[record.patternType] : null;
   const inWatchlist = useWatchlistStore((s) => s.has(record.symbol));
+  // 已結束的紀錄（撤銷/移除/結構失效/已買進）不可再移除
+  const canRemove =
+    record.currentStage === 'observation' || record.currentStage === 'entry-signal';
 
   return (
     <div className="flex items-center gap-1.5 text-[10px] py-0.5 border-b border-border/30 last:border-0">
@@ -171,6 +213,20 @@ function LockWatchRow({ record }: { record: LockWatchRecord }) {
           title="加入自選股"
         >
           +
+        </button>
+      )}
+      {canRemove && (
+        <button
+          onClick={() => {
+            if (confirm(`移除 ${record.symbol} ${sig.name}？`)) {
+              onRemove(record.symbol, record.triggerSignal);
+            }
+          }}
+          disabled={removing}
+          className="text-[9px] text-rose-400 hover:text-rose-300 px-1 rounded border border-rose-700/50 hover:bg-rose-900/30 shrink-0 disabled:opacity-40"
+          title="手動移除（議題 17）"
+        >
+          {removing ? '…' : '✕'}
         </button>
       )}
     </div>
