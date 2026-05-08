@@ -166,7 +166,50 @@ export async function GET(req: NextRequest) {
     };
     await saveScanSession(bmSession, { allowOverwritePostClose: true });
 
-    console.info(`[scan-bm] ✅ ${market} ${method} ${date}: ${bmResults.length} 檔 L2=${l2Injected}`);
+    // ── Step 7: F / N 訊號 → 寫入 LockWatch 鎖股觀察名單（v12 議題 23/65/93）─────
+    let lockWatchWritten = 0;
+    if (method === 'F' || method === 'N') {
+      try {
+        const { appendLockWatchRecords } = await import('@/lib/storage/lockWatchStorage');
+        const { createLockWatchFromF, createLockWatchFromN } = await import('@/lib/scanner/lockWatchManager');
+
+        const records = bmResults
+          .filter((r) => r.lockWatchPayload?.triggerPrice != null)
+          .map((r) => {
+            const p = r.lockWatchPayload!;
+            if (method === 'F') {
+              return createLockWatchFromF({
+                symbol: r.symbol,
+                market: market as 'TW' | 'CN',
+                triggeredDate: date,
+                triggerPrice: p.triggerPrice,
+              });
+            }
+            // method === 'N'
+            if (!p.patternType) return null;
+            return createLockWatchFromN({
+              symbol: r.symbol,
+              market: market as 'TW' | 'CN',
+              triggeredDate: date,
+              patternType: p.patternType,
+              triggerPrice: p.triggerPrice,
+              patternTargetPrice: p.patternTargetPrice,
+              patternAchievementRate: p.patternAchievementRate,
+            });
+          })
+          .filter((x): x is NonNullable<typeof x> => x != null);
+
+        if (records.length > 0) {
+          await appendLockWatchRecords(market as 'TW' | 'CN', date, records);
+          lockWatchWritten = records.length;
+          console.info(`[scan-bm] ${market} ${method} ${date} LockWatch 寫入 ${lockWatchWritten} 筆`);
+        }
+      } catch (err) {
+        console.warn(`[scan-bm] ${market} ${method} LockWatch 寫入失敗（不影響 scan）:`, err);
+      }
+    }
+
+    console.info(`[scan-bm] ✅ ${market} ${method} ${date}: ${bmResults.length} 檔 L2=${l2Injected} LockWatch=${lockWatchWritten}`);
 
     return apiOk({
       market,
@@ -174,6 +217,7 @@ export async function GET(req: NextRequest) {
       date,
       resultCount: bmResults.length,
       l2Injected,
+      lockWatchWritten,
       marketTrend,
     });
   } catch (err) {

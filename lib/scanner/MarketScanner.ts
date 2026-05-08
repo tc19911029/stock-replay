@@ -1233,6 +1233,8 @@ export abstract class MarketScanner {
           let matched = false;
           let detail = '';
           let subType: string | undefined;
+          // v12 議題 23/65/93：F/N 觸發時填寫，供 scan-bm cron 寫入 LockWatch
+          let lockWatchPayload: StockScanResult['lockWatchPayload'];
 
           if (method === 'B') {
             // B=回後買上漲
@@ -1258,7 +1260,12 @@ export abstract class MarketScanner {
             // F=V形反轉
             const { detectVReversal } = await import('@/lib/analysis/vReversalDetector');
             const r = detectVReversal(candles, lastIdx);
-            if (r?.isVReversal) { matched = true; detail = r.detail; }
+            if (r?.isVReversal) {
+              matched = true;
+              detail = r.detail;
+              // v12 議題 23：F 反彈起點 close 鎖定為 LockWatch triggerPrice
+              lockWatchPayload = { triggerPrice: last.close };
+            }
           } else if (method === 'G') {
             // G=ABC 突破（寶典 Part 11-1 位置 6，2026-05-04 新增）
             const { detectABCBreakout } = await import('@/lib/analysis/abcBreakoutEntry');
@@ -1300,7 +1307,20 @@ export abstract class MarketScanner {
             // N=型態確認（v12 新增；7 種底部型態）
             const { detectLetterN } = await import('@/lib/analysis/v12LetterN');
             const r = detectLetterN(candles, lastIdx, config.marketId, symbol);
-            if (r.triggered) { matched = true; detail = r.detail; }
+            if (r.triggered) {
+              matched = true;
+              detail = r.detail;
+              // v12 議題 65：N 頸線價、型態類型、目標價、達成率全寫入 LockWatch
+              if (r.necklinePrice != null && r.patternType) {
+                lockWatchPayload = {
+                  triggerPrice: r.necklinePrice,
+                  patternType: r.patternType,
+                  patternTargetPrice: r.patternTargetPrice,
+                  patternAchievementRate:
+                    typeof r.achievementRate === 'number' ? r.achievementRate / 100 : undefined,
+                };
+              }
+            }
           } else if (method === 'O') {
             // O=打底完成（v12 新增；寶典 Part 11-1 位置 1）
             const { detectLetterO } = await import('@/lib/analysis/v12LetterO');
@@ -1408,6 +1428,7 @@ export abstract class MarketScanner {
             mtfWeeklyDetail: mtfResult.weekly.detail,
             mtfMonthlyPass: mtfResult.monthly.pass,
             mtfMonthlyDetail: mtfResult.monthly.detail,
+            lockWatchPayload,
           } satisfies StockScanResult;
         } catch {
           return null;

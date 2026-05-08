@@ -191,6 +191,29 @@ export interface StockScanResult {
    * 用於 議題 21 訊號觀察期、議題 47 pivot gate
    */
   lastTrendChangeDate?: string;
+
+  /**
+   * LockWatch 觸發資料（v12 議題 23/65/93）
+   *
+   * 僅 F V 反轉、N 型態確認 訊號會填寫此欄位。
+   * scan-bm cron 收到結果後，會抽取此欄位寫入 LockWatch daily snapshot。
+   *
+   * - F：triggerPrice = V 底反彈起點 close（不含其他欄位）
+   * - N：triggerPrice = 頸線價、patternType、patternTargetPrice、patternAchievementRate 全填
+   */
+  lockWatchPayload?: {
+    triggerPrice: number;
+    patternType?:
+      | 'head-shoulder'
+      | 'complex-head-shoulder'
+      | 'triple-bottom'
+      | 'falling-diamond'
+      | 'rounding-bottom'
+      | 'descending-wedge'
+      | 'double-bottom';
+    patternTargetPrice?: number;
+    patternAchievementRate?: number;
+  };
 }
 
 /**
