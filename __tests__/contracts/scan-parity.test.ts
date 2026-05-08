@@ -73,14 +73,15 @@ describe('Scan panel parity contracts (R10)', () => {
       expect(filtered.length).toBe(session.results.length);
     });
 
-    testOrSkip('MTF toggle=on 只保留 mtfScore >= 3', () => {
+    testOrSkip('MTF toggle=on 只保留 mtfWeeklyPass === true', () => {
+      // 2026-05-07 修：原合約用 mtfScore >= 3，與 applyPanelFilter 實作的 mtfWeeklyPass === true 不一致 → 失效。
+      // 鐵律 #10：選股邏輯單一事實，合約必須對齊 applyPanelFilter。
       if (!session) return;
       const filtered = applyPanelFilter(session.results, { useMultiTimeframe: true });
       for (const r of filtered) {
-        expect(r.mtfScore ?? 0).toBeGreaterThanOrEqual(3);
+        expect((r as { mtfWeeklyPass?: boolean }).mtfWeeklyPass).toBe(true);
       }
-      // 驗證沒漏篩
-      const expected = session.results.filter(r => (r.mtfScore ?? 0) >= 3).length;
+      const expected = session.results.filter(r => (r as { mtfWeeklyPass?: boolean }).mtfWeeklyPass === true).length;
       expect(filtered.length).toBe(expected);
     });
 

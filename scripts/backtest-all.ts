@@ -276,12 +276,16 @@ function buildCandidate(
   let highWinRateScore = 0;
   try { highWinRateScore = evaluateHighWinRateEntry(candles, idx).score; } catch { /* 略 */ }
 
+  // 2026-05-07 修：MTF 用 weeklyPass 對齊 applyPanelFilter（鐵律 #10）
   let mtfScore = 0;
+  let mtfWeeklyPass = false;
   try {
-    mtfScore = evaluateMultiTimeframe(candles.slice(0, idx + 1), MTF_CFG).totalScore;
+    const mtfRes = evaluateMultiTimeframe(candles.slice(0, idx + 1), MTF_CFG);
+    mtfScore = mtfRes.totalScore;
+    mtfWeeklyPass = mtfRes.weeklyPass === true;
   } catch { /* 略 */ }
 
-  if (mtfMin > 0 && mtfScore < mtfMin) return null;
+  if (mtfMin > 0 && !mtfWeeklyPass) return null;
 
   const f: SixcondFeatures = {
     symbol, name, idx, candles, entryPrice,

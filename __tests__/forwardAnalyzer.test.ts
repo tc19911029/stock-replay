@@ -27,6 +27,14 @@ jest.mock('../lib/datasource/UnifiedRateLimiter', () => ({
   },
 }));
 
+// Mock IntradayCache — 否則 ForwardAnalyzer 走真實 fs 拿 L2 snapshot 注入今日 K 棒，
+// 導致 mockFetchRange 不被呼叫（pre-existing test failure，2026-05-08 修）
+jest.mock('../lib/datasource/IntradayCache', () => ({
+  readIntradaySnapshot: jest.fn().mockResolvedValue(null),
+  refreshIntradaySnapshot: jest.fn(),
+  getLastRefreshSummary: jest.fn(),
+}));
+
 import { analyzeForwardBatch } from '../lib/backtest/ForwardAnalyzer';
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────

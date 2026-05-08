@@ -305,12 +305,18 @@ function buildSixcondCandidate(
   let highWinRateScore = 0;
   try { highWinRateScore = evaluateHighWinRateEntry(candles, idx).score; } catch { /* 略 */ }
 
+  // 2026-05-07 修：MTF 過濾改用 weeklyPass（鐵律 #10 對齊 applyPanelFilter）
+  // 原 mtfScore < mtfMin 是 4 分制舊版，2026-04-19 已遷移到 weeklyPass，但本腳本未跟上
   let mtfScore = 0;
+  let mtfWeeklyPass = false;
   try {
-    mtfScore = evaluateMultiTimeframe(candles.slice(0, idx + 1), MTF_CFG).totalScore;
+    const mtfRes = evaluateMultiTimeframe(candles.slice(0, idx + 1), MTF_CFG);
+    mtfScore = mtfRes.totalScore;
+    mtfWeeklyPass = mtfRes.weeklyPass === true;
   } catch { /* 略 */ }
 
-  if (mtfMin > 0 && mtfScore < mtfMin) return null;
+  // mtfMin > 0 啟用 MTF 過濾時，要求週線前 5 全過（與 applyPanelFilter 一致）
+  if (mtfMin > 0 && !mtfWeeklyPass) return null;
 
   const f: SixcondFeatures = {
     symbol, name, idx, candles, entryPrice,

@@ -183,10 +183,14 @@ function buildCandidate(
     deviation = six.position.deviation ?? 0;
 
     if (strategy === 'A_MTF') {
+      // 2026-05-07：MTF 過濾改用 weeklyPass（鐵律 #10 對齊 applyPanelFilter）
+      let mtfWeeklyPass = false;
       try {
-        mtfScore = evaluateMultiTimeframe(candles.slice(0, idx + 1), MTF_CFG).totalScore;
+        const mtfRes = evaluateMultiTimeframe(candles.slice(0, idx + 1), MTF_CFG);
+        mtfScore = mtfRes.totalScore;
+        mtfWeeklyPass = mtfRes.weeklyPass === true;
       } catch { mtfScore = 0; }
-      if (mtfScore < 3) return null;
+      if (!mtfWeeklyPass) return null;
     }
   } else {
     // B/C/D/E：純型態 + 淘汰法
