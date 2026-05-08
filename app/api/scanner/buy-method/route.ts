@@ -41,6 +41,7 @@ export const maxDuration = 60;
 const querySchema = z.object({
   market: z.enum(['TW', 'CN']).default('TW'),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  // 此 query endpoint 僅支援 v11 字母 B-I（v12 J-Q 已透過 scan-bm cron + /api/scanner/results 提供）
   method: z.enum(['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']),
 });
 
