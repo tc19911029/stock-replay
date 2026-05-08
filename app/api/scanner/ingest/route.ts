@@ -5,6 +5,10 @@
  *
  * 回傳 CoverageReport，包含覆蓋率、補缺結果、dataStatus
  * 前端根據 dataStatus 決定是否繼續掃描或顯示警告
+ *
+ * @deprecated 2026-05-08：production 過去 7 天 0 hit、無前端 caller。
+ * 掃描前 coverage check 已 inline 進 ScanPipeline。
+ * 若再 30 天 prod log 仍 0 hit，可放心刪除整個 route file。
  */
 
 import { NextRequest } from 'next/server';

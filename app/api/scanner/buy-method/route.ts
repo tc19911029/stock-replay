@@ -1,6 +1,10 @@
 /**
  * GET /api/scanner/buy-method?market=TW&date=2026-04-17&method=E
  *
+ * @deprecated 2026-05-08：production 過去 7 天 0 hit、無前端 caller。
+ * 買法掃描已被 /api/cron/scan-bm + /api/cron/update-intraday-bm 取代。
+ * 若再 30 天 prod log 仍 0 hit，可放心刪除整個 route file。
+ *
  * 並列買法架構的獨立掃描端點（2026-04-21 rename 後）
  *
  * 字母對照：
