@@ -8,8 +8,6 @@
  * - lib/analysis/maPivot.ts
  */
 
-import { describe, expect, it } from 'vitest';
-
 import { isValidRedK, validateRedK } from '../lib/analysis/redKValidator';
 import {
   findRecentMAPivots,
