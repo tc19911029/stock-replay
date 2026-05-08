@@ -150,10 +150,29 @@ export async function GET(req: NextRequest) {
   const startTime = Date.now();
   const lastTradingDate = getLastTradingDay(market);
 
-  // 讀取校驗報告
-  const report = await loadVerifyReport(market, lastTradingDate);
+  // 讀取校驗報告（2026-05-07：對齊 watchdog 邏輯，7 天回退避免 silent skip）
+  // 原邏輯只查當天 → download-candles 沒寫出當日 verify 就完全空轉
+  let report: Awaited<ReturnType<typeof loadVerifyReport>> = null;
+  let reportDate = '';
+  for (let daysBack = 0; daysBack < 7; daysBack++) {
+    const d = new Date(lastTradingDate + 'T12:00:00');
+    d.setDate(d.getDate() - daysBack);
+    const dateStr = d.toISOString().split('T')[0];
+    const r = await loadVerifyReport(market, dateStr);
+    if (r) { report = r; reportDate = dateStr; break; }
+  }
   if (!report) {
-    return apiOk({ market, message: '找不到校驗報告，無需重試', retried: 0 });
+    // 7 天內都沒報告 = download-candles 持續失敗。記 ALERT 不要 silent skip。
+    console.error(`[retry-failed] ★★ ${market} 7 天內無 verify 報告，download-candles 可能持續失敗`);
+    return apiOk({
+      market, retried: 0,
+      alert: true,
+      alertLevel: 'high',
+      message: '7 天內找不到校驗報告，無法 retry — download-candles 可能持續失敗，需手動檢查',
+    });
+  }
+  if (reportDate !== lastTradingDate) {
+    console.warn(`[retry-failed] ${market} 用 ${reportDate} 報告（lastTrading=${lastTradingDate}），fallback 7 天回退`);
   }
 
   const scanner = market === 'CN' ? new ChinaScanner() : new TaiwanScanner();
@@ -165,6 +184,14 @@ export async function GET(req: NextRequest) {
     if (s.daysBehind >= staleDays) {
       retrySet.add(s.symbol);
     }
+  }
+
+  // 2026-05-07：排除已知 permanently stale（>14 交易日落後 = 退市候選）
+  // 這些股票任何 source 都會 404/失敗，反覆 retry 浪費 budget（看到 70 檔只跑完 4 檔）
+  const permanentSyms = new Set((report.permanentStaleDetails ?? []).map(s => s.symbol));
+  for (const sym of permanentSyms) retrySet.delete(sym);
+  if (permanentSyms.size > 0) {
+    console.info(`[retry-failed] ${market} 排除 ${permanentSyms.size} 支 permanentStale（>14 天落後 = 退市候選）`);
   }
 
   const retryList = Array.from(retrySet).slice(0, MAX_RETRY);

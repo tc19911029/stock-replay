@@ -101,7 +101,7 @@ export async function getEastMoneySingleQuote(code: string, suffix?: 'SS' | 'SZ'
     const url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${secId}&fields=${fields}&ut=fa5fd1943c7b386f172d6893dbfba10b`;
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://quote.eastmoney.com/' },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(15000), // 2026-05-07: 5s 海外 IP 容易斷
     });
     if (!res.ok) return null;
     const json = await res.json();
@@ -244,7 +244,7 @@ async function fetchPage(
 
   const res = await fetch(url, {
     headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://quote.eastmoney.com/' },
-    signal: AbortSignal.timeout(8000),
+    signal: AbortSignal.timeout(15000),  // 8s 太緊，海外 IP 對 push2 第一頁常 timeout
   });
 
   if (!res.ok) return [];

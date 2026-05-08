@@ -88,36 +88,35 @@ export async function GET(req: NextRequest) {
       actualDates.add(actualDate);
 
       const existing = await loadETFSnapshot(etf.etfCode, actualDate);
-      // 既存 snapshot 內容簽章相同 → 略過寫入（盤後完整版 vs 凌晨舊版會內容不同 → 覆寫）。
-      // force=true 仍強制覆寫（用於手動修復 / 重抓除錯）。
-      if (
-        existing &&
-        !force &&
-        holdingsSignature(existing.holdings) === holdingsSignature(result.holdings)
-      ) {
-        continue;
-      }
+      // 既存 snapshot 內容簽章相同 → 跳過 snapshot 寫入（避免覆寫盤後完整版）。
+      // 但 step 2/3（diff + tracking entries）仍要跑：第一次寫入時 prior 可能還沒到，
+      // 或 tracking entry 創建中途 throw，下次 cron 不重跑會永久遺漏。
+      // 2026-05-07 修：原邏輯 `continue` 整批跳過，引入冪等補做機制。
+      const sameSignature = !!existing && !force &&
+        holdingsSignature(existing.holdings) === holdingsSignature(result.holdings);
 
       const snap: ETFSnapshot = {
         etfCode: etf.etfCode,
         etfName: etf.etfName,
         disclosureDate: actualDate,
-        fetchedAt: new Date().toISOString(),
+        fetchedAt: existing && sameSignature ? existing.fetchedAt : new Date().toISOString(),
         holdings: result.holdings,
         source: result.source,
       };
-      await saveETFSnapshot(snap);
-      summary.newSnapshots++;
+      if (!sameSignature) {
+        await saveETFSnapshot(snap);
+        summary.newSnapshots++;
+      }
 
-      // 2) 比對前一期 → 產生 ETFChange
+      // 2) 比對前一期 → 產生 ETFChange（簽章相同也跑，補做用）
       const prior = await loadPriorSnapshot(etf.etfCode, actualDate);
       if (!prior) continue;
 
       const change = computeETFChange(prior, snap);
       await saveETFChange(change);
-      summary.updatedDiffs++;
+      if (!sameSignature) summary.updatedDiffs++;
 
-      // 3) 對 newEntries + increased 建立 tracking entries
+      // 3) 對 newEntries + increased 建立 tracking entries（idempotent — 同 key 會被內部去重）
       const created = await createTrackingEntries(etf, change, actualDate);
       summary.newTrackingEntries += created;
     } catch (err) {

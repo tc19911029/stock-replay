@@ -20,10 +20,12 @@ export async function GET(req: NextRequest) {
   if (authDenied) return authDenied;
 
   const market = (req.nextUrl.searchParams.get('market') ?? 'TW') as 'TW' | 'CN';
+  const force = req.nextUrl.searchParams.get('force') === '1';
 
   // 盤中 + 盤後窗口（TW 13:31~14:30 / CN 15:01~15:30）都跑：
   // 收盤後還需要一輪來抓最終收盤資料 + 跑盤後掃描，對齊 instrumentation.ts 的條件
-  if (!isMarketOpen(market) && !isPostCloseWindow(market)) {
+  // ?force=1 跳過時間 gate，給人工修復用（盤後窗口已過但 L2 還缺東西）
+  if (!force && !isMarketOpen(market) && !isPostCloseWindow(market)) {
     return apiOk({ skipped: true, reason: `${market} 非開盤時段也非盤後窗口`, market });
   }
 

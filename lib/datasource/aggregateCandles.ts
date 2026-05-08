@@ -19,10 +19,13 @@ import type { Candle } from '@/types';
  * 例如 2026-04-02 (週四) → 2026-03-30 (該週的週一)
  */
 export function getWeekMonday(dateStr: string): string {
-  const d = new Date(dateStr + 'T00:00:00');
-  const day = d.getDay(); // 0=Sun, 1=Mon, ...
-  const diff = day === 0 ? 6 : day - 1; // 距離週一的天數
-  d.setDate(d.getDate() - diff);
+  // 2026-05-07 修：原 `T00:00:00` 是 local time，UTC+8 環境跑 toISOString() 會切回前一天
+  // 例如本地週一 04-20 00:00 CST = UTC 04-19 16:00 → toISOString=2026-04-19 → 整週錯位。
+  // 改用 UTC 中午（不會跨日）+ string-only 計算，跨時區結果穩定。
+  const d = new Date(dateStr + 'T12:00:00Z');
+  const day = d.getUTCDay(); // 0=Sun, 1=Mon, ...
+  const diff = day === 0 ? 6 : day - 1;
+  d.setUTCDate(d.getUTCDate() - diff);
   return d.toISOString().split('T')[0];
 }
 

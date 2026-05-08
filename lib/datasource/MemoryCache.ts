@@ -47,6 +47,10 @@ export class MemoryCache {
    * @param ttlMs TTL（毫秒），預設 5 分鐘
    */
   set<T>(key: string, data: T, ttlMs = 5 * 60 * 1000): void {
+    // 2026-05-08：set 前也先 cleanup，避免 expired entries 算進 size 誤觸 LRU evict
+    // 原邏輯：純寫入流量（cron 跑大量 fresh fetch）會讓 maybeCleanup 永遠不被觸發，
+    // expired entries 累積到塞滿 maxSize，之後每次 set 都做 O(n) evictLRU 拉低 perf
+    this.maybeCleanup();
     // Evict LRU entries if at capacity
     if (!this.store.has(key) && this.store.size >= this.maxSize) {
       this.evictLRU();

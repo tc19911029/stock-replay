@@ -37,6 +37,11 @@ async function callRoute(path: string, label: string): Promise<unknown> {
 export async function register() {
   // 只在本地開發啟動定時器（Vercel 有自己的 cron）
   if (process.env.VERCEL || process.env.NODE_ENV === 'test') return;
+  // 手動關閉開關：DISABLE_LOCAL_CRON=1 npm run dev → dev server 不跑 cron
+  if (process.env.DISABLE_LOCAL_CRON === '1') {
+    console.log('[local-cron] DISABLE_LOCAL_CRON=1 已停用本地 cron 模擬');
+    return;
+  }
 
   console.log('[local-cron] 本地開發模式：定期呼叫 API route 模擬 Vercel Cron');
   console.log('[local-cron] L2：每 5 分鐘 | 六條件盤中：每 10 分鐘 | 買法 BCDEF：每 10 分鐘 | 盤後：L1+scan 14:10 TW / 16:10 CN | ETF：18:00/23:00 CST 1-5');

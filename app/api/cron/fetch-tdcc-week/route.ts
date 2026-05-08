@@ -20,6 +20,10 @@ export async function GET(req: NextRequest) {
   const authDenied = checkCronAuth(req);
   if (authDenied) return authDenied;
 
+  // 2026-05-07：?force=1 重抓並比對內容（TDCC 偶爾發修正版同日期不同分布，
+  // 原邏輯 lastDate 相同直接跳過會錯過修正）
+  const force = req.nextUrl.searchParams.get('force') === '1';
+
   try {
     console.log('[cron/fetch-tdcc-week] 開始抓取 TDCC 集保資料...');
     const week = await fetchTdccLatestWeek();
@@ -27,21 +31,29 @@ export async function GET(req: NextRequest) {
 
     let saved = 0;
     let skipped = 0;
+    let updated = 0;
     for (const [code, row] of week.data) {
       const existing = await readTdccStock(code);
-      if (existing?.lastDate === week.date) {
-        skipped++;
+      if (existing?.lastDate === week.date && !force) {
+        // 同日期且非強制 → 比對 row 簽章決定是否更新
+        // 2026-05-08：原寫 existing.rows 但 TdccStockFile schema 是 data 不是 rows（self-bug）
+        const lastRow = existing.data?.[existing.data.length - 1];
+        const same = lastRow && JSON.stringify(lastRow) === JSON.stringify({ ...row, date: week.date });
+        if (same) { skipped++; continue; }
+        await appendTdccDay(code, week.date, row);
+        updated++;
         continue;
       }
       await appendTdccDay(code, week.date, row);
       saved++;
     }
 
-    console.log(`[cron/fetch-tdcc-week] 完成 saved=${saved} skipped=${skipped}`);
+    console.log(`[cron/fetch-tdcc-week] 完成 saved=${saved} updated=${updated} skipped=${skipped}`);
     return apiOk({
       date: week.date,
       totalStocks: week.data.size,
       saved,
+      updated,
       skipped,
     });
   } catch (err) {

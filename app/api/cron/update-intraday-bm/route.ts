@@ -26,12 +26,14 @@ export async function GET(req: NextRequest) {
 
   const market = (req.nextUrl.searchParams.get('market') ?? 'TW') as 'TW' | 'CN';
   const method = req.nextUrl.searchParams.get('method') as 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | null;
+  const force = req.nextUrl.searchParams.get('force') === '1';
 
   if (!method || !VALID_METHODS.has(method)) {
     return apiError(`method required (B|C|D|E|F|G|H|I), got: ${method}`, 400);
   }
 
-  if (!isMarketOpen(market) && !isPostCloseWindow(market)) {
+  // ?force=1 跳過時間 gate（人工修復用）
+  if (!force && !isMarketOpen(market) && !isPostCloseWindow(market)) {
     return apiOk({ skipped: true, reason: `${market} 非開盤時段也非盤後窗口`, market, method });
   }
 

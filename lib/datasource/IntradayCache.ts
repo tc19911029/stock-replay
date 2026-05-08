@@ -356,7 +356,11 @@ async function _refreshIntradaySnapshotImpl(market: 'TW' | 'CN'): Promise<Intrad
   }
 
   // ── 最終快照保護（空數據 + 部分數據都要擋） ──
-  const minExpected = market === 'CN' ? 1500 : 500;
+  // 2026-05-07 修：CN 1500 → 2800（CN 完整 3062 的 ~92%），TW 500 → 1700（TW 完整 1956 的 ~87%）
+  // 原因：partial snapshot 不能蓋掉前一輪 fresh existing
+  // - CN：EastMoney 偶爾只回 2262（少 000/001 段 800 支）
+  // - TW：OpenAPI 偶爾只回 1500-1900，原 500 門檻形同虛設
+  const minExpected = market === 'CN' ? 2800 : 1700;
   const existing = quotes.length < minExpected
     ? await readIntradaySnapshot(market, today)
     : null;
@@ -488,7 +492,9 @@ async function _fetchTWQuotes(sources: DataSourceStatus[]): Promise<IntradayQuot
           added++;
         }
       }
-      const success = newMap.size >= TW_SUCCESS_MIN;
+      // 2026-05-07：對齊 CN 修正 — partial 不算 failed
+      // 避免 OpenAPI 拿 1900 筆（< 1916）就標 failed 進冷卻、第二輪只剩 mis 一條備援
+      const success = newMap.size > 0;
       sources.push({
         source: p.name,
         success,
@@ -565,19 +571,23 @@ async function _fetchCNQuotes(
   const { CN_STOCKS } = await import('@/lib/scanner/cnStocks');
   const symbols = CN_STOCKS.map(s => s.symbol);
 
+  // 2026-05-07：Tencent 升主源、EastMoney 降備援
+  // 實測 5/07 對比：Tencent 3062 筆 / 1.4s 完整；EastMoney 1281 筆 / 65.7s 偏 partial。
+  // EastMoney push2 對台灣/海外 IP 越來越不穩，Tencent 的批次端點目前更可靠。
+  // 若哪天 Tencent 也不穩，仍會自動 fallback 到 EastMoney → Sina。
   const providers: CNProvider[] = [
-    {
-      name: 'EastMoney',
-      fetch: async () => {
-        const { getEastMoneyRealtime } = await import('./EastMoneyRealtime');
-        return getEastMoneyRealtime();
-      },
-    },
     {
       name: 'Tencent',
       fetch: async () => {
         const { getTencentRealtime } = await import('./TencentRealtime');
         return getTencentRealtime(symbols);
+      },
+    },
+    {
+      name: 'EastMoney',
+      fetch: async () => {
+        const { getEastMoneyRealtime } = await import('./EastMoneyRealtime');
+        return getEastMoneyRealtime();
       },
     },
     {
@@ -617,7 +627,12 @@ async function _fetchCNQuotes(
           added++;
         }
       }
-      const success = newMap.size >= CN_SUCCESS_MIN;
+      // 2026-05-07 修：partial 不算 failed
+      // 原舊邏輯：< CN_SUCCESS_MIN(3000) 就標 failed → EastMoney 拿 2262 (74%) 也算失敗
+      // → 進 60s 冷卻 + 後續輪也持續被 partial 困住 → snapshot 永遠卡 2262
+      // 新邏輯：只要拿到 > 0 就算 source 成功；下游靠 cnMap.size 判斷整體完整性，
+      // partial 還是會繼續 fallback 到 Tencent / Sina 補完缺的 symbol
+      const success = newMap.size > 0;
       sources.push({
         source: p.name,
         success,
@@ -628,7 +643,6 @@ async function _fetchCNQuotes(
       if (success) {
         markSourceSucceeded(p.name);
       } else {
-        // 單源不足 98%：標記 failed 讓下次跳過，但仍使用它拿到的 added 補到 cnMap
         markSourceFailed(p.name);
       }
       console.info(`[IntradayCache] CN ${p.name}: ${newMap.size} 筆（新增 ${added}，累計 ${cnMap.size}, ${elapsedMs}ms）`);
@@ -647,7 +661,16 @@ async function _fetchCNQuotes(
   }
 
   if (cnMap.size < CN_SUCCESS_MIN) {
-    console.warn(`[IntradayCache] CN 三層 provider 後仍 ${cnMap.size} 筆 (< ${CN_SUCCESS_MIN})，回傳部分資料`);
+    // 2026-05-07：加 prefix 診斷，缺哪一段一目了然
+    const prefix: Record<string, number> = {};
+    for (const code of cnMap.keys()) {
+      const p = code.slice(0, 3);
+      prefix[p] = (prefix[p] ?? 0) + 1;
+    }
+    console.warn(
+      `[IntradayCache] CN 三層 provider 後仍 ${cnMap.size} 筆 (< ${CN_SUCCESS_MIN})，回傳部分資料` +
+      ` prefix=${JSON.stringify(prefix)}`
+    );
   }
 
   // 3. 讀取 MA Base 以補足 prevClose

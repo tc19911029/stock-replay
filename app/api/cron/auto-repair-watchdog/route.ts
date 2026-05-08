@@ -62,7 +62,23 @@ export async function GET(req: NextRequest) {
   }
 
   if (!report) {
-    return apiOk({ market, action: 'skipped', reason: '找不到 verify 報告' });
+    // 2026-05-07：自動觸發 download-candles + append-from-snapshot 救援
+    // 5/06 全 TW 缺漏的根因鏈：download 失敗 → 沒寫 verify 報告 → watchdog/retry silent skip
+    // → 整條鏈斷掉。現在找不到報告就主動 fire download + append。
+    console.error(`[watchdog] ★★ ${market} 7 天內無 verify 報告，自癒鏈斷裂 — 自動觸發 download + append 救援`);
+    const baseUrl = getBaseUrl(req);
+    const auth = req.headers.get('authorization') ?? '';
+    fetch(`${baseUrl}/api/cron/download-candles?market=${market}`, { headers: { authorization: auth } })
+      .catch(err => console.error(`[watchdog] auto-trigger download failed:`, err));
+    fetch(`${baseUrl}/api/cron/append-from-snapshot?market=${market}&force=1`, { headers: { authorization: auth } })
+      .catch(err => console.error(`[watchdog] auto-trigger append failed:`, err));
+    return apiOk({
+      market,
+      action: 'auto-recovery-triggered',
+      alert: true,
+      alertLevel: 'high',
+      reason: '7 天內無 verify 報告 — 已 fire-and-forget 觸發 download-candles + append-from-snapshot',
+    });
   }
 
   const { stocksStale, coverageRate } = report.summary;

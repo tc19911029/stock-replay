@@ -5,6 +5,14 @@
       "schedule": "45 5 * * 1-5"
     },
     {
+      "path": "/api/cron/append-from-snapshot?market=TW&force=1",
+      "schedule": "10 6 * * 1-5"
+    },
+    {
+      "path": "/api/cron/append-from-snapshot?market=CN&force=1",
+      "schedule": "50 7 * * 1-5"
+    },
+    {
       "path": "/api/cron/fetch-institutional",
       "schedule": "45 7 * * 1-5"
     },
@@ -146,8 +154,8 @@
     { "path": "/api/cron/scan-bm?market=CN&method=I", "schedule": "54 8 * * 1-5" },
     { "path": "/api/cron/fetch-tdcc-week", "schedule": "30 10 * * 4" },
     { "path": "/api/cron/fetch-cn-flow", "schedule": "0 8 * * 1-5" },
-    { "path": "/api/cron/auto-repair-watchdog?market=TW", "schedule": "0 6 * * 1-5" },
-    { "path": "/api/cron/auto-repair-watchdog?market=CN", "schedule": "50 7 * * 1-5" },
+    { "path": "/api/cron/auto-repair-watchdog?market=TW", "schedule": "20 6 * * 1-5" },
+    { "path": "/api/cron/auto-repair-watchdog?market=CN", "schedule": "5 8 * * 1-5" },
     { "path": "/api/cron/fetch-etf-holdings", "schedule": "0 10 * * 1-5" },
     { "path": "/api/cron/fetch-etf-holdings", "schedule": "0 14 * * 1-5" },
     { "path": "/api/cron/fetch-etf-holdings", "schedule": "0 1 * * 2-6" },

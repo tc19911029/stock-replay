@@ -134,6 +134,13 @@ function getHolidaySet(market?: Market): Set<string> {
 }
 
 /**
+ * 假日表覆蓋的最後一年（hard-code 假日 list 的截止年）。
+ * 2026-05-07：目前只到 2026 — 進入 2027 前必須更新假日表，否則所有假日會被當交易日。
+ */
+const HOLIDAY_TABLE_LAST_YEAR = 2026;
+const _holidayWarnedYears = new Set<number>();
+
+/**
  * 檢查日期是否為交易日（排除週末 + 國定假日）
  * @param market 'TW' 或 'CN'，預設 'TW'
  */
@@ -142,6 +149,17 @@ export function isTradingDay(dateStr: string, market?: Market): boolean {
   const day = d.getDay();
   if (day === 0 || day === 6) return false;
   if (getHolidaySet(market).has(dateStr)) return false;
+  // 2026-05-07 fail-safe：超出假日表覆蓋範圍時印一次警告
+  // 進入 2027 後若沒更新假日表，所有假日會被當交易日 → cron 對外打 API 抓空 →
+  // 計入 stale → watchdog 觸發 retry → 惡性循環
+  const year = parseInt(dateStr.slice(0, 4), 10);
+  if (year > HOLIDAY_TABLE_LAST_YEAR && !_holidayWarnedYears.has(year)) {
+    _holidayWarnedYears.add(year);
+    console.error(
+      `[tradingDay] ★★ ${year} 年假日表未更新（最後覆蓋年份 ${HOLIDAY_TABLE_LAST_YEAR}）— ` +
+      `lib/utils/tradingDay.ts 需要加 ${year} 假日 list，否則所有假日會被當交易日跑 cron`
+    );
+  }
   return true;
 }
 

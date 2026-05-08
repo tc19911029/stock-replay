@@ -22,6 +22,7 @@ const IS_VERCEL = !!process.env.VERCEL;
 // ── 內部狀態（使用 global 存活於 HMR 重載）──
 
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 分鐘，確保修復磁碟後自動過期
+const MAX_ENTRIES = 6000; // 全市場 TW (1956) + CN (3088) = ~5044，多留 buffer
 
 type CacheEntry = { data: CandleFileData; expiresAt: number };
 
@@ -52,10 +53,25 @@ export function getFromCache(symbol: string, market: 'TW' | 'CN'): CandleFileDat
 
 /**
  * 寫入或更新快取 entry（writeCandleFile 寫入後呼叫）。
+ *
+ * 2026-05-07：每 200 次 update 順便 sweep 一次 expired entry。
+ * 原本 lazy expiry 只在 cache hit 時清，沒被讀到的 entry 永久留在 Map → dev server
+ * 記憶體持續膨脹（早上看到 next-server 5.3GB，主因之一）。
  */
+let _updateCounter = 0;
 export function updateCache(symbol: string, market: 'TW' | 'CN', data: CandleFileData): void {
   if (IS_VERCEL) return;
   _store.set(`${market}/${symbol}`, { data, expiresAt: Date.now() + CACHE_TTL_MS });
+  if (++_updateCounter % 200 === 0) evictExpired();
+  // Hard cap：超過上限刪掉最舊的 N 筆（Map 保 insertion order）
+  if (_store.size > MAX_ENTRIES) {
+    const overflow = _store.size - MAX_ENTRIES;
+    let i = 0;
+    for (const key of _store.keys()) {
+      _store.delete(key);
+      if (++i >= overflow) break;
+    }
+  }
 }
 
 /**

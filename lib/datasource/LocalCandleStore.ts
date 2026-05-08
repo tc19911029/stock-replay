@@ -13,6 +13,7 @@ import path from 'path';
 import type { Candle, CandleWithIndicators } from '@/types';
 import { computeIndicators } from '@/lib/indicators';
 import { readCandleFile, writeCandleFile } from './CandleStorageAdapter';
+import { suspectsLimitOverwrite } from './limitMoveGuard';
 
 /** 本地數據根目錄（getLocalCandleDir 等統計用途） */
 const DATA_ROOT = path.join(process.cwd(), 'data', 'candles');
@@ -111,6 +112,43 @@ function guardAgainstAnomalousLastBar(symbol: string, candles: Candle[]): Candle
 }
 
 /**
+ * 漲跌停 close 污染防護：盤中 snapshot 拍到漲跌停回落/反彈的 tick，
+ * close 不是真正的集合競價收盤。集中守在 saveLocalCandles，避免每個 caller 漏 wire。
+ *
+ * 對歷史 K 線（已收盤的真實漲跌停）安全：真漲停 close ≈ high，偏離 < 3%，不會誤殺。
+ * 只攔截「high 觸頂 但 close 距 high > 3%」這種 pattern，正是污染特徵。
+ *
+ * 背景：2026-04-29 TW 9 支漲停 close 被盤中低點覆寫，原本只在 cron route caller 各自擋。
+ * 2026-05-07 移到 saveLocalCandles 集中守門 → retry-failed / repair-candles 自動受惠。
+ */
+function guardAgainstLimitOverwrite(symbol: string, market: 'TW' | 'CN', candles: Candle[]): Candle[] {
+  if (candles.length < 2) return candles;
+  const last = candles[candles.length - 1];
+  const prev = candles[candles.length - 2];
+  const code = symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
+  if (suspectsLimitOverwrite(prev.close, last, market, code)) {
+    console.warn(
+      `[L1 guard] ${symbol} ${last.date} 漲跌停 close 異常 ` +
+      `(prev=${prev.close} h=${last.high} l=${last.low} c=${last.close})，砍掉該 bar 不寫入`
+    );
+    return candles.slice(0, -1);
+  }
+  return candles;
+}
+
+/**
+ * Per-symbol inflight write lock：防止同一 symbol 在 cron append-from-snapshot
+ * 與 download-candles / retry-failed 並行時互蓋，造成 lose update（後寫贏先寫，
+ * append 寫入的今日 K 棒可能被 download 寫入的歷史尾巴擦掉）。
+ *
+ * 機制：每個 symbol 有一個 Promise chain，後到的 saveLocalCandles 等前一個完成。
+ * 不同 symbol 完全並行。
+ *
+ * 2026-05-07 加。
+ */
+const _writeLocks = new Map<string, Promise<void>>();
+
+/**
  * 將原始 K 線存到本地檔案
  * candles 應為原始 OHLCV（不含指標）
  */
@@ -120,9 +158,24 @@ export async function saveLocalCandles(
   candles: Candle[],
 ): Promise<void> {
   if (candles.length === 0) return;
-  const safe = guardAgainstAnomalousLastBar(symbol, candles);
-  if (safe.length === 0) return;
-  await writeCandleFile(symbol, market, safe);
+  const key = `${market}:${symbol}`;
+  const prev = _writeLocks.get(key) ?? Promise.resolve();
+  // work：caller 看到的 promise，會 throw（讓 caller 知道寫失敗）
+  const work = prev.then(async () => {
+    let safe = guardAgainstAnomalousLastBar(symbol, candles);
+    if (safe.length === 0) return;
+    safe = guardAgainstLimitOverwrite(symbol, market, safe);
+    if (safe.length === 0) return;
+    await writeCandleFile(symbol, market, safe);
+  });
+  // swallowed：chain 用的 promise，吞 error 不阻擋下一個 caller
+  // 2026-05-08：原本只用一個 next（catch 後）導致 caller 永遠不會 throw，fs 失敗無感
+  const swallowed = work.catch(() => { /* err 由 caller 接 */ });
+  _writeLocks.set(key, swallowed);
+  swallowed.finally(() => {
+    if (_writeLocks.get(key) === swallowed) _writeLocks.delete(key);
+  });
+  return work;
 }
 
 /**

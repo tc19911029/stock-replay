@@ -15,25 +15,58 @@ import { checkCronAuth } from '@/lib/api/cronAuth';
 export const runtime = 'nodejs';
 export const maxDuration = 120;
 
-async function fetchTWQuotes(): Promise<Map<string, { open: number; high: number; low: number; close: number; volume: number }>> {
+type Quote = { open: number; high: number; low: number; close: number; volume: number };
+
+// 優先從本地 L2 snapshot 讀（dev server 盤中已累積完整 OHLC，比重打 API 可靠）。
+// L2 檔由 update-intraday cron 定期刷新到 data/intraday-{market}-{date}.json，
+// 結構：{ quotes: [{symbol (bare), open, high, low, close, volume, ... }] }
+async function readSnapshotQuotes(market: 'TW' | 'CN', date: string): Promise<Map<string, Quote>> {
+  const out = new Map<string, Quote>();
+  try {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const file = path.join(process.cwd(), 'data', `intraday-${market}-${date}.json`);
+    const raw = await fs.readFile(file, 'utf-8');
+    const json = JSON.parse(raw) as { quotes?: Array<{ symbol: string; open: number; high: number; low: number; close: number; volume: number }> };
+    for (const q of json.quotes ?? []) {
+      if (q.close > 0 && q.open > 0) {
+        out.set(q.symbol, { open: q.open, high: q.high, low: q.low, close: q.close, volume: q.volume });
+      }
+    }
+  } catch { /* 檔案不存在或解析失敗 → 回空 Map，由呼叫端 fallback */ }
+  return out;
+}
+
+async function fetchTWQuotes(date: string): Promise<Map<string, Quote>> {
+  const snap = await readSnapshotQuotes('TW', date);
+  if (snap.size > 500) {
+    console.log(`[append-from-snapshot] TW 用本地 L2 snapshot (${snap.size} 筆)`);
+    return snap;
+  }
+  console.log(`[append-from-snapshot] TW 本地 snapshot 不足 (${snap.size})，fallback 打 TWSE realtime`);
   const { getTWSERealtimeIntraday } = await import('@/lib/datasource/TWSERealtime');
   const raw = await getTWSERealtimeIntraday();
-  const out = new Map<string, { open: number; high: number; low: number; close: number; volume: number }>();
+  const out = new Map<string, Quote>();
   for (const [code, q] of raw) {
     if (q.close > 0) out.set(code, { open: q.open, high: q.high, low: q.low, close: q.close, volume: q.volume });
   }
   return out;
 }
 
-async function fetchCNQuotes(): Promise<Map<string, { open: number; high: number; low: number; close: number; volume: number }>> {
-  const out = new Map<string, { open: number; high: number; low: number; close: number; volume: number }>();
+async function fetchCNQuotes(date: string): Promise<Map<string, Quote>> {
+  const snap = await readSnapshotQuotes('CN', date);
+  if (snap.size > 500) {
+    console.log(`[append-from-snapshot] CN 用本地 L2 snapshot (${snap.size} 筆)`);
+    return snap;
+  }
+  console.log(`[append-from-snapshot] CN 本地 snapshot 不足 (${snap.size})，fallback 打 EastMoney realtime`);
+  const out = new Map<string, Quote>();
   try {
     const { getEastMoneyRealtime } = await import('@/lib/datasource/EastMoneyRealtime');
     const raw = await getEastMoneyRealtime();
     for (const [code, q] of raw) {
       if (q.close > 0) out.set(code, { open: q.open, high: q.high, low: q.low, close: q.close, volume: q.volume });
     }
-    if (out.size > 500) return out;
   } catch { /* fallthrough */ }
   return out;
 }
@@ -43,19 +76,22 @@ export async function GET(req: NextRequest) {
   if (authDenied) return authDenied;
 
   const market = (req.nextUrl.searchParams.get('market') ?? 'TW') as 'TW' | 'CN';
+  const force = req.nextUrl.searchParams.get('force') === '1';
   const date = getLastTradingDay(market);
 
   if (!isTradingDay(date, market)) {
     return apiOk({ skipped: true, reason: '非交易日' });
   }
+  // 盤中絕對不能寫 L1（盤中價當收盤會污染）— force 也擋
   if (isMarketOpen(market)) {
     return apiOk({ skipped: true, reason: '盤中，等收盤' });
   }
-  if (!isPostCloseWindow(market)) {
+  // ?force=1 只跳過 isPostCloseWindow gate（窗口外手動補修用），不跳 isMarketOpen
+  if (!force && !isPostCloseWindow(market)) {
     return apiOk({ skipped: true, reason: '非盤後窗口' });
   }
 
-  const quotes = market === 'TW' ? await fetchTWQuotes() : await fetchCNQuotes();
+  const quotes = market === 'TW' ? await fetchTWQuotes(date) : await fetchCNQuotes(date);
   if (quotes.size === 0) return apiOk({ skipped: true, reason: '0 筆報價' });
 
   const scanner = market === 'TW'
