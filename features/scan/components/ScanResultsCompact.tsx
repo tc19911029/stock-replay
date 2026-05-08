@@ -169,11 +169,22 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                       G: 'bg-cyan-800/80 text-cyan-300',
                       H: 'bg-fuchsia-800/80 text-fuchsia-300',
                       I: 'bg-lime-800/80 text-lime-300',
+                      J: 'bg-cyan-800/80 text-cyan-300',
+                      K: 'bg-lime-800/80 text-lime-300',
+                      L: 'bg-fuchsia-800/80 text-fuchsia-300',
+                      M: 'bg-teal-800/80 text-teal-300',
+                      N: 'bg-indigo-800/80 text-indigo-300',
+                      O: 'bg-blue-800/80 text-blue-300',
+                      P: 'bg-pink-800/80 text-pink-300',
+                      Q: 'bg-violet-800/80 text-violet-300',
                     };
                     const methodNames: Record<string, string> = {
                       A: '六條件', B: '回後買上漲', C: '盤整突破',
                       D: '一字底', E: '缺口', F: 'V反轉',
                       G: 'ABC突破', H: '突破黑K', I: 'K線橫盤',
+                      J: 'ABC突破', K: 'K線橫盤', L: '突破黑K',
+                      M: '軌道線突破', N: '型態確認', O: '打底完成',
+                      P: '高檔拉回', Q: '三均戰法',
                     };
                     const color = methodColors[activeBuyMethod] ?? 'bg-sky-800/80 text-sky-300';
                     const others = (r.matchedMethods ?? []).filter(m => m !== activeBuyMethod);
@@ -205,10 +216,21 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                       G: 'bg-cyan-800/80 text-cyan-300',
                       H: 'bg-fuchsia-800/80 text-fuchsia-300',
                       I: 'bg-lime-800/80 text-lime-300',
+                      J: 'bg-cyan-800/80 text-cyan-300',
+                      K: 'bg-lime-800/80 text-lime-300',
+                      L: 'bg-fuchsia-800/80 text-fuchsia-300',
+                      M: 'bg-teal-800/80 text-teal-300',
+                      N: 'bg-indigo-800/80 text-indigo-300',
+                      O: 'bg-blue-800/80 text-blue-300',
+                      P: 'bg-pink-800/80 text-pink-300',
+                      Q: 'bg-violet-800/80 text-violet-300',
                     };
                     const methodNames: Record<string, string> = {
                       B: '回後買上漲', C: '盤整突破', D: '一字底', E: '缺口', F: 'V反轉',
                       G: 'ABC突破', H: '突破黑K', I: 'K線橫盤',
+                      J: 'ABC突破', K: 'K線橫盤', L: '突破黑K',
+                      M: '軌道線突破', N: '型態確認', O: '打底完成',
+                      P: '高檔拉回', Q: '三均戰法',
                     };
                     const others = (r.matchedMethods ?? []).filter(m => m !== 'A');
                     return (
@@ -234,6 +256,36 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                       </>
                     );
                   })()
+                )}
+
+                {/* v12 警示徽章（議題 13/27/88）— 末升段/季線壓力/量分等級/KD 向下 */}
+                {r.endPhaseFlag && (
+                  <span
+                    className="text-[8px] px-1 h-3.5 flex items-center rounded-sm bg-red-900/60 text-red-300 font-bold"
+                    title="末升段警示：自最近翻多事件低點起漲漲幅 ≥ 100%（議題 13）">
+                    末升段
+                  </span>
+                )}
+                {r.seasonLineResistance != null && r.seasonLineResistance > 0 && (
+                  <span
+                    className="text-[8px] px-1 h-3.5 flex items-center rounded-sm bg-amber-900/50 text-amber-300"
+                    title={`季線壓力 ${r.seasonLineResistance.toFixed(2)}：MA60 下彎且在股價上方（議題 27）`}>
+                    季壓 {r.seasonLineResistance.toFixed(0)}
+                  </span>
+                )}
+                {r.volumeLevel === 'climax' && (
+                  <span
+                    className="text-[8px] px-1 h-3.5 flex items-center rounded-sm bg-orange-900/60 text-orange-300 font-bold"
+                    title="爆量警示：今日量 ≥ 5 日均量 × 2（議題 88）">
+                    爆量
+                  </span>
+                )}
+                {r.kdDecliningWarning && (
+                  <span
+                    className="text-[8px] px-1 h-3.5 flex items-center rounded-sm bg-rose-900/40 text-rose-300"
+                    title="短線 20 守則 #9：KD 向下不買（議題 27）">
+                    KD↓
+                  </span>
                 )}
 
                 {/* Action buttons */}

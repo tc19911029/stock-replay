@@ -144,6 +144,106 @@ export interface StockScanResult {
   d20ReturnFromOpen?: number | null;
   maxGain?: number;
   maxLoss?: number;
+
+  // ── v12 Phase 0.3 新增欄位（向後相容；未填欄位預設視為 v11 行為）─────────
+
+  /**
+   * Schema 版本標記（議題 83）
+   * - 'v11'：strategy='A' 是並列買法（舊版語意）
+   * - 'v12'：strategy='A' 是 Step 1 預選池（新版語意）
+   * - 未填：視為 'v11'
+   */
+  schemaVersion?: 'v11' | 'v12';
+
+  /**
+   * 末升段 flag（議題 13）
+   * 股價自最近翻多事件低點起漲漲幅接近 1 倍 → true
+   */
+  endPhaseFlag?: boolean;
+
+  /**
+   * 季線壓力價（議題 27）
+   * 季線（MA60）下彎且在股價上方時的壓力參考值；不擋入選只警示
+   */
+  seasonLineResistance?: number | null;
+
+  /**
+   * KD 向下警示（議題 27）
+   * 短線 20 守則 #9：KD 向下不買，但只警示不擋入選
+   */
+  kdDecliningWarning?: boolean;
+
+  /**
+   * 量比等級（議題 88）
+   * 'normal' = 1.3-2× 一般攻擊量；'climax' = ≥ 2× 爆量
+   */
+  volumeLevel?: 'normal' | 'climax';
+
+  /**
+   * Provisional 3 天驗證（議題 75，僅用於型態類 K/D）
+   * F/N 走 LockWatch 不寫此欄位
+   */
+  provisional?: ProvisionalState;
+
+  /**
+   * 翻多事件時點（議題 36，detectTrend 暴露）
+   * 個股最近一次「空頭/盤整 → 多頭」轉換日 ISO 字串
+   * 用於 議題 21 訊號觀察期、議題 47 pivot gate
+   */
+  lastTrendChangeDate?: string;
+
+  /**
+   * LockWatch 觸發資料（v12 議題 23/65/93）
+   *
+   * 僅 F V 反轉、N 型態確認 訊號會填寫此欄位。
+   * scan-bm cron 收到結果後，會抽取此欄位寫入 LockWatch daily snapshot。
+   *
+   * - F：triggerPrice = V 底反彈起點 close（不含其他欄位）
+   * - N：triggerPrice = 頸線價、patternType、patternTargetPrice、patternAchievementRate 全填
+   */
+  lockWatchPayload?: {
+    triggerPrice: number;
+    patternType?:
+      | 'head-shoulder'
+      | 'complex-head-shoulder'
+      | 'triple-bottom'
+      | 'falling-diamond'
+      | 'rounding-bottom'
+      | 'descending-wedge'
+      | 'double-bottom';
+    patternTargetPrice?: number;
+    patternAchievementRate?: number;
+  };
+}
+
+/**
+ * Provisional 3 天驗證狀態（v12 議題 75）
+ *
+ * 適用範圍：型態類 K/D 訊號（書本抓飆股 p.338 真突破 3 條件 #3「停留 3 天」）。
+ * F/N 不用此欄位（走 LockWatch observation/entry-signal）。
+ */
+export interface ProvisionalState {
+  /** 觸發日鎖定的突破點價格 */
+  triggerPrice: number;
+  /** 剩餘驗證天數（3/2/1/0=已撤銷） */
+  daysRemaining: 0 | 1 | 2 | 3;
+  /** 當前狀態 */
+  status: 'provisional' | 'confirmed' | 'revoked';
+  /** 30 天內撤銷次數（議題 7：≥ 2 次標「訊號不穩」）*/
+  revocationCount: number;
+  /** 完整事件歷史 */
+  history: ProvisionalEvent[];
+}
+
+export interface ProvisionalEvent {
+  date: string;
+  event:
+    | 'triggered'
+    | 'confirmed'
+    | 'revoked-price'      // close < triggerPrice
+    | 'revoked-trend'      // detectTrend 翻空頭
+    | 'revoked-structure'; // 結構失效
+  detail?: string;
 }
 
 /**
@@ -345,7 +445,13 @@ export type ScanDirection = 'long' | 'short' | 'daban';
 // 'B'/'C'/'D'/'E'/'F'/'G'/'H' = 並列買法獨立 session
 // 2026-04-21 rename: B=回後買上漲、C=盤整突破（新拆）、D=一字底、E=缺口、F=V形反轉
 // 2026-05-04 新增: G=ABC 突破（寶典 Part 11-1 位置 6）、H=突破大量黑 K（位置 8）、I=K線橫盤突破（位置 3）
-export type MtfMode = 'daily' | 'mtf' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I';
+export type MtfMode =
+  | 'daily'
+  | 'mtf'
+  // v11 字母（含 v12 釋出的 G/H/I — 歷史 record 仍存在）
+  | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I'
+  // v12 新增字母（議題 33/65/93）
+  | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q';
 
 // ── 打板掃描結果 ────────────────────────────────────────────────────────────
 
@@ -427,8 +533,22 @@ export interface ScanSession {
   date: string;
   direction?: ScanDirection;
   multiTimeframeEnabled?: boolean;  // true = 週月線過濾已啟用
-  /** 並列買法 session 的買法代碼（B=回後買上漲、C=盤整突破、D=一字底、E=缺口、F=V形反轉、G=ABC 突破、H=突破大量黑 K）；undefined = A 六條件 */
-  buyMethod?: 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I';
+  /** 並列買法 session 的買法代碼
+   *
+   * v11（舊）：A=六條件 / B=回後買 / C=盤整突 / D=一字底 / E=缺口 / F=V反轉 / G/H/I=暫保留
+   *
+   * v12（新，2026-05-08）：
+   * - A 六條件選股（Step 1 預選池）
+   * - 多頭軌：B 回後買上漲 / P 高檔拉回 / C 盤整突破 / E 缺口 / J ABC / K K線橫盤 / L 過大量黑K高 / M 突破軌道線
+   * - 轉折軌：D 一字底 / F V反轉 / N 型態確認 / O 打底完成
+   * - 戰法軌：Q 三條均線（MA3+10+24，獨立互斥）
+   * - G/H/I：v12 釋出，僅保留歷史 scan record
+   *
+   * 未填 = A 六條件
+   */
+  buyMethod?: 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q';
+  /** Schema 版本（議題 83）；未填視為 v11 */
+  schemaVersion?: 'v11' | 'v12';
   /** 掃描時段：intraday=盤中快照, post_close=收盤後正式結果 */
   sessionType?: SessionType;
   scanTime: string;

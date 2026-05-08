@@ -28,7 +28,12 @@ import { getLastTradingDay } from '@/lib/datasource/marketHours';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
-const VALID_METHODS = ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'] as const;
+const VALID_METHODS = [
+  // v11 字母（向後相容歷史 record）
+  'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I',
+  // v12 新字母 (J=ABC、K=K線橫盤、L=過大量黑 K，與 v11 G/I/H 共用 detector；M/N/O/P/Q 新訊號)
+  'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q',
+] as const;
 type BuyMethod = typeof VALID_METHODS[number];
 
 export async function GET(req: NextRequest) {
@@ -161,7 +166,50 @@ export async function GET(req: NextRequest) {
     };
     await saveScanSession(bmSession, { allowOverwritePostClose: true });
 
-    console.info(`[scan-bm] ✅ ${market} ${method} ${date}: ${bmResults.length} 檔 L2=${l2Injected}`);
+    // ── Step 7: F / N 訊號 → 寫入 LockWatch 鎖股觀察名單（v12 議題 23/65/93）─────
+    let lockWatchWritten = 0;
+    if (method === 'F' || method === 'N') {
+      try {
+        const { appendLockWatchRecords } = await import('@/lib/storage/lockWatchStorage');
+        const { createLockWatchFromF, createLockWatchFromN } = await import('@/lib/scanner/lockWatchManager');
+
+        const records = bmResults
+          .filter((r) => r.lockWatchPayload?.triggerPrice != null)
+          .map((r) => {
+            const p = r.lockWatchPayload!;
+            if (method === 'F') {
+              return createLockWatchFromF({
+                symbol: r.symbol,
+                market: market as 'TW' | 'CN',
+                triggeredDate: date,
+                triggerPrice: p.triggerPrice,
+              });
+            }
+            // method === 'N'
+            if (!p.patternType) return null;
+            return createLockWatchFromN({
+              symbol: r.symbol,
+              market: market as 'TW' | 'CN',
+              triggeredDate: date,
+              patternType: p.patternType,
+              triggerPrice: p.triggerPrice,
+              patternTargetPrice: p.patternTargetPrice,
+              patternAchievementRate: p.patternAchievementRate,
+            });
+          })
+          .filter((x): x is NonNullable<typeof x> => x != null);
+
+        if (records.length > 0) {
+          await appendLockWatchRecords(market as 'TW' | 'CN', date, records);
+          lockWatchWritten = records.length;
+          console.info(`[scan-bm] ${market} ${method} ${date} LockWatch 寫入 ${lockWatchWritten} 筆`);
+        }
+      } catch (err) {
+        console.warn(`[scan-bm] ${market} ${method} LockWatch 寫入失敗（不影響 scan）:`, err);
+      }
+    }
+
+    console.info(`[scan-bm] ✅ ${market} ${method} ${date}: ${bmResults.length} 檔 L2=${l2Injected} LockWatch=${lockWatchWritten}`);
 
     return apiOk({
       market,
@@ -169,6 +217,7 @@ export async function GET(req: NextRequest) {
       date,
       resultCount: bmResults.length,
       l2Injected,
+      lockWatchWritten,
       marketTrend,
     });
   } catch (err) {

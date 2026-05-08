@@ -5,6 +5,8 @@ import { useBacktestStore } from '@/store/backtestStore';
 import { ScanResultsCompact } from './components/ScanResultsCompact';
 import { DabanResultsCompact } from './components/DabanResultsCompact';
 import { ScanCoachDigest } from './components/ScanCoachDigest';
+import { MarketTrendBanner } from './components/MarketTrendBanner';
+import { LockWatchPanel } from './components/LockWatchPanel';
 import { SectionBoundary } from '@/components/ErrorBoundary';
 import type { SelectedStock } from './components/ScanChartPanel';
 
@@ -124,27 +126,54 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
         {/* Row 1.5: 買法選擇（只在做多時顯示） */}
         {scanDirection === 'long' && (
           <div className="flex items-center gap-1 flex-wrap">
-            {(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'] as const).map(method => {
+            {(['A', 'B', 'C', 'D', 'E', 'F', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'] as const).map(method => {
               const labels: Record<string, string> = {
+                // v12 字母系統（v11 G/H/I 釋出，改用 J/K/L）
                 A: '六條件',
                 B: '回後買上漲',
                 C: '盤整突破',
                 D: '一字底',
                 E: '缺口',
                 F: 'V型反轉',
-                G: 'ABC突破',
-                H: '突破大量黑K',
-                I: 'K線橫盤',
+                // v12 多頭軌新訊號
+                J: 'ABC突破',
+                K: 'K線橫盤',
+                L: '過大量黑K',
+                M: '突破軌道線',
+                // v12 轉折軌新訊號
+                N: '型態確認',
+                O: '打底完成',
+                // v12 多頭軌補充
+                P: '高檔拉回',
+                // v12 戰法軌
+                Q: '三條均線',
               };
+              // v12 軌道分類：用顏色區分
+              const trackColor = (() => {
+                if (method === 'A') return 'bg-amber-700/70 border-amber-600 text-amber-100'; // 預選池
+                if (['B', 'P', 'C', 'E', 'J', 'K', 'L', 'M'].includes(method)) {
+                  return 'bg-red-700/70 border-red-600 text-red-100'; // 多頭軌
+                }
+                if (['D', 'F', 'N', 'O'].includes(method)) {
+                  return 'bg-blue-700/70 border-blue-600 text-blue-100'; // 轉折軌
+                }
+                return 'bg-purple-700/70 border-purple-600 text-purple-100'; // Q 戰法軌
+              })();
               return (
                 <button key={method}
                   onClick={() => setActiveBuyMethod(method)}
                   disabled={isLoadingBuyMethod}
                   className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-colors disabled:opacity-50 ${
                     activeBuyMethod === method
-                      ? 'bg-red-700/70 border-red-600 text-red-100'
+                      ? trackColor
                       : 'bg-secondary border-border text-muted-foreground hover:bg-muted'
-                  }`}>
+                  }`}
+                  title={
+                    method === 'A' ? '預選池（六條件）' :
+                    ['B', 'P', 'C', 'E', 'J', 'K', 'L', 'M'].includes(method) ? '多頭軌' :
+                    ['D', 'F', 'N', 'O'].includes(method) ? '轉折軌（鎖股觀察）' :
+                    '戰法軌（獨立 SOP）'
+                  }>
                   {labels[method]}
                 </button>
               );
@@ -174,6 +203,18 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
 
       {/* ── 釘住在最上：日期歷史 + 朱老師分析（不隨下方卡片滾動） ── */}
       <div className="shrink-0 border-b border-border bg-card/80">
+        {/* Step 0 大盤狀態 banner（v12 議題 69）— 進場做多最高前提 */}
+        {scanDirection !== 'daban' && (
+          <MarketTrendBanner
+            market={market}
+            marketTrend={marketTrend ?? null}
+            scanDate={scanDate ?? null}
+          />
+        )}
+
+        {/* LockWatch 鎖股觀察（v12 議題 23/65/93）— F V 反轉 / N 型態確認觸發後 */}
+        {scanDirection !== 'daban' && <LockWatchPanel market={market} />}
+
         {/* Date Navigator — vertical pill list */}
         {cronDates.some(c => c.market === market) && (
           <div className="px-2.5 py-1.5 border-b border-border/60">

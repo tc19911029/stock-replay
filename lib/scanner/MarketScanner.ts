@@ -1203,7 +1203,11 @@ export abstract class MarketScanner {
    *   I=K 線橫盤突破（寶典 Part 11-1 位置 3，2026-05-04 新增）
    */
   async scanBuyMethod(
-    method: 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I',
+    method:
+      | 'B' | 'C' | 'D' | 'E' | 'F'
+      | 'G' | 'H' | 'I'   // v11 字母（v12 釋出但歷史 record 兼容）
+      | 'J' | 'K' | 'L'   // v12 新字母（J=ABC（=v11 G）、K=K線橫盤（=v11 I）、L=過大量黑K（=v11 H））
+      | 'M' | 'N' | 'O' | 'P' | 'Q',  // v12 新訊號
     stocks: StockEntry[],
     asOfDate?: string,
   ): Promise<StockScanResult[]> {
@@ -1229,6 +1233,8 @@ export abstract class MarketScanner {
           let matched = false;
           let detail = '';
           let subType: string | undefined;
+          // v12 議題 23/65/93：F/N 觸發時填寫，供 scan-bm cron 寫入 LockWatch
+          let lockWatchPayload: StockScanResult['lockWatchPayload'];
 
           if (method === 'B') {
             // B=回後買上漲
@@ -1254,7 +1260,12 @@ export abstract class MarketScanner {
             // F=V形反轉
             const { detectVReversal } = await import('@/lib/analysis/vReversalDetector');
             const r = detectVReversal(candles, lastIdx);
-            if (r?.isVReversal) { matched = true; detail = r.detail; }
+            if (r?.isVReversal) {
+              matched = true;
+              detail = r.detail;
+              // v12 議題 23：F 反彈起點 close 鎖定為 LockWatch triggerPrice
+              lockWatchPayload = { triggerPrice: last.close };
+            }
           } else if (method === 'G') {
             // G=ABC 突破（寶典 Part 11-1 位置 6，2026-05-04 新增）
             const { detectABCBreakout } = await import('@/lib/analysis/abcBreakoutEntry');
@@ -1270,6 +1281,61 @@ export abstract class MarketScanner {
             const { detectKlineConsolidationBreakout } = await import('@/lib/analysis/klineConsolidationBreakout');
             const r = detectKlineConsolidationBreakout(candles, lastIdx);
             if (r?.isBreakout) { matched = true; detail = r.detail; }
+          }
+          // ── v12 新字母（v12 規格 1.4A 字母 mapping，2026-05-09 新增）─────
+          else if (method === 'J') {
+            // J=ABC 突破（v12 = v11 G 改字母；寶典 Part 11-1 位置 6）
+            const { detectABCBreakout } = await import('@/lib/analysis/abcBreakoutEntry');
+            const r = detectABCBreakout(candles, lastIdx);
+            if (r?.isABCBreakout) { matched = true; detail = `J ${r.detail}`; }
+          } else if (method === 'K') {
+            // K=K 線橫盤突破（v12 = v11 I 改字母；寶典 Part 11-1 位置 5）
+            const { detectKlineConsolidationBreakout } = await import('@/lib/analysis/klineConsolidationBreakout');
+            const r = detectKlineConsolidationBreakout(candles, lastIdx);
+            if (r?.isBreakout) { matched = true; detail = `K ${r.detail}`; }
+          } else if (method === 'L') {
+            // L=過大量黑 K 高（v12 = v11 H 改字母；寶典 Part 11-1 位置 8）
+            const { detectBlackKBreakout } = await import('@/lib/analysis/blackKBreakoutEntry');
+            const r = detectBlackKBreakout(candles, lastIdx);
+            if (r?.isBlackKBreakout) { matched = true; detail = `L ${r.detail}`; }
+          } else if (method === 'M') {
+            // M=突破軌道線（v12 新增；寶典 p.387 上升軌道線）
+            const { detectLetterM } = await import('@/lib/analysis/v12LetterM');
+            const r = detectLetterM(candles, lastIdx, config.marketId, symbol);
+            if (r.triggered) { matched = true; detail = r.detail; }
+          } else if (method === 'N') {
+            // N=型態確認（v12 新增；7 種底部型態）
+            const { detectLetterN } = await import('@/lib/analysis/v12LetterN');
+            const r = detectLetterN(candles, lastIdx, config.marketId, symbol);
+            if (r.triggered) {
+              matched = true;
+              detail = r.detail;
+              // v12 議題 65：N 頸線價、型態類型、目標價、達成率全寫入 LockWatch
+              if (r.necklinePrice != null && r.patternType) {
+                lockWatchPayload = {
+                  triggerPrice: r.necklinePrice,
+                  patternType: r.patternType,
+                  patternTargetPrice: r.patternTargetPrice,
+                  patternAchievementRate:
+                    typeof r.achievementRate === 'number' ? r.achievementRate / 100 : undefined,
+                };
+              }
+            }
+          } else if (method === 'O') {
+            // O=打底完成（v12 新增；寶典 Part 11-1 位置 1）
+            const { detectLetterO } = await import('@/lib/analysis/v12LetterO');
+            const r = detectLetterO(candles, lastIdx, config.marketId, symbol);
+            if (r.triggered) { matched = true; detail = r.detail; }
+          } else if (method === 'P') {
+            // P=高檔拉回（v12 新增；寶典 Part 11-1 位置 3 等拉回）
+            const { detectLetterP } = await import('@/lib/analysis/v12LetterP');
+            const r = detectLetterP(candles, lastIdx, config.marketId, symbol);
+            if (r.triggered) { matched = true; detail = r.detail; }
+          } else if (method === 'Q') {
+            // Q=三條均線戰法（v12 戰法軌獨立；抓線圖 第 4 篇 第 8 章 MA3+10+24）
+            const { detectLetterQ } = await import('@/lib/analysis/v12LetterQ');
+            const r = detectLetterQ(candles, lastIdx, config.marketId, symbol);
+            if (r.triggered) { matched = true; detail = r.detail; }
           }
 
           if (!matched) return null;
@@ -1362,6 +1428,7 @@ export abstract class MarketScanner {
             mtfWeeklyDetail: mtfResult.weekly.detail,
             mtfMonthlyPass: mtfResult.monthly.pass,
             mtfMonthlyDetail: mtfResult.monthly.detail,
+            lockWatchPayload,
           } satisfies StockScanResult;
         } catch {
           return null;
