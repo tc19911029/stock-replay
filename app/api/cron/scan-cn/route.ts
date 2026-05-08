@@ -30,12 +30,22 @@ export async function GET(req: NextRequest) {
   if (!force) {
     const coverage = await assertL1Coverage('CN', date, 0.90);
     if (!coverage.ok) {
-      console.warn(`[cron/scan-cn] ★ 跳過 scan: ${coverage.reason}`);
+      // 2026-05-08：原 silent warn → alert + 自動觸發 download-batch 救援
+      console.error(`[cron/scan-cn] ★★ 跳過 scan: ${coverage.reason} — 自動觸發 download-candles-batch 救援`);
+      const proto = req.headers.get('x-forwarded-proto') ?? 'https';
+      const host = req.headers.get('host') ?? 'localhost:3000';
+      const auth = req.headers.get('authorization') ?? '';
+      // CN 走 batch 1（含大盤指數補漏 + 第一批個股）
+      fetch(`${proto}://${host}/api/cron/download-candles-batch?market=CN&batch=1&totalBatches=8`, { headers: { authorization: auth } })
+        .catch(err => console.error('[cron/scan-cn] auto-trigger download failed:', err));
       return apiOk({
         skipped: true,
+        alert: true,
+        alertLevel: 'high',
         reason: 'l1-coverage-insufficient',
         detail: coverage.reason,
         coverageRate: coverage.coverageRate,
+        action: 'auto-recovery-triggered',
         date,
       });
     }

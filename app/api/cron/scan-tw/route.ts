@@ -26,12 +26,22 @@ export async function GET(req: NextRequest) {
   if (!force) {
     const coverage = await assertL1Coverage('TW', date);
     if (!coverage.ok) {
-      console.warn(`[cron/scan-tw] ★ 跳過 scan: ${coverage.reason}`);
+      // 2026-05-08：原 silent warn → alert + 自動觸發 download 救援
+      // skip scan 是對的（避免用殘缺資料），但需告警 ops 並自我修復
+      console.error(`[cron/scan-tw] ★★ 跳過 scan: ${coverage.reason} — 自動觸發 download-candles 救援`);
+      const proto = req.headers.get('x-forwarded-proto') ?? 'https';
+      const host = req.headers.get('host') ?? 'localhost:3000';
+      const auth = req.headers.get('authorization') ?? '';
+      fetch(`${proto}://${host}/api/cron/download-candles?market=TW`, { headers: { authorization: auth } })
+        .catch(err => console.error('[cron/scan-tw] auto-trigger download failed:', err));
       return apiOk({
         skipped: true,
+        alert: true,
+        alertLevel: 'high',
         reason: 'l1-coverage-insufficient',
         detail: coverage.reason,
         coverageRate: coverage.coverageRate,
+        action: 'auto-recovery-triggered',
         date,
       });
     }
