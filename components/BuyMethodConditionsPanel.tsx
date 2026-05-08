@@ -1,14 +1,17 @@
 'use client';
 
 /**
- * 買法條件面板（2026-04-21 重命名後）
+ * 買法條件面板（v12 Phase 1.12 UI 改造，2026-05-09）
  *
- * 根據當前選中買法（B/C/D/E/F/G/H/I）顯示對應的進場條件評分。
+ * 根據當前選中買法（B-I 既有 + J-Q v12 新增）顯示對應的進場條件評分。
  * A 六條件走既有 SixConditionsPanel，本元件不處理 A。
  *
- * 字母對照（2026-05-04 update）：
- *   B=回後買上漲、C=盤整突破、D=一字底、E=缺口、F=V形反轉
- *   G=ABC 突破（寶典 Part 11-1 位置 6）、H=突破大量黑K（寶典 Part 11-1 位置 8）
+ * 字母對照：
+ *   v11 既有：B=回後買上漲、C=盤整突破、D=一字底、E=缺口、F=V形反轉
+ *             G=ABC 突破（寶典位置 6）、H=突破大量黑K（位置 8）、I=K線橫盤（位置 5）
+ *   v12 新增：J=ABC 突破（=v11 G）、K=K線橫盤（=v11 I）、L=過大量黑K（=v11 H）
+ *             M=突破軌道線（寶典 p.387）、N=型態確認（25 型態）、O=打底完成（位置 1）
+ *             P=高檔拉回（位置 3 等拉回）、Q=三條均線戰法（MA3+10+24，戰法軌）
  */
 
 import { useReplayStore } from '@/store/replayStore';
@@ -20,9 +23,18 @@ import { detectVReversal } from '@/lib/analysis/vReversalDetector';
 import { detectABCBreakout } from '@/lib/analysis/abcBreakoutEntry';
 import { detectBlackKBreakout } from '@/lib/analysis/blackKBreakoutEntry';
 import { detectKlineConsolidationBreakout } from '@/lib/analysis/klineConsolidationBreakout';
+// v12 新訊號 detectors
+import { detectLetterM } from '@/lib/analysis/v12LetterM';
+import { detectLetterN } from '@/lib/analysis/v12LetterN';
+import { detectLetterO } from '@/lib/analysis/v12LetterO';
+import { detectLetterP } from '@/lib/analysis/v12LetterP';
+import { detectLetterQ } from '@/lib/analysis/v12LetterQ';
 import type { CandleWithIndicators } from '@/types';
 
-type BuyMethod = 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I';
+type BuyMethod =
+  | 'B' | 'C' | 'D' | 'E' | 'F'
+  | 'G' | 'H' | 'I'
+  | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q';
 
 interface ConditionItem {
   icon: string;
@@ -38,9 +50,18 @@ const METHOD_TITLE: Record<BuyMethod, string> = {
   D: '一字底',
   E: '缺口',
   F: 'V 型反轉',
-  G: 'ABC 突破',
-  H: '突破大量黑 K',
-  I: 'K 線橫盤突破',
+  G: 'ABC 突破（v11，建議改用 J）',
+  H: '突破大量黑 K（v11，建議改用 L）',
+  I: 'K 線橫盤突破（v11，建議改用 K）',
+  // v12 新字母
+  J: 'ABC 突破',
+  K: 'K 線橫盤突破',
+  L: '過大量黑 K 高',
+  M: '突破軌道線',
+  N: '型態確認',
+  O: '打底完成',
+  P: '高檔拉回（淺回）',
+  Q: '三條均線戰法（MA3+10+24）',
 };
 
 function evaluateMethod(
@@ -393,6 +414,253 @@ function evaluateMethod(
         },
       ];
       return { title, conditions, allPass: !!r?.isBreakout };
+    }
+    // ── v12 新字母（與 v11 G/H/I 共用 detector 但顯示新名稱）─────────────
+    case 'J': {
+      // J=ABC 突破（= v11 G，邏輯相同）
+      const r = detectABCBreakout(candles, idx);
+      const conditions: ConditionItem[] = [
+        {
+          icon: '①', name: '多頭趨勢',
+          detail: detectTrend(candles, idx) === '多頭' ? '多頭' : '非多頭',
+          pass: detectTrend(candles, idx) === '多頭',
+        },
+        {
+          icon: '②', name: 'ABC 修正結構',
+          detail: r ? `legA=${r.legAHigh.toFixed(2)} → C 底=${r.legCLow.toFixed(2)}` : '未找到 ABC 結構',
+          pass: !!r,
+        },
+        {
+          icon: '③', name: '突破下降切線',
+          detail: r ? `切線值 ${r.trendlineValue.toFixed(2)} → close ${c.close.toFixed(2)}` : '未突破',
+          pass: !!r,
+        },
+        {
+          icon: '④', name: 'close ≥ MA20',
+          detail: c.ma20 ? `close ${c.close.toFixed(2)} vs MA20 ${c.ma20.toFixed(2)}` : '無 MA20',
+          pass: c.ma20 != null && c.close >= c.ma20,
+        },
+      ];
+      return { title, conditions, allPass: !!r?.isABCBreakout };
+    }
+    case 'K': {
+      // K=K 線橫盤突破（= v11 I，邏輯相同）
+      const r = detectKlineConsolidationBreakout(candles, idx);
+      const isUptrend = detectTrend(candles, idx) === '多頭';
+      const conditions: ConditionItem[] = [
+        { icon: '①', name: '多頭趨勢', detail: isUptrend ? '多頭' : '非多頭', pass: isUptrend },
+        {
+          icon: '②', name: 'K 線橫盤 ≥ 3 根（寶典 p.156-157）',
+          detail: r ? `橫盤 ${r.consolidationDays} 天，幅度 ${r.rangeWidthPct.toFixed(2)}%` : '橫盤條件未成立',
+          pass: !!r,
+        },
+        {
+          icon: '③', name: '中長紅 K 收盤突破上頸線',
+          detail: r ? `${c.close.toFixed(2)} > 橫盤高 ${r.rangeHigh.toFixed(2)}` : '前提未成立',
+          pass: !!r?.isBreakout,
+        },
+      ];
+      return { title, conditions, allPass: !!r?.isBreakout };
+    }
+    case 'L': {
+      // L=過大量黑 K 高（= v11 H，邏輯相同）
+      const r = detectBlackKBreakout(candles, idx);
+      const conditions: ConditionItem[] = [
+        {
+          icon: '①', name: '多頭趨勢',
+          detail: detectTrend(candles, idx) === '多頭' ? '多頭' : '非多頭',
+          pass: detectTrend(candles, idx) === '多頭',
+        },
+        {
+          icon: '②', name: '近 3 日內出現大量黑 K',
+          detail: r ? `黑 K 高 ${r.blackKHigh.toFixed(2)}（${r.daysSinceBlackK} 天前）` : '未找到大量黑 K',
+          pass: !!r,
+        },
+        {
+          icon: '③', name: '紅 K 收盤突破黑 K 高',
+          detail: r ? `${c.close.toFixed(2)} > ${r.blackKHigh.toFixed(2)}` : '未突破',
+          pass: !!r?.isBlackKBreakout,
+        },
+      ];
+      return { title, conditions, allPass: !!r?.isBlackKBreakout };
+    }
+    case 'M': {
+      // M=突破軌道線（v12 新訊號，寶典 p.387）
+      const r = detectLetterM(candles, idx);
+      const conditions: ConditionItem[] = [
+        {
+          icon: '①', name: '多頭趨勢',
+          detail: detectTrend(candles, idx) === '多頭' ? '多頭' : '非多頭',
+          pass: detectTrend(candles, idx) === '多頭',
+        },
+        {
+          icon: '②', name: '2 個 pivot low + 中間最高',
+          detail: r.triggered
+            ? `軌道值 ${r.channelValue?.toFixed(2)}（兩低點+中間最高 ${r.channelAnchorPrice?.toFixed(2)}）`
+            : '軌道線結構未成立',
+          pass: r.triggered,
+        },
+        {
+          icon: '③', name: 'close ≥ 軌道線 ×3% 真突破',
+          detail: r.triggered
+            ? `close ${c.close.toFixed(2)} ≥ ${r.breakoutThreshold?.toFixed(2)}`
+            : '未過 ×3% 真突破',
+          pass: r.triggered,
+        },
+        {
+          icon: '④', name: '紅 K + 量 ≥ 1.3',
+          detail: r.triggered ? `紅 K ${r.bodyPct?.toFixed(2)}% / 量 ×${r.volumeRatio?.toFixed(2)}` : '前提未成立',
+          pass: r.triggered,
+        },
+      ];
+      return { title, subTitle: '寶典 p.387 上升軌道線', conditions, allPass: r.triggered };
+    }
+    case 'N': {
+      // N=型態確認（v12 新訊號，7 種底部型態）
+      const r = detectLetterN(candles, idx);
+      const patternName = r.patternType
+        ? ({
+            'head-shoulder': '頭肩底',
+            'triple-bottom': '三重底',
+            'rounding-bottom': '圓弧底',
+            'double-bottom': '雙重底',
+            'complex-head-shoulder': '複式頭肩底',
+            'falling-diamond': '跌菱形',
+            'descending-wedge': '下降楔形',
+          } as const)[r.patternType]
+        : '尚未識別';
+      const conditions: ConditionItem[] = [
+        {
+          icon: '①', name: '型態結構',
+          detail: r.triggered ? `${patternName}（達成率 ${r.achievementRate}%）` : '未識別',
+          pass: r.triggered,
+        },
+        {
+          icon: '②', name: '頸線突破 ×3%',
+          detail: r.necklinePrice
+            ? `頸線 ${r.necklinePrice.toFixed(2)} → close ${c.close.toFixed(2)}`
+            : '無頸線',
+          pass: r.triggered,
+        },
+        {
+          icon: '③', name: '型態目標價（停利參考）',
+          detail: r.patternTargetPrice ? `目標 ${r.patternTargetPrice.toFixed(2)}` : '—',
+          pass: !!r.patternTargetPrice,
+        },
+        {
+          icon: '④', name: '紅 K + 量 ≥ 1.3',
+          detail: r.triggered ? `紅 K ${r.bodyPct?.toFixed(2)}% / 量 ×${r.volumeRatio?.toFixed(2)}` : '—',
+          pass: r.triggered,
+        },
+      ];
+      return {
+        title,
+        subTitle: r.triggered ? `${patternName}（達成率 ${r.achievementRate}%）` : '抓飆股 25 型態',
+        conditions,
+        allPass: r.triggered,
+      };
+    }
+    case 'O': {
+      // O=打底完成（v12 新訊號，寶典 Part 11-1 位置 1）
+      const r = detectLetterO(candles, idx);
+      const conditions: ConditionItem[] = [
+        {
+          icon: '①', name: '空頭→盤整轉換 + 大量打底',
+          detail: r.hadHighVolume ? '✅ 已偵測到打底大量' : '尚未偵測',
+          pass: !!r.hadHighVolume,
+        },
+        {
+          icon: '②', name: '反轉多頭確認',
+          detail: detectTrend(candles, idx) === '多頭' ? '✅ 翻多' : '尚未翻多',
+          pass: detectTrend(candles, idx) === '多頭',
+        },
+        {
+          icon: '③', name: '站上 MA20 + MA20 上揚',
+          detail: c.ma20 ? `close ${c.close.toFixed(2)} vs MA20 ${c.ma20.toFixed(2)}` : '無 MA20',
+          pass: c.ma20 != null && c.close >= c.ma20,
+        },
+        {
+          icon: '④', name: '紅 K 突破打底盤整高 ×3%',
+          detail: r.triggered
+            ? `突破 ${r.triggerPrice?.toFixed(2)}（×3% = ${r.breakoutThreshold?.toFixed(2)}）`
+            : '未突破',
+          pass: r.triggered,
+        },
+        {
+          icon: '⑤', name: '加分項：站上 MA60（可長多）',
+          detail: r.aboveMA60 ? '✅ 站上季線' : '— 未站上',
+          pass: !!r.aboveMA60,
+        },
+      ];
+      return { title, subTitle: '寶典 Part 11-1 位置 1', conditions, allPass: r.triggered };
+    }
+    case 'P': {
+      // P=高檔拉回（v12 新訊號，寶典 Part 11-1 位置 3 等拉回）
+      const r = detectLetterP(candles, idx);
+      const conditions: ConditionItem[] = [
+        {
+          icon: '①', name: '多頭趨勢',
+          detail: detectTrend(candles, idx) === '多頭' ? '多頭' : '非多頭',
+          pass: detectTrend(candles, idx) === '多頭',
+        },
+        {
+          icon: '②', name: '近期高 + 1-2 天淺回',
+          detail: r.triggered
+            ? `${r.pullbackDays} 天淺回（前高 ${r.prevSwingHigh?.toFixed(2)}）`
+            : '淺回結構未成立',
+          pass: r.triggered,
+        },
+        {
+          icon: '③', name: '不破 MA10 / 不破前低',
+          detail: r.triggered ? '✅ 守 MA10 + 不破前低' : '前提未成立',
+          pass: r.triggered,
+        },
+        {
+          icon: '④', name: '紅 K + 量 ≥ 1.3 + 突破前 K 高',
+          detail: r.triggered
+            ? `紅 K ${r.bodyPct?.toFixed(2)}% / 量 ×${r.volumeRatio?.toFixed(2)} / 突破 ${r.triggerPrice?.toFixed(2)}`
+            : '前提未成立',
+          pass: r.triggered,
+        },
+      ];
+      return { title, subTitle: '寶典位置 3 等拉回（B 的淺回版）', conditions, allPass: r.triggered };
+    }
+    case 'Q': {
+      // Q=三條均線戰法（v12 新訊號，戰法軌獨立 SOP）
+      const r = detectLetterQ(candles, idx);
+      const conditions: ConditionItem[] = [
+        {
+          icon: '①', name: '股價 ≥ MA24',
+          detail: c.ma24 ? `close ${c.close.toFixed(2)} vs MA24 ${c.ma24.toFixed(2)}` : '無 MA24',
+          pass: c.ma24 != null && c.close >= c.ma24,
+        },
+        {
+          icon: '②', name: 'MA24 上揚（趨勢方向）',
+          detail: r.ma24Up ? '✅ 上揚' : '未上揚',
+          pass: !!r.ma24Up,
+        },
+        {
+          icon: '③', name: 'MA3 黃金交叉 MA10',
+          detail: r.goldenCrossToday ? '✅ 今日金叉' : '未金叉',
+          pass: !!r.goldenCrossToday,
+        },
+        {
+          icon: '④', name: '股價站上 MA3',
+          detail: r.aboveMA3 ? '✅ 站上 MA3' : '未站上',
+          pass: !!r.aboveMA3,
+        },
+        {
+          icon: '⑤', name: '紅 K 實體 ≥ 2%',
+          detail: r.triggered ? `${r.bodyPct?.toFixed(2)}%` : '—',
+          pass: r.triggered,
+        },
+      ];
+      return {
+        title,
+        subTitle: '抓住線圖 第 4 篇 第 8 章 — 朱老師「年獲利 1 倍」首選戰法',
+        conditions,
+        allPass: r.triggered,
+      };
     }
   }
 }
