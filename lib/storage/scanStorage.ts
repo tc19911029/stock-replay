@@ -24,8 +24,9 @@ export interface ScanDateEntry {
 // ── Vercel Blob helpers ──────────────────────────────────────────────────────
 
 async function blobPut(pathname: string, data: string): Promise<void> {
-  const { put } = await import('@vercel/blob');
-  await put(pathname, data, { access: 'private', addRandomSuffix: false, allowOverwrite: true });
+  // 2026-05-08：blob put 加 3 次 retry，防 Blob 偶發 5xx 讓整個 cron 炸掉
+  const { blobPutWithRetry } = await import('@/lib/storage/blobRetry');
+  await blobPutWithRetry(pathname, data, { access: 'private', addRandomSuffix: false, allowOverwrite: true });
 }
 
 async function blobGet(pathname: string): Promise<string | null> {

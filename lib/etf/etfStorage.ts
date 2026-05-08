@@ -65,8 +65,9 @@ function consensusLocal(date: string): string {
 async function writeJSON(blobKey: string, localFile: string, payload: unknown): Promise<void> {
   const data = JSON.stringify(payload);
   if (IS_VERCEL) {
-    const { put } = await import('@vercel/blob');
-    await put(blobKey, data, { access: 'public', addRandomSuffix: false, allowOverwrite: true });
+    // 2026-05-08：blob put 加 3 次 retry，避免單次偶發 5xx 讓整批 ETF cron 在第一檔就炸
+    const { blobPutWithRetry } = await import('@/lib/storage/blobRetry');
+    await blobPutWithRetry(blobKey, data, { access: 'public', addRandomSuffix: false, allowOverwrite: true });
   } else {
     const { atomicFsPut } = await import('@/lib/storage/atomicFsPut');
     await fs.mkdir(path.dirname(localFile), { recursive: true });

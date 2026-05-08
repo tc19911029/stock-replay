@@ -22,6 +22,11 @@ const schema = z.object({
  * 前端手動掃描一律存為 intraday，不會覆蓋官方 post_close 結果。
  */
 export async function POST(req: NextRequest) {
+  // 2026-05-08：加同源/cron token 守門，防匿名 curl 灌假 intraday 結果污染 UI
+  const { checkSameOriginOrCron } = await import('@/lib/api/sameOriginAuth');
+  const denied = checkSameOriginOrCron(req);
+  if (denied) return denied;
+
   const body = await req.json().catch(() => ({}));
   const parsed = schema.safeParse(body);
   if (!parsed.success) {

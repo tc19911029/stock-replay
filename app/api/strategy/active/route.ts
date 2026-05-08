@@ -40,6 +40,11 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  // 2026-05-08：加同源/cron token 守門，防匿名 curl 改 active strategy 跑壞 cron
+  const { checkSameOriginOrCron } = await import('@/lib/api/sameOriginAuth');
+  const denied = checkSameOriginOrCron(req);
+  if (denied) return denied;
+
   const body = await req.json().catch(() => ({}));
   const parsed = postSchema.safeParse(body);
   if (!parsed.success) return apiValidationError(parsed.error);

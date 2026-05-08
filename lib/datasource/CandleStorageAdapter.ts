@@ -27,8 +27,9 @@ export interface CandleFileData {
 // ── Vercel Blob helpers ──────────────────────────────────────────────────────
 
 async function blobPut(pathname: string, data: string): Promise<void> {
-  const { put } = await import('@vercel/blob');
-  await put(pathname, data, { access: 'private', addRandomSuffix: false, allowOverwrite: true });
+  // 2026-05-08：blob put 加 3 次 retry，避免單次偶發 5xx 讓整批 download cron 在第一檔就炸
+  const { blobPutWithRetry } = await import('@/lib/storage/blobRetry');
+  await blobPutWithRetry(pathname, data, { access: 'private', addRandomSuffix: false, allowOverwrite: true });
 }
 
 async function blobGet(pathname: string): Promise<string | null> {

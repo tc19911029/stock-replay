@@ -16,6 +16,11 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  // 2026-05-08：加同源/cron token 守門，防匿名 curl 觸發 5 分鐘 compute attack
+  const { checkSameOriginOrCron } = await import('@/lib/api/sameOriginAuth');
+  const denied = checkSameOriginOrCron(req);
+  if (denied) return denied;
+
   const body = await req.json().catch(() => ({}));
   const parsed = schema.safeParse(body);
   if (!parsed.success) {

@@ -22,6 +22,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     ".vercel/**",
     "scripts/**",
+    // 2026-05-08：忽略 git worktree（其他 session 的 work，不是本 worktree 範圍）
+    ".claude/worktrees/**",
   ]),
 ]);
 
