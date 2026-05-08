@@ -1,37 +1,21 @@
-import { NextRequest } from 'next/server';
-import { z } from 'zod';
-import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
+/**
+ * @deprecated LINE Notify 服務 2025-03-31 已停止運作。
+ * https://notify-bot.line.me/closing-announce
+ *
+ * 此 endpoint 保留檔案但回 410 Gone，避免任何殘留 caller 沉默失敗。
+ * 未來改用 LINE Messaging API 或 Webhook 時再重寫。
+ */
+import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
-const bodySchema = z.object({
-  token: z.string().min(1),
-  message: z.string().min(1),
-});
-
-export async function POST(req: NextRequest) {
-  try {
-    const raw = await req.json().catch(() => ({}));
-    const parsed = bodySchema.safeParse(raw);
-    if (!parsed.success) return apiValidationError(parsed.error);
-    const { token, message } = parsed.data;
-
-    const res = await fetch('https://notify-api.line.me/api/notify', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({ message }),
-      signal: AbortSignal.timeout(10000),
-    });
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      return apiError(data.message ?? '傳送失敗', 400);
-    }
-    return apiOk({ sent: true });
-  } catch {
-    return apiError('伺服器錯誤');
-  }
+export async function POST() {
+  return NextResponse.json(
+    {
+      ok: false,
+      error: 'LINE Notify service was discontinued on 2025-03-31. Use LINE Messaging API instead.',
+      gone: true,
+    },
+    { status: 410 },
+  );
 }
