@@ -75,26 +75,48 @@ export abstract class MarketScanner {
    */
   protected prefilterByL2(stocks: StockEntry[], tag: string): StockEntry[] {
     const L2_PREFILTER_MIN_RATIO = 0.8;
-    const expectedCount = this.getMarketConfig().marketId === 'CN' ? 3062 : 1956;
+    const market = this.getMarketConfig().marketId;
+    const expectedCount = market === 'CN' ? 3062 : 1956;
     const l2Map = this._realtimeQuotes;
     if (!l2Map || l2Map.size < expectedCount * L2_PREFILTER_MIN_RATIO) {
       console.info(
-        `[${tag}] ${this.getMarketConfig().marketId} 跳過粗掃 (L2 size=${l2Map?.size ?? 0})`
+        `[${tag}] ${market} 跳過粗掃 (L2 size=${l2Map?.size ?? 0})`
       );
       return stocks;
     }
     let noQuote = 0;
     let zeroVol = 0;
-    const out = stocks.filter(({ symbol }) => {
+    const filtered = stocks.filter(({ symbol }) => {
       const code = symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
       const q = l2Map.get(code);
       if (!q || q.close <= 0) { noQuote++; return false; }
       if (q.volume <= 0) { zeroVol++; return false; }
       return true;
     });
+
+    // 2026-05-08：candidate cap by 成交額 top N
+    // 修完 L2 partial bug 後 CN snapshot 從 2262 變 3062，scanBuyMethod 候選 ~2900 支跑超過
+    // Vercel maxDuration 120s 大量 504。對成交額 top N 篩選保證 cron 在 budget 內完成。
+    // CN 800 / TW 500：對齊書本「主流股 + 大量股」聚焦原則，剔除冷門股不影響選股質量。
+    const TOP_N = market === 'CN' ? 800 : 500;
+    let out = filtered;
+    let cappedNote = '';
+    if (filtered.length > TOP_N) {
+      const ranked = filtered
+        .map(s => {
+          const code = s.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
+          const q = l2Map.get(code)!;
+          return { entry: s, turnover: q.close * q.volume };
+        })
+        .sort((a, b) => b.turnover - a.turnover)
+        .slice(0, TOP_N);
+      out = ranked.map(r => r.entry);
+      cappedNote = `, top${TOP_N} 成交額`;
+    }
+
     console.info(
-      `[${tag}] ${this.getMarketConfig().marketId} 粗掃: ${stocks.length} → ${out.length} ` +
-      `(L2 無報價 ${noQuote}, 零量 ${zeroVol}, L2 size=${l2Map.size})`
+      `[${tag}] ${market} 粗掃: ${stocks.length} → ${out.length} ` +
+      `(L2 無報價 ${noQuote}, 零量 ${zeroVol}, L2 size=${l2Map.size}${cappedNote})`
     );
     return out;
   }

@@ -73,7 +73,9 @@ export async function GET(req: NextRequest) {
           }
         } catch (err) {
           console.warn(`[chips] EastMoney CN flow ${code} 失敗:`, err instanceof Error ? err.message : err);
-          if (!existing) return apiError(`CN 籌碼抓取失敗`);
+          // 2026-05-08：原本第一次 fetch fail 就回 500 → 前端顯示「載入失敗」
+          // 改 graceful：回空 series + note 標記，前端可以顯示「暫無資料」而不是 error
+          if (!existing) return apiOk({ inst: [], tdcc: [], cnFlow: [], note: 'CN 籌碼來源暫時無回應，稍後重試' });
         }
       }
       const series = await loadChipSeries(code, days, 'CN');
@@ -95,7 +97,8 @@ export async function GET(req: NextRequest) {
         }
       } catch (err) {
         console.warn(`[chips] FinMind ${code} 失敗:`, err instanceof Error ? err.message : err);
-        if (!existing) return apiError(`籌碼資料抓取失敗：${err instanceof Error ? err.message : '未知錯誤'}`);
+        // 2026-05-08：FinMind rate limit / timeout 時 graceful 回空 series 而不是 500
+        if (!existing) return apiOk({ inst: [], tdcc: [], note: 'TW 籌碼來源暫時無回應，稍後重試' });
       }
     }
     const series = await loadChipSeries(code, days, 'TW');
