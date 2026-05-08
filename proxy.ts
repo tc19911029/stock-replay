@@ -1,3 +1,5 @@
+// 2026-05-08：Next.js 16 把 middleware 改名 proxy（功能不變）。
+// 從 middleware.ts rename 過來，build warning 消除。
 import { NextRequest, NextResponse } from 'next/server';
 import { generalLimiter, aiLimiter, scanLimiter } from '@/lib/rateLimit';
 
@@ -16,7 +18,7 @@ const AI_ROUTES = ['/api/chat', '/api/scanner/ai-rank'];
 /** Routes that trigger scans (heavy compute) */
 const SCAN_ROUTES = ['/api/scanner/run', '/api/scanner/chunk', '/api/backtest/scan'];
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Only rate-limit API routes
