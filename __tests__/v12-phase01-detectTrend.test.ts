@@ -18,8 +18,10 @@ import {
 function genCandles(prices: number[]): CandleWithIndicators[] {
   return prices.map((close, i) => {
     const date = `2026-01-${String(i + 1).padStart(2, '0')}`;
-    // 簡單模擬：open = prev close, high = close + 1, low = close - 1
     const prevClose = i > 0 ? prices[i - 1] : close;
+    const ma5 = i < 4
+      ? undefined
+      : prices.slice(i - 4, i + 1).reduce((a, b) => a + b, 0) / 5;
     return {
       date,
       open: prevClose,
@@ -27,18 +29,8 @@ function genCandles(prices: number[]): CandleWithIndicators[] {
       low: close - 1,
       close,
       volume: 1000,
-      // 計算 MA5（5 天移動平均）
-      ma5: i < 4 ? null : prices.slice(i - 4, i + 1).reduce((a, b) => a + b, 0) / 5,
-      ma10: null,
-      ma20: null,
-      ma60: null,
-      kdK: null,
-      kdD: null,
-      macd: null,
-      macdSignal: null,
-      macdHist: null,
-      rsi: null,
-    } as CandleWithIndicators;
+      ma5,
+    };
   });
 }
 
