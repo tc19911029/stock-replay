@@ -22,16 +22,46 @@ const querySchema = z.object({
   etfCode: z.string().min(1),
 });
 
-function detectStrategies(
+async function detectStrategies(
   candles: CandleWithIndicators[],
   lastIdx: number,
   thresholds: ReturnType<typeof resolveThresholds>,
-): StrategySignals {
+  symbol: string,
+): Promise<StrategySignals> {
   const sixConds = evaluateSixConditions(candles, lastIdx, thresholds);
   const A = sixConds.isCoreReady ?? false;
   const safe = <T,>(fn: () => T | undefined | null): boolean => {
     try { return !!fn(); } catch { return false; }
   };
+  // v12 字母 J-Q（M/N/O/P/Q 是新訊號；J/K/L 是 G/I/H alias 顯示一致）
+  const safeAsync = async (fn: () => Promise<{ triggered?: boolean } | null>): Promise<boolean> => {
+    try { const r = await fn(); return !!r?.triggered; } catch { return false; }
+  };
+  const market = /\.(SS|SZ)$/i.test(symbol) ? 'CN' : 'TW';
+  const M = await safeAsync(async () => {
+    const { detectLetterM } = await import('@/lib/analysis/v12LetterM');
+    return detectLetterM(candles, lastIdx, market, symbol);
+  });
+  const N = await safeAsync(async () => {
+    const { detectLetterN } = await import('@/lib/analysis/v12LetterN');
+    return detectLetterN(candles, lastIdx, market, symbol);
+  });
+  const O = await safeAsync(async () => {
+    const { detectLetterO } = await import('@/lib/analysis/v12LetterO');
+    return detectLetterO(candles, lastIdx, market, symbol);
+  });
+  const P = await safeAsync(async () => {
+    const { detectLetterP } = await import('@/lib/analysis/v12LetterP');
+    return detectLetterP(candles, lastIdx, market, symbol);
+  });
+  const Q = await safeAsync(async () => {
+    const { detectLetterQ } = await import('@/lib/analysis/v12LetterQ');
+    return detectLetterQ(candles, lastIdx, market, symbol);
+  });
+  // J/K/L 是 v12 alias of G/I/H（同 detector，名稱不同）
+  const G = safe(() => detectABCBreakout(candles, lastIdx));
+  const H = safe(() => detectBlackKBreakout(candles, lastIdx));
+  const I = safe(() => detectKlineConsolidationBreakout(candles, lastIdx));
   return {
     A,
     B: safe(() => detectBreakoutEntry(candles, lastIdx)),
@@ -39,9 +69,17 @@ function detectStrategies(
     D: safe(() => detectStrategyE(candles, lastIdx)),
     E: safe(() => detectStrategyD(candles, lastIdx)),
     F: safe(() => detectVReversal(candles, lastIdx)),
-    G: safe(() => detectABCBreakout(candles, lastIdx)),
-    H: safe(() => detectBlackKBreakout(candles, lastIdx)),
-    I: safe(() => detectKlineConsolidationBreakout(candles, lastIdx)),
+    G,
+    H,
+    I,
+    J: G,
+    K: I,
+    L: H,
+    M,
+    N,
+    O,
+    P,
+    Q,
   };
 }
 
@@ -70,7 +108,7 @@ async function processHolding(
       ? +((last.close - prev.close) / prev.close * 100).toFixed(2)
       : 0;
 
-    const strategies = detectStrategies(candles, lastIdx, thresholds);
+    const strategies = await detectStrategies(candles, lastIdx, thresholds, symbol);
 
     const result: HoldingWithStrategies = { symbol, name, weight, price: last.close, changePct, strategies };
     return result;
