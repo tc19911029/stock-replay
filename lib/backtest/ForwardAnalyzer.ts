@@ -14,16 +14,18 @@ function detectMarket(symbol: string): 'TW' | 'CN' {
   return 'TW';
 }
 
-/** 取得下一個曆日的日期字串 */
+/** 取得下一個曆日的日期字串（UTC anchored 避免 server timezone shift） */
 function nextDay(dateStr: string): string {
-  const d = new Date(dateStr + 'T12:00:00');
-  d.setDate(d.getDate() + 1);
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + 1);
   return d.toISOString().split('T')[0];
 }
 
-/** 計算兩個日期字串之間的天數差 */
+/** 計算兩個日期字串之間的天數差（UTC anchored 避免 DST 偏 1 小時誤差） */
 function daysBetween(a: string, b: string): number {
-  return (Date.parse(b) - Date.parse(a)) / 86400_000;
+  const aMs = Date.parse(a + 'T00:00:00Z');
+  const bMs = Date.parse(b + 'T00:00:00Z');
+  return (bMs - aMs) / 86400_000;
 }
 
 /** 取得市場時區的今日日期 */

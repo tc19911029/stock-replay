@@ -7,8 +7,23 @@
  * Production 沒設 ADMIN_SECRET 時所有 admin 端點 503，避免裸露。
  */
 
+import { timingSafeEqual } from 'node:crypto';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+
+/**
+ * 比對兩個字串（constant-time），避免 timing channel 透露 prefix/length 給攻擊者。
+ * 長度不同先回 false（不進入 timingSafeEqual，否則會 throw）— 這個分支本身不洩漏太多
+ * 因為攻擊者大致可知 secret 長度，但避免 throw 給 SDK 用。
+ */
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  try {
+    return timingSafeEqual(Buffer.from(a, 'utf8'), Buffer.from(b, 'utf8'));
+  } catch {
+    return false;
+  }
+}
 
 /**
  * 驗證 admin secret。回傳 NextResponse 表示拒絕；null 表示通過。
@@ -32,8 +47,8 @@ export function checkAdminAuth(req: NextRequest): NextResponse | null {
   const headerAdmin = req.headers.get('x-admin-secret');
   const headerUpload = req.headers.get('x-upload-secret');
 
-  const adminMatch = !!adminSecret && !!headerAdmin && headerAdmin === adminSecret;
-  const uploadMatch = !!uploadSecret && !!headerUpload && headerUpload === uploadSecret;
+  const adminMatch = !!adminSecret && !!headerAdmin && safeEqual(headerAdmin, adminSecret);
+  const uploadMatch = !!uploadSecret && !!headerUpload && safeEqual(headerUpload, uploadSecret);
 
   if (!adminMatch && !uploadMatch) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
