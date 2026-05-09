@@ -683,6 +683,12 @@ function makeTopResult(match: TopPatternMatch, closePrice: number): TopPatternRe
     return { triggered: false, detail: '頂部型態結構成立但未過 ×3% 真跌破' };
   }
 
+  // 2026-05-10 補：對稱底部 makeResult — close 已下到 target × 1.03 視為「型態已達目標」
+  // 跌破出場警示「已完成」，再警示沒意義（避免 1301.TW close=48.55 但 target=48.6 已達標仍警示）
+  if (closePrice <= match.patternTargetPrice * 1.03) {
+    return { triggered: false, detail: '頂部型態已接近/超過目標價，視為已達標非新警示' };
+  }
+
   return {
     triggered: true,
     patternType: match.patternType,
