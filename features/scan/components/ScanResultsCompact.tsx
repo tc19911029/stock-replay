@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useMemo, Fragment } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { useBacktestStore } from '@/store/backtestStore';
 import { useWatchlistStore } from '@/store/watchlistStore';
 import type { SelectedStock } from './ScanChartPanel';
 import type { StockForwardPerformance } from '@/lib/scanner/types';
+import type { TrendState } from '@/lib/analysis/trendAnalysis';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -43,7 +44,7 @@ interface ScanResultsCompactProps {
 
 export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
   const {
-    scanResults, scanDate, market, marketTrend, scanOnly,
+    scanResults, scanDate, market, marketTrend: storeTrend, scanOnly,
     performance, isFetchingForward, isLoadingCronSession,
     activeBuyMethod,
   } = useBacktestStore();
@@ -51,6 +52,22 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
   const [expandedStock, setExpandedStock] = useState<string | null>(null);
   const [conceptFilter, setConceptFilter] = useState<string>('all');
   const [scanSortDir] = useState<'desc'>('desc');
+
+  // 即時 raw trend（跟 banner 同源）— saved session 的 marketTrend 是舊邏輯（含降級）
+  // 不可用，會跟 banner 顯示不一致（「banner 多頭、結果欄盤整」這種）
+  const [liveTrend, setLiveTrend] = useState<TrendState | null>(storeTrend ?? null);
+  useEffect(() => {
+    let cancelled = false;
+    if (!market || !scanDate) return;
+    fetch(`/api/scanner/market-trend?market=${market}&date=${scanDate}`)
+      .then((r) => r.json())
+      .then((j: { ok?: boolean; trend?: TrendState }) => {
+        if (!cancelled && j.ok && j.trend) setLiveTrend(j.trend);
+      })
+      .catch(() => { /* keep storeTrend fallback */ });
+    return () => { cancelled = true; };
+  }, [market, scanDate]);
+  const marketTrend = liveTrend ?? storeTrend;
 
   const perfMap = useMemo(() => {
     const map = new Map<string, StockForwardPerformance>();

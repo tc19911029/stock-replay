@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useBacktestStore } from '@/store/backtestStore';
+import { useReplayStore } from '@/store/replayStore';
 import { ScanResultsCompact } from './components/ScanResultsCompact';
 import { DabanResultsCompact } from './components/DabanResultsCompact';
 import { ScanCoachDigest } from './components/ScanCoachDigest';
@@ -31,7 +32,9 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
     isLoadingCronSession,
     autoLoadLatest,
     activeBuyMethod, setActiveBuyMethod, isLoadingBuyMethod,
+    // setScanOnly 暫保留 destructure（以後可能會加回手動掃描）
   } = useBacktestStore();
+  void setScanOnly;
 
   const [coachCollapsed, setCoachCollapsed] = useState(true);
 
@@ -68,12 +71,6 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
   }, [market, scanDirection, fetchCronDates]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isBusy = isScanning || isFetchingForward;
-
-  const handleScan = useCallback(() => {
-    if (isBusy) return;
-    setScanOnly(true);
-    setTimeout(() => useBacktestStore.getState().runScan(), 0);
-  }, [isBusy, setScanOnly]);
 
   return (
     <div className="flex flex-col min-h-0 h-full text-foreground text-xs">
@@ -131,6 +128,18 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
                 clearCurrent();
                 const dir = scanDirection === 'long' || scanDirection === 'short' ? scanDirection : 'long';
                 setScanDirection(dir);
+
+                // 如果當前走圖是市場指數（^TWII / 000001.SS），自動切到新市場的指數
+                // 個股 ticker 不動，避免使用者切市場意外失去當前看的股
+                const currentTicker = useReplayStore.getState().currentStock?.ticker;
+                const INDEX_TICKERS = new Set(['^TWII', '000001.SS', '000300.SS']);
+                if (currentTicker && INDEX_TICKERS.has(currentTicker)) {
+                  const newIndex = m === 'TW' ? '^TWII' : '000001.SS';
+                  if (currentTicker !== newIndex) {
+                    useReplayStore.getState().loadStock(newIndex, '1d', '2y').catch(() => {});
+                  }
+                }
+
                 await fetchCronDates(m, dir);
                 const mDates = useBacktestStore.getState().cronDates.filter(c => c.market === m);
                 if (mDates.length > 0) {
@@ -262,19 +271,16 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
           );
         })()}
 
-        {/* Row 2: 掃描按鈕（日期 picker 拿掉，改用上方 22 天日期導航）*/}
-        <div className="flex items-center gap-1.5">
-          <button onClick={handleScan} disabled={isBusy || !scanDate}
-            className="flex-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-foreground text-[11px] font-semibold rounded whitespace-nowrap">
-            {isScanning ? `掃描中 ${Math.round(scanProgress)}%` : `掃描 ${scanDate ?? ''}`}
-          </button>
-          {isBusy && (
+        {/* 進度提示（cron 已自動跑掃描 + 22 天日期列已可切歷史，原手動掃描按鈕拿掉）*/}
+        {isBusy && (
+          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            <span>{isScanning ? `掃描中 ${Math.round(scanProgress)}%` : '載入中…'}</span>
             <button onClick={cancelScan}
-              className="shrink-0 px-1.5 py-1 bg-red-700 hover:bg-red-600 text-foreground text-[10px] rounded">
-              ✕
+              className="ml-auto shrink-0 px-1.5 py-0.5 bg-red-700 hover:bg-red-600 text-foreground text-[10px] rounded">
+              取消
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
       </div>
 
