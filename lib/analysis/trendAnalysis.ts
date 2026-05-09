@@ -737,9 +737,10 @@ export function evaluateSixConditions(
   const kdPass   = kRising && (kdCross || kdBull);
 
   const indicatorPass = macdBull || kdPass;
+  // OSC 精度跟走圖副圖統一（2 位小數）— 跟 KD 精度一致
   const macdLabel = macdBull
-    ? `✅ MACD 轉強(OSC ${oscP?.toFixed(3) ?? '—'}→${osc?.toFixed(3) ?? '—'})`
-    : `⚠️ MACD 未轉強(OSC=${osc?.toFixed(3) ?? '—'})`;
+    ? `✅ MACD 轉強(OSC ${oscP?.toFixed(2) ?? '—'}→${osc?.toFixed(2) ?? '—'})`
+    : `⚠️ MACD 未轉強(OSC=${osc?.toFixed(2) ?? '—'})`;
   // KD 顯示精度跟走圖副圖統一（2 位小數）— 不要用 toFixed(0) 整數，否則 84.58 →
   // 顯示為「85」會跟走圖副圖「84.58」對不上看起來像 bug
   const indicatorDetail = [
