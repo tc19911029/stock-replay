@@ -124,58 +124,102 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
 
         </div>
 
-        {/* Row 1.5: 14 個策略選擇（只在做多時顯示） */}
-        {scanDirection === 'long' && (
-          <div className="flex items-center gap-1 flex-wrap">
-            {(['A', 'B', 'C', 'D', 'E', 'F', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'] as const).map(method => {
-              // 各策略中文名稱 + 守的均線（hover tooltip 用）
-              const META: Record<string, { name: string; track: string; ma: string }> = {
-                A: { name: '六條件', track: '預選池', ma: '—' },
-                B: { name: '回後買上漲', track: '多頭軌', ma: 'MA5' },
-                C: { name: '盤整突破', track: '多頭軌', ma: 'MA10' },
-                D: { name: '一字底', track: '轉折軌', ma: 'MA20' },
-                E: { name: '缺口', track: '多頭軌', ma: 'MA10' },
-                F: { name: 'V 型反轉', track: '轉折軌', ma: 'MA3' },
-                J: { name: 'ABC 突破', track: '多頭軌', ma: 'MA20' },
-                K: { name: 'K 線橫盤', track: '多頭軌', ma: 'MA10' },
-                L: { name: '過大量黑 K', track: '多頭軌', ma: 'MA10' },
-                M: { name: '突破軌道線', track: '多頭軌', ma: 'MA10' },
-                N: { name: '型態確認', track: '轉折軌', ma: 'MA10' },
-                O: { name: '打底完成', track: '轉折軌', ma: 'MA20' },
-                P: { name: '高檔拉回', track: '多頭軌', ma: 'MA5' },
-                Q: { name: '三條均線戰法', track: '戰法軌', ma: 'MA10' },
-              };
-              const m = META[method];
-              // 各軌道用顏色區分（圖例改成 hover tooltip 顯示，不再單獨一行）
-              const trackColor = (() => {
-                if (method === 'A') return 'bg-amber-700/70 border-amber-600 text-amber-100';
-                if (['B', 'P', 'C', 'E', 'J', 'K', 'L', 'M'].includes(method)) {
-                  return 'bg-red-700/70 border-red-600 text-red-100'; // 多頭軌
-                }
-                if (['D', 'F', 'N', 'O'].includes(method)) {
-                  return 'bg-blue-700/70 border-blue-600 text-blue-100'; // 轉折軌
-                }
-                return 'bg-purple-700/70 border-purple-600 text-purple-100'; // Q 戰法軌
-              })();
-              const tooltip = method === 'A'
-                ? `A · ${m.name} · ${m.track}（基礎篩選池）`
-                : `${method} · ${m.name} · ${m.track} · 守 ${m.ma}`;
-              return (
-                <button key={method}
-                  onClick={() => setActiveBuyMethod(method)}
-                  disabled={isLoadingBuyMethod}
-                  className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-colors disabled:opacity-50 ${
-                    activeBuyMethod === method
-                      ? trackColor
-                      : 'bg-secondary border-border text-muted-foreground hover:bg-muted'
-                  }`}
-                  title={tooltip}>
-                  {m.name}
-                </button>
-              );
-            })}
-          </div>
-        )}
+        {/* 4 區塊策略選擇（書本五步法分層）— 只在做多時顯示
+            ┌─ Step 1 池子 ─ A
+            ├─ Step 2 多頭進場 ─ B/C/E/J/K/L/M/P（從 Step 1 挑）
+            ├─ 反轉訊號 ─ D/F/N/O（不過 Step 1）
+            └─ 戰法軌 ─ Q（自含 SOP，套戒律）
+        */}
+        {scanDirection === 'long' && (() => {
+          const META: Record<string, { name: string; track: string; ma: string }> = {
+            A: { name: '六條件', track: '預選池', ma: '—' },
+            B: { name: '回後買上漲', track: '多頭軌', ma: 'MA5' },
+            C: { name: '盤整突破', track: '多頭軌', ma: 'MA10' },
+            D: { name: '一字底', track: '轉折軌', ma: 'MA20' },
+            E: { name: '缺口', track: '多頭軌', ma: 'MA10' },
+            F: { name: 'V 型反轉', track: '轉折軌', ma: 'MA3' },
+            J: { name: 'ABC 突破', track: '多頭軌', ma: 'MA20' },
+            K: { name: 'K 線橫盤', track: '多頭軌', ma: 'MA10' },
+            L: { name: '過大量黑 K', track: '多頭軌', ma: 'MA10' },
+            M: { name: '突破軌道線', track: '多頭軌', ma: 'MA10' },
+            N: { name: '型態確認', track: '轉折軌', ma: 'MA10' },
+            O: { name: '打底完成', track: '轉折軌', ma: 'MA20' },
+            P: { name: '高檔拉回', track: '多頭軌', ma: 'MA5' },
+            Q: { name: '三條均線戰法', track: '戰法軌', ma: 'MA10' },
+          };
+          type M = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q';
+          const renderBtn = (method: M, color: string) => {
+            const m = META[method];
+            const tooltip = method === 'A'
+              ? `A · ${m.name}（基礎篩選池：六條件 + 戒律 + 淘汰法）`
+              : `${method} · ${m.name} · ${m.track} · 守 ${m.ma}`;
+            return (
+              <button key={method}
+                onClick={() => setActiveBuyMethod(method)}
+                disabled={isLoadingBuyMethod}
+                className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-colors disabled:opacity-50 ${
+                  activeBuyMethod === method
+                    ? color
+                    : 'bg-secondary border-border text-muted-foreground hover:bg-muted'
+                }`}
+                title={tooltip}>
+                {m.name}
+              </button>
+            );
+          };
+
+          return (
+            <div className="space-y-1.5">
+              {/* Step 1：選股池 */}
+              <div className="space-y-0.5">
+                <div className="text-[9px] text-muted-foreground/70 px-0.5">
+                  <span className="font-bold text-amber-300/80">Step 1 選股池</span>
+                  <span className="ml-1.5">過六條件 + 戒律 + 淘汰法的合格股票</span>
+                </div>
+                <div className="flex items-center gap-1 flex-wrap">
+                  {renderBtn('A', 'bg-amber-700/70 border-amber-600 text-amber-100')}
+                </div>
+              </div>
+
+              {/* Step 2：多頭進場（從 Step 1 池子挑）*/}
+              <div className="space-y-0.5">
+                <div className="text-[9px] text-muted-foreground/70 px-0.5">
+                  <span className="font-bold text-red-300/80">Step 2 多頭進場</span>
+                  <span className="ml-1.5">從 Step 1 池子挑進場時機 · 書本 8 種多頭位置</span>
+                </div>
+                <div className="flex items-center gap-1 flex-wrap">
+                  {(['B', 'C', 'E', 'J', 'K', 'L', 'M', 'P'] as const).map(m =>
+                    renderBtn(m, 'bg-red-700/70 border-red-600 text-red-100'),
+                  )}
+                </div>
+              </div>
+
+              {/* 反轉訊號（不過 Step 1，全市場掃）*/}
+              <div className="space-y-0.5">
+                <div className="text-[9px] text-muted-foreground/70 px-0.5">
+                  <span className="font-bold text-blue-300/80">反轉訊號</span>
+                  <span className="ml-1.5">全市場抓底 / 反轉 · 不過六條件（過了就抓不到底）</span>
+                </div>
+                <div className="flex items-center gap-1 flex-wrap">
+                  {(['D', 'F', 'N', 'O'] as const).map(m =>
+                    renderBtn(m, 'bg-blue-700/70 border-blue-600 text-blue-100'),
+                  )}
+                </div>
+              </div>
+
+              {/* 戰法軌（朱老師三均線）*/}
+              <div className="space-y-0.5">
+                <div className="text-[9px] text-muted-foreground/70 px-0.5">
+                  <span className="font-bold text-purple-300/80">朱老師戰法</span>
+                  <span className="ml-1.5">三條均線戰法（書本《抓住線圖》p.262）· 自含 SOP + 過戒律</span>
+                </div>
+                <div className="flex items-center gap-1 flex-wrap">
+                  {renderBtn('Q', 'bg-purple-700/70 border-purple-600 text-purple-100')}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Row 2: Date + Scan button */}
         <div className="flex items-center gap-1.5">
