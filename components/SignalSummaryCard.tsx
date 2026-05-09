@@ -29,7 +29,7 @@ import { getOperationMA } from '@/lib/sell/v12Operation';
 import { getTickSize } from '@/lib/utils/tickSize';
 import { marketFromSymbol, formatSharesAsLots } from '@/lib/utils/shareUnits';
 import { detectLetterM } from '@/lib/analysis/v12LetterM';
-import { detectLetterN } from '@/lib/analysis/v12LetterN';
+import { detectLetterN, detectTopPatterns, type TopPatternType } from '@/lib/analysis/v12LetterN';
 import { detectLetterO } from '@/lib/analysis/v12LetterO';
 import { detectLetterP } from '@/lib/analysis/v12LetterP';
 import { detectLetterQ } from '@/lib/analysis/v12LetterQ';
@@ -60,21 +60,29 @@ const SIGNAL_EXPLAIN: Record<string, string> = {
   'MACD金叉':'中期動能由空轉多',
 };
 
-const V12_TRACK_NAMES: Record<V12Letter, string> = {
+/** 進場類字母（只有這 5 個會在訊號卡顯示，避免和持倉 letter 混淆）*/
+type EntryLetter = 'M' | 'N' | 'O' | 'P' | 'Q';
+
+const V12_TRACK_NAMES: Record<EntryLetter, string> = {
   M: '多頭軌·軌道線突破',
   N: '轉折軌·型態確認',
   O: '轉折軌·打底完成',
   P: '多頭軌·高檔拉回',
   Q: '戰法軌·三均線',
-  // 其他字母不在此卡顯示（只用 M/N/O/P/Q 5 個進場字母）
-} as Partial<Record<V12Letter, string>> as Record<V12Letter, string>;
+};
 
-const V12_TRACK_BADGE: Record<string, string> = {
+const V12_TRACK_BADGE: Record<EntryLetter, string> = {
   M: 'bg-red-700/70 text-red-100',
   N: 'bg-blue-700/70 text-blue-100',
   O: 'bg-blue-700/70 text-blue-100',
   P: 'bg-red-700/70 text-red-100',
   Q: 'bg-purple-700/70 text-purple-100',
+};
+
+const TOP_PATTERN_LABEL: Record<TopPatternType, string> = {
+  'head-shoulder-top': '頭肩頂',
+  'triple-top': '三重頂',
+  'double-top': '雙重頂',
 };
 
 const PATTERN_LABEL: Record<string, string> = {
@@ -169,13 +177,22 @@ function getVerdict(
 // ── V12 字母動態偵測 ──────────────────────────────────────────────────────────
 
 interface V12Hit {
-  letter: V12Letter;
+  letter: EntryLetter;
   trackName: string;
   detail: string;
   patternType?: string;
   patternTargetPrice?: number;
   achievementRate?: number;
   necklinePrice?: number;
+}
+
+/** 頂部型態命中（出場警示用，僅持股中時顯示）*/
+interface TopPatternHit {
+  patternType: TopPatternType;
+  detail: string;
+  necklinePrice?: number;
+  patternTargetPrice?: number;
+  achievementRate?: number;
 }
 
 // ── 主元件 ──────────────────────────────────────────────────────────────────
@@ -191,8 +208,9 @@ export default function SignalSummaryCard() {
   const ticker = currentStock?.ticker ?? '';
   const market = marketFromSymbol(ticker);
 
-  // V12 字母偵測（M/N/O/P/Q）
+  // V12 字母偵測（M/N/O/P/Q）+ 頂部型態（持股中才顯示）
   const [v12Hits, setV12Hits] = useState<V12Hit[]>([]);
+  const [topPatternHit, setTopPatternHit] = useState<TopPatternHit | null>(null);
   const candleCount = allCandles.length;
   const v12Market: 'TW' | 'CN' = useMemo(
     () => /\.(SS|SZ)$/i.test(ticker) ? 'CN' : 'TW',
@@ -203,37 +221,44 @@ export default function SignalSummaryCard() {
     let cancelled = false;
     if (!ticker || candleCount < 30 || currentIndex < 25) {
       setV12Hits([]);
+      setTopPatternHit(null);
       return;
     }
-    (async () => {
-      try {
-        const m = detectLetterM(allCandles, currentIndex, v12Market, ticker);
-        const n = detectLetterN(allCandles, currentIndex, v12Market, ticker);
-        const o = detectLetterO(allCandles, currentIndex, v12Market, ticker);
-        const p = detectLetterP(allCandles, currentIndex, v12Market, ticker);
-        const q = detectLetterQ(allCandles, currentIndex, v12Market, ticker);
-        if (cancelled) return;
-        const hits: V12Hit[] = [];
-        if (m.triggered) hits.push({ letter: 'M', trackName: V12_TRACK_NAMES.M, detail: m.detail });
-        if (n.triggered && n.patternType) {
-          hits.push({
-            letter: 'N',
-            trackName: V12_TRACK_NAMES.N,
-            detail: n.detail,
-            patternType: n.patternType,
-            patternTargetPrice: n.patternTargetPrice,
-            achievementRate: n.achievementRate ? n.achievementRate / 100 : undefined,
-            necklinePrice: n.necklinePrice,
-          });
-        }
-        if (o.triggered) hits.push({ letter: 'O', trackName: V12_TRACK_NAMES.O, detail: o.detail });
-        if (p.triggered) hits.push({ letter: 'P', trackName: V12_TRACK_NAMES.P, detail: p.detail });
-        if (q.triggered) hits.push({ letter: 'Q', trackName: V12_TRACK_NAMES.Q, detail: q.detail });
-        setV12Hits(hits);
-      } catch (err) {
-        console.error('[SignalSummaryCard] v12 detect error', err);
+    try {
+      const m = detectLetterM(allCandles, currentIndex, v12Market, ticker);
+      const n = detectLetterN(allCandles, currentIndex, v12Market, ticker);
+      const o = detectLetterO(allCandles, currentIndex, v12Market, ticker);
+      const p = detectLetterP(allCandles, currentIndex, v12Market, ticker);
+      const q = detectLetterQ(allCandles, currentIndex, v12Market, ticker);
+      const top = detectTopPatterns(allCandles, currentIndex);
+      if (cancelled) return;
+      const hits: V12Hit[] = [];
+      if (m.triggered) hits.push({ letter: 'M', trackName: V12_TRACK_NAMES.M, detail: m.detail });
+      if (n.triggered && n.patternType) {
+        hits.push({
+          letter: 'N',
+          trackName: V12_TRACK_NAMES.N,
+          detail: n.detail,
+          patternType: n.patternType,
+          patternTargetPrice: n.patternTargetPrice,
+          achievementRate: n.achievementRate ? n.achievementRate / 100 : undefined,
+          necklinePrice: n.necklinePrice,
+        });
       }
-    })();
+      if (o.triggered) hits.push({ letter: 'O', trackName: V12_TRACK_NAMES.O, detail: o.detail });
+      if (p.triggered) hits.push({ letter: 'P', trackName: V12_TRACK_NAMES.P, detail: p.detail });
+      if (q.triggered) hits.push({ letter: 'Q', trackName: V12_TRACK_NAMES.Q, detail: q.detail });
+      setV12Hits(hits);
+      setTopPatternHit(top.triggered && top.patternType ? {
+        patternType: top.patternType,
+        detail: top.detail,
+        necklinePrice: top.necklinePrice,
+        patternTargetPrice: top.patternTargetPrice,
+        achievementRate: top.achievementRate ? top.achievementRate / 100 : undefined,
+      } : null);
+    } catch (err) {
+      console.error('[SignalSummaryCard] v12 detect error', err);
+    }
     return () => { cancelled = true; };
   }, [ticker, v12Market, allCandles, currentIndex, candleCount]);
 
@@ -270,8 +295,8 @@ export default function SignalSummaryCard() {
   const profitTarget = entryPrice * 1.10;
   const ptPct = ((profitTarget - candle.close) / candle.close) * 100;
 
-  // 主訊號字母（V12 命中優先順序 Q > N > M > P > O；無 V12 則用持倉訊號）
-  const PRIORITY: V12Letter[] = ['Q', 'N', 'M', 'P', 'O'];
+  // 主訊號字母（V12 進場字母優先順序 Q > N > M > P > O；無命中時用持倉觸發字母）
+  const PRIORITY: EntryLetter[] = ['Q', 'N', 'M', 'P', 'O'];
   const primaryV12 = PRIORITY.map(l => v12Hits.find(h => h.letter === l)).find(Boolean);
   const primaryLetter: V12Letter = primaryV12?.letter
     ?? (heldPosition?.triggerSignal as V12Letter | undefined)
@@ -373,6 +398,7 @@ export default function SignalSummaryCard() {
           {/* ── 4. 為什麼？分組 ───────────────────────────── */}
           <Reasons
             v12Hits={v12Hits}
+            topPatternHit={hasPosition ? topPatternHit : null}
             entrySigs={entrySigs}
             exitSigs={exitSigs}
             warnSigs={warnSigs}
@@ -393,17 +419,18 @@ export default function SignalSummaryCard() {
 // ── 子元件：為什麼？分組 ──────────────────────────────────────────────────
 
 function Reasons({
-  v12Hits, entrySigs, exitSigs, warnSigs, prohibitions, todayClose,
+  v12Hits, topPatternHit, entrySigs, exitSigs, warnSigs, prohibitions, todayClose,
 }: {
   v12Hits: V12Hit[];
+  topPatternHit: TopPatternHit | null;
   entrySigs: RuleSignal[];
   exitSigs: RuleSignal[];
   warnSigs: RuleSignal[];
   prohibitions: string[];
   todayClose: number;
 }) {
-  const empty = v12Hits.length === 0 && entrySigs.length === 0 && exitSigs.length === 0
-    && warnSigs.length === 0 && prohibitions.length === 0;
+  const empty = v12Hits.length === 0 && !topPatternHit && entrySigs.length === 0
+    && exitSigs.length === 0 && warnSigs.length === 0 && prohibitions.length === 0;
 
   if (empty) {
     return (
@@ -464,6 +491,28 @@ function Reasons({
           bgColor="bg-emerald-900/15"
           signals={exitSigs.slice(0, 4)}
         />
+      )}
+
+      {/* 頂部型態警示（持股中才顯示）— 書本：見頂部型態 + 跌破頸線 → 出場 */}
+      {topPatternHit && (
+        <div className="rounded border border-emerald-700/40 bg-emerald-900/15 px-2 py-1.5">
+          <p className="text-[10px] font-bold text-emerald-300 mb-0.5">頂部型態警示 — 書本：跌破頸線立即出場</p>
+          <div className="flex items-center gap-1.5 text-[10px] flex-wrap">
+            <span className="text-emerald-300 font-bold">{TOP_PATTERN_LABEL[topPatternHit.patternType]}</span>
+            {topPatternHit.achievementRate != null && (
+              <span className="text-amber-300">{(topPatternHit.achievementRate * 100).toFixed(0)}%</span>
+            )}
+            {topPatternHit.necklinePrice != null && (
+              <span className="text-muted-foreground">頸線 {topPatternHit.necklinePrice.toFixed(2)}</span>
+            )}
+            {topPatternHit.patternTargetPrice != null && (
+              <span className="text-rose-300">
+                ↓ {topPatternHit.patternTargetPrice.toFixed(2)}（{((topPatternHit.patternTargetPrice - todayClose) / todayClose * 100).toFixed(1)}%）
+              </span>
+            )}
+          </div>
+          <p className="text-[10px] text-muted-foreground/80 leading-snug mt-0.5">{topPatternHit.detail}</p>
+        </div>
       )}
 
       {/* 戒律觸發（黃框警示，書本：禁止進場） */}

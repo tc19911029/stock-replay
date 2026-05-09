@@ -145,7 +145,7 @@ interface ChartCoachAdviceProps {
   defaultCollapsed?: boolean;
 }
 
-export default function ChartCoachAdvice({ defaultCollapsed = false }: ChartCoachAdviceProps = {}) {
+export default function ChartCoachAdvice({ defaultCollapsed = false }: ChartCoachAdviceProps) {
   const {
     currentSignals, allCandles, currentIndex, currentStock,
     trendState, trendPosition, sixConditions, longProhibitions, winnerPatterns,

@@ -580,9 +580,10 @@ function detectNShape(
   // 收盤要過 A 高（×3% 真突破由 makeResult 統一檢查；這裡先確保結構）
   if (candles[idx].close <= a.price) return null;
 
-  // B 不破前低：找 A 之前的低，B 必須高於它（不創新低 = 結構穩）
-  const prevLow = lows[1];  // 找下一個低
-  if (prevLow && b.price <= prevLow.price) return null;
+  // B 不破前低：必須有更早的低點作為比較基準，且 B 嚴格高於它
+  // 若無更早 pivot，無從判斷「不破底」結構是否成立 → reject（避免 vacuous pass）
+  const prevLow = lows[1];
+  if (!prevLow || b.price <= prevLow.price) return null;
 
   // 目標價 = 收盤突破點 + (A 高 - B 低)
   const nHeight = a.price - b.price;
