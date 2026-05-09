@@ -12,8 +12,8 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 import { loadLocalCandlesWithTolerance } from '@/lib/datasource/LocalCandleStore';
-import { detectTrend } from '@/lib/analysis/trendAnalysis';
-import { calcKLineStopLoss, updateStopLossDaily, checkAbsoluteStopLoss } from '@/lib/sell/v12StopLoss';
+import { detectTrend, findPivots } from '@/lib/analysis/trendAnalysis';
+import { calcKLineStopLoss, updateStopLossDaily, checkAbsoluteStopLoss, SIGNAL_TO_TRAILING_MA, SIGNAL_TO_FIXED_STOP_PCT } from '@/lib/sell/v12StopLoss';
 import { checkKLineExit, checkMAExit, getOperationMA, canUpgradeToLongTerm } from '@/lib/sell/v12Operation';
 import { checkTakeProfitTargets, detectKBarExitSignal } from '@/lib/sell/v12TakeProfit';
 import { getTickSize } from '@/lib/utils/tickSize';
@@ -28,7 +28,7 @@ const querySchema = z.object({
   entryPrice: z.coerce.number().positive(),
   buyDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   triggerSignal: z.enum(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q']).optional(),
-  operationMode: z.enum(['short', 'long', 'wave']).default('short'),
+  operationMode: z.enum(['short', 'long', 'super-long', 'wave']).default('short'),
   patternTargetPrice: z.coerce.number().optional(),
   // v12 議題 13 / S3-3 末升段 trailing
   endPhaseTriggered: z.coerce.boolean().optional(),
@@ -124,6 +124,7 @@ export async function GET(req: NextRequest) {
     else if (operatingMA === 'MA5') maValue = today_c.ma5 ?? null;
     else if (operatingMA === 'MA10') maValue = today_c.ma10 ?? null;
     else if (operatingMA === 'MA20') maValue = today_c.ma20 ?? null;
+    else if (operatingMA === 'MA60') maValue = today_c.ma60 ?? null;
 
     const klineExit = checkKLineExit(today_c, yesterday_c, trendState);
     const maExit = maValue != null
@@ -132,12 +133,16 @@ export async function GET(req: NextRequest) {
     const upgradeCheck = canUpgradeToLongTerm(today_c.close, entryPrice, operationMode);
 
     // ── Step 5 停利 ──
+    // 找最近 confirmed pivot high 給「到達壓力」判定（書本 5 步驟步驟 5 第 4 章 #1）
+    const recentPivots = findPivots(candles, lastIdx, 8, false);
+    const recentPivotHigh = recentPivots.find(p => p.type === 'high')?.price;
     const takeProfit = checkTakeProfitTargets({
       letter,
       entryPrice,
       todayClose: today_c.close,
       todayMA20: today_c.ma20 ?? null,
       patternTargetPrice,
+      recentPivotHigh,
     });
     const kbarSignal = yesterday_c
       ? detectKBarExitSignal({
@@ -171,6 +176,10 @@ export async function GET(req: NextRequest) {
         klineStop: +klineStop.toFixed(2),
         trailingActivated: slResult.trailingActivated,
         slDistancePct: +((today_c.close - stopLossPrice) / today_c.close * 100).toFixed(2),
+        // 字母對應的 trailing MA（用戶 UI 顯示用，2026-05-09 新增）
+        trailingMA: SIGNAL_TO_TRAILING_MA[letter],
+        // 字母對應的固定停損 % 上限（5% / 7% / 10%）
+        fixedPct: SIGNAL_TO_FIXED_STOP_PCT[letter],
         // ⑥ 5 條絕對停損 — 觸發即強制出場
         absoluteStopLoss: {
           triggered: absoluteSL.triggered,

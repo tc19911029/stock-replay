@@ -278,6 +278,179 @@ export function detectFalseBreakRebound(
 }
 
 /**
+ * 回後買上漲完整 detector — B 買法 + ③ 高勝率位置 2 共用
+ *
+ * 書本依據：寶典 p.37 多頭趨勢進場 2 大口訣 ①
+ *   「上漲一波後回檔不破前低 + 帶量中長紅 K + 收盤突破 MA5 + 突破前一日最高」
+ *
+ * 7 條 gate（全部必滿足，2026-05-09 補回書本明寫的「不破前低」+ 統一 detector）：
+ *   1. 多頭趨勢（detectTrend === '多頭'）
+ *   2. 昨日 close < MA5（昨日仍在 MA5 之下，回檔中）
+ *   3. 今日 close > MA5（今日剛站回 MA5，止跌反攻）
+ *   4. 不破前低：今日 low ≥ findPivots confirmed lows[0].price
+ *   5. 紅 K 實體 ≥ 2%（寶典 SOP p.55 ⑤）
+ *   6. 量 ≥ 前日 × 1.3（寶典 p.488 攻擊量）
+ *   7. 收盤 > 前一日 high（突破前一日最高）
+ */
+export interface PullbackBuyResult {
+  prevSwingLow: number;     // 前低（停損參考）
+  pullbackDays: number;     // 回檔天數（info）
+  bodyPct: number;          // 紅 K 實體 %
+  volumeRatio: number;      // 量比
+  breakoutPrice: number;    // 前一日 high（被突破）
+}
+
+export function detectPullbackBuy(
+  candles: CandleWithIndicators[],
+  index: number,
+): PullbackBuyResult | null {
+  if (index < 21) return null;
+
+  const c = candles[index];
+  const prev = candles[index - 1];
+  if (!c || !prev) return null;
+  if (c.ma5 == null || prev.ma5 == null) return null;
+  if (prev.volume <= 0 || c.open <= 0) return null;
+
+  // 1. 多頭趨勢
+  if (detectTrend(candles, index) !== '多頭') return null;
+
+  // 2. 昨日 close < MA5
+  if (prev.close >= prev.ma5) return null;
+
+  // 3. 今日 close > MA5
+  if (c.close <= c.ma5) return null;
+
+  // 4. 不破前低（書本 p.37 原文，2026-05-09 補實作）
+  const pivots = findPivots(candles, index, 8, false); // confirmed only
+  const lastLow = pivots.find(p => p.type === 'low');
+  if (!lastLow) return null;                   // 沒確認底，無法判定「不破前低」
+  if (c.low < lastLow.price) return null;
+
+  // 5. 紅 K + 實體 ≥ 2%
+  if (c.close <= c.open) return null;
+  const bodyPct = ((c.close - c.open) / c.open) * 100;
+  if (bodyPct < 2.0) return null;
+
+  // 6. 量 ≥ 前日 × 1.3
+  const volumeRatio = c.volume / prev.volume;
+  if (volumeRatio < 1.3) return null;
+
+  // 7. 收盤 > 前一日 high
+  if (c.close <= prev.high) return null;
+
+  // 回檔天數（info only）
+  let pullbackDays = 0;
+  for (let i = index - 1; i >= Math.max(0, index - 20); i--) {
+    const bar = candles[i];
+    if (bar.ma5 == null || bar.close >= bar.ma5) break;
+    pullbackDays++;
+  }
+
+  return {
+    prevSwingLow: lastLow.price,
+    pullbackDays,
+    bodyPct,
+    volumeRatio,
+    breakoutPrice: prev.high,
+  };
+}
+
+/**
+ * 盤整突破完整 detector — C 買法 + ③ 高勝率位置 3 共用
+ *
+ * 書本依據：寶典 p.37 多頭趨勢進場 2 大口訣 ② + Part 4 p.299「狹幅盤整 5-6 天」+ Part 7 p.488 攻擊量
+ *
+ * 11 條 gate（2026-05-09 統一 detector，C 買法獲得 6 天 / tightness / 首次突破等防護）：
+ *   1. 至少 2 頭 + 2 底 confirmed pivots
+ *   2. 最舊 pivot 到今日 ≥ 6 天
+ *   3. 不能是頭頭高+底底高（= 多頭，不是盤整）
+ *   4. 上頸線不大幅上揚（新高 ≤ 舊高 × 1.05）
+ *   5. 上下頸線線性插值（容許斜頸線）
+ *   6. tightness ≤ 15%
+ *   7. 上頸線 > 下頸線（防幾何崩潰）
+ *   8. 昨收 < 上頸線（首次突破）
+ *   9. 今日紅 K + 實體 ≥ 2%
+ *   10. 量 ≥ 前日 × 1.3
+ *   11. 收盤 > 上頸線
+ */
+export interface RangeBreakoutResult {
+  upperNecklineToday: number;  // 突破價（上頸線）
+  lowerNecklineToday: number;  // 停損參考（下頸線）
+  preEntryDays: number;        // 盤整持續天數
+  bodyPct: number;             // 紅 K 實體 %
+  volumeRatio: number;         // 量比
+}
+
+export function detectRangeBreakout(
+  candles: CandleWithIndicators[],
+  index: number,
+): RangeBreakoutResult | null {
+  if (index < 21) return null;
+
+  const c = candles[index];
+  const prev = candles[index - 1];
+  if (!c || !prev) return null;
+  if (c.open <= 0 || prev.volume <= 0) return null;
+
+  const pivots = findPivots(candles, index, 10);
+  const highs = pivots.filter(p => p.type === 'high').slice(0, 2);
+  const lows  = pivots.filter(p => p.type === 'low').slice(0, 2);
+  if (highs.length < 2 || lows.length < 2) return null;
+
+  const oldestPivotIdx = Math.min(highs[1].index, lows[1].index);
+  const preEntryDays = index - oldestPivotIdx;
+  if (preEntryDays < 6) return null;
+
+  // 不能同時是頭頭高+底底高（= 多頭）
+  const isUptrend = highs[0].price > highs[1].price && lows[0].price > lows[1].price;
+  if (isUptrend) return null;
+
+  // 上頸線不大幅上揚
+  if (highs[0].price > highs[1].price * 1.05) return null;
+
+  // 頸線線性插值
+  const upperAt = (i: number): number => {
+    const [hNew, hOld] = [highs[0], highs[1]];
+    if (hNew.index === hOld.index) return hOld.price;
+    return hOld.price + (hNew.price - hOld.price) * (i - hOld.index) / (hNew.index - hOld.index);
+  };
+  const lowerAt = (i: number): number => {
+    const [lNew, lOld] = [lows[0], lows[1]];
+    if (lNew.index === lOld.index) return lOld.price;
+    return lOld.price + (lNew.price - lOld.price) * (i - lOld.index) / (lNew.index - lOld.index);
+  };
+
+  const upperToday = upperAt(index);
+  const lowerToday = lowerAt(index);
+  if (lowerToday <= 0) return null;
+  if (upperToday <= lowerToday) return null;
+
+  const tightness = (upperToday - lowerToday) / lowerToday;
+  if (tightness > 0.15) return null;
+
+  // 首次突破：昨收 < 上頸線
+  const upperYesterday = upperAt(index - 1);
+  if (prev.close > upperYesterday) return null;
+
+  // 紅 K + 實體 ≥ 2% + 量 ≥ 1.3x + 收盤 > 上頸線
+  if (c.close <= c.open) return null;
+  const bodyPct = (c.close - c.open) / c.open;
+  if (bodyPct < 0.02) return null;
+  const volumeRatio = c.volume / prev.volume;
+  if (volumeRatio < 1.3) return null;
+  if (c.close <= upperToday) return null;
+
+  return {
+    upperNecklineToday: upperToday,
+    lowerNecklineToday: lowerToday,
+    preEntryDays,
+    bodyPct: bodyPct * 100,
+    volumeRatio,
+  };
+}
+
+/**
  * 高勝率 6 位置總判定（p.749-754）
  * 位置 2-3（pulledBackBuy, rangeBreakout）在 evaluateSixConditions 已算，
  * 本函式負責判 1, 4, 5, 6 四個位置。

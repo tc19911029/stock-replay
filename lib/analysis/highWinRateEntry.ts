@@ -137,8 +137,9 @@ export function detectStrategyE(
     if (minC <= 0) break;
     const spread = (maxC - minC) / minC;
 
-    // 窄幅閾值 8%：朱家泓書+網路均無具體值（只寫「狹幅、很小」），8% 為實作自選
-    if (spread >= 0.08) break;
+    // 窄幅閾值 15%：朱家泓書+網路均無具體值（只寫「狹幅、很小」），
+    // 2026-05-09 從 8% 放寬到 15%，跟條件 ③ rangeBreakout tightness 統一數字
+    if (spread >= 0.15) break;
     consolStart = i;
   }
 

@@ -1,6 +1,6 @@
 import { CandleWithIndicators } from '@/types';
 import type { StrategyThresholds } from '@/lib/strategy/StrategyConfig';
-import { detectExtraHighWinPositions } from './highWinPositions';
+import { detectExtraHighWinPositions, detectPullbackBuy, detectRangeBreakout } from './highWinPositions';
 import { detectVolumePriceDivergence, detectHighPeakVolume, detectChokingVolume } from './volumePatterns';
 import { detectMacdOsc7, isKdHighSaturated, detectKdPeakDivergence } from './indicatorPatterns';
 import { detectBollingerSignals } from './bollingerPatterns';
@@ -463,71 +463,14 @@ export function evaluateSixConditions(
     && c.close > c.ma10 && c.close > c.ma20;
 
   // Scenario A：回後買上漲（p.37 ①）— 資訊 tag
-  // 書本嚴格版（用戶 2026-04-21 最終確認）：
-  //   前置：當前必須是多頭趨勢（盤整/空頭下的 MA5 跨越只是雜訊，不是「回後」）
-  //   條件：昨日收盤 < MA5，今日收盤站回 MA5
-  //   「回後」= 時序緊鄰多頭回檔，不是「任何價位跨 MA5」
-  const pulledBackBuy = (() => {
-    if (trendState !== '多頭') return false;                     // 多頭前置
-    if (!c.ma5 || c.close < c.ma5) return false;                 // 今日收盤站 MA5
-    if (!prev || prev.ma5 == null) return false;
-    if (prev.close >= prev.ma5) return false;                    // 昨日收盤必須 < MA5
-    return true;
-  })();
+  // 書本完整版（用戶 2026-05-09 統一 detector）：
+  //   多頭 + 跨 MA5 時序 + 不破前低 + 紅K 實體 ≥ 2% + 量 ≥ 前日 × 1.3 + 突破前一日最高
+  //   邏輯與 B 買法 detectBreakoutEntry 完全一致（reuse 同一個 detectPullbackBuy）
+  const pulledBackBuy = detectPullbackBuy(candles, index) !== null;
 
-  // Scenario B：盤整突破（p.37 ② + 圖表 12-1-7 類似盤整結構）
-  // 書本嚴格版（2026-04-21 用戶授權 C 方案 + 頸線修正）：
-  //   1. 頭底頭底結構 = 至少 2 頭 + 2 底 pivots → 上下頸線
-  //   2. 最舊 pivot 到今日 ≥ 6 天（Part 4 p.299「狹幅盤整 5-6 天」）
-  //   3. 今日上下頸線 channel tightness ≤ 15%（包含 ascending triangle / descending wedge 等斜頸線）
-  //   4. 今日紅K + 實體 ≥ 2% + 量 ≥ 1.3× 前日（Part 7 p.488 攻擊量）
-  //   5. 今日收盤突破上頸線
-  const rangeBreakout = (() => {
-    if (!prev) return false;
-    const pivots = findPivots(candles, index, 10);
-    const highs = pivots.filter(p => p.type === 'high').slice(0, 2);
-    const lows  = pivots.filter(p => p.type === 'low').slice(0, 2);
-    if (highs.length < 2 || lows.length < 2) return false;
-
-    const oldestPivotIdx = Math.min(highs[1].index, lows[1].index);
-    if (index - oldestPivotIdx < 6) return false;
-
-    // 真正的盤整：pivot 結構不能同時是頭頭高+底底高（= 多頭，不是盤整）
-    const isUptrend = highs[0].price > highs[1].price && lows[0].price > lows[1].price;
-    if (isUptrend) return false;
-
-    // 上頸線不可大幅上揚（新高 ≤ 舊高 × 1.05）
-    if (highs[0].price > highs[1].price * 1.05) return false;
-
-    // 頸線插值：線性通過 (idx_old, price_old) 與 (idx_new, price_new)
-    const upperAt = (i: number): number => {
-      const [hNew, hOld] = [highs[0], highs[1]];
-      if (hNew.index === hOld.index) return hOld.price;
-      return hOld.price + (hNew.price - hOld.price) * (i - hOld.index) / (hNew.index - hOld.index);
-    };
-    const lowerAt = (i: number): number => {
-      const [lNew, lOld] = [lows[0], lows[1]];
-      if (lNew.index === lOld.index) return lOld.price;
-      return lOld.price + (lNew.price - lOld.price) * (i - lOld.index) / (lNew.index - lOld.index);
-    };
-
-    const upperToday = upperAt(index);
-    const lowerToday = lowerAt(index);
-    if (lowerToday <= 0) return false;
-    // 防衛：下降楔形可能讓 upper 跌穿 lower，幾何崩潰時不算盤整
-    if (upperToday <= lowerToday) return false;
-    const tightness = (upperToday - lowerToday) / lowerToday;
-    if (tightness > 0.15) return false;
-
-    // 突破必須是今日首次：昨收仍在上頸線之下
-    const upperYesterday = upperAt(index - 1);
-    if (prev.close > upperYesterday) return false;
-
-    const bodyPct = c.open > 0 ? Math.abs(c.close - c.open) / c.open : 0;
-    const volRatio = prev.volume > 0 ? c.volume / prev.volume : 0;
-    const isRedK = c.close > c.open;
-    return isRedK && bodyPct >= 0.02 && volRatio >= 1.3 && c.close > upperToday;
-  })();
+  // Scenario B：盤整突破（p.37 ② + Part 4 p.299「狹幅盤整 5-6 天」+ Part 7 p.488 攻擊量）
+  // 2026-05-09 統一 detector：③ 加分 tag 跟 C 買法都呼叫 detectRangeBreakout 共用邏輯
+  const rangeBreakout = detectRangeBreakout(candles, index) !== null;
 
   // 高勝率 6 位置（書本 Part 12 p.749-754）其餘 4 種 — 加分 tag，不是 gate
   const extra = detectExtraHighWinPositions(candles, index);
@@ -538,6 +481,14 @@ export function evaluateSixConditions(
   if (extra.maClusterBreak)        highWinTags.push('🎯 均線糾結突破');
   if (extra.strongPullbackResume)  highWinTags.push('🎯 強勢短回續攻');
   if (extra.falseBreakRebound)     highWinTags.push('🎯 假跌破反彈');
+
+  // 4 線多排 — 結構強度升級 tag（書本 Part 4 p.279-280 + Part 12 p.749「升級做長多」）
+  // 觸發：MA5 > MA10 > MA20 > MA60 且 收盤 > MA60（對齊書本 p.749「突破 60 均」原文）
+  // 不擋 gate，純加分 — 給長多升級訊號用（2026-05-09 新增）
+  const ma60FullAlign = c.ma5 != null && c.ma10 != null && c.ma20 != null && c.ma60 != null
+    && c.ma5 > c.ma10 && c.ma10 > c.ma20 && c.ma20 > c.ma60
+    && c.close > c.ma60;
+  if (ma60FullAlign) highWinTags.push('🎯 4 線多排');
 
   // 書本 p.54 #3 gate：收盤在 MA10、MA20 之上；乖離 ≤ devMax（用戶設定 15%）
   const positionPass = positionAboveKeyMa && (ma20Dev === null || ma20Dev <= devMax);
@@ -601,27 +552,30 @@ export function evaluateSixConditions(
 
   // ─────────────────────────────────────────────────────────────────────────
   // ⑤ 進場K線（必要）
-  // 書上p.54：進場K線要價漲、量增、紅K實體棒＞2%
+  // 書本 p.54：進場K線要價漲、量增、紅K實體棒＞2%
+  // 抓住線圖短線 20 守則 #10：進場紅 K 上影線超過 1/2 (K 線總長) 不買進
+  //
+  // 2026-05-09 化簡為 2 條：
+  //   1. 紅 K 實體 ≥ 2%
+  //   2. 收盤位置 ≥ K 線中點（closePos ≥ 0.5）
+  //
+  // 對紅 K 而言，closePos ≥ 0.5 數學上等價於「上影 ≤ K 線總長 × 0.5」（直接對齊 p.402 原文），
+  // 移除原本「上影 ≤ 實體」的冗餘檢查（書本 K 線形態的長上影定義，但不適用「進場 K」場景）。
   // ─────────────────────────────────────────────────────────────────────────
-  const bodyAbs   = Math.abs(c.close - c.open);
-  const bodyPct   = c.open > 0 ? bodyAbs / c.open : 0;
+  const bodyPct   = c.open > 0 ? Math.abs(c.close - c.open) / c.open : 0;
   const isRedK    = c.close > c.open;
   const dayRange  = c.high - c.low;
   // 收盤在K棒上半段：(close - low)/(high - low) >= 0.5
   const closePos  = dayRange > 0 ? (c.close - c.low) / dayRange : 0.5;
-  // 書本定義：長上影線 = 上影線 > 實體（超過實體一倍以上）
-  // 上影線長度 = high - max(open, close)
-  const upperShadowLen = c.high - Math.max(c.open, c.close);
 
-  const isLongRedK        = isRedK && bodyPct >= 0.02;
-  const isHighClose       = closePos >= 0.5;                  // 收在上半段
-  const noLongUpperShadow = upperShadowLen <= bodyAbs;         // 上影不超過實體（書本定義）
+  const isLongRedK  = isRedK && bodyPct >= 0.02;
+  const isHighClose = closePos >= 0.5;
 
-  const kbarPass = isLongRedK && isHighClose && noLongUpperShadow;
+  const kbarPass = isLongRedK && isHighClose;
   const kbarType = isLongRedK
     ? kbarPass
       ? `✅ 長紅K（實體${(bodyPct*100).toFixed(1)}%，高收盤 ${(closePos*100).toFixed(0)}%）`
-      : `⚠️ 長紅但${!isHighClose ? '收盤偏低' : '長上影線'}（實體${(bodyPct*100).toFixed(1)}%）`
+      : `⚠️ 長紅但收盤偏低/上影過長（實體${(bodyPct*100).toFixed(1)}%，收盤位置${(closePos*100).toFixed(0)}%）`
     : isRedK
     ? `⚠️ 小紅K（實體${(bodyPct*100).toFixed(1)}%，未達2%）`
     : `❌ 黑K / 不符合`;

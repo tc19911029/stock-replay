@@ -45,6 +45,8 @@ interface V12SignalsResponse {
     klineStop: number;
     trailingActivated?: boolean;
     slDistancePct: number;
+    trailingMA?: 'MA3' | 'MA5' | 'MA10' | 'MA20' | null;
+    fixedPct?: number;
     absoluteStopLoss?: { triggered: boolean; reason?: string; detail?: string };
   };
   step4: {
@@ -75,6 +77,17 @@ const STAGE_TINT: Record<string, string> = {
   bad: 'bg-rose-900/40 border-rose-700/60',
   neutral: 'bg-secondary/40 border-border/50',
 };
+
+// 主停損方法 → 中文標籤（2026-05-09 Step 3 UI 完整顯示用）
+function primaryMethodLabel(method: string): string {
+  switch (method) {
+    case 'red-k-low':     return '① 紅K low';
+    case 'pivot-low':     return '② pivot low';
+    case 'support-level': return '⑤ 結構支撐';
+    case 'ma10':          return 'Q MA10';
+    default:              return method;
+  }
+}
 
 export function HoldingV12Signals({ holdingId, symbol, market, entryPrice, buyDate, triggerSignal, operationMode, enhancedDisciplineEnabled, endPhaseTriggered, recentHigh, consolidationLow, vBottom }: Props) {
   const [data, setData] = useState<V12SignalsResponse | null>(null);
@@ -177,6 +190,13 @@ export function HoldingV12Signals({ holdingId, symbol, market, entryPrice, buyDa
                     {data.step3.stopLossPrice.toFixed(2)}
                     <span className="text-[9px] opacity-70 ml-1">(-{data.step3.slDistancePct.toFixed(1)}%)</span>
                   </span>
+                </div>
+                {/* 字母對應一覽：B · ① 紅K low · trailing MA5 · 上限 5% （2026-05-09 新增）*/}
+                <div className="text-[9px] text-muted-foreground/90 mt-0.5">
+                  {data.letter}
+                  {data.step3.primaryMethod && ` · ${primaryMethodLabel(data.step3.primaryMethod)}`}
+                  {data.step3.trailingMA && ` · trailing ${data.step3.trailingMA}`}
+                  {data.step3.fixedPct != null && ` · 上限 ${(data.step3.fixedPct * 100).toFixed(0)}%`}
                 </div>
                 <div className="text-[9px] text-muted-foreground mt-0.5">
                   {data.step3.method}

@@ -282,28 +282,46 @@ export interface AbsoluteStopLossInputs {
   trendStateToday: '多頭' | '空頭' | '盤整';
   trendStateYesterday?: '多頭' | '空頭' | '盤整';
   letter: V12Letter;
-  /** C 訊號用：進場日盤整下緣 */
+  /** ⑥-1 用：進場日盤整下緣（C/D/K/N/O 共用，2026-05-09 擴展）*/
   consolidationLow?: number;
-  /** F 訊號用：V 底最低 */
+  /** ⑥-5 用：結構失效點（F = V 底；D = 一字底下頸線；O = 打底盤整下緣，2026-05-09 擴展）*/
   vBottom?: number;
 }
 
 export interface AbsoluteStopLossResult {
   triggered: boolean;
   reason?:
-    | 'broke-consolidation' // ⑥-1 跌破盤整區（C）
-    | 'trend-flipped-down'  // ⑥-2 多頭翻空頭
-    | 'loss-over-10pct'     // ⑥-4 跌幅 > 10%
-    | 'broke-v-bottom';     // ⑥-5 F 跌破 V 底
+    | 'broke-consolidation'   // ⑥-1 跌破盤整區（C/D/K/N/O）
+    | 'trend-flipped-down'    // ⑥-2 多頭翻空頭
+    | 'loss-over-10pct'       // ⑥-4 跌幅 > 10%
+    | 'structure-broken';     // ⑥-5 結構失效（F/D/O）
   detail?: string;
 }
 
+// ⑥-1 適用字母：盤整區布局多單（書本「盤整區布局」泛指）
+//   C：盤整突破→上頸線突破，跌破盤整下緣
+//   D：一字底→突破糾結帶上緣，跌破糾結帶下緣
+//   K：橫盤突破→突破橫盤最高，跌破橫盤下緣
+//   N：型態確認→突破頸線，跌破型態下緣
+//   O：打底完成→突破打底高，跌破打底盤整下緣
+const SIX_ONE_LETTERS: ReadonlySet<V12Letter> = new Set(['C', 'D', 'K', 'N', 'O']);
+
+// ⑥-5 適用字母：逆勢進場結構失效
+//   F：V 形反轉→V 底失效
+//   D：一字底（在空頭末段抓反轉）→下頸線失效
+//   O：打底完成（剛從空頭翻多）→打底下緣失效
+const SIX_FIVE_LETTERS: ReadonlySet<V12Letter> = new Set(['F', 'D', 'O']);
+
 /**
- * 議題 Step 3 ⑥：5 條絕對停損判定
+ * 議題 Step 3 ⑥：5 條絕對停損判定（書本寶典 Part 11-1 p.701）
  *
  * 觸發即強制出場（無視一般停損 ① ~ ⑤）。
  *
  * 注意：v12 階段 1 不做空，⑥-3 空頭翻多頭確認（做空版）不適用。
+ *
+ * 2026-05-09 擴展：
+ *   - ⑥-1 跌破盤整區：從只 C 擴展到 C/D/K/N/O
+ *   - ⑥-5 結構失效：從只 F 擴展到 F/D/O
  */
 export function checkAbsoluteStopLoss(inputs: AbsoluteStopLossInputs): AbsoluteStopLossResult {
   const {
@@ -316,12 +334,12 @@ export function checkAbsoluteStopLoss(inputs: AbsoluteStopLossInputs): AbsoluteS
     vBottom,
   } = inputs;
 
-  // ⑥-1：C 訊號進場後跌破盤整區
-  if (letter === 'C' && consolidationLow != null && todayClose < consolidationLow) {
+  // ⑥-1：盤整區布局字母進場後跌破盤整區（C/D/K/N/O）
+  if (SIX_ONE_LETTERS.has(letter) && consolidationLow != null && todayClose < consolidationLow) {
     return {
       triggered: true,
       reason: 'broke-consolidation',
-      detail: `⑥-1 跌破盤整區: close=${todayClose.toFixed(2)} < ${consolidationLow.toFixed(2)}`,
+      detail: `⑥-1 ${letter} 跌破盤整區: close=${todayClose.toFixed(2)} < ${consolidationLow.toFixed(2)}`,
     };
   }
 
@@ -347,12 +365,13 @@ export function checkAbsoluteStopLoss(inputs: AbsoluteStopLossInputs): AbsoluteS
     };
   }
 
-  // ⑥-5：F 跌破 V 底
-  if (letter === 'F' && vBottom != null && todayClose < vBottom) {
+  // ⑥-5：逆勢進場字母結構失效（F/D/O）
+  //   F：vBottom = V 底 low；D：vBottom = 一字底下頸線；O：vBottom = 打底期最低
+  if (SIX_FIVE_LETTERS.has(letter) && vBottom != null && todayClose < vBottom) {
     return {
       triggered: true,
-      reason: 'broke-v-bottom',
-      detail: `⑥-5 F 跌破 V 底: close=${todayClose.toFixed(2)} < ${vBottom.toFixed(2)}`,
+      reason: 'structure-broken',
+      detail: `⑥-5 ${letter} 結構失效: close=${todayClose.toFixed(2)} < ${vBottom.toFixed(2)}`,
     };
   }
 

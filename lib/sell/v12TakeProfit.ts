@@ -31,12 +31,15 @@ export interface TakeProfitInputs {
   todayMA20?: number | null;
   /** N 訊號用：型態目標價 */
   patternTargetPrice?: number;
+  /** 通用「到達壓力」用：最近 confirmed pivot high（2026-05-09 新增）*/
+  recentPivotHigh?: number;
 }
 
 export interface TakeProfitResult {
   triggered: boolean;
   reason?:
     | 'pattern-target'      // ② 達型態目標價
+    | 'reach-resistance'    // ② 到達壓力區（書本特定條件 #1，2026-05-09 新增）
     | 'high-deviation'      // ② 乖離 ≥ 15%（切 MA5，不直接停利）
     | 'profit-target-10'    // ② 達 10% 獲利（切換進階紀律 flag）
     | 'high-vol-black-k';   // ③ 寶典 #7/#8 急漲反轉
@@ -55,7 +58,7 @@ export interface TakeProfitResult {
  * - 乖離 ≥ 15%：建議切 MA5 跟隨（議題 Step 5 ②）
  */
 export function checkTakeProfitTargets(inputs: TakeProfitInputs): TakeProfitResult {
-  const { letter, entryPrice, todayClose, todayMA20, patternTargetPrice } = inputs;
+  const { letter, entryPrice, todayClose, todayMA20, patternTargetPrice, recentPivotHigh } = inputs;
 
   const profitPct = (todayClose - entryPrice) / entryPrice;
 
@@ -66,6 +69,20 @@ export function checkTakeProfitTargets(inputs: TakeProfitInputs): TakeProfitResu
       reason: 'pattern-target',
       detail: `達型態目標價 ${patternTargetPrice.toFixed(2)}（停利）`,
     };
+  }
+
+  // 到達壓力區（書本 5 步驟步驟 5 第 4 章特定條件 #1「做多到達壓力」）
+  // 通用實作：close 達最近 confirmed pivot high 的 ±2% 範圍 → 提示停利
+  // 注意：不強制出場（triggered: false），讓使用者判斷是否續抱還是了結
+  if (recentPivotHigh != null && recentPivotHigh > 0) {
+    const distancePct = Math.abs(todayClose - recentPivotHigh) / recentPivotHigh;
+    if (distancePct <= 0.02 && todayClose >= recentPivotHigh * 0.98) {
+      return {
+        triggered: false,
+        reason: 'reach-resistance',
+        detail: `到達壓力區（前波高 ${recentPivotHigh.toFixed(2)}，距 ${(distancePct * 100).toFixed(2)}%）— 考慮停利`,
+      };
+    }
   }
 
   // 乖離 ≥ 15% → 切 MA5（不直接停利，議題 Step 5 ②）
@@ -187,7 +204,25 @@ export function detectKBarExitSignal(inputs: KBarSignalInputs): KBarSignalResult
     };
   }
 
-  // ── 4. 寶典 #8 急漲後大量長黑跌破前 K 低（≥ 20% 累計獲利）──
+  // ── 4. 連 3 紅 + 上影（寶典 K 棒訊號 #7：連續上漲 3 天以上 + 長上影 → 主力出貨）──
+  // 條件：今日 + 過去 2 根都紅 K + 今日上影 ≥ 50% K 線全長
+  // 2026-05-09 補實作（之前 signalType 列了但 detector 沒寫）
+  if (
+    twoDaysAgoCandle &&
+    twoDaysAgoCandle.close > twoDaysAgoCandle.open &&    // 2 日前紅 K
+    yesterdayCandle.close > yesterdayCandle.open &&       // 昨日紅 K
+    todayCandle.close > todayCandle.open &&               // 今日紅 K（連 3 紅）
+    fullLen > 0 &&
+    upperShadowLen / fullLen >= 0.5                       // 今日上影 ≥ K 線全長 1/2
+  ) {
+    return {
+      triggered: true,
+      signalType: 'three-red-with-shadow',
+      detail: `③ 連 3 紅 + 上影（寶典 #7 主力出貨警示，上影占 ${((upperShadowLen / fullLen) * 100).toFixed(0)}% K 線全長）`,
+    };
+  }
+
+  // ── 5. 寶典 #8 急漲後大量長黑跌破前 K 低（≥ 20% 累計獲利）──
   if (
     cumulativeProfit >= 0.20 &&
     todayCandle.close < todayCandle.open &&          // 今日黑 K
