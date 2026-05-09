@@ -20,6 +20,9 @@ interface Props {
   buyDate: string;
   triggerSignal?: string;
   operationMode?: 'short' | 'long' | 'wave';
+  enhancedDisciplineEnabled?: boolean;
+  endPhaseTriggered?: boolean;
+  recentHigh?: number;
 }
 
 interface V12SignalsResponse {
@@ -65,7 +68,7 @@ const STAGE_TINT: Record<string, string> = {
   neutral: 'bg-secondary/40 border-border/50',
 };
 
-export function HoldingV12Signals({ holdingId, symbol, market, entryPrice, buyDate, triggerSignal, operationMode }: Props) {
+export function HoldingV12Signals({ holdingId, symbol, market, entryPrice, buyDate, triggerSignal, operationMode, enhancedDisciplineEnabled, endPhaseTriggered, recentHigh }: Props) {
   const [data, setData] = useState<V12SignalsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -228,6 +231,19 @@ export function HoldingV12Signals({ holdingId, symbol, market, entryPrice, buyDa
                     {data.profitPct >= 0.20 ? '高檔' : data.profitPct >= 0.10 ? '達 10%' : data.profitPct >= 0 ? '輕微獲利' : '虧損中'}
                   </span>
                 </div>
+                {/* v12 議題 B 寶典 #5/#6 進階紀律 */}
+                {enhancedDisciplineEnabled && (data.letter === 'B' || data.letter === 'P') && (
+                  <div className="text-emerald-300 mt-0.5 text-[9px] bg-emerald-900/30 px-1 py-0.5 rounded">
+                    🛡️ 寶典 #5/#6 進階紀律已啟用：&lt;10% 跌破 MA5 續抱、≥10% 才停利
+                  </div>
+                )}
+                {/* v12 議題 13 末升段 trailing */}
+                {endPhaseTriggered && (
+                  <div className="text-rose-300 mt-0.5 text-[9px] bg-rose-900/30 px-1 py-0.5 rounded">
+                    📛 末升段觸發（≥100% 起漲）— 切 trailing 3% (recentHigh × 0.97
+                    {recentHigh != null ? ` = ${(recentHigh * 0.97).toFixed(2)}` : ''})
+                  </div>
+                )}
                 {data.step5.takeProfit.detail && (
                   <div className={`mt-0.5 ${data.step5.takeProfit.triggered ? 'text-rose-300' : 'text-amber-300'}`}>
                     {data.step5.takeProfit.triggered ? '🚪' : 'ℹ️'} {data.step5.takeProfit.detail}
@@ -243,6 +259,25 @@ export function HoldingV12Signals({ holdingId, symbol, market, entryPrice, buyDa
                     目標：獲利 ≥ 10% 啟用進階紀律 / 乖離 ≥ 15% 切 MA5
                   </div>
                 )}
+              </div>
+
+              {/* v12 紀律切換 buttons */}
+              <div className="border-t border-border/40 pt-1 flex flex-wrap gap-1">
+                <span className="text-[9px] text-muted-foreground">手動切換：</span>
+                <button
+                  onClick={() => updateHolding(holdingId, { enhancedDisciplineEnabled: !enhancedDisciplineEnabled })}
+                  className={`text-[9px] px-1.5 py-px rounded ${enhancedDisciplineEnabled ? 'bg-emerald-700 text-emerald-100' : 'bg-secondary border border-border text-muted-foreground hover:bg-muted'}`}
+                  title="B/P 寶典 #5/#6 進階紀律 — 達 10% 後切換"
+                >
+                  進階紀律 {enhancedDisciplineEnabled ? '✓' : '○'}
+                </button>
+                <button
+                  onClick={() => updateHolding(holdingId, { endPhaseTriggered: !endPhaseTriggered, recentHigh: !endPhaseTriggered ? data.todayPrice : undefined })}
+                  className={`text-[9px] px-1.5 py-px rounded ${endPhaseTriggered ? 'bg-rose-700 text-rose-100' : 'bg-secondary border border-border text-muted-foreground hover:bg-muted'}`}
+                  title="議題 13：起漲 ≥100% 後切 trailing 3%"
+                >
+                  末升段 {endPhaseTriggered ? '✓' : '○'}
+                </button>
               </div>
 
               {/* Refresh */}

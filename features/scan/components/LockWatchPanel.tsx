@@ -215,6 +215,20 @@ function LockWatchRow({
       <span className="text-[9px] text-muted-foreground/60 font-mono shrink-0">
         +{record.daysObserved}d
       </span>
+      {/* 🛒 進場：直接跳到 portfolio 進場表單帶入 v12 欄位 */}
+      {(record.currentStage === 'observation' || record.currentStage === 'entry-signal') && (
+        <button
+          onClick={() => {
+            const code = record.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
+            const url = `/portfolio?prefill=${encodeURIComponent(code)}&trigger=${record.triggerSignal}&price=${record.triggerPrice}`;
+            window.open(url, '_self');
+          }}
+          className="text-[9px] text-emerald-400 hover:text-emerald-300 px-1 rounded border border-emerald-700/50 hover:bg-emerald-900/30 shrink-0 font-bold"
+          title={`🛒 進場：跳到持倉表單，自動填入 ${record.triggerSignal} 訊號 + 觸發價 ${record.triggerPrice.toFixed(2)}`}
+        >
+          🛒
+        </button>
+      )}
       {!inWatchlist && record.currentStage === 'entry-signal' && (
         <button
           onClick={() => useWatchlistStore.getState().add(record.symbol, record.symbol, record.triggerPrice)}
