@@ -10,6 +10,7 @@
  */
 import { getOperationMA } from '../lib/sell/v12Operation';
 import { SIGNAL_TO_PRIMARY_STOP, SIGNAL_TO_FIXED_STOP_PCT } from '../lib/sell/v12StopLoss';
+import type { V12Letter } from '../lib/analysis/v12Signals';
 
 const TRACK = {
   pool: ['A'],
@@ -50,7 +51,7 @@ describe('v12 字母分類', () => {
   });
 
   it('升級長線後所有非 Q 字母統一 MA20（衝突 β）', () => {
-    for (const letter of [...TRACK.bullish, ...TRACK.reversal] as const) {
+    for (const letter of [...TRACK.bullish, ...TRACK.reversal] as V12Letter[]) {
       const ma = getOperationMA(letter, 'long');
       expect(ma).toBe('MA20');
     }

@@ -95,13 +95,21 @@ export default function V12PerformancePage() {
               {generatedAt && ` · 計算於 ${new Date(generatedAt).toLocaleString('zh-TW')}`}
             </p>
           </div>
-          <button
-            onClick={load}
-            disabled={loading}
-            className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded disabled:opacity-50"
-          >
-            {loading ? '計算中…' : '🔄 重新計算'}
-          </button>
+          <div className="flex items-center gap-2">
+            <a
+              href="/v12-deep-analytics"
+              className="px-3 py-1.5 text-xs bg-purple-600 hover:bg-purple-500 text-white rounded"
+            >
+              🔬 深度分析
+            </a>
+            <button
+              onClick={load}
+              disabled={loading}
+              className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded disabled:opacity-50"
+            >
+              {loading ? '計算中…' : '🔄 重新計算'}
+            </button>
+          </div>
         </div>
 
         {/* 三軌制圖例 */}
