@@ -19,7 +19,7 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
   const {
     market, scanDate,
     useMultiTimeframe, toggleMultiTimeframe,
-    setMarket, setScanDate,
+    setMarket,
     isScanning, scanProgress, scanningStock, scanningCount, scanError,
     scanResults, isFetchingForward, forwardError,
     clearCurrent,
@@ -33,7 +33,6 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
     activeBuyMethod, setActiveBuyMethod, isLoadingBuyMethod,
   } = useBacktestStore();
 
-  const [maxDate] = useState(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date()));
   const [coachCollapsed, setCoachCollapsed] = useState(true);
 
   // 載入歷史日期；市場/方向切換後自動載入最新結果
@@ -78,6 +77,48 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
 
   return (
     <div className="flex flex-col min-h-0 h-full text-foreground text-xs">
+      {/* ── 頂端：大盤 banner（最高優先資訊）── */}
+      {scanDirection !== 'daban' && (
+        <MarketTrendBanner
+          market={market}
+          marketTrend={marketTrend ?? null}
+          scanDate={scanDate ?? null}
+        />
+      )}
+
+      {/* ── 日期導航：點哪天看哪天的結果（取代上方 date picker）── */}
+      {cronDates.some(c => c.market === market) && (
+        <div className="shrink-0 px-2.5 py-1.5 border-b border-border bg-card/40">
+          <div className="grid grid-cols-11 gap-1">
+            {cronDates.filter(c => c.market === market)
+              .filter((c, i, arr) => arr.findIndex(x => x.date === c.date) === i)
+              .slice(0, 22)
+              .map(c => {
+                const isActive = c.date === scanDate;
+                return (
+                  <button key={c.date}
+                    onClick={() => {
+                      if (isBusy || isLoadingCronSession) return;
+                      if (scanDirection === 'daban') {
+                        useBacktestStore.setState({ scanDate: c.date });
+                      } else {
+                        useBacktestStore.getState().loadCronSession(c.market, c.date, { scanOnly: true, direction: scanDirection });
+                      }
+                    }}
+                    disabled={isBusy || isLoadingCronSession}
+                    className={`text-center px-0.5 py-0.5 rounded text-[9px] font-mono truncate ${
+                      isActive ? 'bg-sky-700 text-sky-100 font-semibold' : 'bg-secondary/60 text-muted-foreground hover:bg-secondary'
+                    } ${isBusy || isLoadingCronSession ? 'opacity-50' : ''}`}
+                    title={`${c.date}｜${c.resultCount >= 0 ? c.resultCount + ' 檔' : ''}`}
+                  >
+                    {c.date.slice(5)}
+                  </button>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
       {/* ── Toolbar: vertical stacked ── */}
       <div className="shrink-0 px-2.5 py-2 border-b border-border space-y-1.5">
         {/* Row 1: Market + Direction */}
@@ -221,15 +262,11 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
           );
         })()}
 
-        {/* Row 2: Date + Scan button */}
+        {/* Row 2: 掃描按鈕（日期 picker 拿掉，改用上方 22 天日期導航）*/}
         <div className="flex items-center gap-1.5">
-          <input type="date" value={scanDate} max={maxDate} min="2020-01-01"
-            onChange={e => { setScanDate(e.target.value); clearCurrent(); }}
-            className="flex-1 min-w-0 bg-secondary border border-border text-foreground rounded px-1.5 py-1 text-[11px] focus:outline-none focus:border-sky-500"
-          />
           <button onClick={handleScan} disabled={isBusy || !scanDate}
-            className="shrink-0 px-2.5 py-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-foreground text-[11px] font-semibold rounded whitespace-nowrap">
-            {isScanning ? `${Math.round(scanProgress)}%` : '掃描'}
+            className="flex-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-foreground text-[11px] font-semibold rounded whitespace-nowrap">
+            {isScanning ? `掃描中 ${Math.round(scanProgress)}%` : `掃描 ${scanDate ?? ''}`}
           </button>
           {isBusy && (
             <button onClick={cancelScan}
@@ -241,58 +278,14 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
 
       </div>
 
-      {/* ── 釘住在最上：日期歷史 + 朱老師分析（不隨下方卡片滾動） ── */}
-      <div className="shrink-0 border-b border-border bg-card/80">
-        {/* Step 0 大盤狀態 banner（v12 議題 69）— 進場做多最高前提 */}
-        {scanDirection !== 'daban' && (
-          <MarketTrendBanner
-            market={market}
-            marketTrend={marketTrend ?? null}
-            scanDate={scanDate ?? null}
-          />
-        )}
-
-        {/* LockWatch 鎖股觀察（v12 議題 23/65/93）— F V 反轉 / N 型態確認觸發後 */}
+      {/* ── 鎖股觀察 + 再進場候選（4 區塊之後，結果列表之前）── */}
+      <div className="shrink-0 border-b border-border bg-card/40">
         {scanDirection !== 'daban' && <LockWatchPanel market={market} />}
-
-        {/* Re-entry candidates（v12 議題 28）— 賣出後可再進場清單 */}
         {scanDirection !== 'daban' && <ReentryCandidatesPanel onSelectStock={onSelectStock} />}
+      </div>
 
-        {/* Date Navigator — vertical pill list */}
-        {cronDates.some(c => c.market === market) && (
-          <div className="px-2.5 py-1.5 border-b border-border/60">
-            {/* 22 天分兩排：11 欄 × 2 列。不顯示 (count) 保持窄身，hover title 仍可看數量 */}
-            <div className="grid grid-cols-11 gap-1">
-              {cronDates.filter(c => c.market === market)
-                .filter((c, i, arr) => arr.findIndex(x => x.date === c.date) === i)
-                .slice(0, 22)
-                .map(c => {
-                  const isActive = c.date === scanDate;
-                  return (
-                    <button key={c.date}
-                      onClick={() => {
-                        if (isBusy || isLoadingCronSession) return;
-                        if (scanDirection === 'daban') {
-                          useBacktestStore.setState({ scanDate: c.date });
-                        } else {
-                          useBacktestStore.getState().loadCronSession(c.market, c.date, { scanOnly: true, direction: scanDirection });
-                        }
-                      }}
-                      disabled={isBusy || isLoadingCronSession}
-                      className={`text-center px-0.5 py-0.5 rounded text-[9px] font-mono truncate ${
-                        isActive ? 'bg-sky-700 text-sky-100 font-semibold' : 'bg-secondary/60 text-muted-foreground hover:bg-secondary'
-                      } ${isBusy || isLoadingCronSession ? 'opacity-50' : ''}`}
-                      title={`${c.date}｜${c.resultCount >= 0 ? c.resultCount + ' 檔' : ''}`}
-                    >
-                      {c.date.slice(5)}
-                    </button>
-                  );
-                })}
-            </div>
-          </div>
-        )}
-
-        {/* 朱老師跨檔分析（只在非打板時顯示） */}
+      {/* 朱老師跨檔分析（只在非打板時顯示） */}
+      <div className="shrink-0 border-b border-border bg-card/40">
         {scanDirection !== 'daban' && scanResults.length > 0 && (
           <div>
             <button
