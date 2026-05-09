@@ -20,7 +20,16 @@ interface PriceData {
   error?: string;
 }
 
-const EMPTY_FORM = { symbol: '', name: '', shares: '', costPrice: '', buyDate: new Date().toISOString().split('T')[0] };
+const EMPTY_FORM = {
+  symbol: '',
+  name: '',
+  shares: '',
+  costPrice: '',
+  buyDate: new Date().toISOString().split('T')[0],
+  // v12 Step 3-5 訊號計算需要的欄位
+  triggerSignal: '' as '' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q',
+  operationMode: 'short' as 'short' | 'long' | 'wave',
+};
 
 
 export default function PortfolioPage() {
@@ -75,7 +84,15 @@ export default function PortfolioPage() {
 
   function openEdit(h: PortfolioHolding) {
     setEditId(h.id);
-    setForm({ symbol: h.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, ''), name: h.name, shares: String(h.shares), costPrice: String(h.costPrice), buyDate: h.buyDate });
+    setForm({
+      symbol: h.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, ''),
+      name: h.name,
+      shares: String(h.shares),
+      costPrice: String(h.costPrice),
+      buyDate: h.buyDate,
+      triggerSignal: (h.triggerSignal as typeof EMPTY_FORM.triggerSignal) ?? '',
+      operationMode: h.operationMode ?? 'short',
+    });
     setShowForm(true);
   }
 
@@ -119,7 +136,14 @@ export default function PortfolioPage() {
     try {
       if (editId) {
         // Edit existing holding
-        update(editId, { shares: Number(form.shares), costPrice: Number(form.costPrice), buyDate: form.buyDate, name: form.name || undefined });
+        update(editId, {
+          shares: Number(form.shares),
+          costPrice: Number(form.costPrice),
+          buyDate: form.buyDate,
+          name: form.name || undefined,
+          triggerSignal: form.triggerSignal === '' ? undefined : form.triggerSignal,
+          operationMode: form.operationMode,
+        });
         setEditId(null);
         setForm({ ...EMPTY_FORM, buyDate: new Date().toISOString().split('T')[0] });
         setShowForm(false);
@@ -161,7 +185,15 @@ export default function PortfolioPage() {
         } catch { continue; }
       }
 
-      add({ symbol: resolvedSymbol, name: resolvedName, shares: Number(form.shares), costPrice: Number(form.costPrice), buyDate: form.buyDate });
+      add({
+        symbol: resolvedSymbol,
+        name: resolvedName,
+        shares: Number(form.shares),
+        costPrice: Number(form.costPrice),
+        buyDate: form.buyDate,
+        triggerSignal: form.triggerSignal === '' ? undefined : form.triggerSignal,
+        operationMode: form.operationMode,
+      });
       if (resolvedPrice > 0) setPrices(prev => ({ ...prev, [resolvedSymbol]: { price: resolvedPrice, changePercent: resolvedChangePct, loading: false } }));
       setForm({ ...EMPTY_FORM, buyDate: new Date().toISOString().split('T')[0] });
       setShowForm(false);
@@ -311,6 +343,62 @@ export default function PortfolioPage() {
                   className="bg-muted border-border focus:border-blue-500" />
               </div>
             </div>
+
+            {/* v12 Step 3-5 訊號計算用欄位（選填） */}
+            <details className="bg-muted/30 border border-border rounded-lg" open>
+              <summary className="px-3 py-2 cursor-pointer text-xs font-bold text-foreground/90 select-none">
+                <span className="text-[9px] font-bold uppercase tracking-wider opacity-70">v12</span>
+                <span className="ml-1">進場訊號設定（選填，影響 Step 3-5 停損/操作/停利建議）</span>
+              </summary>
+              <div className="px-3 pb-3 grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">進場訊號字母</label>
+                  <select
+                    value={form.triggerSignal}
+                    onChange={e => setForm(f => ({ ...f, triggerSignal: e.target.value as typeof EMPTY_FORM.triggerSignal }))}
+                    className="w-full bg-muted border border-border rounded-md px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="">— 不指定（系統預設用 B 邏輯）—</option>
+                    <optgroup label="預選池">
+                      <option value="A">A 六條件</option>
+                    </optgroup>
+                    <optgroup label="多頭軌（守 MA5/MA10）">
+                      <option value="B">B 回後買上漲（MA5）</option>
+                      <option value="P">P 高檔拉回（MA5）</option>
+                      <option value="C">C 盤整突破（MA10）</option>
+                      <option value="E">E 缺口（MA10）</option>
+                      <option value="J">J ABC 突破（MA20）</option>
+                      <option value="K">K K 線橫盤（MA10）</option>
+                      <option value="L">L 過大量黑K（MA10）</option>
+                      <option value="M">M 軌道線突破（MA10）</option>
+                    </optgroup>
+                    <optgroup label="轉折軌">
+                      <option value="D">D 一字底（MA20）</option>
+                      <option value="F">F V 反轉（MA3）</option>
+                      <option value="N">N 型態確認（MA10）</option>
+                      <option value="O">O 打底完成（MA20）</option>
+                    </optgroup>
+                    <optgroup label="戰法軌">
+                      <option value="Q">Q 三均線戰法（MA10）</option>
+                    </optgroup>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">操作模式</label>
+                  <select
+                    value={form.operationMode}
+                    onChange={e => setForm(f => ({ ...f, operationMode: e.target.value as typeof EMPTY_FORM.operationMode }))}
+                    className="w-full bg-muted border border-border rounded-md px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="short">短線（依字母對應均線）</option>
+                    <option value="long">長線（統一 MA20）</option>
+                    <option value="wave">波段（trailing）</option>
+                  </select>
+                  <p className="text-[10px] text-muted-foreground/70 mt-1">獲利 ≥10% 後可手動切長線</p>
+                </div>
+              </div>
+            </details>
+
             <div className="flex gap-2">
               <Button onClick={handleAdd} disabled={formLoading || !form.symbol || !form.shares || !form.costPrice}
                 className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 font-bold">

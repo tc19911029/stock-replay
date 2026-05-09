@@ -288,6 +288,61 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                   </span>
                 )}
 
+                {/* v12 N 型態確認專用：型態名 + 達成率 + 目標價（議題 65）*/}
+                {r.lockWatchPayload?.patternType && (() => {
+                  const PATTERN_LABEL: Record<string, string> = {
+                    'head-shoulder': '頭肩底', 'complex-head-shoulder': '複式頭肩底',
+                    'triple-bottom': '三重底', 'falling-diamond': '跌菱形',
+                    'rounding-bottom': '圓弧底', 'descending-wedge': '下降楔形',
+                    'double-bottom': '雙重底',
+                  };
+                  const name = PATTERN_LABEL[r.lockWatchPayload.patternType] ?? r.lockWatchPayload.patternType;
+                  const rate = r.lockWatchPayload.patternAchievementRate;
+                  const target = r.lockWatchPayload.patternTargetPrice;
+                  const upside = target ? ((target - r.price) / r.price * 100).toFixed(1) : null;
+                  return (
+                    <span
+                      className="text-[8px] px-1 h-3.5 flex items-center gap-0.5 rounded-sm bg-indigo-900/60 text-indigo-200 font-bold"
+                      title={`N 型態：${name} · 達成率 ${rate ? (rate * 100).toFixed(0) : '?'}% · 頸線 ${r.lockWatchPayload.triggerPrice.toFixed(2)} · 目標 ${target?.toFixed(2) ?? '?'}（${upside ?? '?'}% 空間）`}>
+                      {name}{rate != null && <span className="opacity-75 ml-0.5">{(rate * 100).toFixed(0)}%</span>}
+                      {target != null && upside != null && (
+                        <span className="ml-0.5 text-emerald-300">→{upside}%</span>
+                      )}
+                    </span>
+                  );
+                })()}
+
+                {/* v12 F V 反轉觸發鎖定價 */}
+                {r.lockWatchPayload?.triggerPrice && !r.lockWatchPayload.patternType && (
+                  <span
+                    className="text-[8px] px-1 h-3.5 flex items-center rounded-sm bg-rose-900/60 text-rose-200 font-bold"
+                    title={`F V 反轉鎖定價（觸發即進場參考）：${r.lockWatchPayload.triggerPrice.toFixed(2)}`}>
+                    🔒{r.lockWatchPayload.triggerPrice.toFixed(2)}
+                  </span>
+                )}
+
+                {/* v12 Provisional 三天驗證（K/D 型態訊號用，議題 75）*/}
+                {r.provisional && (
+                  <span
+                    className={`text-[8px] px-1 h-3.5 flex items-center rounded-sm font-bold ${
+                      r.provisional.status === 'confirmed' ? 'bg-emerald-900/60 text-emerald-200' :
+                      r.provisional.status === 'revoked' ? 'bg-rose-900/60 text-rose-200 line-through' :
+                      'bg-amber-900/60 text-amber-200'
+                    }`}
+                    title={
+                      r.provisional.status === 'confirmed' ? `已確認（停留 ≥3 天）` :
+                      r.provisional.status === 'revoked' ? `已撤銷（close 跌破 ${r.provisional.triggerPrice.toFixed(2)}）` :
+                      `三天驗證中（剩 ${r.provisional.daysRemaining} 天，鎖定價 ${r.provisional.triggerPrice.toFixed(2)}）`
+                    }>
+                    {r.provisional.status === 'confirmed' ? '✓ 確認' :
+                     r.provisional.status === 'revoked' ? '✗ 撤銷' :
+                     `⏳ ${r.provisional.daysRemaining}天`}
+                    {r.provisional.revocationCount >= 2 && (
+                      <span className="ml-0.5 text-orange-400">!</span>
+                    )}
+                  </span>
+                )}
+
                 {/* Action buttons */}
                 <div className="ml-auto flex items-center gap-1">
                   <button
