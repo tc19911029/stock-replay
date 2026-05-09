@@ -319,11 +319,16 @@ function detectDescendingWedge(
   if (lows[0].price >= lows[1].price) return null;
 
   // 高點下降斜率（單位：價/天，取絕對值）
-  const highSpan = highs[1].index - highs[0].index;
-  const lowSpan  = lows[1].index  - lows[0].index;
-  if (highSpan <= 0 || lowSpan <= 0) return null;
-  const highSlope = (highs[1].price - highs[0].price) / highSpan;
-  const lowSlope  = (lows[1].price  - lows[0].price)  / lowSpan;
+  // pivots 是 newest-first，highs[0] 較新（index 大）、highs[1] 較舊（index 小）
+  // 修正：span = newer - older = 正數（原本寫反了 → highSpan 永遠 ≤ 0 → 永遠 return null）
+  const highSpan = highs[0].index - highs[1].index;
+  const lowSpan  = lows[0].index  - lows[1].index;
+  // 最低 5 天 span — 避免交界日雙重 pivot 產生 1-day 不穩定斜率
+  // （楔形結構至少要橫跨 1 週才有意義）
+  if (highSpan < 5 || lowSpan < 5) return null;
+  // 取絕對值（descending 時 highs[1].price > highs[0].price，差為負，除以正 span 為負，加 abs）
+  const highSlope = Math.abs(highs[1].price - highs[0].price) / highSpan;
+  const lowSlope  = Math.abs(lows[1].price  - lows[0].price)  / lowSpan;
 
   // 高點降速 > 低點降速 × 1.2 = 收斂
   if (highSlope <= lowSlope * WEDGE_CONVERGENCE_RATIO) return null;
