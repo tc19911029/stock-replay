@@ -286,7 +286,7 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
 
       {/* ── 鎖股觀察 + 再進場候選（4 區塊之後，結果列表之前）── */}
       <div className="shrink-0 border-b border-border bg-card/40">
-        {scanDirection !== 'daban' && <LockWatchPanel market={market} />}
+        {scanDirection !== 'daban' && <LockWatchPanel market={market} onSelectStock={onSelectStock} />}
         {scanDirection !== 'daban' && <ReentryCandidatesPanel onSelectStock={onSelectStock} />}
       </div>
 

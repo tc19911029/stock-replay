@@ -11,9 +11,11 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import type { LockWatchDailySnapshot, LockWatchRecord } from '@/lib/scanner/lockWatchTypes';
+import type { SelectedStock } from './ScanChartPanel';
 
 interface LockWatchPanelProps {
   market: 'TW' | 'CN';
+  onSelectStock?: (stock: SelectedStock) => void;
 }
 
 interface ApiResponse {
@@ -47,7 +49,7 @@ const STAGE_STYLE: Record<LockWatchRecord['currentStage'], { label: string; colo
   'structure-broken': { label: '結構失效', color: 'text-rose-400/70 line-through' },
 };
 
-export function LockWatchPanel({ market }: LockWatchPanelProps) {
+export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
   const [collapsed, setCollapsed] = useState(true);
   const [snapshot, setSnapshot] = useState<LockWatchDailySnapshot | null>(null);
   const [loading, setLoading] = useState(false);
@@ -191,7 +193,9 @@ export function LockWatchPanel({ market }: LockWatchPanelProps) {
                       key={`${r.symbol}-${r.triggerSignal}-${r.triggeredDate}`}
                       record={r}
                       name={nameMap[r.symbol] ?? ''}
+                      market={market}
                       onRemove={removeRecord}
+                      onSelect={onSelectStock}
                       removing={removingKey === `${r.symbol}-${r.triggerSignal}`}
                     />
                   ))}
@@ -208,12 +212,16 @@ export function LockWatchPanel({ market }: LockWatchPanelProps) {
 function LockWatchTableRow({
   record,
   name,
+  market,
   onRemove,
+  onSelect,
   removing,
 }: {
   record: LockWatchRecord;
   name: string;
+  market: 'TW' | 'CN';
   onRemove: (symbol: string, triggerSignal: 'F' | 'N') => void;
+  onSelect?: (stock: SelectedStock) => void;
   removing: boolean;
 }) {
   const sig = SIGNAL_LABEL[record.triggerSignal];
@@ -224,15 +232,33 @@ function LockWatchTableRow({
     record.currentStage === 'observation' || record.currentStage === 'entry-signal';
   const symbolBare = record.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
 
+  // 點代號 / 名稱 → 切到走圖
+  const handleSelect = () => {
+    onSelect?.({ symbol: record.symbol, name: name || symbolBare, market });
+  };
+
   return (
     <tr className="border-b border-border/30 hover:bg-muted/20">
       <td className="py-1 px-1.5">
-        <span className={`text-[9px] px-1 py-0.5 rounded-sm ${sig.color}`} title={sig.name}>
-          {record.triggerSignal}
+        {/* 訊號用中文名（V反轉 / 型態確認）取代 F/N 字母 */}
+        <span className={`text-[9px] px-1 py-0.5 rounded-sm ${sig.color}`} title={`${sig.name} (${record.triggerSignal})`}>
+          {sig.name}
         </span>
       </td>
-      <td className="py-1 px-1.5 font-mono">{symbolBare}</td>
-      <td className="py-1 px-1.5 truncate max-w-[6rem]">{name || '—'}</td>
+      <td
+        className="py-1 px-1.5 font-mono cursor-pointer hover:text-sky-300"
+        onClick={handleSelect}
+        title="點擊切換到走圖"
+      >
+        {symbolBare}
+      </td>
+      <td
+        className="py-1 px-1.5 truncate max-w-[6rem] cursor-pointer hover:text-sky-300"
+        onClick={handleSelect}
+        title="點擊切換到走圖"
+      >
+        {name || '—'}
+      </td>
       <td className="py-1 px-1.5 text-muted-foreground">{patternName ?? '—'}</td>
       <td className="py-1 px-1.5 text-right font-mono tabular-nums">
         {record.triggerPrice.toFixed(2)}
