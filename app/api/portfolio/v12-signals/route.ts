@@ -99,10 +99,20 @@ export async function GET(req: NextRequest) {
     });
 
     // ── Step 4 操作 ──
-    // v12 議題 Step 5 ②：乖離 ≥15% 切 MA5（覆寫 getOperationMA 的對應均線）
+    // v12 寶典 Step 5 ②（進階紀律）：乖離 ≥15% 切 MA5
+    // 限定條件：
+    //   1. 只對 B/P 訊號生效（寶典「回後買上漲」「高檔拉回」進階紀律 #5/#6）
+    //   2. operationMode=long 時不覆寫（升級長線統一 MA20）
+    //   3. Q/D/J/O 等有獨立 SOP 的字母不受影響
     let operatingMA = getOperationMA(letter, operationMode);
     let highDeviationOverride = false;
-    if (today_c.ma20 != null && today_c.ma20 > 0) {
+    const isAdvancedDisciplineLetter = letter === 'B' || letter === 'P';
+    if (
+      isAdvancedDisciplineLetter &&
+      operationMode !== 'long' &&
+      today_c.ma20 != null &&
+      today_c.ma20 > 0
+    ) {
       const deviation = (today_c.close - today_c.ma20) / today_c.ma20;
       if (deviation >= 0.15) {
         operatingMA = 'MA5';

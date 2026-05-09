@@ -20,6 +20,9 @@ const LOOKBACK = 90;
 const markerCache = new Map<string, V12Marker[]>();
 const CACHE_MAX_SIZE = 50;
 
+// inflight：同一 cacheKey 並發查詢時共用 Promise，避免 race + 重複 detector 計算
+const inflightMarkers = new Map<string, Promise<V12Marker[]>>();
+
 /**
  * 對最近 N 根 K 棒跑 v12 detector，找觸發日
  */
@@ -52,9 +55,12 @@ export function useV12HistoricalMarkers(
     }
 
     let cancelled = false;
-    (async () => {
+
+    // inflight 共用 — 同 cacheKey 並發查詢只跑一次 detector
+    let computePromise = inflightMarkers.get(cacheKey);
+    if (!computePromise) {
       const market: MarketId = /\.(SS|SZ)$/i.test(ticker) ? 'CN' : 'TW';
-      try {
+      computePromise = (async () => {
         const [
           { detectLetterM },
           { detectLetterN },
@@ -75,7 +81,6 @@ export function useV12HistoricalMarkers(
         for (let i = startIdx; i < candles.length; i++) {
           const date = candles[i]?.date;
           if (!date) continue;
-          // 各 letter 觸發 → 加 marker（同日多訊號一起累進 strength）
           const m = detectLetterM(candles, i, market, ticker);
           if (m.triggered) result.push({ date, type: 'BUY', label: 'M', strength: 1, letter: 'M' });
           const n = detectLetterN(candles, i, market, ticker);
@@ -89,22 +94,26 @@ export function useV12HistoricalMarkers(
           const f = detectVReversal(candles, i);
           if (f?.isVReversal) result.push({ date, type: 'BUY', label: 'F', strength: 2, letter: 'F' });
         }
-        if (!cancelled) {
-          // 寫 cache（LRU：超過 max 移除最舊）
-          if (markerCache.size >= CACHE_MAX_SIZE) {
-            const firstKey = markerCache.keys().next().value;
-            if (firstKey) markerCache.delete(firstKey);
-          }
-          markerCache.set(cacheKey, result);
-          setMarkers(result);
+        // 寫 cache（LRU：超過 max 移除最舊）
+        if (markerCache.size >= CACHE_MAX_SIZE) {
+          const firstKey = markerCache.keys().next().value;
+          if (firstKey) markerCache.delete(firstKey);
         }
-      } catch (err) {
+        markerCache.set(cacheKey, result);
+        return result;
+      })();
+      inflightMarkers.set(cacheKey, computePromise);
+      computePromise.finally(() => inflightMarkers.delete(cacheKey));
+    }
+
+    computePromise
+      .then((result) => { if (!cancelled) setMarkers(result); })
+      .catch((err) => {
         if (!cancelled) {
           console.error('[useV12HistoricalMarkers]', err);
           setMarkers([]);
         }
-      }
-    })();
+      });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticker, candles[candles.length - 1]?.date, candles.length, enabled]);

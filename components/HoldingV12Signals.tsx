@@ -23,6 +23,10 @@ interface Props {
   enhancedDisciplineEnabled?: boolean;
   endPhaseTriggered?: boolean;
   recentHigh?: number;
+  /** C 訊號盤整下緣（用於絕對停損 ⑥-1 跌破盤整區） */
+  consolidationLow?: number;
+  /** F 訊號 V 底（用於絕對停損 ⑥-5 跌破 V 底） */
+  vBottom?: number;
 }
 
 interface V12SignalsResponse {
@@ -72,7 +76,7 @@ const STAGE_TINT: Record<string, string> = {
   neutral: 'bg-secondary/40 border-border/50',
 };
 
-export function HoldingV12Signals({ holdingId, symbol, market, entryPrice, buyDate, triggerSignal, operationMode, enhancedDisciplineEnabled, endPhaseTriggered, recentHigh }: Props) {
+export function HoldingV12Signals({ holdingId, symbol, market, entryPrice, buyDate, triggerSignal, operationMode, enhancedDisciplineEnabled, endPhaseTriggered, recentHigh, consolidationLow, vBottom }: Props) {
   const [data, setData] = useState<V12SignalsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +96,9 @@ export function HoldingV12Signals({ holdingId, symbol, market, entryPrice, buyDa
         ...(triggerSignal ? { triggerSignal } : {}),
         ...(endPhaseTriggered ? { endPhaseTriggered: 'true' } : {}),
         ...(recentHigh != null ? { recentHigh: String(recentHigh) } : {}),
+        // 絕對停損 ⑥-1 / ⑥-5 必要參數 — 若 holding 沒儲存則 backend 跳過該檢查
+        ...(consolidationLow != null ? { consolidationLow: String(consolidationLow) } : {}),
+        ...(vBottom != null ? { vBottom: String(vBottom) } : {}),
       });
       const res = await fetch(`/api/portfolio/v12-signals?${params.toString()}`);
       const json = (await res.json()) as V12SignalsResponse;
@@ -105,7 +112,9 @@ export function HoldingV12Signals({ holdingId, symbol, market, entryPrice, buyDa
     } finally {
       setLoading(false);
     }
-  }, [symbol, market, entryPrice, buyDate, triggerSignal, operationMode]);
+    // 末升段 / 進階紀律 toggle 後要重新拉資料；C/F 訊號的 consolidationLow / vBottom
+    // 影響絕對停損 → 變動時也要 refetch
+  }, [symbol, market, entryPrice, buyDate, triggerSignal, operationMode, endPhaseTriggered, recentHigh, consolidationLow, vBottom]);
 
   useEffect(() => {
     if (expanded && !data && !loading) fetchSignals();

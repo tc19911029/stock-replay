@@ -149,24 +149,44 @@ export async function loadLatestLockWatchSnapshot(
   return null;
 }
 
+// inflight lock: 同一 (market, date) 的 read-merge-write 序列化
+// 避免兩個並發 scan-bm（例如 F :00 + N :02）lose update：
+//   T1 read → T2 read → T1 merge+write → T2 merge+write（T1 的 records 丟失）
+// 改成第二個 caller 等第一個寫完再讀新版繼續 merge
+const appendInflight = new Map<string, Promise<LockWatchDailySnapshot>>();
+
 /** 合併新觸發紀錄到指定日的 snapshot（同 symbol 不重複觸發；以 newest 為主）*/
 export async function appendLockWatchRecords(
   market: MarketId,
   date: string,
   newRecords: LockWatchRecord[],
 ): Promise<LockWatchDailySnapshot> {
-  const existing = await loadLockWatchSnapshot(market, date);
-  const merged = new Map<string, LockWatchRecord>();
-  if (existing) {
-    for (const r of existing.records) merged.set(`${r.symbol}-${r.triggerSignal}`, r);
+  const lockKey = `${market}|${date}`;
+  // 如果同 key 有正在跑的 append → 等它完成再起步（序列化）
+  const previous = appendInflight.get(lockKey);
+  const run = (previous ?? Promise.resolve()).then(async () => {
+    const existing = await loadLockWatchSnapshot(market, date);
+    const merged = new Map<string, LockWatchRecord>();
+    if (existing) {
+      for (const r of existing.records) merged.set(`${r.symbol}-${r.triggerSignal}`, r);
+    }
+    for (const r of newRecords) merged.set(`${r.symbol}-${r.triggerSignal}`, r);
+    const snapshot: LockWatchDailySnapshot = {
+      market,
+      date,
+      records: Array.from(merged.values()),
+      lastUpdated: new Date().toISOString(),
+    };
+    await saveLockWatchSnapshot(snapshot);
+    return snapshot;
+  });
+  appendInflight.set(lockKey, run);
+  try {
+    return await run;
+  } finally {
+    // 只有「現在還是這把 lock」時才刪除（其他 caller 可能已 chain 上去）
+    if (appendInflight.get(lockKey) === run) {
+      appendInflight.delete(lockKey);
+    }
   }
-  for (const r of newRecords) merged.set(`${r.symbol}-${r.triggerSignal}`, r);
-  const snapshot: LockWatchDailySnapshot = {
-    market,
-    date,
-    records: Array.from(merged.values()),
-    lastUpdated: new Date().toISOString(),
-  };
-  await saveLockWatchSnapshot(snapshot);
-  return snapshot;
 }

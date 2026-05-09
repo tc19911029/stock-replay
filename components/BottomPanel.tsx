@@ -422,6 +422,8 @@ function PortfolioContent({ holdings, prices, summary, totalReturnPct, marketTab
               enhancedDisciplineEnabled={h.enhancedDisciplineEnabled}
               endPhaseTriggered={h.endPhaseTriggered}
               recentHigh={h.recentHigh}
+              consolidationLow={h.consolidationLow}
+              vBottom={h.vBottom}
             />
             </div>
           );
