@@ -71,17 +71,18 @@ export function MarketTrendBanner({ market, marketTrend, scanDate }: MarketTrend
 
   return (
     <div
-      className={`flex items-center gap-2 px-2.5 py-1.5 border-b text-[10px] ${style.bg} ${style.text}`}
+      className={`flex items-center gap-2 px-2.5 py-2 border-b border-l-4 text-[11px] font-medium ${style.bg} ${style.text}`}
       title="Step 0 大盤過濾：進場做多的最高前提（寶典 p.687）"
     >
-      <span className="text-sm leading-none">{style.icon}</span>
+      <span className="text-base leading-none">{style.icon}</span>
       <div className="flex-1 min-w-0 flex items-center gap-1.5 overflow-hidden">
+        <span className="font-bold shrink-0 text-[10px] opacity-70 uppercase tracking-wider">v12 Step 0</span>
         <span className="font-semibold shrink-0">{indexName}</span>
-        <span className="font-mono shrink-0">{style.label}</span>
-        <span className="opacity-75 truncate">{style.hint}</span>
+        <span className="font-mono shrink-0 font-bold">{style.label}</span>
+        <span className="opacity-80 truncate">{style.hint}</span>
       </div>
       {scanDate && (
-        <span className="font-mono text-[9px] opacity-60 shrink-0">{scanDate.slice(5)}</span>
+        <span className="font-mono text-[10px] opacity-70 shrink-0">{scanDate.slice(5)}</span>
       )}
     </div>
   );
