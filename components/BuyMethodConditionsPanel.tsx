@@ -30,6 +30,7 @@ import { detectLetterO } from '@/lib/analysis/v12LetterO';
 import { detectLetterP } from '@/lib/analysis/v12LetterP';
 import { detectLetterQ } from '@/lib/analysis/v12LetterQ';
 import type { CandleWithIndicators } from '@/types';
+import ProhibitionsBlock from './ProhibitionsBlock';
 
 type BuyMethod =
   | 'B' | 'C' | 'D' | 'E' | 'F'
@@ -725,6 +726,9 @@ export default function BuyMethodConditionsPanel({ method }: { method: BuyMethod
           未完全符合 — 此 K 棒不滿足 {title} 條件
         </div>
       )}
+
+      {/* 進場 10 大戒律狀態（書本：硬性禁忌，任一觸發即不應進場） */}
+      <ProhibitionsBlock />
     </div>
   );
 }

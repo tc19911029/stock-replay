@@ -5,6 +5,7 @@ import { useReplayStore } from '@/store/replayStore';
 import { SixConditionsResult } from '@/lib/analysis/trendAnalysis';
 import { detectSellSignals } from '@/lib/analysis/sellSignals';
 import { EmptyState } from '@/components/shared';
+import ProhibitionsBlock from './ProhibitionsBlock';
 
 const HIGH_WIN_POS_NUM: Record<string, string> = {
   '🎯 打底趨勢確認': '①',
@@ -292,6 +293,9 @@ export default function SixConditionsPanel() {
           </div>
         </div>
       )}
+
+      {/* 進場 10 大戒律狀態（書本：硬性禁忌，任一觸發即不應進場） */}
+      <ProhibitionsBlock />
 
       {/* Sell Signals */}
       {sellSignals.length > 0 && (

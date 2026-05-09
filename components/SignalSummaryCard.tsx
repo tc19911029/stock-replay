@@ -120,6 +120,7 @@ function getVerdict(
   hasPosition: boolean,
   subtypes: SignalSubtype[],
   signalLabels: { entry: string[]; exit: string[] },
+  prohibitionCount: number,
 ): Verdict {
   const counts: Record<SignalSubtype, number> = {
     entry_strong: 0, entry_soft: 0, exit_strong: 0, exit_soft: 0, trend: 0, warn: 0,
@@ -150,7 +151,15 @@ function getVerdict(
     return { level: 'good', label: '繼續持有', basis: '多頭延續、無出場訊號，續抱跟均線走' };
   }
 
-  // 未持倉
+  // 未持倉 — 戒律觸發為硬性禁忌，書本：「即使其他條件全過，戒律觸發即不進場」
+  if (prohibitionCount > 0) {
+    return {
+      level: 'bad',
+      label: '不要進場',
+      basis: `戒律觸發 ${prohibitionCount} 條 — 書本硬性禁忌，詳見「條件」分頁`,
+    };
+  }
+
   if (counts.entry_strong > 0 && counts.exit_strong === 0 && counts.exit_soft === 0) {
     return {
       level: 'good',
@@ -280,10 +289,12 @@ export default function SignalSummaryCard() {
   });
   const warnSigs = currentSignals.filter(s => (s.subtype ?? classifySignal(s)) === 'warn');
 
-  const verdict = getVerdict(hasPosition, subtypes, {
-    entry: entrySigs.map(s => s.label),
-    exit: exitSigs.map(s => s.label),
-  });
+  const verdict = getVerdict(
+    hasPosition,
+    subtypes,
+    { entry: entrySigs.map(s => s.label), exit: exitSigs.map(s => s.label) },
+    longProhibitions?.reasons?.length ?? 0,
+  );
 
   // 主訊號字母（V12 進場字母優先順序 Q > N > M > P > O；無命中時用持倉觸發字母）
   const PRIORITY: EntryLetter[] = ['Q', 'N', 'M', 'P', 'O'];
@@ -522,15 +533,15 @@ function Reasons({
         </div>
       )}
 
-      {/* 戒律觸發（黃框警示，書本：禁止進場） */}
+      {/* 戒律觸發 — 一行提示；詳情移到「條件」分頁底部（ProhibitionsBlock） */}
       {prohibitions.length > 0 && (
         <div className="rounded border border-amber-700/40 bg-amber-900/15 px-2 py-1.5">
-          <p className="text-[10px] font-bold text-amber-300 mb-0.5">戒律觸發 — 書本：禁止進場做多</p>
-          <ul className="space-y-0.5">
-            {prohibitions.slice(0, 4).map((r, i) => (
-              <li key={i} className="text-[10px] text-amber-200 leading-snug">· {r}</li>
-            ))}
-          </ul>
+          <p className="text-[10px] font-bold text-amber-300">
+            ⚠ 戒律觸發 {prohibitions.length} 條 — 書本：禁止進場做多
+          </p>
+          <p className="text-[9px] text-amber-200/80 leading-snug mt-0.5">
+            詳情見「條件」分頁（戒律是硬性禁忌，凌駕於六條件之上）
+          </p>
         </div>
       )}
 
@@ -560,12 +571,24 @@ function ReasonGroup({
       <p className={`text-[10px] font-bold mb-1 ${color}`}>{title}</p>
       <div className="space-y-1">
         {signals.map((s, i) => {
-          const explain = SIGNAL_EXPLAIN[s.label] ?? firstReasonLine(s.reason) ?? s.description;
+          const override = SIGNAL_EXPLAIN[s.label];
+          // 優先級：手寫白話覆寫 > 訊號 description（含書本意圖）+ reason 第一行
+          const mainText = override ?? s.description ?? '';
+          const bookRef = override ? undefined : extractBookRef(s.reason);
+          const operationHint = override ? undefined : extractOperationHint(s.reason);
           return (
-            <div key={i} className={`rounded px-2 py-1 ${bgColor}`}>
+            <div key={i} className={`rounded px-2 py-1.5 ${bgColor}`}>
               <div className="flex items-start gap-1.5">
                 <span className={`text-[10px] font-bold shrink-0 ${color}`}>· {s.label}</span>
-                <span className="text-[10px] text-foreground/80 leading-snug flex-1">{explain}</span>
+                <div className="flex-1 min-w-0 space-y-0.5">
+                  <p className="text-[10px] text-foreground/85 leading-snug">{mainText}</p>
+                  {operationHint && (
+                    <p className="text-[10px] text-foreground/60 leading-snug">{operationHint}</p>
+                  )}
+                  {bookRef && (
+                    <p className="text-[9px] text-muted-foreground/70 leading-snug">{bookRef}</p>
+                  )}
+                </div>
               </div>
             </div>
           );
@@ -575,8 +598,17 @@ function ReasonGroup({
   );
 }
 
-function firstReasonLine(reason: string | undefined): string | undefined {
+/** 從 reason 抓【...】書本根據（保留括號）— 顯示在最末行 */
+function extractBookRef(reason: string | undefined): string | undefined {
   if (!reason) return undefined;
-  const lines = reason.split('\n').map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith('【'));
-  return lines[0];
+  const m = reason.match(/【[^】]+】/);
+  return m?.[0];
+}
+
+/** 從 reason 抓「操作：...」實戰建議 — 顯示在描述底下 */
+function extractOperationHint(reason: string | undefined): string | undefined {
+  if (!reason) return undefined;
+  // 匹配「操作：」或「策略：」開頭的 1-2 句
+  const m = reason.match(/(?:操作|策略|建議)[：:]\s*([^\n。]+(?:。[^\n。]{0,40})?)/);
+  return m?.[1] ? `操作：${m[1].trim()}` : undefined;
 }
