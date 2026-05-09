@@ -186,6 +186,7 @@ export async function GET(req: NextRequest) {
                 market: market as 'TW' | 'CN',
                 triggeredDate: date,
                 triggerPrice: p.triggerPrice,
+                vBottom: p.vBottom,  // 從 lockWatchPayload 帶下來，結構失效判定用
               });
             }
             // method === 'N'

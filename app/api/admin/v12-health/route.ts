@@ -101,7 +101,10 @@ export async function GET(req: NextRequest) {
     const twCoverage = tw.todayCoverage.pct;
     const cnCoverage = cn.todayCoverage.pct;
     let alertLevel: 'ok' | 'warn' | 'critical' = 'ok';
-    const isWeekend = ['Sat', 'Sun'].includes(new Date(today).toString().slice(0, 3));
+    // 用 CST 時區判斷週末：`new Date('YYYY-MM-DD')` 是 UTC 午夜，
+    // 在 Vercel UTC 上 toString 會用 server local timezone，週六/週日邊界誤判
+    const cstDow = new Date(today + 'T00:00:00+08:00').getUTCDay(); // 0=Sun, 6=Sat
+    const isWeekend = cstDow === 0 || cstDow === 6;
     if (!isWeekend) {
       if (twCoverage < 50 || cnCoverage < 50) alertLevel = 'critical';
       else if (twCoverage < 100 || cnCoverage < 100) alertLevel = 'warn';

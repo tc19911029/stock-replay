@@ -45,8 +45,9 @@ export async function GET(req: NextRequest) {
 
   try {
     const {
-      loadLatestLockWatchSnapshot,
+      loadLockWatchSnapshot,
       saveLockWatchSnapshot,
+      listLockWatchDates,
     } = await import('@/lib/storage/lockWatchStorage');
     const {
       updateLockWatch,
@@ -54,26 +55,35 @@ export async function GET(req: NextRequest) {
       markStructureBroken,
     } = await import('@/lib/scanner/lockWatchManager');
 
-    // ── Step 1: 取最新 snapshot ─────────────────────────────────────────
-    const prev = await loadLatestLockWatchSnapshot(market);
-    if (!prev || prev.records.length === 0) {
-      // 首次跑或都沒人觸發過 — 寫入空快照避免後續 cron 重複空跑
-      await saveLockWatchSnapshot({
-        market,
-        date: today,
-        records: [],
-        lastUpdated: new Date().toISOString(),
-      });
-      return apiOk({ market, today, prevDate: prev?.date ?? null, total: 0, summary: {} });
-    }
+    // ── Step 1: 取「昨日 / 前一交易日」的 snapshot 作為演進來源 ─────────
+    // 不可用 loadLatestLockWatchSnapshot：scan-bm 在盤中已寫入今日 snapshot
+    // （新觸發 records，daysObserved=0），cron 之後若拿到 today 會誤判
+    // 「已跑過 idempotent」短路 → 17 天 records 永遠停在 observation。
+    const allDates = await listLockWatchDates(market);  // newest first
+    const prevDate = allDates.find((d) => d < today) ?? null;
+    const prev = prevDate ? await loadLockWatchSnapshot(market, prevDate) : null;
 
-    if (prev.date === today) {
-      // 已經今天跑過了，return idempotent
+    // 今日的 snapshot 可能已被 scan-bm 寫入（新觸發 records）— 讀進來合併
+    const todaySnap = await loadLockWatchSnapshot(market, today);
+    const todayNewRecords = todaySnap?.records ?? [];
+
+    if (!prev || prev.records.length === 0) {
+      // 沒有歷史 snapshot — 直接以今日新 records 為準（避免空寫覆蓋）
+      if (todayNewRecords.length === 0) {
+        await saveLockWatchSnapshot({
+          market,
+          date: today,
+          records: [],
+          lastUpdated: new Date().toISOString(),
+        });
+      }
       return apiOk({
         market,
         today,
-        idempotent: true,
-        total: prev.records.length,
+        prevDate: prev?.date ?? null,
+        total: todayNewRecords.length,
+        summary: { observation: todayNewRecords.length },
+        note: 'no historical snapshot to evolve',
       });
     }
 
@@ -147,7 +157,20 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── Step 4: 寫入今日 snapshot ──────────────────────────────────
+    // ── Step 4: 合併今日新觸發 records（scan-bm 已寫入）──
+    // 用 (symbol, triggerSignal) 當 key；evolved 為主，今日新 records 補不衝突的
+    const evolvedKeys = new Set(newRecords.map((r) => `${r.symbol}-${r.triggerSignal}`));
+    let newToday = 0;
+    for (const r of todayNewRecords) {
+      const key = `${r.symbol}-${r.triggerSignal}`;
+      if (!evolvedKeys.has(key)) {
+        newRecords.push(r);
+        newToday++;
+        summary.observation++;
+      }
+    }
+
+    // ── Step 5: 寫入今日 snapshot ──────────────────────────────────
     await saveLockWatchSnapshot({
       market,
       date: today,
@@ -156,12 +179,13 @@ export async function GET(req: NextRequest) {
     });
 
     console.info(
-      `[update-lockwatch] ✅ ${market} ${today} prev=${prev.date} total=${newRecords.length} changed=${summary.changed}`,
+      `[update-lockwatch] ✅ ${market} ${today} prev=${prev.date} evolved=${newRecords.length - newToday} todayNew=${newToday} changed=${summary.changed}`,
     );
 
     return apiOk({
       market,
       today,
+      newTodayMerged: newToday,
       prevDate: prev.date,
       total: newRecords.length,
       summary,

@@ -56,12 +56,18 @@ export interface LockWatchRecord {
 
   /**
    * 觸發日鎖定的突破點價格（議題 24 / 75）
-   * - F：V 底反彈起點 close
-   * - N：型態頸線價
-   *
-   * 撤銷判定基準：close < triggerPrice → 撤銷（議題 94）
+   * - F：V 底反彈起點 close（鎖定價，UI 顯示用；不是結構失效判定點）
+   * - N：型態頸線價（撤銷判定基準）
    */
   triggerPrice: number;
+
+  /**
+   * F V 反轉專用：實際 V 底（變盤線 low）
+   *
+   * 結構失效判定用：`c.low < vBottom` → 跌破 V 底 → structure-broken
+   * 不可用 triggerPrice（rebound close 高於 V 底，會 false positive）
+   */
+  vBottom?: number;
 
   /**
    * 型態目標價（N 訊號用，議題 Step 5 ②）
