@@ -1491,10 +1491,14 @@ export abstract class MarketScanner {
           const mtfResult = evaluateMultiTimeframe(candles, BASE_THRESHOLDS);
 
           // 跨策略命中：A 六條件 + 其他 7 個 detector（B/C/D/E/F/G/H/I 排除 self）
+          // 同時計算 sixConditionsScore + breakdown 供 UI 顯示（不用於 gate；反轉軌不過六條件，
+          // 但 UI 仍應呈現實際分數，否則 ScanResultsCompact / ScanCoachDigest 會永遠顯示 0/6）
           const matchedMethods: string[] = [method];
+          let sixCondsResult: ReturnType<typeof evaluateSixConditions> | null = null;
           try {
             const { evaluateSixConditions } = await import('@/lib/analysis/trendAnalysis');
-            if (evaluateSixConditions(candles, lastIdx).isCoreReady) matchedMethods.push('A');
+            sixCondsResult = evaluateSixConditions(candles, lastIdx);
+            if (sixCondsResult.isCoreReady) matchedMethods.push('A');
           } catch { /* non-critical */ }
           if (method !== 'B') {
             try {
@@ -1589,8 +1593,15 @@ export abstract class MarketScanner {
             triggeredRules: [{ ruleId: `buy-method-${method.toLowerCase()}`, ruleName: detail, signalType: 'BUY' as const, reason: detail }],
             matchedMethods: sortedMatched,
             buyMethodSubType: subType,
-            sixConditionsScore: 0,
-            sixConditionsBreakdown: { trend: false, position: false, kbar: false, ma: false, volume: false, indicator: false },
+            sixConditionsScore: sixCondsResult?.totalScore ?? 0,
+            sixConditionsBreakdown: sixCondsResult ? {
+              trend:     sixCondsResult.trend.pass,
+              position:  sixCondsResult.position.pass,
+              kbar:      sixCondsResult.kbar.pass,
+              ma:        sixCondsResult.ma.pass,
+              volume:    sixCondsResult.volume.pass,
+              indicator: sixCondsResult.indicator.pass,
+            } : { trend: false, position: false, kbar: false, ma: false, volume: false, indicator: false },
             trendState,
             trendPosition,
             scanTime: asOfDate ? `${asOfDate}T00:00:00.000Z` : new Date().toISOString(),

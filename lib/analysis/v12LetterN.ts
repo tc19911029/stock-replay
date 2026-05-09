@@ -161,6 +161,13 @@ function makeResult(
     return { triggered: false, detail: 'N 型態結構成立但未過 ×3% 真突破' };
   }
 
+  // 2026-05-10 補：close 已超過 patternTargetPrice × 0.97 視為「型態已達目標」，
+  // 不再算進場訊號（避免 4722.TW 這種 close=236 但 target 才 193 的「過晚觸發」雜訊）
+  // 書本《抓飆股》Part 7：型態突破後達目標即啟動停利，不會再被視為新進場機會
+  if (closePrice >= match.patternTargetPrice * 0.97) {
+    return { triggered: false, detail: 'N 型態已接近/超過目標價，視為已達標非進場時機' };
+  }
+
   return {
     triggered: true,
     patternType: match.patternType,
