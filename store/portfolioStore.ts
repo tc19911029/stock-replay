@@ -62,6 +62,18 @@ export interface PortfolioHolding {
    * 用於末升段 SL = recentHigh × 0.97
    */
   recentHigh?: number;
+
+  /**
+   * C 訊號（盤整突破）盤整下緣 — 進場時從 lockwatch / scan 帶入
+   * 用於絕對停損 ⑥-1 跌破盤整區
+   */
+  consolidationLow?: number;
+
+  /**
+   * F 訊號（V 反轉）V 底 — 進場時從 lockwatch / scan 帶入
+   * 用於絕對停損 ⑥-5 跌破 V 底
+   */
+  vBottom?: number;
 }
 
 /** 已賣出（已實現）的一筆交易紀錄 */

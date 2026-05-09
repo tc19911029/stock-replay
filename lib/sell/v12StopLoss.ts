@@ -1,8 +1,10 @@
 /**
  * v12 Step 3 停損實作（v12 Phase 1.8）
  *
- * 議題 S3-1（架構修正）：每訊號對應單一主停損方法（不取 max），
+ * 議題 S3-1（架構修正）：每訊號對應「單一主結構方法」（不在 5 種結構法之間取 max），
  *   避免進場日就觸發停損。書本 5 法本意是「擇一」不是「並用取最高」。
+ *   注意：仍保留「結構主法 vs 字母 fixedPct」的 ceiling 機制（取較高價=較緊停損），
+ *   以防一根異常寬的 K 線造成 >fixedPct 的失控停損。fixedPct 是該字母的「最大可接受虧損」。
  *
  * 議題 S3-7：④ 10% 上限與 ⑥-4 合併為「10% 絕對下限」（SL ≥ entryPrice × 0.90）
  * 議題 S3-2：收盤跌破才停損（盤中 UI 警示但不強制）
@@ -211,11 +213,13 @@ export function calculateInitialStopLoss(inputs: StopLossInputs): StopLossResult
       break;
   }
 
-  // 套固定停損比例（議題 S3-7：取較高的）— pct 換算為價格再 max
+  // 套字母 fixedPct ceiling：若結構主法停損價低於「entry × (1 - fixedPct)」
+  // 表示結構性虧損 > 該字母最大可接受虧損 → 收緊 SL 至 fixedPct 線上
+  // （取較高價 = 較緊 = 較小可接受虧損）
   const pctSL = entryPrice * (1 - fixedPct);
   if (pctSL > primarySL) {
     primarySL = pctSL;
-    detail += ` → ${(fixedPct * 100).toFixed(1)}% 比例上拉至 ${primarySL.toFixed(2)}`;
+    detail += ` → ${(fixedPct * 100).toFixed(1)}% ceiling 收緊至 ${primarySL.toFixed(2)}`;
   }
 
   // 議題 S3-7：套 10% 絕對下限保護

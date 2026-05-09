@@ -323,13 +323,15 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
 
                 {/* v12 Provisional 三天驗證（K/D 型態訊號用，議題 75）*/}
                 {r.provisional && (() => {
-                  // 動態計算「實際剩餘天數」基於 triggered 日期 vs 今日（議題 86 交易日計算簡化版）
-                  const triggeredDate = r.provisional.history?.[0]?.date;
-                  const today = new Date().toISOString().slice(0, 10);
+                  // 動態計算「實際剩餘交易日」（議題 86 真正用交易日）
+                  // 用 history 長度 + scan date 比 today：history 含 entry 那天就已經有 1 筆，
+                  // 之後每個交易日 cron 會 push 1 筆 → length 直接代表已過交易日數
+                  const history = r.provisional.history ?? [];
                   let actualRemaining = r.provisional.daysRemaining;
-                  if (triggeredDate && r.provisional.status === 'provisional') {
-                    const daysPassed = Math.floor((new Date(today).getTime() - new Date(triggeredDate).getTime()) / 86400000);
-                    actualRemaining = Math.max(0, 3 - daysPassed) as 0 | 1 | 2 | 3;
+                  if (history.length > 0 && r.provisional.status === 'provisional') {
+                    // history[0] 是 entry 日，所以已過交易日 = length - 1
+                    const tradingDaysPassed = Math.max(0, history.length - 1);
+                    actualRemaining = Math.max(0, 3 - tradingDaysPassed) as 0 | 1 | 2 | 3;
                   }
                   const effectiveStatus = actualRemaining === 0 && r.provisional.status === 'provisional' ? 'confirmed' : r.provisional.status;
                   return (
