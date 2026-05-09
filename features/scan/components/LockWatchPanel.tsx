@@ -123,7 +123,7 @@ export function LockWatchPanel({ market }: LockWatchPanelProps) {
       >
         <span className="flex items-center gap-1.5">
           <span className="text-[9px] font-bold uppercase tracking-wider opacity-70">v12</span>
-          <span className="font-semibold">🔒 鎖股觀察</span>
+          <span className="font-semibold">鎖股觀察</span>
           {activeCount > 0 ? (
             <span className="text-[10px] font-mono bg-amber-700 text-amber-100 px-1.5 py-px rounded font-bold">
               {activeCount} 檔
@@ -215,7 +215,7 @@ function LockWatchRow({
       <span className="text-[9px] text-muted-foreground/60 font-mono shrink-0">
         +{record.daysObserved}d
       </span>
-      {/* 🛒 進場：直接跳到 portfolio 進場表單帶入 v12 欄位 */}
+      {/* 進場：直接跳到 portfolio 進場表單帶入 v12 欄位 */}
       {(record.currentStage === 'observation' || record.currentStage === 'entry-signal') && (
         <button
           onClick={() => {
@@ -223,10 +223,10 @@ function LockWatchRow({
             const url = `/portfolio?prefill=${encodeURIComponent(code)}&trigger=${record.triggerSignal}&price=${record.triggerPrice}`;
             window.open(url, '_self');
           }}
-          className="text-[9px] text-emerald-400 hover:text-emerald-300 px-1 rounded border border-emerald-700/50 hover:bg-emerald-900/30 shrink-0 font-bold"
-          title={`🛒 進場：跳到持倉表單，自動填入 ${record.triggerSignal} 訊號 + 觸發價 ${record.triggerPrice.toFixed(2)}`}
+          className="text-[9px] text-emerald-400 hover:text-emerald-300 px-1.5 rounded border border-emerald-700/50 hover:bg-emerald-900/30 shrink-0 font-bold"
+          title={`進場：跳到持倉表單，自動填入 ${record.triggerSignal} 訊號 + 觸發價 ${record.triggerPrice.toFixed(2)}`}
         >
-          🛒
+          進場
         </button>
       )}
       {!inWatchlist && record.currentStage === 'entry-signal' && (

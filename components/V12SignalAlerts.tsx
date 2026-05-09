@@ -13,6 +13,8 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useReplayStore } from '@/store/replayStore';
+import { calcKLineStopLoss } from '@/lib/sell/v12StopLoss';
+import { getOperationMA } from '@/lib/sell/v12Operation';
 
 interface V12Hit {
   letter: 'M' | 'N' | 'O' | 'P' | 'Q';
@@ -107,7 +109,25 @@ export default function V12SignalAlerts() {
 
   if (!ticker || candleCount < 30) return null;
 
-  const todayPrice = allCandles[currentIndex]?.close ?? 0;
+  const todayCandle = allCandles[currentIndex];
+  const todayPrice = todayCandle?.close ?? 0;
+
+  // 假設今日進場：以命中字母優先順序（Q > N > M > P > O）算 Step 3-5
+  // 這不是真進場訊號，是「如果現在買，停損/操作/停利大概在哪」的預估
+  const PRIORITY: Array<'Q' | 'N' | 'M' | 'P' | 'O'> = ['Q', 'N', 'M', 'P', 'O'];
+  const primary = PRIORITY.map((l) => hits.find((h) => h.letter === l)).find((h) => h);
+  const hypothetical = (() => {
+    if (!primary || !todayCandle) return null;
+    const tickSize = todayPrice >= 100 ? 0.5 : todayPrice >= 50 ? 0.1 : 0.05;
+    const klineStop = calcKLineStopLoss(todayCandle, tickSize);
+    const absoluteFloor = todayPrice * 0.90;  // 10% 絕對下限
+    const stopLoss = Math.max(klineStop, absoluteFloor);
+    const slPct = ((stopLoss - todayPrice) / todayPrice) * 100;
+    const operatingMA = getOperationMA(primary.letter, 'short');
+    const target = primary.patternTargetPrice;
+    const targetPct = target ? ((target - todayPrice) / todayPrice) * 100 : null;
+    return { primary, stopLoss, slPct, operatingMA, target, targetPct };
+  })();
 
   return (
     <div className="bg-card border border-border rounded-lg p-2">
@@ -141,6 +161,44 @@ export default function V12SignalAlerts() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* 假設今日進場 Step 3-5 預估 — 只在有命中時顯示 */}
+      {hypothetical && (
+        <div className="mt-2 pt-2 border-t border-border/50">
+          <div className="text-[9px] font-bold text-muted-foreground mb-1">
+            假設今日進場（以 {hypothetical.primary.letter} 為主訊號 · 進場價 {todayPrice.toFixed(2)}）
+          </div>
+          <div className="grid grid-cols-3 gap-1.5 text-[10px]">
+            <div className="bg-muted/30 rounded px-1.5 py-1">
+              <div className="text-[9px] text-muted-foreground">Step 3 停損</div>
+              <div className="font-mono font-bold text-rose-300">{hypothetical.stopLoss.toFixed(2)}</div>
+              <div className="text-[9px] text-muted-foreground">{hypothetical.slPct.toFixed(1)}%</div>
+            </div>
+            <div className="bg-muted/30 rounded px-1.5 py-1">
+              <div className="text-[9px] text-muted-foreground">Step 4 操作</div>
+              <div className="font-mono font-bold text-foreground/90">{hypothetical.operatingMA}</div>
+              <div className="text-[9px] text-muted-foreground">跟隨均線</div>
+            </div>
+            <div className="bg-muted/30 rounded px-1.5 py-1">
+              <div className="text-[9px] text-muted-foreground">Step 5 停利</div>
+              {hypothetical.target != null && hypothetical.targetPct != null ? (
+                <>
+                  <div className="font-mono font-bold text-emerald-300">{hypothetical.target.toFixed(2)}</div>
+                  <div className="text-[9px] text-muted-foreground">+{hypothetical.targetPct.toFixed(1)}%</div>
+                </>
+              ) : (
+                <>
+                  <div className="font-mono font-bold text-foreground/60">—</div>
+                  <div className="text-[9px] text-muted-foreground">無型態目標</div>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="text-[9px] text-muted-foreground/60 mt-1">
+            預估值：實際停損依進場 K 棒、停利依 N 型態目標 / 10% 進階紀律 / 末升段 trailing。
+          </div>
         </div>
       )}
     </div>
