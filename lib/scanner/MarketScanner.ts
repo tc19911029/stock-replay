@@ -1133,6 +1133,33 @@ export abstract class MarketScanner {
     if (sessionFreshness.staleCount > 0) {
       console.warn(`[ScanSOP Freshness] ${sessionFreshness.staleCount} 支股票使用過期數據（最大落後 ${sessionFreshness.maxStaleDays} 天）`);
     }
+
+    // ── 寫 Step 1 池子 cache（書本五步法 Step 1 → Step 2 銜接）──
+    // sorted 是過「六條件 + 戒律 + 淘汰法」的合格池
+    // 多頭軌 8 個 detector（B/C/E/J/K/L/M/P）讀這個 cache 當候選
+    // 反轉軌 + 戰法軌 不過 Step 1，全市場掃（不用此 cache）
+    // 概念：今日的池子今日用，明天會重新算
+    const poolDate = asOfDate
+      ?? new Intl.DateTimeFormat('en-CA', { timeZone: config.timezone }).format(new Date());
+    try {
+      const { saveStep1Pool } = await import('./step1Pool');
+      await saveStep1Pool({
+        market: config.marketId,
+        date: poolDate,
+        symbols: sorted.map(r => r.symbol),
+        generatedAt: new Date().toISOString(),
+        stats: {
+          total: stocks.length,
+          passSixCond: sorted.length,
+          passProhib: sorted.length,
+          passElim: sorted.length,
+        },
+      });
+      console.info(`[ScanSOP] step1-pool 寫入：${config.marketId} ${poolDate} ${sorted.length} 支`);
+    } catch (err) {
+      console.warn('[ScanSOP] saveStep1Pool failed (non-critical):', err);
+    }
+
     return {
       results: sorted,
       marketTrend,
