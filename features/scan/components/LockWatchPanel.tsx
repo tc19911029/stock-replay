@@ -98,9 +98,10 @@ export function LockWatchPanel({ market }: LockWatchPanelProps) {
     [market, fetchData],
   );
 
+  // 進入時就 fetch 一次抓 active count；展開不展開都顯示徽章
   useEffect(() => {
-    if (!collapsed) fetchData();
-  }, [collapsed, fetchData]);
+    fetchData();
+  }, [fetchData]);
 
   // Active = 觀察中 / 可進場（已買進、撤銷、移除不在主視圖突出）
   const activeRecords = (snapshot?.records ?? []).filter(
@@ -113,20 +114,28 @@ export function LockWatchPanel({ market }: LockWatchPanelProps) {
     <div className="border-b border-border/60">
       <button
         onClick={() => setCollapsed((v) => !v)}
-        className="w-full flex items-center justify-between px-2.5 py-1 text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+        className={`w-full flex items-center justify-between px-2.5 py-1.5 text-[11px] hover:bg-muted/40 transition-colors ${
+          activeCount > 0
+            ? 'bg-amber-900/30 text-amber-200 hover:bg-amber-900/40'
+            : 'text-muted-foreground hover:text-foreground'
+        }`}
+        title="v12 新功能：F V反轉 / N 型態確認 觸發後自動加入觀察名單，等趨勢確認再進場"
       >
         <span className="flex items-center gap-1.5">
-          <span className="font-medium">🔒 鎖股觀察</span>
-          {activeCount > 0 && (
-            <span className="text-[9px] font-mono bg-amber-900/50 text-amber-300 px-1 rounded">
-              {activeCount}
+          <span className="text-[9px] font-bold uppercase tracking-wider opacity-70">v12</span>
+          <span className="font-semibold">🔒 鎖股觀察</span>
+          {activeCount > 0 ? (
+            <span className="text-[10px] font-mono bg-amber-700 text-amber-100 px-1.5 py-px rounded font-bold">
+              {activeCount} 檔
             </span>
+          ) : (
+            <span className="text-[9px] opacity-50">（暫無）</span>
           )}
           {snapshot?.date && (
             <span className="text-[9px] font-mono opacity-60">{snapshot.date.slice(5)}</span>
           )}
         </span>
-        <span>{collapsed ? '▶' : '▼'}</span>
+        <span className="text-xs">{collapsed ? '▶' : '▼'}</span>
       </button>
 
       {!collapsed && (

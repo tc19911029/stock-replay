@@ -120,8 +120,8 @@ export default function HomePage() {
   const [showIndicators, setShowIndicators] = useState(true);
   // P1-5: keyboard shortcut help overlay
   const [showHelp, setShowHelp] = useState(false);
-  // Scanner bottom panel
-  const [scannerOpen, setScannerOpen] = useState(false);
+  // Scanner bottom panel — v12 預設展開讓用戶一進來就看到新功能（14 字母 tabs/Step 0 banner/LockWatch panel/警示徽章）
+  const [scannerOpen, setScannerOpen] = useState(true);
   // 手機點「走圖」→ 全螢幕 K 線視圖
   const [mobileChartFullscreen, setMobileChartFullscreen] = useState(false);
   const openMobileChart = useCallback(() => {
