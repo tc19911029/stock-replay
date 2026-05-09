@@ -115,7 +115,38 @@ export async function GET(req: NextRequest) {
       const { detectKlineConsolidationBreakout } = await import('@/lib/analysis/klineConsolidationBreakout');
       if (detectKlineConsolidationBreakout(allCandles, lastIdx)?.isBreakout) matchedMethods.push('I');
     } catch { /* */ }
-    const sortedMatched = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'].filter(m => matchedMethods.includes(m));
+    // v12 新字母 J-Q（J/K/L 是 G/I/H alias 跳過避免重複；M/N/O/P/Q 新訊號）
+    try {
+      const { detectLetterM } = await import('@/lib/analysis/v12LetterM');
+      const sym = data.ticker || '';
+      const market = /\.(SS|SZ)$/i.test(sym) ? 'CN' : 'TW';
+      if (detectLetterM(allCandles, lastIdx, market, sym).triggered) matchedMethods.push('M');
+    } catch { /* */ }
+    try {
+      const { detectLetterN } = await import('@/lib/analysis/v12LetterN');
+      const sym = data.ticker || '';
+      const market = /\.(SS|SZ)$/i.test(sym) ? 'CN' : 'TW';
+      if (detectLetterN(allCandles, lastIdx, market, sym).triggered) matchedMethods.push('N');
+    } catch { /* */ }
+    try {
+      const { detectLetterO } = await import('@/lib/analysis/v12LetterO');
+      const sym = data.ticker || '';
+      const market = /\.(SS|SZ)$/i.test(sym) ? 'CN' : 'TW';
+      if (detectLetterO(allCandles, lastIdx, market, sym).triggered) matchedMethods.push('O');
+    } catch { /* */ }
+    try {
+      const { detectLetterP } = await import('@/lib/analysis/v12LetterP');
+      const sym = data.ticker || '';
+      const market = /\.(SS|SZ)$/i.test(sym) ? 'CN' : 'TW';
+      if (detectLetterP(allCandles, lastIdx, market, sym).triggered) matchedMethods.push('P');
+    } catch { /* */ }
+    try {
+      const { detectLetterQ } = await import('@/lib/analysis/v12LetterQ');
+      const sym = data.ticker || '';
+      const market = /\.(SS|SZ)$/i.test(sym) ? 'CN' : 'TW';
+      if (detectLetterQ(allCandles, lastIdx, market, sym).triggered) matchedMethods.push('Q');
+    } catch { /* */ }
+    const sortedMatched = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'].filter(m => matchedMethods.includes(m));
     // 根據策略篩選規則群組
     const strategy = strategyId ? BUILT_IN_STRATEGIES.find(s => s.id === strategyId) : undefined;
     const engine = (strategy?.ruleGroups && strategy.ruleGroups.length > 0)

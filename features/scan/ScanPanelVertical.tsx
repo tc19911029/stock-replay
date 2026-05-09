@@ -7,6 +7,7 @@ import { DabanResultsCompact } from './components/DabanResultsCompact';
 import { ScanCoachDigest } from './components/ScanCoachDigest';
 import { MarketTrendBanner } from './components/MarketTrendBanner';
 import { LockWatchPanel } from './components/LockWatchPanel';
+import { ReentryCandidatesPanel } from './components/ReentryCandidatesPanel';
 import { SectionBoundary } from '@/components/ErrorBoundary';
 import type { SelectedStock } from './components/ScanChartPanel';
 
@@ -224,6 +225,9 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
 
         {/* LockWatch 鎖股觀察（v12 議題 23/65/93）— F V 反轉 / N 型態確認觸發後 */}
         {scanDirection !== 'daban' && <LockWatchPanel market={market} />}
+
+        {/* Re-entry candidates（v12 議題 28）— 賣出後可再進場清單 */}
+        {scanDirection !== 'daban' && <ReentryCandidatesPanel onSelectStock={onSelectStock} />}
 
         {/* Date Navigator — vertical pill list */}
         {cronDates.some(c => c.market === market) && (

@@ -419,6 +419,9 @@ function PortfolioContent({ holdings, prices, summary, totalReturnPct, marketTab
               buyDate={h.buyDate}
               triggerSignal={h.triggerSignal}
               operationMode={h.operationMode}
+              enhancedDisciplineEnabled={h.enhancedDisciplineEnabled}
+              endPhaseTriggered={h.endPhaseTriggered}
+              recentHigh={h.recentHigh}
             />
             </div>
           );

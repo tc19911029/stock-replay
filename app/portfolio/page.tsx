@@ -40,6 +40,28 @@ export default function PortfolioPage() {
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
 
+  // ── LockWatch → Portfolio prefill 整合（議題 62）─────────────────────
+  // URL: /portfolio?prefill=2330&trigger=N&price=507.44
+  // 來自 LockWatchPanel 🛒 按鈕，自動帶入 v12 欄位
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const prefill = params.get('prefill');
+    const trigger = params.get('trigger');
+    const price = params.get('price');
+    if (prefill) {
+      setForm({
+        ...EMPTY_FORM,
+        symbol: prefill,
+        costPrice: price ?? '',
+        triggerSignal: (trigger as typeof EMPTY_FORM.triggerSignal) ?? '',
+      });
+      setShowForm(true);
+      // 清除 URL params 避免 refresh 時重填
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, '', cleanUrl);
+    }
+  }, []);
+
   async function refreshAllPrices(list: typeof holdings) {
     if (list.length === 0) return;
     const symbols = list.map(h => h.symbol);
@@ -194,6 +216,22 @@ export default function PortfolioPage() {
         triggerSignal: form.triggerSignal === '' ? undefined : form.triggerSignal,
         operationMode: form.operationMode,
       });
+      // v12 議題 62：若進場訊號為 F/N，呼叫 LockWatch mark-purchased 標 stage='purchased'
+      if (form.triggerSignal === 'F' || form.triggerSignal === 'N') {
+        const market = /\.(SS|SZ)$/i.test(resolvedSymbol) ? 'CN' : 'TW';
+        try {
+          await fetch('/api/lockwatch/mark-purchased', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              market,
+              symbol: resolvedSymbol,
+              triggerSignal: form.triggerSignal,
+              entryPrice: Number(form.costPrice),
+            }),
+          });
+        } catch { /* non-blocking */ }
+      }
       if (resolvedPrice > 0) setPrices(prev => ({ ...prev, [resolvedSymbol]: { price: resolvedPrice, changePercent: resolvedChangePct, loading: false } }));
       setForm({ ...EMPTY_FORM, buyDate: new Date().toISOString().split('T')[0] });
       setShowForm(false);

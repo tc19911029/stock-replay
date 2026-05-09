@@ -12,8 +12,8 @@ import { formatWeight } from '../utils/format';
 import { formatPercent } from '@/lib/format';
 import type { StrategySignals, HoldingWithStrategies } from '@/lib/etf/strategySignals';
 
-// ── 策略 A-F 標籤 ─────────────────────────────────────────────────────
-const STRAT_KEYS: (keyof StrategySignals)[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
+// ── 策略 A-Q 標籤（v12 14 軌制）─────────────────────────────────────────
+const STRAT_KEYS: (keyof StrategySignals)[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'];
 const STRAT_TITLES: Record<string, string> = {
   A: '六大條件',
   B: '回後買上漲',
@@ -21,9 +21,17 @@ const STRAT_TITLES: Record<string, string> = {
   D: '一字底',
   E: '缺口進場',
   F: 'V形反轉',
-  G: 'ABC 突破',
-  H: '突破大量黑K',
-  I: 'K線橫盤突破',
+  G: 'ABC 突破（v11）',
+  H: '突破大量黑K（v11）',
+  I: 'K線橫盤突破（v11）',
+  J: 'ABC 突破',
+  K: 'K線橫盤突破',
+  L: '突破大量黑K',
+  M: '軌道線突破',
+  N: '型態確認',
+  O: '打底完成',
+  P: '高檔拉回',
+  Q: '三均線戰法',
 };
 
 function fmtPosPct(deltaShares: number, priorShares: number): string {

@@ -1235,6 +1235,8 @@ export abstract class MarketScanner {
           let subType: string | undefined;
           // v12 議題 23/65/93：F/N 觸發時填寫，供 scan-bm cron 寫入 LockWatch
           let lockWatchPayload: StockScanResult['lockWatchPayload'];
+          // v12 議題 75：K/D 型態訊號的 provisional 三天驗證 state
+          let provisional: StockScanResult['provisional'];
 
           if (method === 'B') {
             // B=回後買上漲
@@ -1250,7 +1252,16 @@ export abstract class MarketScanner {
             // D=一字底
             const { detectStrategyE } = await import('@/lib/analysis/highWinRateEntry');
             const r = detectStrategyE(candles, lastIdx);
-            if (r?.isFlatBottom) { matched = true; detail = r.detail; }
+            if (r?.isFlatBottom) {
+              matched = true;
+              detail = r.detail;
+              // v12 議題 75：D 型態訊號 provisional 三天驗證
+              const { createProvisional } = await import('@/lib/scanner/provisionalManager');
+              provisional = createProvisional({
+                triggerPrice: last.close,
+                triggeredDate: asOfDate ?? last.date,
+              });
+            }
           } else if (method === 'E') {
             // E=缺口進場
             const { detectStrategyD } = await import('@/lib/analysis/gapEntry');
@@ -1292,7 +1303,16 @@ export abstract class MarketScanner {
             // K=K 線橫盤突破（v12 = v11 I 改字母；寶典 Part 11-1 位置 5）
             const { detectKlineConsolidationBreakout } = await import('@/lib/analysis/klineConsolidationBreakout');
             const r = detectKlineConsolidationBreakout(candles, lastIdx);
-            if (r?.isBreakout) { matched = true; detail = `K ${r.detail}`; }
+            if (r?.isBreakout) {
+              matched = true;
+              detail = `K ${r.detail}`;
+              // v12 議題 75：K 型態訊號 provisional 三天驗證
+              const { createProvisional } = await import('@/lib/scanner/provisionalManager');
+              provisional = createProvisional({
+                triggerPrice: last.close,
+                triggeredDate: asOfDate ?? last.date,
+              });
+            }
           } else if (method === 'L') {
             // L=過大量黑 K 高（v12 = v11 H 改字母；寶典 Part 11-1 位置 8）
             const { detectBlackKBreakout } = await import('@/lib/analysis/blackKBreakoutEntry');
@@ -1461,6 +1481,7 @@ export abstract class MarketScanner {
             mtfMonthlyPass: mtfResult.monthly.pass,
             mtfMonthlyDetail: mtfResult.monthly.detail,
             lockWatchPayload,
+            provisional,
             dataFreshness: {
               lastCandleDate: fetchResult.lastCandleDate,
               daysStale: fetchResult.staleDays,

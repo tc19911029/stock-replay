@@ -23,6 +23,7 @@ import StockSelector from '@/components/StockSelector';
 import { PageShell, EmptyState } from '@/components/shared';
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import RuleAlerts from '@/components/RuleAlerts';
+import V12SignalAlerts from '@/components/V12SignalAlerts';
 import ProhibitionAlerts from '@/components/ProhibitionAlerts';
 import WinnerPatternAlerts from '@/components/WinnerPatternAlerts';
 import SixConditionsPanel from '@/components/SixConditionsPanel';
@@ -380,6 +381,7 @@ export default function HomePage() {
       {sideTab === 'signals' && (
         <SectionBoundary section="訊號分析">
           <div className="space-y-2">
+            <V12SignalAlerts />
             <ProhibitionAlerts />
             <WinnerPatternAlerts />
             <RuleAlerts />
