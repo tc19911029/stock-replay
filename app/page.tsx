@@ -24,6 +24,7 @@ import { PageShell, EmptyState } from '@/components/shared';
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import RuleAlerts from '@/components/RuleAlerts';
 import V12SignalAlerts from '@/components/V12SignalAlerts';
+import { useV12HistoricalMarkers } from '@/lib/hooks/useV12HistoricalMarkers';
 import ProhibitionAlerts from '@/components/ProhibitionAlerts';
 import WinnerPatternAlerts from '@/components/WinnerPatternAlerts';
 import SixConditionsPanel from '@/components/SixConditionsPanel';
@@ -70,6 +71,13 @@ export default function HomePage() {
     signalStrengthMin, setSignalStrengthMin,
     resetReplay, targetDate,
   } = useReplayStore();
+
+  // v12 歷史 markers（M/N/O/P/Q/F）— 在現有 chartMarkers 之上疊加
+  const v12Markers = useV12HistoricalMarkers(allCandles, currentStock?.ticker ?? '', true);
+  const mergedMarkers = useMemo(
+    () => [...chartMarkers, ...v12Markers],
+    [chartMarkers, v12Markers],
+  );
 
   // 買點索引（對齊生產掃描規則：六條件+戒律+淘汰法）
   const buyPointIndices = useMemo(
@@ -186,7 +194,7 @@ export default function HomePage() {
 
   const [hoverCandle, setHoverCandle] = useState<typeof allCandles[0] | null>(null);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
-  const [showMarkers, setShowMarkers] = useState(false);
+  const [showMarkers, setShowMarkers] = useState(true);  // v12 markers 預設顯示（M/N/O/P/Q/F 歷史觸發日）
   const [showPivots, setShowPivots] = useState(false);
   const [showSupportResistance, setShowSupportResistance] = useState(false);
   const [showAscendingTrendline, setShowAscendingTrendline] = useState(false);
@@ -501,7 +509,7 @@ export default function HomePage() {
                 <CandleChart
                   candles={visibleCandles}
                   signals={currentSignals}
-                  chartMarkers={showMarkers ? chartMarkers : []}
+                  chartMarkers={showMarkers ? mergedMarkers : []}
                   avgCost={metrics.shares > 0 ? metrics.avgCost : undefined}
                   stopLossPrice={stopLossPrice}
                   onCrosshairMove={setHoverCandle}
@@ -743,7 +751,7 @@ export default function HomePage() {
                     <CandleChart
                       candles={visibleCandles}
                       signals={currentSignals}
-                      chartMarkers={showMarkers ? chartMarkers : []}
+                      chartMarkers={showMarkers ? mergedMarkers : []}
                       avgCost={metrics.shares > 0 ? metrics.avgCost : undefined}
                       stopLossPrice={stopLossPrice}
                       onCrosshairMove={setHoverCandle}
