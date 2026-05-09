@@ -158,11 +158,14 @@ export function detectABCBreakout(
   if (!c || !prev || prev.volume <= 0 || c.open <= 0) return null;
 
   // 0. 多頭背景（書本 Part 11-1 p.697「多頭一波後 ABC 修正再攻」）
-  if (detectTrend(candles, idx) !== '多頭') return null;
-
+  // 2026-05-10 修：原檢查「今日 detectTrend = 多頭」太嚴。ABC 修正末段+突破當日
+  //   通常是 LH+LL（短空）或盤整，detectTrend 幾乎不會是多頭。書本本意是「**修正之前**
+  //   是多頭」，不是「修正完成當日仍多頭」。改檢查 legAHigh 之前的 detectTrend。
   // 1. 找 ABC 修正結構
   const abc = findABCStructure(candles, idx);
   if (!abc) return null;
+  // 0'. ABC 修正之前（legAHigh 處）必須是多頭
+  if (detectTrend(candles, abc.legAHighIdx) !== '多頭') return null;
 
   // 2. 紅 K
   if (c.close <= c.open) return null;

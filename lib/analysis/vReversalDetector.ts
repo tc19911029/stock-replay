@@ -70,9 +70,12 @@ export function detectVReversal(
   const prev = candles[idx - 1];
   if (!today || !prev || today.open <= 0) return null;
 
-  // ── 進場 K 條件（今日）：紅 K + 帶量 + 收盤 > 前 K 高（含上影線） ──
+  // ── 進場 K 條件（今日）：紅 K + 實體 ≥ 2% + 帶量 + 收盤 > 前 K 高 ──
+  // 2026-05-10：補書本 SOP ⑤ 紅K實體 ≥2% 門檻（與 B/C/D/E + N/O/P/Q 一致）
+  // 原邏輯只檢查 close > open，連 0.1% 紅K都算 V 反轉「紅K帶量」— 不對齊書本
   if (today.close <= today.open) return null;
   const bodyPct = ((today.close - today.open) / today.open) * 100;
+  if (bodyPct < 2.0) return null;
   if (today.close <= prev.high) return null;
 
   const vol5seg = candles.slice(idx - 5, idx).map(c => c.volume).filter(v => v > 0);
