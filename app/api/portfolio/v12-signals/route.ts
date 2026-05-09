@@ -13,7 +13,7 @@ import { z } from 'zod';
 import { apiOk, apiError, apiValidationError } from '@/lib/api/response';
 import { loadLocalCandlesWithTolerance } from '@/lib/datasource/LocalCandleStore';
 import { detectTrend } from '@/lib/analysis/trendAnalysis';
-import { calcKLineStopLoss } from '@/lib/sell/v12StopLoss';
+import { calcKLineStopLoss, updateStopLossDaily, checkAbsoluteStopLoss } from '@/lib/sell/v12StopLoss';
 import { checkKLineExit, checkMAExit, getOperationMA, canUpgradeToLongTerm } from '@/lib/sell/v12Operation';
 import { checkTakeProfitTargets, detectKBarExitSignal } from '@/lib/sell/v12TakeProfit';
 import { getTickSize } from '@/lib/utils/tickSize';
@@ -30,12 +30,19 @@ const querySchema = z.object({
   triggerSignal: z.enum(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q']).optional(),
   operationMode: z.enum(['short', 'long', 'wave']).default('short'),
   patternTargetPrice: z.coerce.number().optional(),
+  // v12 議題 13 / S3-3 末升段 trailing
+  endPhaseTriggered: z.coerce.boolean().optional(),
+  recentHigh: z.coerce.number().optional(),
+  // v12 議題 ⑥-1 C 訊號用：進場日盤整下緣
+  consolidationLow: z.coerce.number().optional(),
+  // v12 議題 ⑥-5 F 訊號用：V 底
+  vBottom: z.coerce.number().optional(),
 });
 
 export async function GET(req: NextRequest) {
   const parsed = querySchema.safeParse(Object.fromEntries(req.nextUrl.searchParams));
   if (!parsed.success) return apiValidationError(parsed.error);
-  const { symbol, market, entryPrice, buyDate, triggerSignal, operationMode, patternTargetPrice } = parsed.data;
+  const { symbol, market, entryPrice, buyDate, triggerSignal, operationMode, patternTargetPrice, endPhaseTriggered, recentHigh, consolidationLow, vBottom } = parsed.data;
 
   try {
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
@@ -61,14 +68,47 @@ export async function GET(req: NextRequest) {
     // 視為 v11 資料的 holding 沒有 triggerSignal，預設用 'B'（最常見）
     const letter = (triggerSignal ?? 'B') as V12Letter;
 
-    // ── Step 3 停損（K 線三段式或對應方法）──
+    // ── Step 3 停損 — 持倉中用 updateStopLossDaily 走完整書本邏輯 ──
+    // 含議題 S3-1 單一主方法、S3-3 末升段 trailing 3%、③ 均線跟隨上揚、S3-7 10% 絕對下限
+    const slInputs = {
+      letter,
+      entryPrice,
+      entryKbar,
+      tickSize,
+      isEndPhase: endPhaseTriggered,
+      recentHigh,
+      pivotLow: entryKbar.low,
+      supportLevel: consolidationLow ?? entryKbar.low,
+      triggerKLow: entryKbar.low,
+    };
+    const slResult = updateStopLossDaily(slInputs, today_c);
     const klineStop = calcKLineStopLoss(entryKbar, tickSize);
-    const absoluteFloor = entryPrice * 0.9; // 10% 絕對下限
-    const stopLossPrice = Math.max(klineStop, absoluteFloor);
+    const stopLossPrice = slResult.stopLossPrice;
     const profitPct = (today_c.close - entryPrice) / entryPrice;
 
+    // ── Step 3 ⑥ 5 條絕對停損（議題 Step 3 ⑥）──
+    const yesterdayTrend = candles[lastIdx - 1] ? detectTrend(candles, lastIdx - 1) : '盤整';
+    const absoluteSL = checkAbsoluteStopLoss({
+      entryPrice,
+      todayClose: today_c.close,
+      trendStateToday: trendState,
+      trendStateYesterday: yesterdayTrend,
+      letter,
+      consolidationLow,
+      vBottom,
+    });
+
     // ── Step 4 操作 ──
-    const operatingMA = getOperationMA(letter, operationMode);
+    // v12 議題 Step 5 ②：乖離 ≥15% 切 MA5（覆寫 getOperationMA 的對應均線）
+    let operatingMA = getOperationMA(letter, operationMode);
+    let highDeviationOverride = false;
+    if (today_c.ma20 != null && today_c.ma20 > 0) {
+      const deviation = (today_c.close - today_c.ma20) / today_c.ma20;
+      if (deviation >= 0.15) {
+        operatingMA = 'MA5';
+        highDeviationOverride = true;
+      }
+    }
     let maValue: number | null = null;
     if (operatingMA === 'MA3') maValue = today_c.ma3 ?? null;
     else if (operatingMA === 'MA5') maValue = today_c.ma5 ?? null;
@@ -114,10 +154,18 @@ export async function GET(req: NextRequest) {
       trendState,
       step3: {
         stopLossPrice: +stopLossPrice.toFixed(2),
-        method: 'K 線三段式（書本步驟 3 ① 或對應方法）',
-        absoluteFloor: +absoluteFloor.toFixed(2),
+        method: slResult.detail,
+        primaryMethod: slResult.primaryMethod,
+        absoluteFloor: +slResult.absoluteFloor.toFixed(2),
         klineStop: +klineStop.toFixed(2),
+        trailingActivated: slResult.trailingActivated,
         slDistancePct: +((today_c.close - stopLossPrice) / today_c.close * 100).toFixed(2),
+        // ⑥ 5 條絕對停損 — 觸發即強制出場
+        absoluteStopLoss: {
+          triggered: absoluteSL.triggered,
+          reason: absoluteSL.reason,
+          detail: absoluteSL.detail,
+        },
       },
       step4: {
         operatingMA: operatingMA ?? '無',
@@ -126,6 +174,8 @@ export async function GET(req: NextRequest) {
         maExit,
         canUpgradeToLong: upgradeCheck.canUpgrade,
         upgradeProfitPct: +upgradeCheck.profitPct.toFixed(4),
+        // 議題 Step 5 ②：乖離 ≥15% 自動覆寫對應均線為 MA5（不直接停利）
+        highDeviationOverride,
       },
       step5: {
         takeProfit,

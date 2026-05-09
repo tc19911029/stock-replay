@@ -322,26 +322,37 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                 )}
 
                 {/* v12 Provisional 三天驗證（K/D 型態訊號用，議題 75）*/}
-                {r.provisional && (
-                  <span
-                    className={`text-[8px] px-1 h-3.5 flex items-center rounded-sm font-bold ${
-                      r.provisional.status === 'confirmed' ? 'bg-emerald-900/60 text-emerald-200' :
-                      r.provisional.status === 'revoked' ? 'bg-rose-900/60 text-rose-200 line-through' :
-                      'bg-amber-900/60 text-amber-200'
-                    }`}
-                    title={
-                      r.provisional.status === 'confirmed' ? `已確認（停留 ≥3 天）` :
-                      r.provisional.status === 'revoked' ? `已撤銷（close 跌破 ${r.provisional.triggerPrice.toFixed(2)}）` :
-                      `三天驗證中（剩 ${r.provisional.daysRemaining} 天，鎖定價 ${r.provisional.triggerPrice.toFixed(2)}）`
-                    }>
-                    {r.provisional.status === 'confirmed' ? '✓ 確認' :
-                     r.provisional.status === 'revoked' ? '✗ 撤銷' :
-                     `⏳ ${r.provisional.daysRemaining}天`}
-                    {r.provisional.revocationCount >= 2 && (
-                      <span className="ml-0.5 text-orange-400">!</span>
-                    )}
-                  </span>
-                )}
+                {r.provisional && (() => {
+                  // 動態計算「實際剩餘天數」基於 triggered 日期 vs 今日（議題 86 交易日計算簡化版）
+                  const triggeredDate = r.provisional.history?.[0]?.date;
+                  const today = new Date().toISOString().slice(0, 10);
+                  let actualRemaining = r.provisional.daysRemaining;
+                  if (triggeredDate && r.provisional.status === 'provisional') {
+                    const daysPassed = Math.floor((new Date(today).getTime() - new Date(triggeredDate).getTime()) / 86400000);
+                    actualRemaining = Math.max(0, 3 - daysPassed) as 0 | 1 | 2 | 3;
+                  }
+                  const effectiveStatus = actualRemaining === 0 && r.provisional.status === 'provisional' ? 'confirmed' : r.provisional.status;
+                  return (
+                    <span
+                      className={`text-[8px] px-1 h-3.5 flex items-center rounded-sm font-bold ${
+                        effectiveStatus === 'confirmed' ? 'bg-emerald-900/60 text-emerald-200' :
+                        effectiveStatus === 'revoked' ? 'bg-rose-900/60 text-rose-200 line-through' :
+                        'bg-amber-900/60 text-amber-200'
+                      }`}
+                      title={
+                        effectiveStatus === 'confirmed' ? `已確認（停留 ≥3 天）` :
+                        effectiveStatus === 'revoked' ? `已撤銷（close 跌破 ${r.provisional.triggerPrice.toFixed(2)}）` :
+                        `三天驗證中（剩 ${actualRemaining} 天，鎖定價 ${r.provisional.triggerPrice.toFixed(2)}）`
+                      }>
+                      {effectiveStatus === 'confirmed' ? '✓ 確認' :
+                       effectiveStatus === 'revoked' ? '✗ 撤銷' :
+                       `⏳ ${actualRemaining}天`}
+                      {r.provisional.revocationCount >= 2 && (
+                        <span className="ml-0.5 text-orange-400">!</span>
+                      )}
+                    </span>
+                  );
+                })()}
 
                 {/* Action buttons */}
                 <div className="ml-auto flex items-center gap-1">
