@@ -23,39 +23,35 @@ interface MarketTrendBannerProps {
 interface BannerStyle {
   bg: string;
   text: string;
-  icon: string;
   label: string;
   hint: string;
 }
 
+// 不同趨勢用左邊邊框顏色 + 文字色區分（不用 emoji）
 const TREND_STYLE: Record<TrendState, BannerStyle> = {
   多頭: {
-    bg: 'bg-emerald-900/40 border-emerald-700/60',
+    bg: 'bg-emerald-900/40 border-emerald-500',
     text: 'text-emerald-200',
-    icon: '🟢',
     label: '多頭',
     hint: '可正常做多',
   },
   空頭: {
-    bg: 'bg-rose-900/40 border-rose-700/60',
+    bg: 'bg-rose-900/40 border-rose-500',
     text: 'text-rose-200',
-    icon: '🔴',
     label: '空頭',
     hint: '停止做多（書本：站不上月線不進場）',
   },
   盤整: {
-    bg: 'bg-amber-900/30 border-amber-700/50',
+    bg: 'bg-amber-900/30 border-amber-500',
     text: 'text-amber-200',
-    icon: '🟡',
     label: '盤整',
     hint: '可選擇性做多（盤整不是多頭，謹慎進場）',
   },
 };
 
 const NEUTRAL_STYLE: BannerStyle = {
-  bg: 'bg-slate-800/40 border-slate-700/50',
+  bg: 'bg-slate-800/40 border-slate-500',
   text: 'text-slate-300',
-  icon: '⚪',
   label: '未載入',
   hint: '大盤資料載入中…',
 };
@@ -72,11 +68,10 @@ export function MarketTrendBanner({ market, marketTrend, scanDate }: MarketTrend
   return (
     <div
       className={`flex items-center gap-2 px-2.5 py-2 border-b border-l-4 text-[11px] font-medium ${style.bg} ${style.text}`}
-      title="Step 0 大盤過濾：進場做多的最高前提（寶典 p.687）"
+      title="大盤趨勢：進場做多的最高前提（寶典 p.687）"
     >
-      <span className="text-base leading-none">{style.icon}</span>
       <div className="flex-1 min-w-0 flex items-center gap-1.5 overflow-hidden">
-        <span className="font-bold shrink-0 text-[10px] opacity-70 uppercase tracking-wider">v12 Step 0</span>
+        <span className="font-bold shrink-0 text-[10px] opacity-70 tracking-wider">大盤</span>
         <span className="font-semibold shrink-0">{indexName}</span>
         <span className="font-mono shrink-0 font-bold">{style.label}</span>
         <span className="opacity-80 truncate">{style.hint}</span>

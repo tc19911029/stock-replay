@@ -94,7 +94,7 @@ export function ReentryCandidatesPanel({ onSelectStock }: ReentryCandidatesPanel
       >
         <span className="flex items-center gap-2">
           <span className={`font-medium ${headerColor}`}>
-            🔁 再進場候選（書本：回後買上漲）
+            再進場候選（書本：回後買上漲）
           </span>
           {loading && <span className="text-muted-foreground">載入中…</span>}
           {!loading && (

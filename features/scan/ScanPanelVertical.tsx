@@ -124,43 +124,31 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
 
         </div>
 
-        {/* Row 1.5: 買法選擇（只在做多時顯示） */}
+        {/* Row 1.5: 14 個策略選擇（只在做多時顯示） */}
         {scanDirection === 'long' && (
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground/70 flex-wrap">
-              <span className="font-bold uppercase tracking-wider">v12 14 軌</span>
-              <span className="opacity-50">·</span>
-              <span title="預選池"><span className="text-amber-400">★</span> 預選池</span>
-              <span title="多頭軌"><span className="text-red-400">▲</span> 多頭軌</span>
-              <span title="轉折軌"><span className="text-blue-400">◆</span> 轉折軌</span>
-              <span title="戰法軌"><span className="text-purple-400">●</span> 戰法軌</span>
-            </div>
           <div className="flex items-center gap-1 flex-wrap">
             {(['A', 'B', 'C', 'D', 'E', 'F', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'] as const).map(method => {
-              const labels: Record<string, string> = {
-                // v12 字母系統（v11 G/H/I 釋出，改用 J/K/L）
-                A: '六條件',
-                B: '回後買上漲',
-                C: '盤整突破',
-                D: '一字底',
-                E: '缺口',
-                F: 'V型反轉',
-                // v12 多頭軌新訊號
-                J: 'ABC突破',
-                K: 'K線橫盤',
-                L: '過大量黑K',
-                M: '突破軌道線',
-                // v12 轉折軌新訊號
-                N: '型態確認',
-                O: '打底完成',
-                // v12 多頭軌補充
-                P: '高檔拉回',
-                // v12 戰法軌
-                Q: '三條均線',
+              // 各策略中文名稱 + 守的均線（hover tooltip 用）
+              const META: Record<string, { name: string; track: string; ma: string }> = {
+                A: { name: '六條件', track: '預選池', ma: '—' },
+                B: { name: '回後買上漲', track: '多頭軌', ma: 'MA5' },
+                C: { name: '盤整突破', track: '多頭軌', ma: 'MA10' },
+                D: { name: '一字底', track: '轉折軌', ma: 'MA20' },
+                E: { name: '缺口', track: '多頭軌', ma: 'MA10' },
+                F: { name: 'V 型反轉', track: '轉折軌', ma: 'MA3' },
+                J: { name: 'ABC 突破', track: '多頭軌', ma: 'MA20' },
+                K: { name: 'K 線橫盤', track: '多頭軌', ma: 'MA10' },
+                L: { name: '過大量黑 K', track: '多頭軌', ma: 'MA10' },
+                M: { name: '突破軌道線', track: '多頭軌', ma: 'MA10' },
+                N: { name: '型態確認', track: '轉折軌', ma: 'MA10' },
+                O: { name: '打底完成', track: '轉折軌', ma: 'MA20' },
+                P: { name: '高檔拉回', track: '多頭軌', ma: 'MA5' },
+                Q: { name: '三條均線戰法', track: '戰法軌', ma: 'MA10' },
               };
-              // v12 軌道分類：用顏色區分
+              const m = META[method];
+              // 各軌道用顏色區分（圖例改成 hover tooltip 顯示，不再單獨一行）
               const trackColor = (() => {
-                if (method === 'A') return 'bg-amber-700/70 border-amber-600 text-amber-100'; // 預選池
+                if (method === 'A') return 'bg-amber-700/70 border-amber-600 text-amber-100';
                 if (['B', 'P', 'C', 'E', 'J', 'K', 'L', 'M'].includes(method)) {
                   return 'bg-red-700/70 border-red-600 text-red-100'; // 多頭軌
                 }
@@ -169,6 +157,9 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
                 }
                 return 'bg-purple-700/70 border-purple-600 text-purple-100'; // Q 戰法軌
               })();
+              const tooltip = method === 'A'
+                ? `A · ${m.name} · ${m.track}（基礎篩選池）`
+                : `${method} · ${m.name} · ${m.track} · 守 ${m.ma}`;
               return (
                 <button key={method}
                   onClick={() => setActiveBuyMethod(method)}
@@ -178,17 +169,11 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
                       ? trackColor
                       : 'bg-secondary border-border text-muted-foreground hover:bg-muted'
                   }`}
-                  title={
-                    method === 'A' ? '預選池（六條件）' :
-                    ['B', 'P', 'C', 'E', 'J', 'K', 'L', 'M'].includes(method) ? '多頭軌' :
-                    ['D', 'F', 'N', 'O'].includes(method) ? '轉折軌（鎖股觀察）' :
-                    '戰法軌（獨立 SOP）'
-                  }>
-                  {labels[method]}
+                  title={tooltip}>
+                  {m.name}
                 </button>
               );
             })}
-          </div>
           </div>
         )}
 
