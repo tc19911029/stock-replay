@@ -740,17 +740,19 @@ export function evaluateSixConditions(
   const macdLabel = macdBull
     ? `✅ MACD 轉強(OSC ${oscP?.toFixed(3) ?? '—'}→${osc?.toFixed(3) ?? '—'})`
     : `⚠️ MACD 未轉強(OSC=${osc?.toFixed(3) ?? '—'})`;
+  // KD 顯示精度跟走圖副圖統一（2 位小數）— 不要用 toFixed(0) 整數，否則 84.58 →
+  // 顯示為「85」會跟走圖副圖「84.58」對不上看起來像 bug
   const indicatorDetail = [
     macdLabel,
     kdPass
       ? (kdCross
-          ? `✅ KD 金叉+K值向上(K=${c.kdK?.toFixed(0)}↑D=${c.kdD?.toFixed(0)})`
-          : `✅ KD 多排+K值向上(K=${c.kdK?.toFixed(0)},D=${c.kdD?.toFixed(0)})`)
+          ? `✅ KD 金叉+K值向上(K=${c.kdK?.toFixed(2)}↑D=${c.kdD?.toFixed(2)})`
+          : `✅ KD 多排+K值向上(K=${c.kdK?.toFixed(2)},D=${c.kdD?.toFixed(2)})`)
       : !kRising
-      ? `⚠️ K 值未向上(${prev?.kdK?.toFixed(0) ?? '—'}→${c.kdK?.toFixed(0) ?? '—'})`
+      ? `⚠️ K 值未向上(${prev?.kdK?.toFixed(2) ?? '—'}→${c.kdK?.toFixed(2) ?? '—'})`
       : c.kdK != null && c.kdK > kdMax
-      ? `❌ KD超買(K=${c.kdK?.toFixed(0)},過高風險大)`
-      : `⚠️ KD未多排(K=${c.kdK?.toFixed(0) ?? '—'},D=${c.kdD?.toFixed(0) ?? '—'})`,
+      ? `❌ KD超買(K=${c.kdK?.toFixed(2)},過高風險大)`
+      : `⚠️ KD未多排(K=${c.kdK?.toFixed(2) ?? '—'},D=${c.kdD?.toFixed(2) ?? '—'})`,
   ].join('\n');
 
   // ─────────────────────────────────────────────────────────────────────────
