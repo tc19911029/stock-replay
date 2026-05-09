@@ -146,6 +146,16 @@ function buildRequestBody(props: ScanCoachDigestProps) {
     prohibitions: r.entryProhibitionReasons,
     turnoverRank: r.turnoverRank,
     histWinRate: r.histWinRate,
+    // v12 fields（議題 33/65/93/13/27/88）
+    matchedMethods: r.matchedMethods,
+    patternType: r.lockWatchPayload?.patternType,
+    patternAchievementRate: r.lockWatchPayload?.patternAchievementRate,
+    patternTargetPrice: r.lockWatchPayload?.patternTargetPrice,
+    triggerPrice: r.lockWatchPayload?.triggerPrice,
+    endPhaseFlag: r.endPhaseFlag,
+    volumeLevel: r.volumeLevel,
+    kdDecliningWarning: r.kdDecliningWarning,
+    seasonLineResistance: r.seasonLineResistance,
   }));
   return {
     market: props.market,
