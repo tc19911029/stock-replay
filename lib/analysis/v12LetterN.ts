@@ -599,10 +599,14 @@ function detectNShape(
   const prevLow = lows[1];
   if (!prevLow || b.price <= prevLow.price) return null;
 
-  // 目標價 = 收盤突破點 + (A 高 - B 低)
+  // 目標價 = A 高（突破點）+ (A 高 - B 低)
+  // 書本《抓飆股》Part 7：N 字底突破 A 高後再漲 nHeight 距離（往上的另一個 N）
+  // 2026-05-10 修：原邏輯用 close 當突破點 → target 跟著 close 漂移，
+  //   無法被 makeResult 的「close >= target × 0.97」過濾「已達標」case；
+  //   且跟其他型態不一致（其他都是 neckline + height）
   const nHeight = a.price - b.price;
   if (nHeight <= 0) return null;
-  const patternTargetPrice = candles[idx].close + nHeight;
+  const patternTargetPrice = a.price + nHeight;
 
   return {
     patternType: 'n-shape',
