@@ -23,6 +23,8 @@ const querySchema = z.object({
   market: z.enum(['TW', 'CN']).default('TW'),
   direction: z.enum(['long', 'short']).default('long'),
   lookbackDays: z.coerce.number().int().min(3).max(30).default(14),
+  /** 已持有股票 symbols（逗號分隔），排除避免重複推薦 */
+  excludeSymbols: z.string().optional(),
 });
 
 export interface ReentryCandidate {
@@ -47,7 +49,10 @@ export interface ReentryCandidate {
 export async function GET(req: NextRequest): Promise<Response> {
   const parsed = querySchema.safeParse(Object.fromEntries(req.nextUrl.searchParams));
   if (!parsed.success) return apiValidationError(parsed.error);
-  const { market, direction, lookbackDays } = parsed.data;
+  const { market, direction, lookbackDays, excludeSymbols } = parsed.data;
+  const excluded = new Set(
+    excludeSymbols?.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean) ?? [],
+  );
 
   const reentryCfg = ZHU_PURE_BOOK.thresholds.reentry;
   if (!reentryCfg?.enabled) {
@@ -92,9 +97,10 @@ export async function GET(req: NextRequest): Promise<Response> {
       return apiOk({ market, direction, lookbackDays, candidates: [] });
     }
 
-    // 3. 對每支股票檢查再進場條件（用最新一根 K 棒）
+    // 3. 對每支股票檢查再進場條件（用最新一根 K 棒；排除已持有避免重複推薦）
     const candidates: ReentryCandidate[] = [];
     for (const [symbol, meta] of seenSymbols) {
+      if (excluded.has(symbol.toUpperCase())) continue;
       const candles = await loadLocalCandles(symbol, market as MarketId);
       if (!candles || candles.length < 60) continue;
 

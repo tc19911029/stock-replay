@@ -1274,8 +1274,9 @@ export abstract class MarketScanner {
             if (r?.isVReversal) {
               matched = true;
               detail = r.detail;
-              // v12 議題 23：F 反彈起點 close 鎖定為 LockWatch triggerPrice
-              lockWatchPayload = { triggerPrice: last.close };
+              // v12 議題 23：F 反彈起點 close 鎖定為 LockWatch triggerPrice，
+              // vBottom = 變盤線 low（實際 V 底，結構失效判定用）
+              lockWatchPayload = { triggerPrice: last.close, vBottom: r.stopBarLow };
             }
           } else if (method === 'G') {
             // G=ABC 突破（寶典 Part 11-1 位置 6，2026-05-04 新增）

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useBacktestStore } from '@/store/backtestStore';
+import { usePortfolioStore } from '@/store/portfolioStore';
 import type { SelectedStock } from './ScanChartPanel';
 
 interface ReentryCandidate {
@@ -44,12 +45,23 @@ export function ReentryCandidatesPanel({ onSelectStock }: ReentryCandidatesPanel
 
   const direction = scanDirection === 'short' ? 'short' : 'long';
 
+  // 排除已持有 — 持倉中的股票不應出現在再進場候選名單
+  const heldSymbols = usePortfolioStore((s) =>
+    s.holdings.map((h) => h.symbol).join(','),
+  );
+
   const fetchCandidates = useCallback(async () => {
     if (scanDirection === 'daban') return;  // 打板模式不適用
     setLoading(true);
     setError(null);
     try {
-      const url = `/api/scanner/reentry-candidates?market=${market}&direction=${direction}&lookbackDays=${LOOKBACK_DAYS}`;
+      const params = new URLSearchParams({
+        market,
+        direction,
+        lookbackDays: String(LOOKBACK_DAYS),
+        ...(heldSymbols ? { excludeSymbols: heldSymbols } : {}),
+      });
+      const url = `/api/scanner/reentry-candidates?${params}`;
       const res = await fetch(url);
       const json = (await res.json()) as ApiResponse;
       if (!json.ok) {
@@ -61,7 +73,7 @@ export function ReentryCandidatesPanel({ onSelectStock }: ReentryCandidatesPanel
     } finally {
       setLoading(false);
     }
-  }, [market, direction, scanDirection]);
+  }, [market, direction, scanDirection, heldSymbols]);
 
   useEffect(() => {
     fetchCandidates();

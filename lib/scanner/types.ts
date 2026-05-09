@@ -198,11 +198,16 @@ export interface StockScanResult {
    * 僅 F V 反轉、N 型態確認 訊號會填寫此欄位。
    * scan-bm cron 收到結果後，會抽取此欄位寫入 LockWatch daily snapshot。
    *
-   * - F：triggerPrice = V 底反彈起點 close（不含其他欄位）
+   * - F：triggerPrice = V 底反彈起點 close（鎖定價）；vBottom = 變盤線 low（結構失效判定用）
    * - N：triggerPrice = 頸線價、patternType、patternTargetPrice、patternAchievementRate 全填
    */
   lockWatchPayload?: {
     triggerPrice: number;
+    /**
+     * F V 反轉專用：實際 V 底（變盤線 low）。
+     * checkStructureBroken 用這個判定「跌破 V 底」，避免誤用 triggerPrice（rebound close）造成 false positive。
+     */
+    vBottom?: number;
     patternType?:
       | 'head-shoulder'
       | 'complex-head-shoulder'

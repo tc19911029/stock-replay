@@ -23,6 +23,7 @@
 import type { CandleWithIndicators } from '../../types';
 
 import { detectTrend } from '../analysis/trendAnalysis';
+import { tradingDaysBetween } from '../utils/tradingDay';
 import { evaluateMarketGate } from './marketTrendGate';
 import type {
   LockWatchDailySnapshot,
@@ -71,7 +72,8 @@ export function createLockWatchFromF(args: {
   symbol: string;
   market: MarketId;
   triggeredDate: string;
-  triggerPrice: number;  // V 底反彈起點 close
+  triggerPrice: number;  // V 底反彈起點 close（鎖定價）
+  vBottom?: number;      // 變盤線 low（結構失效判定用，書本「V 底」）
 }): LockWatchRecord {
   return {
     symbol: args.symbol,
@@ -79,6 +81,7 @@ export function createLockWatchFromF(args: {
     triggeredDate: args.triggeredDate,
     triggerSignal: 'F',
     triggerPrice: args.triggerPrice,
+    vBottom: args.vBottom,
     currentStage: 'observation',
     daysObserved: 0,
     history: [
@@ -139,17 +142,18 @@ export function updateLockWatch(
 
   const lastIdx = candles.length - 1;
   const c = candles[lastIdx];
-  const newDaysObserved =
-    (new Date(today).getTime() - new Date(record.triggeredDate).getTime()) /
-    (1000 * 60 * 60 * 24);
+  // daysObserved 用交易日計（書本「停留 N 天」一律指交易日；calendar days 會被週末/假日污染）
+  const newDaysObserved = tradingDaysBetween(record.triggeredDate, today, record.market);
   const updatedRecord: LockWatchRecord = {
     ...record,
-    daysObserved: Math.max(0, Math.floor(newDaysObserved)),
+    daysObserved: Math.max(0, newDaysObserved),
     history: [...record.history],
   };
 
   // ── 1. 撤銷條件：close < triggerPrice ──
-  if (c.close < record.triggerPrice) {
+  // F 訊號的 triggerPrice 是 rebound close（鎖定價），不是 V 底；不該因 close 跌破鎖定價就撤銷
+  // F 的結構失效已由 checkStructureBroken（用 vBottom 判 low）處理
+  if (record.triggerSignal !== 'F' && c.close < record.triggerPrice) {
     updatedRecord.currentStage = 'revoked';
     addEvent(updatedRecord, today, 'provisional-revoke', `close=${c.close.toFixed(2)} < triggerPrice=${record.triggerPrice.toFixed(2)}`);
     return { changed: true, record: updatedRecord };
@@ -237,8 +241,11 @@ export function checkStructureBroken(
   const c = candles[candles.length - 1];
 
   if (record.triggerSignal === 'F') {
-    // F V 反轉：跌破 V 底（記錄在 triggerPrice 中作為 V 底）
-    if (c.low < record.triggerPrice) {
+    // F V 反轉：跌破真正 V 底（變盤線 low）→ 結構失效
+    // vBottom 是實際 V 底（lockWatchProducer 從 vReversalDetector.stopBarLow 抽取）
+    // triggerPrice 是 rebound close，比 vBottom 高得多，不可用來判結構失效
+    const vBottom = record.vBottom ?? record.triggerPrice;  // 舊資料 fallback（可能 false positive）
+    if (c.low < vBottom) {
       return { broken: true, reason: 'F 跌破 V 底' };
     }
   }

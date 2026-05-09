@@ -146,7 +146,8 @@ export async function GET(req: NextRequest) {
           twoDaysAgoCandle: candles[lastIdx - 2],
           threeDaysAgoCandle: candles[lastIdx - 3],
           cumulativeProfit: profitPct,
-          isEndPhase: false, // simplification — full impl would track this
+          // 末升段觸發時啟用 高檔長上影 / 急漲反轉 偵測（書本「末升段」訊號）
+          isEndPhase: endPhaseTriggered ?? false,
         })
       : { triggered: false };
 
