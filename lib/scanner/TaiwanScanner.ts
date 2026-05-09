@@ -237,58 +237,68 @@ export class TaiwanScanner extends MarketScanner {
    * 3. 過熱乖離：若大盤收盤 > MA20 × 1.08（乖離>8%）→ 末升段過高，降為「盤整」
    *    防止在大盤到頂區域還進場（朱老師：乖離過大不追高）
    */
+  /**
+   * 純 ^TWII 趨勢 — UI banner / 條件面板 / 走圖三邊統一用這個
+   * 不含「短期走弱降級」「乖離過大降級」副作用
+   */
   async getMarketTrend(asOfDate?: string): Promise<TrendState> {
+    const candles = await this.loadTwiiCandles(asOfDate);
+    if (candles.length < 20) return '盤整';
+    return detectTrend(candles, candles.length - 1);
+  }
+
+  /**
+   * 掃描體質（含「乖離過大」「短期走弱」降級為盤整 → 提高 minScore）
+   * 議題：朱老師「乖離過大不追高」精神。只給 scanLong/scanShort minScore 計算用。
+   */
+  async getMarketScanRegime(asOfDate?: string): Promise<TrendState> {
     try {
-      // 優先讀本地快取（避免每次掃描都打 API）
-      let candles: CandleWithIndicators[] = [];
-      try {
-        const { loadLocalCandlesWithTolerance } = await import('@/lib/datasource/LocalCandleStore');
-        const targetDate = asOfDate || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
-        const local = await loadLocalCandlesWithTolerance('^TWII', 'TW', targetDate, 5);
-        if (local && local.candles.length >= 20) {
-          candles = local.candles;
-        }
-      } catch { /* local read failed, fallback to API */ }
-
-      // 本地無數據時才走 API
-      if (candles.length < 20) {
-        const fetched = await dataProvider.getHistoricalCandles('^TWII', '1y', asOfDate);
-        if (fetched.length >= 20) {
-          const { saveLocalCandles } = await import('@/lib/datasource/LocalCandleStore');
-          const raw = fetched.map(c => ({
-            date: c.date, open: c.open, high: c.high,
-            low: c.low, close: c.close, volume: c.volume,
-          }));
-          saveLocalCandles('^TWII', 'TW', raw).catch(() => {});
-        }
-        candles = fetched;
-      }
-      if (candles.length < 20) return '盤整'; // 資料不足，保守預設
-
+      const candles = await this.loadTwiiCandles(asOfDate);
+      if (candles.length < 20) return '盤整';
       const lastIdx = candles.length - 1;
       const longTrend = detectTrend(candles, lastIdx);
-
       const last = candles[lastIdx];
 
-      // ── 短期動能檢驗（防止在修正初期進場）──────────────────────────────
       const shortTermBearish =
         last.ma5 != null && last.ma10 != null &&
         last.close < last.ma5 && last.ma5 < last.ma10;
 
-      // ── 大盤過熱檢驗（防止在高檔追漲）─────────────────────────────────
-      // 大盤收盤若超過MA20的8%乖離 → 高檔過熱，不宜進場
       const marketOverheat =
         last.ma20 != null && last.ma20 > 0 &&
         last.close > last.ma20 * 1.08;
 
       if (longTrend === '多頭' && (shortTermBearish || marketOverheat)) {
-        // 長期多頭但短期走弱或過熱 → 保守降為盤整（minScore=5）
         return '盤整';
       }
-
       return longTrend;
     } catch {
-      return '盤整'; // 取得失敗時保守預設盤整（minScore=5）
+      return '盤整';
     }
+  }
+
+  private async loadTwiiCandles(asOfDate?: string): Promise<CandleWithIndicators[]> {
+    let candles: CandleWithIndicators[] = [];
+    try {
+      const { loadLocalCandlesWithTolerance } = await import('@/lib/datasource/LocalCandleStore');
+      const targetDate = asOfDate || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
+      const local = await loadLocalCandlesWithTolerance('^TWII', 'TW', targetDate, 5);
+      if (local && local.candles.length >= 20) {
+        candles = local.candles;
+      }
+    } catch { /* local read failed, fallback to API */ }
+
+    if (candles.length < 20) {
+      const fetched = await dataProvider.getHistoricalCandles('^TWII', '1y', asOfDate);
+      if (fetched.length >= 20) {
+        const { saveLocalCandles } = await import('@/lib/datasource/LocalCandleStore');
+        const raw = fetched.map(c => ({
+          date: c.date, open: c.open, high: c.high,
+          low: c.low, close: c.close, volume: c.volume,
+        }));
+        saveLocalCandles('^TWII', 'TW', raw).catch(() => {});
+      }
+      candles = fetched;
+    }
+    return candles;
   }
 }

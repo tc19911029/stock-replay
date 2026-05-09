@@ -43,43 +43,22 @@ export class ChinaScanner extends MarketScanner {
    * 2. 短期動能：close < MA5 且 MA5 < MA10 → 降為「盤整」
    * 3. 過熱乖離：close > MA20 × 1.08 → 降為「盤整」
    */
+  /** 純上證指數趨勢 — UI banner / 條件面板 / 走圖三邊統一用 */
   async getMarketTrend(asOfDate?: string): Promise<TrendState> {
+    const candles = await this.loadShCandles(asOfDate);
+    if (candles.length < 20) return '盤整';
+    return detectTrend(candles, candles.length - 1);
+  }
+
+  /** 掃描體質（含降級邏輯影響 minScore）— 不影響 UI 顯示 */
+  async getMarketScanRegime(asOfDate?: string): Promise<TrendState> {
     try {
-      // 優先讀本地快取（避免每次掃描都打 API）
-      let candles: CandleWithIndicators[] = [];
-      try {
-        const { loadLocalCandlesWithTolerance } = await import('@/lib/datasource/LocalCandleStore');
-        const targetDate = asOfDate || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
-        const local = await loadLocalCandlesWithTolerance('000001.SS', 'CN', targetDate, 5);
-        if (local && local.candles.length >= 20) {
-          candles = local.candles;
-        }
-      } catch { /* local read failed, fallback to API */ }
-
-      // 歷史重掃時不打 API（000001.SS 不在 L1，打 API 只會 timeout）
-      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
-      const isHistorical = !!asOfDate && asOfDate < today;
-      if (candles.length < 20 && !isHistorical) {
-        const fetched = await dataProvider.getHistoricalCandles('000001.SS', '1y', asOfDate);
-        if (fetched.length >= 20) {
-          // 存進 L1，下次直接從 cache 讀（省掉每次 13s API 呼叫）
-          const { saveLocalCandles } = await import('@/lib/datasource/LocalCandleStore');
-          const raw = fetched.map(c => ({
-            date: c.date, open: c.open, high: c.high,
-            low: c.low, close: c.close, volume: c.volume,
-          }));
-          saveLocalCandles('000001.SS', 'CN', raw).catch(() => {});
-        }
-        candles = fetched;
-      }
-      // 2026-05-07 修：與 TW 對稱，candles 不足預設「盤整」（minScore=5 較嚴）。
-      // 原預設「多頭」會放寬 minScore，CN 歷史回測或 IPO 早期偏鬆，與 TW 不一致。
+      const candles = await this.loadShCandles(asOfDate);
       if (candles.length < 20) return '盤整';
-
       const lastIdx = candles.length - 1;
       const longTrend = detectTrend(candles, lastIdx);
-
       const last = candles[lastIdx];
+
       const shortTermBearish =
         last.ma5 != null && last.ma10 != null &&
         last.close < last.ma5 && last.ma5 < last.ma10;
@@ -91,10 +70,37 @@ export class ChinaScanner extends MarketScanner {
       if (longTrend === '多頭' && (shortTermBearish || marketOverheat)) {
         return '盤整';
       }
-
       return longTrend;
     } catch {
-      return '盤整'; // 取得失敗時保守預設盤整（minScore=5）
+      return '盤整';
     }
+  }
+
+  private async loadShCandles(asOfDate?: string): Promise<CandleWithIndicators[]> {
+    let candles: CandleWithIndicators[] = [];
+    try {
+      const { loadLocalCandlesWithTolerance } = await import('@/lib/datasource/LocalCandleStore');
+      const targetDate = asOfDate || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
+      const local = await loadLocalCandlesWithTolerance('000001.SS', 'CN', targetDate, 5);
+      if (local && local.candles.length >= 20) {
+        candles = local.candles;
+      }
+    } catch { /* local read failed, fallback to API */ }
+
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
+    const isHistorical = !!asOfDate && asOfDate < today;
+    if (candles.length < 20 && !isHistorical) {
+      const fetched = await dataProvider.getHistoricalCandles('000001.SS', '1y', asOfDate);
+      if (fetched.length >= 20) {
+        const { saveLocalCandles } = await import('@/lib/datasource/LocalCandleStore');
+        const raw = fetched.map(c => ({
+          date: c.date, open: c.open, high: c.high,
+          low: c.low, close: c.close, volume: c.volume,
+        }));
+        saveLocalCandles('000001.SS', 'CN', raw).catch(() => {});
+      }
+      candles = fetched;
+    }
+    return candles;
   }
 }

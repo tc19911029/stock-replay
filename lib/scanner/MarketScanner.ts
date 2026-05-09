@@ -55,7 +55,19 @@ export abstract class MarketScanner {
   abstract getMarketConfig(): MarketConfig;
   abstract getStockList(): Promise<StockEntry[]>;
   abstract fetchCandles(symbol: string, asOfDate?: string): Promise<CandleWithIndicators[]>;
+  /**
+   * 大盤「真實」趨勢（純 detectTrend），給 UI banner / 條件面板 / 走圖一致顯示。
+   * 不含「乖離過大降級為盤整」「短期走弱降級為盤整」這種掃描專用副作用。
+   */
   abstract getMarketTrend(asOfDate?: string): Promise<TrendState>;
+  /**
+   * 大盤「掃描體質」（含降級規則），影響掃描 minScore。
+   * 過熱 / 短期走弱時可能把多頭降為盤整 → 提高進場門檻。
+   * 預設用 raw trend，子類可 override 加降級。
+   */
+  async getMarketScanRegime(asOfDate?: string): Promise<TrendState> {
+    return this.getMarketTrend(asOfDate);
+  }
 
   /** 即時報價 Map（code → quote），由 chunk route 在今日掃描前設置 */
   protected _realtimeQuotes: Map<string, RealtimeQuoteForScan> | null = null;
@@ -632,8 +644,11 @@ export abstract class MarketScanner {
   ): Promise<{ results: StockScanResult[]; marketTrend?: TrendState }> {
     const config = this.getMarketConfig();
     const th = thresholds ?? BASE_THRESHOLDS;
+    // marketTrend = 純 detectTrend（給 UI banner 顯示用，三邊統一）
+    // regime = 含降級邏輯（給 minScore 計算用，書本「乖離過大不追高」精神）
     const marketTrend = await this.getMarketTrend(asOfDate);
-    const minScore = this.marketTrendToMinScore(marketTrend, th);
+    const regime = await this.getMarketScanRegime(asOfDate);
+    const minScore = this.marketTrendToMinScore(regime, th);
 
     const stockList = await this.getStockList();
     const results: StockScanResult[] = [];
@@ -743,9 +758,11 @@ export abstract class MarketScanner {
     let minScore = th.minScore;
     let marketTrend: TrendState = '多頭';
     try {
+      // raw trend 給 session/UI 顯示，scan regime（含降級）給 minScore
       marketTrend = await this.getMarketTrend(asOfDate);
       if (th.marketTrendFilter) {
-        minScore = this.marketTrendToMinScore(marketTrend, th);
+        const regime = await this.getMarketScanRegime(asOfDate);
+        minScore = this.marketTrendToMinScore(regime, th);
       }
     } catch { /* fallback */ }
 
@@ -1012,9 +1029,11 @@ export abstract class MarketScanner {
     let minScore = th.minScore;
     let marketTrend: TrendState = '多頭';
     try {
+      // raw trend 給 session/UI 顯示，scan regime（含降級）給 minScore
       marketTrend = await this.getMarketTrend(asOfDate);
       if (th.marketTrendFilter) {
-        minScore = this.marketTrendToMinScore(marketTrend, th);
+        const regime = await this.getMarketScanRegime(asOfDate);
+        minScore = this.marketTrendToMinScore(regime, th);
       }
     } catch { /* fallback */ }
 
@@ -1113,9 +1132,11 @@ export abstract class MarketScanner {
     let minScore = th.minScore;
     let marketTrend: TrendState = '多頭';
     try {
+      // raw trend 給 session/UI 顯示，scan regime（含降級）給 minScore
       marketTrend = await this.getMarketTrend(asOfDate);
       if (th.marketTrendFilter) {
-        minScore = this.marketTrendToMinScore(marketTrend, th);
+        const regime = await this.getMarketScanRegime(asOfDate);
+        minScore = this.marketTrendToMinScore(regime, th);
       }
     } catch { /* fallback */ }
 
