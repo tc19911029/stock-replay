@@ -119,10 +119,9 @@ export function LockWatchPanel({ market }: LockWatchPanelProps) {
             ? 'bg-amber-900/30 text-amber-200 hover:bg-amber-900/40'
             : 'text-muted-foreground hover:text-foreground'
         }`}
-        title="v12 新功能：F V反轉 / N 型態確認 觸發後自動加入觀察名單，等趨勢確認再進場"
+        title="F V 反轉 / N 型態確認 觸發後自動加入觀察名單，等趨勢確認再進場"
       >
         <span className="flex items-center gap-1.5">
-          <span className="text-[9px] font-bold uppercase tracking-wider opacity-70">v12</span>
           <span className="font-semibold">鎖股觀察</span>
           {activeCount > 0 ? (
             <span className="text-[10px] font-mono bg-amber-700 text-amber-100 px-1.5 py-px rounded font-bold">

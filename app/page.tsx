@@ -194,8 +194,8 @@ export default function HomePage() {
 
   const [hoverCandle, setHoverCandle] = useState<typeof allCandles[0] | null>(null);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
-  const [showMarkers, setShowMarkers] = useState(true);  // v12 markers 預設顯示（M/N/O/P/Q/F 歷史觸發日）
-  const [showPivots, setShowPivots] = useState(false);
+  const [showMarkers, setShowMarkers] = useState(false);  // 訊號 markers 預設關（M/N/O/P/Q/F 歷史觸發日）— 用戶偏好
+  const [showPivots, setShowPivots] = useState(true);     // 頭底標記預設開 — 用戶偏好
   const [showSupportResistance, setShowSupportResistance] = useState(false);
   const [showAscendingTrendline, setShowAscendingTrendline] = useState(false);
   const [showDescendingTrendline, setShowDescendingTrendline] = useState(false);

@@ -150,11 +150,10 @@ export function HoldingV12Signals({ holdingId, symbol, market, entryPrice, buyDa
       <button
         onClick={() => setExpanded((v) => !v)}
         className="w-full px-2 py-1 flex items-center justify-between hover:bg-muted/30"
-        title="點擊展開 v12 Step 3-5 停損/操作/停利訊號"
+        title="點擊展開停損/操作/停利訊號"
       >
         <span className="flex items-center gap-1.5">
-          <span className="font-bold uppercase tracking-wider opacity-70 text-[8px]">v12</span>
-          <span className="font-medium">Step 3-5 訊號</span>
+          <span className="font-medium">持倉訊號</span>
           {data && (
             <span className="text-[9px] opacity-75">
               {data.letter}・{operationMode === 'long' ? '長線' : operationMode === 'wave' ? '波段' : '短線'}・損益 {data.profitPct >= 0 ? '+' : ''}{(data.profitPct * 100).toFixed(2)}%

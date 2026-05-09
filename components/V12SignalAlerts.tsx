@@ -132,8 +132,7 @@ export default function V12SignalAlerts() {
   return (
     <div className="bg-card border border-border rounded-lg p-2">
       <div className="flex items-center gap-1.5 mb-1.5">
-        <span className="text-[9px] font-bold uppercase tracking-wider opacity-70">v12</span>
-        <h3 className="text-xs font-bold text-foreground">14 軌訊號</h3>
+        <h3 className="text-xs font-bold text-foreground">進場訊號</h3>
         {loading && <span className="text-[9px] text-muted-foreground">計算中…</span>}
       </div>
       {hits.length === 0 ? (
