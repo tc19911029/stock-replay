@@ -1,22 +1,26 @@
 'use client';
 
 /**
- * Step 0 大盤狀態 Banner（v12 議題 69）
+ * 大盤狀態 Banner
  *
  * 書本依據：寶典 p.687「進場做多的前提：大盤站上月線多頭」
  *
- * 顯示當前大盤趨勢，提醒「能不能做多」這個 v12 最高前提。
+ * 即時呼叫 /api/scanner/market-trend 取得純 detectTrend 結果（與走圖左上、
+ * 條件面板趨勢條件保持一致，不依賴 saved scan session 寫入的舊值）。
+ *
  * - 多頭：綠 banner，可正常做多
  * - 空頭：紅 banner，警告停止做多
  * - 盤整：黃 banner，提示謹慎進場
  * - null：灰 banner，資料載入中
  */
 
+import { useEffect, useState } from 'react';
 import type { TrendState } from '@/lib/analysis/trendAnalysis';
 
 interface MarketTrendBannerProps {
   market: 'TW' | 'CN';
-  marketTrend: TrendState | null;
+  /** 當有 saved session 時可以傳入做為初始值，避免閃爍；最終以 API 即時值為準 */
+  marketTrend?: TrendState | null;
   scanDate: string | null;
 }
 
@@ -61,8 +65,24 @@ const INDEX_NAME: Record<'TW' | 'CN', string> = {
   CN: '上證指數',
 };
 
-export function MarketTrendBanner({ market, marketTrend, scanDate }: MarketTrendBannerProps) {
-  const style = marketTrend ? TREND_STYLE[marketTrend] : NEUTRAL_STYLE;
+export function MarketTrendBanner({ market, marketTrend: initialTrend, scanDate }: MarketTrendBannerProps) {
+  // 即時 fetch 純 detectTrend 結果；用 prop 當 fallback 避免初始閃爍
+  const [trend, setTrend] = useState<TrendState | null>(initialTrend ?? null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const params = new URLSearchParams({ market });
+    if (scanDate) params.set('date', scanDate);
+    fetch(`/api/scanner/market-trend?${params}`)
+      .then((r) => r.json())
+      .then((j: { ok?: boolean; trend?: TrendState }) => {
+        if (!cancelled && j.ok && j.trend) setTrend(j.trend);
+      })
+      .catch(() => { /* keep prop fallback */ });
+    return () => { cancelled = true; };
+  }, [market, scanDate]);
+
+  const style = trend ? TREND_STYLE[trend] : NEUTRAL_STYLE;
   const indexName = INDEX_NAME[market];
 
   return (
