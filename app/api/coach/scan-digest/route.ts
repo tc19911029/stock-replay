@@ -31,6 +31,16 @@ const candidateSchema = z.object({
   prohibitions: z.array(z.string()).optional(),
   turnoverRank: z.number().optional(),
   histWinRate: z.number().optional(),
+  // ── v12 欄位（議題 23/65/93/13/27/88）─────────────────────────
+  matchedMethods: z.array(z.string()).optional(),
+  patternType: z.string().optional(),
+  patternAchievementRate: z.number().optional(),
+  patternTargetPrice: z.number().optional(),
+  triggerPrice: z.number().optional(),
+  endPhaseFlag: z.boolean().optional(),
+  volumeLevel: z.string().optional(),
+  kdDecliningWarning: z.boolean().optional(),
+  seasonLineResistance: z.number().nullable().optional(),
 });
 
 const reqSchema = z.object({
@@ -116,11 +126,40 @@ function buildUserPrompt(input: DigestInput): string {
     if (c.elimination?.length) bits.push(`⚠淘汰:${c.elimination.join(',')}`);
     if (c.prohibitions?.length) bits.push(`⚠戒律:${c.prohibitions.join(',')}`);
     if (c.histWinRate !== undefined) bits.push(`歷史勝率${c.histWinRate.toFixed(0)}%`);
+    // v12 字母三軌制（議題 33/65/93）
+    if (c.matchedMethods?.length) {
+      const v12Letters = c.matchedMethods.filter((m) => 'ABCDEFJKLMNOPQ'.includes(m));
+      if (v12Letters.length > 0) bits.push(`v12軌:${v12Letters.join(',')}`);
+    }
+    // N 型態確認詳情
+    if (c.patternType) {
+      const PATTERN: Record<string, string> = {
+        'head-shoulder': '頭肩底', 'complex-head-shoulder': '複式頭肩底',
+        'triple-bottom': '三重底', 'rounding-bottom': '圓弧底',
+        'double-bottom': '雙重底', 'falling-diamond': '跌菱形',
+        'descending-wedge': '下降楔形',
+      };
+      const name = PATTERN[c.patternType] ?? c.patternType;
+      const rate = c.patternAchievementRate ? (c.patternAchievementRate * 100).toFixed(0) + '%' : '';
+      const target = c.patternTargetPrice ? `→${c.patternTargetPrice.toFixed(2)}` : '';
+      bits.push(`N型態:${name}${rate}${target}`);
+    }
+    if (c.triggerPrice !== undefined && !c.patternType) bits.push(`F鎖定:${c.triggerPrice.toFixed(2)}`);
+    // v12 警示徽章
+    const warnings: string[] = [];
+    if (c.endPhaseFlag) warnings.push('末升段');
+    if (c.volumeLevel === 'climax') warnings.push('爆量');
+    if (c.kdDecliningWarning) warnings.push('KD↓');
+    if (c.seasonLineResistance != null && c.seasonLineResistance > 0) warnings.push(`季壓${c.seasonLineResistance.toFixed(0)}`);
+    if (warnings.length > 0) bits.push(`⚠v12:${warnings.join(',')}`);
     lines.push(bits.join('　'));
   }
 
   lines.push('');
-  lines.push('請用朱老師視角做跨檔比較，挑出最穩的幾檔、點出要小心的幾檔。只輸出 JSON。');
+  lines.push('請用朱老師視角做跨檔比較，挑出最穩的幾檔、點出要小心的幾檔。');
+  lines.push('注意：如果候選有命中 v12 三軌制（多頭軌 B/P/C/E/J/K/L/M、轉折軌 D/F/N/O、戰法軌 Q），可以用書本對應的進場 SOP 評論。');
+  lines.push('N 型態確認的達成率高（≥85%）+ 目標價空間 >10% 是強訊號。Q 三均線戰法是朱本人首選。');
+  lines.push('看到末升段、爆量、KD 向下要點明風險。只輸出 JSON。');
   return lines.join('\n');
 }
 

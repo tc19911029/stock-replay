@@ -9,8 +9,10 @@ const backtestScanSchema = z.object({
   market: z.enum(['TW', 'CN']).default('TW'),
   date:   z.string(),
   stocks: z.array(z.object({ symbol: z.string(), name: z.string() })).default([]),
-  /** 掃描模式：full=完整管線, pure=純朱家泓, compare=A/B比較 */
-  mode:   z.enum(['full', 'pure', 'compare']).default('full'),
+  /** 掃描模式：full=完整管線, pure=純朱家泓, compare=A/B比較, v12=v12 三軌制 */
+  mode:   z.enum(['full', 'pure', 'compare', 'v12']).default('full'),
+  /** v12 模式下指定買法字母（A=六條件預選池, B-Q=14 進場字母）*/
+  buyMethod: z.enum(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q']).optional(),
 });
 
 export const runtime    = 'nodejs';
@@ -30,7 +32,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return apiValidationError(parsed.error);
   }
-  const { market, date, stocks, mode } = parsed.data;
+  const { market, date, stocks, mode, buyMethod } = parsed.data;
   const marketId = market as MarketId;
 
   if (!date || stocks.length === 0) {
@@ -80,6 +82,23 @@ export async function POST(req: NextRequest) {
     if (mode === 'pure') {
       const { results, marketTrend } = await scanner.scanListAtDatePure(stocks, date);
       return apiOk({ results, marketTrend, mode: 'pure' });
+    }
+
+    // v12 三軌制模式：用 scanBuyMethod 跑指定字母
+    if (mode === 'v12') {
+      if (!buyMethod) return apiError('v12 mode 需指定 buyMethod (A-Q)', 400);
+      let results;
+      if (buyMethod === 'A') {
+        // A = 預選池 = 走 full 管線（六條件 + 戒律 + 淘汰法）
+        const r = await scanner.scanListAtDate(stocks, date);
+        results = r.results;
+      } else {
+        // B-Q = 各買法獨立 detector
+        results = await scanner.scanBuyMethod(buyMethod, stocks, date);
+      }
+      let marketTrend = '';
+      try { marketTrend = String(await scanner.getMarketTrend(date)); } catch { /* */ }
+      return apiOk({ results, marketTrend, mode: 'v12', buyMethod });
     }
 
     // Default: full

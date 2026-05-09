@@ -216,14 +216,14 @@ export function HoldingV12Signals({ holdingId, symbol, market, entryPrice, buyDa
                 {!data.step4.klineExit.shouldExit && !data.step4.maExit.shouldExit && (
                   <div className="text-emerald-300/70 text-[9px] mt-0.5">✓ 續抱（未跌破均線/前低）</div>
                 )}
-                {/* 升級長線按鈕 */}
-                <div className="flex items-center gap-1 mt-1">
+                {/* 升級長線按鈕（mobile flex-wrap + 24px tap target）*/}
+                <div className="flex items-center gap-1 mt-1 flex-wrap">
                   <span className="text-[9px] text-muted-foreground">操作模式：</span>
                   {(['short', 'long', 'wave'] as const).map((m) => (
                     <button
                       key={m}
                       onClick={() => switchMode(m)}
-                      className={`text-[9px] px-1.5 py-px rounded ${
+                      className={`text-[9px] sm:text-[10px] px-2 py-0.5 rounded min-h-[24px] ${
                         (operationMode ?? 'short') === m
                           ? 'bg-sky-700 text-sky-100'
                           : 'bg-secondary border border-border text-muted-foreground hover:bg-muted'
@@ -235,7 +235,7 @@ export function HoldingV12Signals({ holdingId, symbol, market, entryPrice, buyDa
                   {data.step4.canUpgradeToLong && operationMode !== 'long' && (
                     <button
                       onClick={upgradeToLong}
-                      className="ml-auto text-[9px] px-1.5 py-px rounded bg-emerald-800 text-emerald-100 hover:bg-emerald-700 font-bold"
+                      className="ml-auto text-[9px] sm:text-[10px] px-2 py-0.5 rounded min-h-[24px] bg-emerald-800 text-emerald-100 hover:bg-emerald-700 font-bold"
                       title="獲利 ≥ 10%，可手動升級長線"
                     >
                       ⬆ 升級長線
@@ -287,14 +287,14 @@ export function HoldingV12Signals({ holdingId, symbol, market, entryPrice, buyDa
                 <span className="text-[9px] text-muted-foreground">手動切換：</span>
                 <button
                   onClick={() => updateHolding(holdingId, { enhancedDisciplineEnabled: !enhancedDisciplineEnabled })}
-                  className={`text-[9px] px-1.5 py-px rounded ${enhancedDisciplineEnabled ? 'bg-emerald-700 text-emerald-100' : 'bg-secondary border border-border text-muted-foreground hover:bg-muted'}`}
+                  className={`text-[9px] sm:text-[10px] px-2 py-0.5 rounded min-h-[24px] ${enhancedDisciplineEnabled ? 'bg-emerald-700 text-emerald-100' : 'bg-secondary border border-border text-muted-foreground hover:bg-muted'}`}
                   title="B/P 寶典 #5/#6 進階紀律 — 達 10% 後切換"
                 >
                   進階紀律 {enhancedDisciplineEnabled ? '✓' : '○'}
                 </button>
                 <button
                   onClick={() => updateHolding(holdingId, { endPhaseTriggered: !endPhaseTriggered, recentHigh: !endPhaseTriggered ? data.todayPrice : undefined })}
-                  className={`text-[9px] px-1.5 py-px rounded ${endPhaseTriggered ? 'bg-rose-700 text-rose-100' : 'bg-secondary border border-border text-muted-foreground hover:bg-muted'}`}
+                  className={`text-[9px] sm:text-[10px] px-2 py-0.5 rounded min-h-[24px] ${endPhaseTriggered ? 'bg-rose-700 text-rose-100' : 'bg-secondary border border-border text-muted-foreground hover:bg-muted'}`}
                   title="議題 13：起漲 ≥100% 後切 trailing 3%"
                 >
                   末升段 {endPhaseTriggered ? '✓' : '○'}
