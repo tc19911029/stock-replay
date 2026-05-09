@@ -10,7 +10,6 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
-import { useWatchlistStore } from '@/store/watchlistStore';
 import type { LockWatchDailySnapshot, LockWatchRecord } from '@/lib/scanner/lockWatchTypes';
 
 interface LockWatchPanelProps {
@@ -54,6 +53,23 @@ export function LockWatchPanel({ market }: LockWatchPanelProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [removingKey, setRemovingKey] = useState<string | null>(null);
+  // 股票名稱對照（symbol → name），lockwatch record 沒存 name 欄位，UI 端從 stock list API 拉
+  const [nameMap, setNameMap] = useState<Record<string, string>>({});
+
+  // 拉股票名稱對照表（每市場一次，cache 在 component state）
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/scanner/list?market=${market}`)
+      .then((r) => r.json())
+      .then((j: { ok?: boolean; stocks?: Array<{ symbol: string; name: string }> }) => {
+        if (cancelled || !j.ok || !j.stocks) return;
+        const map: Record<string, string> = {};
+        for (const s of j.stocks) map[s.symbol] = s.name;
+        setNameMap(map);
+      })
+      .catch(() => { /* fallback 顯示空名稱 */ });
+    return () => { cancelled = true; };
+  }, [market]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -153,15 +169,34 @@ export function LockWatchPanel({ market }: LockWatchPanelProps) {
             </div>
           )}
           {!loading && !error && totalCount > 0 && (
-            <div className="space-y-0.5 max-h-[40vh] overflow-y-auto">
-              {(snapshot?.records ?? []).map((r) => (
-                <LockWatchRow
-                  key={`${r.symbol}-${r.triggerSignal}-${r.triggeredDate}`}
-                  record={r}
-                  onRemove={removeRecord}
-                  removing={removingKey === `${r.symbol}-${r.triggerSignal}`}
-                />
-              ))}
+            <div className="overflow-x-auto max-h-[40vh] overflow-y-auto">
+              <table className="w-full text-[11px]">
+                <thead className="text-[10px] text-muted-foreground border-b border-border/50 sticky top-0 bg-card">
+                  <tr>
+                    <th className="text-left py-1 px-1.5">訊號</th>
+                    <th className="text-left py-1 px-1.5">代號</th>
+                    <th className="text-left py-1 px-1.5">名稱</th>
+                    <th className="text-left py-1 px-1.5">型態</th>
+                    <th className="text-right py-1 px-1.5" title="觸發鎖定價">鎖定價</th>
+                    <th className="text-right py-1 px-1.5" title="型態目標價（書本）">目標價</th>
+                    <th className="text-right py-1 px-1.5" title="型態達成率">達成率</th>
+                    <th className="text-center py-1 px-1.5">階段</th>
+                    <th className="text-right py-1 px-1.5" title="觀察天數">天</th>
+                    <th className="text-center py-1 px-1.5">動作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(snapshot?.records ?? []).map((r) => (
+                    <LockWatchTableRow
+                      key={`${r.symbol}-${r.triggerSignal}-${r.triggeredDate}`}
+                      record={r}
+                      name={nameMap[r.symbol] ?? ''}
+                      onRemove={removeRecord}
+                      removing={removingKey === `${r.symbol}-${r.triggerSignal}`}
+                    />
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
@@ -170,89 +205,82 @@ export function LockWatchPanel({ market }: LockWatchPanelProps) {
   );
 }
 
-function LockWatchRow({
+function LockWatchTableRow({
   record,
+  name,
   onRemove,
   removing,
 }: {
   record: LockWatchRecord;
+  name: string;
   onRemove: (symbol: string, triggerSignal: 'F' | 'N') => void;
   removing: boolean;
 }) {
   const sig = SIGNAL_LABEL[record.triggerSignal];
   const stage = STAGE_STYLE[record.currentStage];
   const patternName = record.patternType ? PATTERN_NAME[record.patternType] : null;
-  const inWatchlist = useWatchlistStore((s) => s.has(record.symbol));
   // 已結束的紀錄（撤銷/移除/結構失效/已買進）不可再移除
   const canRemove =
     record.currentStage === 'observation' || record.currentStage === 'entry-signal';
+  const symbolBare = record.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
 
   return (
-    <div className="flex items-center gap-1.5 text-[10px] py-0.5 border-b border-border/30 last:border-0">
-      <span
-        className={`text-[8px] px-1 h-3.5 flex items-center rounded-sm shrink-0 ${sig.color}`}
-        title={record.triggerSignal === 'N' && patternName ? `${sig.name}：${patternName}` : sig.name}
-      >
-        {record.triggerSignal}
-      </span>
-      <span className="font-mono shrink-0 w-12">{record.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '')}</span>
-      {patternName && (
-        <span className="text-[9px] text-muted-foreground shrink-0">{patternName}</span>
-      )}
-      <span className="font-mono text-[9px] text-muted-foreground shrink-0" title="觸發鎖定價">
-        @{record.triggerPrice.toFixed(2)}
-      </span>
-      {record.patternTargetPrice != null && (
-        <span className="font-mono text-[9px] text-emerald-400/80 shrink-0" title="型態目標價">
-          →{record.patternTargetPrice.toFixed(2)}
+    <tr className="border-b border-border/30 hover:bg-muted/20">
+      <td className="py-1 px-1.5">
+        <span className={`text-[9px] px-1 py-0.5 rounded-sm ${sig.color}`} title={sig.name}>
+          {record.triggerSignal}
         </span>
-      )}
-      {record.patternAchievementRate != null && (
-        <span className="text-[9px] text-amber-300/80 shrink-0" title="型態達成率（書本）">
-          {(record.patternAchievementRate * 100).toFixed(0)}%
-        </span>
-      )}
-      <span className={`text-[9px] ml-auto shrink-0 ${stage.color}`}>{stage.label}</span>
-      <span className="text-[9px] text-muted-foreground/60 font-mono shrink-0">
-        +{record.daysObserved}d
-      </span>
-      {/* 進場：直接跳到 portfolio 進場表單帶入 v12 欄位 */}
-      {(record.currentStage === 'observation' || record.currentStage === 'entry-signal') && (
-        <button
-          onClick={() => {
-            const code = record.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
-            const url = `/portfolio?prefill=${encodeURIComponent(code)}&trigger=${record.triggerSignal}&price=${record.triggerPrice}`;
-            window.open(url, '_self');
-          }}
-          className="text-[9px] text-emerald-400 hover:text-emerald-300 px-1.5 rounded border border-emerald-700/50 hover:bg-emerald-900/30 shrink-0 font-bold"
-          title={`進場：跳到持倉表單，自動填入 ${record.triggerSignal} 訊號 + 觸發價 ${record.triggerPrice.toFixed(2)}`}
-        >
-          進場
-        </button>
-      )}
-      {!inWatchlist && record.currentStage === 'entry-signal' && (
-        <button
-          onClick={() => useWatchlistStore.getState().add(record.symbol, record.symbol, record.triggerPrice)}
-          className="text-[9px] text-amber-400 hover:text-amber-300 px-1 rounded border border-amber-700/50 hover:bg-amber-900/30 shrink-0"
-          title="加入自選股"
-        >
-          +
-        </button>
-      )}
-      {canRemove && (
-        <button
-          onClick={() => {
-            if (confirm(`移除 ${record.symbol} ${sig.name}？`)) {
-              onRemove(record.symbol, record.triggerSignal);
-            }
-          }}
-          disabled={removing}
-          className="text-[9px] text-rose-400 hover:text-rose-300 px-1 rounded border border-rose-700/50 hover:bg-rose-900/30 shrink-0 disabled:opacity-40"
-          title="手動移除（議題 17）"
-        >
-          {removing ? '…' : '✕'}
-        </button>
-      )}
-    </div>
+      </td>
+      <td className="py-1 px-1.5 font-mono">{symbolBare}</td>
+      <td className="py-1 px-1.5 truncate max-w-[6rem]">{name || '—'}</td>
+      <td className="py-1 px-1.5 text-muted-foreground">{patternName ?? '—'}</td>
+      <td className="py-1 px-1.5 text-right font-mono tabular-nums">
+        {record.triggerPrice.toFixed(2)}
+      </td>
+      <td className="py-1 px-1.5 text-right font-mono tabular-nums text-emerald-400/80">
+        {record.patternTargetPrice != null ? record.patternTargetPrice.toFixed(2) : '—'}
+      </td>
+      <td className="py-1 px-1.5 text-right font-mono tabular-nums text-amber-300/80">
+        {record.patternAchievementRate != null
+          ? `${(record.patternAchievementRate * 100).toFixed(0)}%`
+          : '—'}
+      </td>
+      <td className={`py-1 px-1.5 text-center text-[10px] ${stage.color}`}>
+        {stage.label}
+      </td>
+      <td className="py-1 px-1.5 text-right font-mono text-muted-foreground/60 text-[10px]">
+        {record.daysObserved}d
+      </td>
+      <td className="py-1 px-1.5">
+        <div className="flex items-center justify-center gap-1">
+          {(record.currentStage === 'observation' || record.currentStage === 'entry-signal') && (
+            <button
+              onClick={() => {
+                const url = `/portfolio?prefill=${encodeURIComponent(symbolBare)}&trigger=${record.triggerSignal}&price=${record.triggerPrice}`;
+                window.open(url, '_self');
+              }}
+              className="text-[10px] text-emerald-400 hover:text-emerald-300 px-1.5 rounded border border-emerald-700/50 hover:bg-emerald-900/30 font-bold"
+              title={`進場：跳到持倉表單，自動填入 ${record.triggerSignal} 訊號 + 觸發價 ${record.triggerPrice.toFixed(2)}`}
+            >
+              進場
+            </button>
+          )}
+          {canRemove && (
+            <button
+              onClick={() => {
+                if (confirm(`移除 ${symbolBare} ${sig.name}？`)) {
+                  onRemove(record.symbol, record.triggerSignal);
+                }
+              }}
+              disabled={removing}
+              className="text-[10px] text-rose-400 hover:text-rose-300 px-1 rounded border border-rose-700/50 hover:bg-rose-900/30 disabled:opacity-40"
+              title="手動移除"
+            >
+              {removing ? '…' : '✕'}
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
   );
 }
