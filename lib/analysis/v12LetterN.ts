@@ -111,7 +111,9 @@ export function detectLetterN(
   const volumeRatio = c.volume / prev.volume;
   if (volumeRatio < 1.3) return empty;
 
-  // 依序試 7 個型態（按達成率降序：三重底 95% → 下降楔形 90% → 圓弧底 85% → 頭肩底 83% → 複式頭肩底/跌菱形 80% → 雙重底 36%）
+  // 依序試 8 個型態（按達成率降序）：
+  //   三重底 95% → 下降楔形 90% → 圓弧底 85% → 頭肩底 83% →
+  //   複式頭肩底/跌菱形 80% → N 字底 75% → 雙重底 36%
   const tripleBottom = detectTripleBottom(candles, idx);
   if (tripleBottom) return makeResult(tripleBottom, c.close, bodyPct, volumeRatio);
 
@@ -130,11 +132,11 @@ export function detectLetterN(
   const fallingDiamond = detectFallingDiamond(candles, idx);
   if (fallingDiamond) return makeResult(fallingDiamond, c.close, bodyPct, volumeRatio);
 
-  const doubleBottom = detectDoubleBottom(candles, idx);
-  if (doubleBottom) return makeResult(doubleBottom, c.close, bodyPct, volumeRatio);
-
   const nShape = detectNShape(candles, idx);
   if (nShape) return makeResult(nShape, c.close, bodyPct, volumeRatio);
+
+  const doubleBottom = detectDoubleBottom(candles, idx);
+  if (doubleBottom) return makeResult(doubleBottom, c.close, bodyPct, volumeRatio);
 
   return empty;
 }
@@ -641,10 +643,13 @@ export function detectTopPatterns(
   const prev = candles[idx - 1];
   if (!c || !prev || prev.volume <= 0 || c.open <= 0) return empty;
 
-  // 共同前置：黑 K（close < open）+ 實體 ≥ 2%
+  // 共同前置：黑 K（close < open）+ 實體 ≥ 2% + 量 ≥ 1.3
+  // 與 detectLetterN 對稱（書本《抓飆股》Part 7 要求頂部跌破也需爆量確認）
   if (c.close >= c.open) return empty;
   const bodyPct = ((c.open - c.close) / c.open) * 100;
   if (bodyPct < 2.0) return empty;
+  const volumeRatio = c.volume / prev.volume;
+  if (volumeRatio < 1.3) return empty;
 
   const tripleTop = detectTripleTop(candles, idx);
   if (tripleTop) return makeTopResult(tripleTop, c.close);

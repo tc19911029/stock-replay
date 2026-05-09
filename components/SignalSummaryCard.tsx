@@ -211,19 +211,18 @@ export default function SignalSummaryCard() {
   // V12 字母偵測（M/N/O/P/Q）+ 頂部型態（持股中才顯示）
   const [v12Hits, setV12Hits] = useState<V12Hit[]>([]);
   const [topPatternHit, setTopPatternHit] = useState<TopPatternHit | null>(null);
-  const candleCount = allCandles.length;
   const v12Market: 'TW' | 'CN' = useMemo(
     () => /\.(SS|SZ)$/i.test(ticker) ? 'CN' : 'TW',
     [ticker],
   );
 
   useEffect(() => {
-    let cancelled = false;
-    if (!ticker || candleCount < 30 || currentIndex < 25) {
+    if (!ticker || allCandles.length < 30 || currentIndex < 25) {
       setV12Hits([]);
       setTopPatternHit(null);
       return;
     }
+    // 同步偵測（detector 為純函式無 await）— 不需要 cancellation flag
     try {
       const m = detectLetterM(allCandles, currentIndex, v12Market, ticker);
       const n = detectLetterN(allCandles, currentIndex, v12Market, ticker);
@@ -231,7 +230,6 @@ export default function SignalSummaryCard() {
       const p = detectLetterP(allCandles, currentIndex, v12Market, ticker);
       const q = detectLetterQ(allCandles, currentIndex, v12Market, ticker);
       const top = detectTopPatterns(allCandles, currentIndex);
-      if (cancelled) return;
       const hits: V12Hit[] = [];
       if (m.triggered) hits.push({ letter: 'M', trackName: V12_TRACK_NAMES.M, detail: m.detail });
       if (n.triggered && n.patternType) {
@@ -258,9 +256,11 @@ export default function SignalSummaryCard() {
       } : null);
     } catch (err) {
       console.error('[SignalSummaryCard] v12 detect error', err);
+      // 異常時清空避免顯示前次股票的殘留 hit
+      setV12Hits([]);
+      setTopPatternHit(null);
     }
-    return () => { cancelled = true; };
-  }, [ticker, v12Market, allCandles, currentIndex, candleCount]);
+  }, [ticker, v12Market, allCandles, currentIndex]);
 
   if (!candle || !ticker) return null;
 
@@ -285,16 +285,6 @@ export default function SignalSummaryCard() {
     exit: exitSigs.map(s => s.label),
   });
 
-  // ── 停損 / 停利 ─────────────────────────────────────────────────────────
-  const entryPrice = heldPosition?.costPrice ?? candle.close;
-  const tickSize = getTickSize(entryPrice, market);
-  const klineStop = calcKLineStopLoss(candle, tickSize);
-  const absoluteFloor = entryPrice * 0.90;
-  const stopLoss = Math.max(klineStop, absoluteFloor);
-  const slPct = ((stopLoss - candle.close) / candle.close) * 100;
-  const profitTarget = entryPrice * 1.10;
-  const ptPct = ((profitTarget - candle.close) / candle.close) * 100;
-
   // 主訊號字母（V12 進場字母優先順序 Q > N > M > P > O；無命中時用持倉觸發字母）
   const PRIORITY: EntryLetter[] = ['Q', 'N', 'M', 'P', 'O'];
   const primaryV12 = PRIORITY.map(l => v12Hits.find(h => h.letter === l)).find(Boolean);
@@ -302,6 +292,20 @@ export default function SignalSummaryCard() {
     ?? (heldPosition?.triggerSignal as V12Letter | undefined)
     ?? 'B';
   const operatingMA = getOperationMA(primaryLetter, 'short');
+
+  // ── 停損 / 停利 ─────────────────────────────────────────────────────────
+  const entryPrice = heldPosition?.costPrice ?? candle.close;
+  const tickSize = getTickSize(entryPrice, market);
+  const klineStop = calcKLineStopLoss(candle, tickSize);
+  const absoluteFloor = entryPrice * 0.90;
+  const stopLoss = Math.max(klineStop, absoluteFloor);
+  const slPct = ((stopLoss - candle.close) / candle.close) * 100;
+  // 停利優先順序：N 型態目標價（書本明寫）> 成本 ×1.10（書本進階紀律）
+  // 規避舊 V12SignalAlerts 把型態目標價納入 Step 5 預估的 regression
+  const patternTarget = primaryV12?.patternTargetPrice;
+  const profitTarget = patternTarget ?? entryPrice * 1.10;
+  const ptPct = ((profitTarget - candle.close) / candle.close) * 100;
+  const profitTargetSource: 'pattern' | 'rule' = patternTarget != null ? 'pattern' : 'rule';
 
   // ── 走勢偏向（33 圖像 compositeAdjust 抽成一行）────────────────────────────
   const adjust = winnerPatterns?.compositeAdjust ?? 0;
@@ -377,6 +381,9 @@ export default function SignalSummaryCard() {
               <span className="text-muted-foreground"> · </span>
               <span className="text-emerald-300">停利 {profitTarget.toFixed(2)}</span>
               <span className="text-[10px] opacity-70 ml-0.5">({ptPct >= 0 ? '+' : ''}{ptPct.toFixed(1)}%)</span>
+              <span className="text-[9px] text-muted-foreground/70 ml-0.5">
+                {profitTargetSource === 'pattern' ? '·型態目標' : '·10%紀律'}
+              </span>
               {operatingMA && (
                 <>
                   <span className="text-muted-foreground"> · </span>

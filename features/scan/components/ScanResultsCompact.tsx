@@ -374,7 +374,8 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                     'head-shoulder': '頭肩底', 'complex-head-shoulder': '複式頭肩底',
                     'triple-bottom': '三重底', 'falling-diamond': '跌菱形',
                     'rounding-bottom': '圓弧底', 'descending-wedge': '下降楔形',
-                    'double-bottom': '雙重底',
+                    'double-bottom': '雙重底', 'n-shape': 'N 字底',
+                    'head-shoulder-top': '頭肩頂', 'triple-top': '三重頂', 'double-top': '雙重頂',
                   };
                   const name = PATTERN_LABEL[r.lockWatchPayload.patternType] ?? r.lockWatchPayload.patternType;
                   const rate = r.lockWatchPayload.patternAchievementRate;
