@@ -279,48 +279,55 @@ export async function GET(req: NextRequest) {
 
   const quotes = [...twQuotes, ...cnQuotes];
 
-  // CN L2 快照補漏（EastMoney/騰訊掛掉時 + 週末/假日無 live 報價時）
+  // L2 快照補漏（EastMoney/騰訊/Fugle 掛掉時 + 週末/假日無 live 報價時）
+  // CN + TW 並行 fallback（原本順序執行延遲 2x）
   const missingCN = cnEntries.filter(
     e => !quotes.some(q => q.symbol === e.original),
   );
-  if (missingCN.length > 0) {
-    // 週末/假日：用最近交易日；交易日：用今天（盤中快照可能還沒寫成今天）
+  const missingTW = twEntries.filter(
+    e => !quotes.some(q => q.symbol === e.original),
+  );
+
+  const cnFallback = async () => {
+    if (missingCN.length === 0) return [] as typeof quotes;
     const todayCN = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
     const lookupCN = isTradingDay(todayCN, 'CN') ? todayCN : getLastTradingDay('CN');
     try {
       const cnSnap = await readIntradaySnapshot('CN', lookupCN);
-      if (cnSnap) {
-        for (const e of missingCN) {
-          const code = e.resolved.replace(/\.(SS|SZ)$/i, '');
-          const q = cnSnap.quotes.find(qq => qq.symbol === code);
-          if (q && q.close > 0) {
-            quotes.push({ symbol: e.original, price: q.close, changePercent: q.changePercent ?? 0, name: q.name || undefined });
-          }
+      if (!cnSnap) return [] as typeof quotes;
+      const out: typeof quotes = [];
+      for (const e of missingCN) {
+        const code = e.resolved.replace(/\.(SS|SZ)$/i, '');
+        const q = cnSnap.quotes.find(qq => qq.symbol === code);
+        if (q && q.close > 0) {
+          out.push({ symbol: e.original, price: q.close, changePercent: q.changePercent ?? 0, name: q.name || undefined });
         }
       }
-    } catch { /* CN L2 fallback failed */ }
-  }
+      return out;
+    } catch { return [] as typeof quotes; }
+  };
 
-  // TW L2 快照補漏（同樣邏輯：週末/假日先補 L2）
-  const missingTW = twEntries.filter(
-    e => !quotes.some(q => q.symbol === e.original),
-  );
-  if (missingTW.length > 0) {
+  const twFallback = async () => {
+    if (missingTW.length === 0) return [] as typeof quotes;
     const todayTW = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
     const lookupTW = isTradingDay(todayTW, 'TW') ? todayTW : getLastTradingDay('TW');
     try {
       const twSnap = await readIntradaySnapshot('TW', lookupTW);
-      if (twSnap) {
-        for (const e of missingTW) {
-          const code = e.resolved.replace(/\.(TW|TWO)$/i, '');
-          const q = twSnap.quotes.find(qq => qq.symbol === code);
-          if (q && q.close > 0) {
-            quotes.push({ symbol: e.original, price: q.close, changePercent: q.changePercent ?? 0, name: q.name || undefined });
-          }
+      if (!twSnap) return [] as typeof quotes;
+      const out: typeof quotes = [];
+      for (const e of missingTW) {
+        const code = e.resolved.replace(/\.(TW|TWO)$/i, '');
+        const q = twSnap.quotes.find(qq => qq.symbol === code);
+        if (q && q.close > 0) {
+          out.push({ symbol: e.original, price: q.close, changePercent: q.changePercent ?? 0, name: q.name || undefined });
         }
       }
-    } catch { /* TW L2 fallback failed */ }
-  }
+      return out;
+    } catch { return [] as typeof quotes; }
+  };
+
+  const [cnFilled, twFilled] = await Promise.all([cnFallback(), twFallback()]);
+  quotes.push(...cnFilled, ...twFilled);
 
   return apiOk(
     { quotes },
