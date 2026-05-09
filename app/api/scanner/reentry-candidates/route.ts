@@ -44,6 +44,8 @@ export interface ReentryCandidate {
     maReclaimed: boolean;
     volumeOk: boolean;
   };
+  /** 今日命中的策略字母（A-Q）— UI 顯示徽章用，跟掃描結果列表的 matchedMethods 一致 */
+  matchedMethods?: string[];
 }
 
 export async function GET(req: NextRequest): Promise<Response> {
@@ -97,6 +99,27 @@ export async function GET(req: NextRequest): Promise<Response> {
       return apiOk({ market, direction, lookbackDays, candidates: [] });
     }
 
+    // 2.5 拉今日所有 buy-method session，建 symbol → matchedMethods 對照
+    // 用戶反饋：候選名單沒顯示「該股今日命中哪些策略」，而掃描結果列表有。
+    // 這裡補上 matchedMethods 讓使用者看到「8255 朋程在 P+N+A 命中」資訊。
+    const BUY_METHODS = ['A', 'B', 'C', 'D', 'E', 'F', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'] as const;
+    const matchedMap = new Map<string, Set<string>>();
+    await Promise.all(
+      BUY_METHODS.map(async (m) => {
+        try {
+          const session = m === 'A'
+            ? await loadScanSession(market as MarketId, today, direction as ScanDirection)
+            : await loadScanSession(market as MarketId, today, direction as ScanDirection, m);
+          if (!session) return;
+          for (const r of session.results as StockScanResult[]) {
+            const set = matchedMap.get(r.symbol) ?? new Set<string>();
+            set.add(m);
+            matchedMap.set(r.symbol, set);
+          }
+        } catch { /* 該字母 session 讀失敗不致命 */ }
+      }),
+    );
+
     // 3. 對每支股票檢查再進場條件（用最新一根 K 棒；排除已持有避免重複推薦）
     const candidates: ReentryCandidate[] = [];
     for (const [symbol, meta] of seenSymbols) {
@@ -113,6 +136,7 @@ export async function GET(req: NextRequest): Promise<Response> {
         ? ((last.close - last.ma5) / last.ma5) * 100
         : 0;
 
+      const methods = matchedMap.get(symbol);
       candidates.push({
         symbol,
         name: meta.name,
@@ -121,6 +145,7 @@ export async function GET(req: NextRequest): Promise<Response> {
         price: last.close,
         ma5Distance: +ma5Distance.toFixed(2),
         checks: sig.checks,
+        matchedMethods: methods ? Array.from(methods).sort() : undefined,
       });
     }
 

@@ -17,7 +17,27 @@ interface ReentryCandidate {
     maReclaimed: boolean;
     volumeOk: boolean;
   };
+  /** 今日命中的策略字母（A-Q）— 從 reentry endpoint 拉的 */
+  matchedMethods?: string[];
 }
+
+const METHOD_NAME: Record<string, string> = {
+  A: '六條件', B: '回後買上漲', C: '盤整突破', D: '一字底', E: '缺口',
+  F: 'V反轉', J: 'ABC突破', K: 'K線橫盤', L: '過大量黑K', M: '軌道線',
+  N: '型態確認', O: '打底完成', P: '高檔拉回', Q: '三均線戰法',
+};
+
+// 多頭軌 = 紅、轉折軌 = 藍、戰法 = 紫、預選池 A = 琥珀
+const METHOD_COLOR: Record<string, string> = {
+  A: 'bg-amber-700/60 text-amber-100',
+  B: 'bg-red-700/60 text-red-100', C: 'bg-red-700/60 text-red-100',
+  E: 'bg-red-700/60 text-red-100', J: 'bg-red-700/60 text-red-100',
+  K: 'bg-red-700/60 text-red-100', L: 'bg-red-700/60 text-red-100',
+  M: 'bg-red-700/60 text-red-100', P: 'bg-red-700/60 text-red-100',
+  D: 'bg-blue-700/60 text-blue-100', F: 'bg-blue-700/60 text-blue-100',
+  N: 'bg-blue-700/60 text-blue-100', O: 'bg-blue-700/60 text-blue-100',
+  Q: 'bg-purple-700/60 text-purple-100',
+};
 
 interface ApiResponse {
   ok?: boolean;
@@ -127,6 +147,7 @@ export function ReentryCandidatesPanel({ onSelectStock }: ReentryCandidatesPanel
                     <th className="text-left py-1 px-2">名稱</th>
                     <th className="text-right py-1 px-2">現價</th>
                     <th className="text-right py-1 px-2">距 MA5</th>
+                    <th className="text-left py-1 px-2">今日命中</th>
                     <th className="text-center py-1 px-2">出現次</th>
                     <th className="text-center py-1 px-2">首次入選</th>
                   </tr>
@@ -143,6 +164,22 @@ export function ReentryCandidatesPanel({ onSelectStock }: ReentryCandidatesPanel
                       <td className="py-1 px-2 text-right tabular-nums">{c.price.toFixed(2)}</td>
                       <td className="py-1 px-2 text-right tabular-nums text-bull">
                         +{c.ma5Distance.toFixed(2)}%
+                      </td>
+                      <td className="py-1 px-2">
+                        <div className="flex items-center gap-0.5 flex-wrap">
+                          {(c.matchedMethods ?? []).map((m) => (
+                            <span
+                              key={m}
+                              className={`text-[9px] px-1 py-0.5 rounded-sm font-bold ${METHOD_COLOR[m] ?? 'bg-muted text-muted-foreground'}`}
+                              title={`${m} · ${METHOD_NAME[m] ?? m}`}
+                            >
+                              {METHOD_NAME[m] ?? m}
+                            </span>
+                          ))}
+                          {(!c.matchedMethods || c.matchedMethods.length === 0) && (
+                            <span className="text-[10px] text-muted-foreground/50">—</span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-1 px-2 text-center">{c.scanAppearances}</td>
                       <td className="py-1 px-2 text-center text-muted-foreground">{c.firstSeenDate.slice(5)}</td>
