@@ -316,14 +316,30 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                   const name = PATTERN_LABEL[r.lockWatchPayload.patternType] ?? r.lockWatchPayload.patternType;
                   const rate = r.lockWatchPayload.patternAchievementRate;
                   const target = r.lockWatchPayload.patternTargetPrice;
-                  const upside = target ? ((target - r.price) / r.price * 100).toFixed(1) : null;
+                  // 目標相對現價的距離 — 正 = 仍有上漲空間；負 = 已達/超過目標
+                  const upsideNum = target ? ((target - r.price) / r.price * 100) : null;
+                  const reached = upsideNum != null && upsideNum <= 0;
                   return (
                     <span
                       className="text-[8px] px-1 h-3.5 flex items-center gap-0.5 rounded-sm bg-indigo-900/60 text-indigo-200 font-bold"
-                      title={`N 型態：${name} · 達成率 ${rate ? (rate * 100).toFixed(0) : '?'}% · 頸線 ${r.lockWatchPayload.triggerPrice.toFixed(2)} · 目標 ${target?.toFixed(2) ?? '?'}（${upside ?? '?'}% 空間）`}>
+                      title={
+                        reached
+                          ? `N 型態：${name} · 達成率 ${rate ? (rate * 100).toFixed(0) : '?'}% · 頸線 ${r.lockWatchPayload.triggerPrice.toFixed(2)} · 目標 ${target?.toFixed(2) ?? '?'}（已達標：現價超過目標 ${Math.abs(upsideNum!).toFixed(1)}%）`
+                          : `N 型態：${name} · 達成率 ${rate ? (rate * 100).toFixed(0) : '?'}% · 頸線 ${r.lockWatchPayload.triggerPrice.toFixed(2)} · 目標 ${target?.toFixed(2) ?? '?'}（距目標還有 ${upsideNum?.toFixed(1) ?? '?'}% 空間）`
+                      }>
                       {name}{rate != null && <span className="opacity-75 ml-0.5">{(rate * 100).toFixed(0)}%</span>}
-                      {target != null && upside != null && (
-                        <span className="ml-0.5 text-emerald-300">→{upside}%</span>
+                      {target != null && upsideNum != null && (
+                        reached ? (
+                          // 已達 / 超過目標 → 提示停利
+                          <span className="ml-0.5 text-amber-300" title="目標已達，可考慮停利">
+                            目標達標
+                          </span>
+                        ) : (
+                          // 仍有空間 → 顯示目標價 + 距現價百分比
+                          <span className="ml-0.5 text-emerald-300">
+                            目標 {target.toFixed(0)} (+{upsideNum.toFixed(1)}%)
+                          </span>
+                        )
                       )}
                     </span>
                   );
