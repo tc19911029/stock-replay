@@ -169,6 +169,11 @@ export async function writeCandleFile(
   }
 }
 
+// 「單根增量寫入」的最小門檻 — 如果 incoming 只有 1 根 candle，視為 append/append-from-snapshot
+// 路徑（download-candles 走 TWSE / L2 fast-path 也是 1 根）。這時 existing 必須讀得到，
+// 否則 abort（避免讀失敗 fallback 直接寫入 1 根把 L1 截斷）。
+const SINGLE_CANDLE_INCREMENT_THRESHOLD = 1;
+
 async function _writeCandleFileImpl(
   symbol: string,
   market: 'TW' | 'CN',
@@ -188,6 +193,16 @@ async function _writeCandleFileImpl(
     for (const c of incoming) map.set(c.date, c); // incoming 覆蓋同日
     stripped = [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
   } else {
+    // existing === null 或空：可能是真的沒檔案（新股第一次下載），也可能是 race / IO 錯誤
+    // 安全規則（2026-05-09）：若 incoming 是「單根增量」（fast-path L2/TWSE 注入）且 existing 讀不到，
+    // 視為高機率讀失敗（race / cache miss / IO 錯誤）→ abort，避免把好好的 L1 截斷成 1 根。
+    // 完整下載（candles.length > 1）的情境可信度高，允許覆寫（新股初始化 / 全量重灌）。
+    if (incoming.length <= SINGLE_CANDLE_INCREMENT_THRESHOLD) {
+      console.warn(
+        `[writeCandleFile] ${market}:${symbol} skipped: existing read failed and incoming is single-candle increment (避免 L1 被截斷成 1 根的安全機制)`,
+      );
+      return;
+    }
     stripped = incoming.sort((a, b) => a.date.localeCompare(b.date));
   }
 
