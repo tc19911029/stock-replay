@@ -345,30 +345,37 @@ export default function SignalSummaryCard() {
         <div className={`w-1 shrink-0 ${STRENGTH_BAR[verdict.level]}`} />
         <div className="flex-1 p-3 space-y-3">
 
-          {/* ── 1. 持倉狀態列 ───────────────────────────── */}
-          <div className="flex items-center justify-between text-xs">
-            <span className={`font-bold ${hasPosition ? 'text-rose-300' : 'text-muted-foreground'}`}>
-              {hasPosition ? '持股中' : '未持倉'}
+          {/* ── 1. 持倉狀態（雙行版面：身分 / 報價對照） ───────────────── */}
+          <div className="space-y-1">
+            {/* 第一行：身分標籤 + 數量 */}
+            <div className="flex items-center justify-between">
+              <span className={`text-xs font-bold ${hasPosition ? 'text-rose-300' : 'text-muted-foreground'}`}>
+                {hasPosition ? '持股中' : '未持倉'}
+              </span>
               {hasPosition && heldPosition && (
-                <span className="ml-1.5 text-muted-foreground font-normal">
-                  · {formatSharesAsLots(heldPosition.shares, market)}
+                <span className="text-[10px] text-muted-foreground font-mono">
+                  {formatSharesAsLots(heldPosition.shares, market)}
                 </span>
               )}
-            </span>
-            <span className="font-mono text-foreground/80">
-              {candle.close.toFixed(2)}
+            </div>
+            {/* 第二行：現價 + 成本 + PnL（持股才顯示成本對照） */}
+            <div className="flex items-center justify-between font-mono text-xs">
+              <span>
+                <span className="text-muted-foreground/70 text-[10px]">現價</span>
+                <span className="ml-1 text-foreground font-bold">{candle.close.toFixed(2)}</span>
+              </span>
               {heldPosition?.costPrice != null && (
-                <>
-                  <span className="text-muted-foreground"> · 成本 </span>
-                  {heldPosition.costPrice.toFixed(2)}
+                <span>
+                  <span className="text-muted-foreground/70 text-[10px]">成本</span>
+                  <span className="ml-1 text-foreground/80">{heldPosition.costPrice.toFixed(2)}</span>
                   {pnlPct != null && (
-                    <span className={`ml-1 ${pnlPct >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                      ({pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%)
+                    <span className={`ml-1.5 font-bold ${pnlPct >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                      {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
                     </span>
                   )}
-                </>
+                </span>
               )}
-            </span>
+            </div>
           </div>
 
           {/* ── 2. 一句話結論 ───────────────────────────── */}
@@ -533,17 +540,7 @@ function Reasons({
         </div>
       )}
 
-      {/* 戒律觸發 — 一行提示；詳情移到「條件」分頁底部（ProhibitionsBlock） */}
-      {prohibitions.length > 0 && (
-        <div className="rounded border border-amber-700/40 bg-amber-900/15 px-2 py-1.5">
-          <p className="text-[10px] font-bold text-amber-300">
-            ⚠ 戒律觸發 {prohibitions.length} 條 — 書本：禁止進場做多
-          </p>
-          <p className="text-[9px] text-amber-200/80 leading-snug mt-0.5">
-            詳情見「條件」分頁（戒律是硬性禁忌，凌駕於六條件之上）
-          </p>
-        </div>
-      )}
+      {/* 戒律：訊號分頁不顯示，verdict 已表達且詳情在「條件」分頁 */}
 
       {/* 警示訊號（非進出場，但需注意）*/}
       {warnSigs.length > 0 && (

@@ -174,11 +174,15 @@ export function findPivots(
  * 朱老師趨勢判斷（對齊寶典 p.35）：
  *   「由最後一天收盤 K 線往左和最近的「頭」及最近的「底」比較，判定是否符合多頭架構」
  *
- *   多頭 = 頭頭高 + 底底高 同時成立
- *   空頭 = 頭頭低 + 底底低 同時成立
- *   盤整 = 波浪不完整 / 矛盾（頭高底低、頭低底高）/ 轉折中
+ *   多頭 = 頭頭高 + 不破前底（含底底相等）
+ *   空頭 = 底底低 + 不過前頭（含頭頭相等）
+ *   盤整 = 波浪不完整 / 矛盾（頭高底低、頭低底高）/ 兩邊都未突破
  *
- * 不再加 MA 粗判或 fallback — 書本只看波浪結構。
+ * 2026-05-10 放寬：底底「相等」也算「不破底」（書本「底底高」精神是「不破前底」）。
+ *   例：6770 力積電兩底都 51.6 + 新頭突破前頭 → 應為多頭，原嚴格 > 誤判為盤整。
+ *   對稱：頭頭「相等」也算「不過頭」。
+ *   不是 ε 容差（exact equality only），符合「不加數值容差」原則。
+ *
  * 波浪由 findPivots (p.22 MA5 分段法) 產出。
  */
 export function detectTrend(
@@ -205,13 +209,16 @@ export function detectTrend(
   const immediateNewHigh = c.close > highs[0].price;
   const immediateNewLow  = c.close < lows[0].price;
 
+  // 多頭側：頭頭高（嚴格）+ 不破前底（含相等）
   const higherHighs = highs[0].price > highs[1].price || immediateNewHigh;
-  const higherLows  = !immediateNewLow && lows[0].price > lows[1].price;
-  const lowerHighs  = !higherHighs && highs[0].price < highs[1].price;
+  const noLowerLow  = !immediateNewLow && lows[0].price >= lows[1].price;
+  // 空頭側：底底低（嚴格）+ 不過前頭（含相等）— 鏡像對稱
   const lowerLows   = lows[0].price < lows[1].price || immediateNewLow;
+  const noHigherHigh = !immediateNewHigh && highs[0].price <= highs[1].price;
 
-  if (higherHighs && higherLows) return '多頭';
-  if (lowerHighs  && lowerLows)  return '空頭';
+  // 多頭 / 空頭 條件互斥；同時成立（極罕見極端 case）→ 留給盤整
+  if (higherHighs && noLowerLow && !lowerLows) return '多頭';
+  if (lowerLows  && noHigherHigh && !higherHighs) return '空頭';
   return '盤整';
 }
 
