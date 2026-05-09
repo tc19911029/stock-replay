@@ -39,6 +39,10 @@ const PATTERN_NAME: Record<NonNullable<LockWatchRecord['patternType']>, string> 
   'rounding-bottom': '圓弧底',
   'descending-wedge': '下降楔形',
   'double-bottom': '雙重底',
+  'n-shape': 'N 字底',
+  'head-shoulder-top': '頭肩頂',
+  'triple-top': '三重頂',
+  'double-top': '雙重頂',
 };
 
 const STAGE_STYLE: Record<LockWatchRecord['currentStage'], { label: string; color: string }> = {

@@ -59,12 +59,17 @@ interface Pivot {
  *
  * @param includeOpen true 時把「進行中段」的 running max/min 當成 provisional pivot 加在最後
  *                    （用於即時趨勢判定；書本嚴格確認要等 MA5 反向穿越）
+ * @param minSwingRatio 最小擺幅比例（預設 0 = 不過濾）。> 0 時，過濾掉相鄰反向 pivot
+ *                      價差 < `minSwingRatio × close` 或 `0.5 × ATR(14)` 取大者的小擺動。
+ *                      用於型態偵測（避免震盪雜訊產生的假頭底擾亂三重底/頭肩底辨識）。
+ *                      不影響原有呼叫點（detectTrend / 走圖 marker 走預設 0）。
  */
 export function findPivots(
   candles: CandleWithIndicators[],
   endIndex: number,
   maxPivots = 10,
   includeOpen = false,
+  minSwingRatio = 0,
 ): Pivot[] {
   const lookback = Math.min(endIndex, 120);
   const start = Math.max(0, endIndex - lookback);
@@ -124,7 +129,43 @@ export function findPivots(
     }
   }
 
-  return pivots.slice(-maxPivots).reverse();
+  // 可選：ATR / 比例過濾（minSwingRatio > 0）— 移除震盪雜訊產生的小擺幅 pivot
+  // 演算法：oldest→newest 走，若新 pivot 與前一個保留 pivot 的價差小於 threshold，
+  //   則：若同向（不會發生於原始 MA5 分段法，但合併後可能）則保留更極端者；
+  //        若反向但擺幅太小，丟棄當前 pivot（讓真正的轉折繼續）
+  // 注意：findPivots 原本以 MA5 正負區交替產出 high-low-high-low，過濾後仍維持交替。
+  let filtered = pivots;
+  if (minSwingRatio > 0 && pivots.length >= 2) {
+    const last = candles[endIndex];
+    const closeRef = last?.close ?? 0;
+    const atrRef = last?.atr14 ?? 0;
+    const threshold = Math.max(minSwingRatio * closeRef, 0.5 * atrRef);
+    if (threshold > 0) {
+      const out: Pivot[] = [];
+      for (const p of pivots) {
+        const prev = out[out.length - 1];
+        if (!prev) {
+          out.push(p);
+          continue;
+        }
+        if (prev.type === p.type) {
+          // 同向（過濾後可能出現）：保留更極端者
+          const isHigh = p.type === 'high';
+          if ((isHigh && p.price > prev.price) || (!isHigh && p.price < prev.price)) {
+            out[out.length - 1] = p;
+          }
+          continue;
+        }
+        // 反向：擺幅太小則丟棄當前 pivot
+        const swing = Math.abs(p.price - prev.price);
+        if (swing < threshold) continue;
+        out.push(p);
+      }
+      filtered = out;
+    }
+  }
+
+  return filtered.slice(-maxPivots).reverse();
 }
 
 // ── Trend detection ───────────────────────────────────────────────────────────

@@ -215,7 +215,11 @@ export interface StockScanResult {
       | 'falling-diamond'
       | 'rounding-bottom'
       | 'descending-wedge'
-      | 'double-bottom';
+      | 'double-bottom'
+      | 'n-shape'
+      | 'head-shoulder-top'
+      | 'triple-top'
+      | 'double-top';
     patternTargetPrice?: number;
     patternAchievementRate?: number;
   };

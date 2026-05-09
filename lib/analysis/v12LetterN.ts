@@ -37,7 +37,15 @@ export type PatternType =
   | 'complex-head-shoulder'
   | 'falling-diamond'
   | 'descending-wedge'
-  | 'double-bottom';
+  | 'double-bottom'
+  // 2026-05-10 補入：
+  | 'n-shape';             // N 字底（A 高→B 低→C 突破 A 高）
+
+/** 頂部型態（向下跌破做空 / 出場警示，2026-05-10 補實作） */
+export type TopPatternType =
+  | 'head-shoulder-top'    // 頭肩頂
+  | 'triple-top'           // 三重頂
+  | 'double-top';          // 雙重頂
 
 const PATTERN_ACHIEVEMENT: Record<PatternType, number> = {
   'head-shoulder': 83,
@@ -47,6 +55,13 @@ const PATTERN_ACHIEVEMENT: Record<PatternType, number> = {
   'falling-diamond': 80,
   'descending-wedge': 90,
   'double-bottom': 36,  // 書本明寫成功率低，仍實作但加警示
+  'n-shape': 75,        // 書本未明寫達成率，採保守估值
+};
+
+const TOP_PATTERN_ACHIEVEMENT: Record<TopPatternType, number> = {
+  'head-shoulder-top': 83,  // 對稱頭肩底
+  'triple-top': 95,         // 對稱三重底
+  'double-top': 36,         // 對稱雙重底
 };
 
 export interface LetterNResult {
@@ -118,6 +133,9 @@ export function detectLetterN(
   const doubleBottom = detectDoubleBottom(candles, idx);
   if (doubleBottom) return makeResult(doubleBottom, c.close, bodyPct, volumeRatio);
 
+  const nShape = detectNShape(candles, idx);
+  if (nShape) return makeResult(nShape, c.close, bodyPct, volumeRatio);
+
   return empty;
 }
 
@@ -164,6 +182,16 @@ function getPatternName(t: PatternType): string {
     'falling-diamond': '跌菱形',
     'descending-wedge': '下降楔形',
     'double-bottom': '雙重底',
+    'n-shape': 'N 字底',
+  };
+  return names[t];
+}
+
+function getTopPatternName(t: TopPatternType): string {
+  const names: Record<TopPatternType, string> = {
+    'head-shoulder-top': '頭肩頂',
+    'triple-top': '三重頂',
+    'double-top': '雙重頂',
   };
   return names[t];
 }
@@ -176,7 +204,7 @@ function detectTripleBottom(
   candles: CandleWithIndicators[],
   idx: number,
 ): PatternMatch | null {
-  const pivots = findPivots(candles, idx, 12, false);
+  const pivots = findPivots(candles, idx, 12, false, 0.005);
   const lows = pivots.filter(p => p.type === 'low').slice(0, 3);
   const allHighs = pivots.filter(p => p.type === 'high');
 
@@ -198,9 +226,10 @@ function detectTripleBottom(
   // 頸線 = 兩內部高點連線中較低（保守取較低 — 突破時需要過此價）
   const necklinePrice = Math.min(interiorHighs[0].price, interiorHighs[1].price);
 
-  // 三重底目標價 = 頸線 + 平均底部到頸線高度
-  const avgLow = (low1.price + low2.price + low3.price) / 3;
-  const patternTargetPrice = necklinePrice + (necklinePrice - avgLow);
+  // 三重底目標價 = 頸線 + (頸線 - 三底最低點)
+  // 書本《抓飆股》Part 7：用最低點測量幅度，不用平均
+  const lowestLow = Math.min(low1.price, low2.price, low3.price);
+  const patternTargetPrice = necklinePrice + (necklinePrice - lowestLow);
 
   // 結構失效 = 跌破第 3 個底（最新的 low）
   const structureBrokenPrice = low1.price;
@@ -219,7 +248,7 @@ function detectHeadShoulder(
   candles: CandleWithIndicators[],
   idx: number,
 ): PatternMatch | null {
-  const pivots = findPivots(candles, idx, 10, false);
+  const pivots = findPivots(candles, idx, 10, false, 0.005);
   const lows = pivots.filter(p => p.type === 'low').slice(0, 3);
   const allHighs = pivots.filter(p => p.type === 'high');
 
@@ -278,7 +307,7 @@ function detectDescendingWedge(
   candles: CandleWithIndicators[],
   idx: number,
 ): PatternMatch | null {
-  const pivots = findPivots(candles, idx, 10, false);
+  const pivots = findPivots(candles, idx, 10, false, 0.005);
   const highs = pivots.filter(p => p.type === 'high').slice(0, 2);
   const lows  = pivots.filter(p => p.type === 'low').slice(0, 2);
   if (highs.length < 2 || lows.length < 2) return null;
@@ -330,7 +359,7 @@ function detectComplexHeadShoulder(
   candles: CandleWithIndicators[],
   idx: number,
 ): PatternMatch | null {
-  const pivots = findPivots(candles, idx, 12, false);
+  const pivots = findPivots(candles, idx, 12, false, 0.005);
   const lows = pivots.filter(p => p.type === 'low').slice(0, 5);
   const allHighs = pivots.filter(p => p.type === 'high');
   if (lows.length < 5) return null;
@@ -395,7 +424,7 @@ function detectFallingDiamond(
   candles: CandleWithIndicators[],
   idx: number,
 ): PatternMatch | null {
-  const pivots = findPivots(candles, idx, 12, false);
+  const pivots = findPivots(candles, idx, 12, false, 0.005);
   const highs = pivots.filter(p => p.type === 'high').slice(0, 4);
   const lows  = pivots.filter(p => p.type === 'low').slice(0, 4);
   if (highs.length < 4 || lows.length < 2) return null;
@@ -437,7 +466,7 @@ function detectDoubleBottom(
   candles: CandleWithIndicators[],
   idx: number,
 ): PatternMatch | null {
-  const pivots = findPivots(candles, idx, 10, false);
+  const pivots = findPivots(candles, idx, 10, false, 0.005);
   const lows = pivots.filter(p => p.type === 'low').slice(0, 2);
   const allHighs = pivots.filter(p => p.type === 'high');
   if (lows.length < 2) return null;
@@ -455,9 +484,10 @@ function detectDoubleBottom(
   // 頸線 = 中間最高點（雙底突破頸線後做多）
   const necklinePrice = Math.max(...interiorHighs.map(h => h.price));
 
-  // 目標價 = 頸線 + (頸線 - 兩底平均)
-  const avgLow = (low1.price + low2.price) / 2;
-  const patternTargetPrice = necklinePrice + (necklinePrice - avgLow);
+  // 目標價 = 頸線 + (頸線 - 兩底最低)
+  // 書本《抓飆股》Part 7：用最低點測量幅度，不用平均
+  const lowestLow = Math.min(low1.price, low2.price);
+  const patternTargetPrice = necklinePrice + (necklinePrice - lowestLow);
 
   return {
     patternType: 'double-bottom',
@@ -508,8 +538,9 @@ function detectRoundingBottom(
   const arcDepth = necklinePrice - arcLow;
   if (arcDepth <= 0) return null;
 
-  // 目標價 = 頸線 + 弧底深度 × 1.5（書本公式）
-  const patternTargetPrice = necklinePrice + arcDepth * 1.5;
+  // 目標價 = 頸線 + 弧底深度
+  // 書本《抓飆股》Part 7：圓弧底測量幅度為「頸線 + 弧底到頸線的高度」（不額外乘 1.5）
+  const patternTargetPrice = necklinePrice + arcDepth;
 
   return {
     patternType: 'rounding-bottom',
@@ -517,4 +548,244 @@ function detectRoundingBottom(
     patternTargetPrice,
     structureBrokenPrice: arcLow,
   };
+}
+
+// ── N 字底（2026-05-10 補實作）──────────────────────────────────────────────
+//
+// 書本《抓飆股》Part 7：上漲中的回測再攻
+//   結構：A（高）→ B（低，不破前低）→ C（紅K收盤過 A 高）
+//   目標 = C 突破點 + (A 高 − B 低)
+//   結構失效 = 跌破 B 低
+//
+// 與其他底部型態不同：N 字底前提是「已在上漲」，B 不創新低，
+// 是回檔後再攻創新高的延續型態（接近 P 高檔拉回但有頭部突破要件）
+
+function detectNShape(
+  candles: CandleWithIndicators[],
+  idx: number,
+): PatternMatch | null {
+  const pivots = findPivots(candles, idx, 8, false, 0.005);
+  // 需要近期 1 個 high (A) → 1 個 low (B)
+  // pivots 由新到舊，最新是 high (A 已被超越的舊高)，再來是 low (B)
+  const highs = pivots.filter(p => p.type === 'high');
+  const lows  = pivots.filter(p => p.type === 'low');
+  if (highs.length < 1 || lows.length < 1) return null;
+
+  const a = highs[0];  // A：最近的高
+  const b = lows[0];   // B：最近的低
+
+  // B 必須晚於 A（A→B 順序）— 回檔型態才合理
+  if (b.index <= a.index) return null;
+
+  // 收盤要過 A 高（×3% 真突破由 makeResult 統一檢查；這裡先確保結構）
+  if (candles[idx].close <= a.price) return null;
+
+  // B 不破前低：找 A 之前的低，B 必須高於它（不創新低 = 結構穩）
+  const prevLow = lows[1];  // 找下一個低
+  if (prevLow && b.price <= prevLow.price) return null;
+
+  // 目標價 = 收盤突破點 + (A 高 - B 低)
+  const nHeight = a.price - b.price;
+  if (nHeight <= 0) return null;
+  const patternTargetPrice = candles[idx].close + nHeight;
+
+  return {
+    patternType: 'n-shape',
+    necklinePrice: a.price,           // A 高 = 突破點
+    patternTargetPrice,
+    structureBrokenPrice: b.price,    // 跌破 B 低 = 結構失效
+  };
+}
+
+// ── 頂部型態（2026-05-10 補實作）── 出場用，獨立於 detectLetterN 流程 ────────────
+//
+// 觸發條件：紅 K 反向（黑 K）+ 跌破頸線
+// 目標價：頸線 - (頂高 - 頸線)
+// 結構失效（停損點）：再過頸線
+
+interface TopPatternMatch {
+  patternType: TopPatternType;
+  necklinePrice: number;
+  patternTargetPrice: number;
+  structureBrokenPrice: number;
+}
+
+export interface TopPatternResult {
+  triggered: boolean;
+  patternType?: TopPatternType;
+  achievementRate?: number;
+  necklinePrice?: number;
+  /** ×3% 真跌破門檻 */
+  breakdownThreshold?: number;
+  patternTargetPrice?: number;
+  structureBrokenPrice?: number;
+  detail: string;
+}
+
+const TRUE_BREAKDOWN_PCT = 0.03;
+
+/**
+ * 頂部型態偵測（黑K + 跌破頸線×3%）
+ *
+ * 內部依序檢查：三重頂 → 頭肩頂 → 雙重頂，回傳第一個命中的。
+ */
+export function detectTopPatterns(
+  candles: CandleWithIndicators[],
+  idx: number,
+): TopPatternResult {
+  const empty: TopPatternResult = { triggered: false, detail: '頂部型態未觸發' };
+  if (idx < 30 || candles.length === 0) return empty;
+
+  const c = candles[idx];
+  const prev = candles[idx - 1];
+  if (!c || !prev || prev.volume <= 0 || c.open <= 0) return empty;
+
+  // 共同前置：黑 K（close < open）+ 實體 ≥ 2%
+  if (c.close >= c.open) return empty;
+  const bodyPct = ((c.open - c.close) / c.open) * 100;
+  if (bodyPct < 2.0) return empty;
+
+  const tripleTop = detectTripleTop(candles, idx);
+  if (tripleTop) return makeTopResult(tripleTop, c.close);
+
+  const headShoulderTop = detectHeadShoulderTop(candles, idx);
+  if (headShoulderTop) return makeTopResult(headShoulderTop, c.close);
+
+  const doubleTop = detectDoubleTop(candles, idx);
+  if (doubleTop) return makeTopResult(doubleTop, c.close);
+
+  return empty;
+}
+
+function makeTopResult(match: TopPatternMatch, closePrice: number): TopPatternResult {
+  const breakdownThreshold = match.necklinePrice * (1 - TRUE_BREAKDOWN_PCT);
+
+  // 真跌破檢查：close ≤ neckline × 0.97
+  if (closePrice > breakdownThreshold) {
+    return { triggered: false, detail: '頂部型態結構成立但未過 ×3% 真跌破' };
+  }
+
+  return {
+    triggered: true,
+    patternType: match.patternType,
+    achievementRate: TOP_PATTERN_ACHIEVEMENT[match.patternType],
+    necklinePrice: match.necklinePrice,
+    breakdownThreshold,
+    patternTargetPrice: match.patternTargetPrice,
+    structureBrokenPrice: match.structureBrokenPrice,
+    detail: `${getTopPatternName(match.patternType)}（達成率 ${TOP_PATTERN_ACHIEVEMENT[match.patternType]}%${TOP_PATTERN_ACHIEVEMENT[match.patternType] < 50 ? ' ⚠️ 低達成率' : ''}+跌破頸線 ${match.necklinePrice.toFixed(2)}×3%）`,
+  };
+}
+
+// ── 三重頂 ────────────────────────────────────────────────────────────────
+
+const TRIPLE_TOP_TOLERANCE_PCT = 0.05;
+
+function detectTripleTop(
+  candles: CandleWithIndicators[],
+  idx: number,
+): TopPatternMatch | null {
+  const pivots = findPivots(candles, idx, 12, false, 0.005);
+  const highs = pivots.filter(p => p.type === 'high').slice(0, 3);
+  const allLows = pivots.filter(p => p.type === 'low');
+
+  if (highs.length < 3 || allLows.length < 2) return null;
+
+  const [high1, high2, high3] = highs;
+  const minHigh = Math.min(high1.price, high2.price, high3.price);
+  const maxHigh = Math.max(high1.price, high2.price, high3.price);
+  if ((maxHigh - minHigh) / minHigh > TRIPLE_TOP_TOLERANCE_PCT) return null;
+
+  const interiorLows = allLows.filter(
+    (l) => l.index > high3.index && l.index < high1.index,
+  );
+  if (interiorLows.length < 2) return null;
+
+  // 頸線 = 兩內部低點中較高（保守取較高 — 跌破時需要破此價）
+  const necklinePrice = Math.max(interiorLows[0].price, interiorLows[1].price);
+
+  // 目標價 = 頸線 - (最高點 - 頸線)
+  const highestHigh = Math.max(high1.price, high2.price, high3.price);
+  const patternTargetPrice = necklinePrice - (highestHigh - necklinePrice);
+
+  // 結構失效 = 再過第 3 個頂（最新的 high）
+  const structureBrokenPrice = high1.price;
+
+  return { patternType: 'triple-top', necklinePrice, patternTargetPrice, structureBrokenPrice };
+}
+
+// ── 頭肩頂 ────────────────────────────────────────────────────────────────
+
+function detectHeadShoulderTop(
+  candles: CandleWithIndicators[],
+  idx: number,
+): TopPatternMatch | null {
+  const pivots = findPivots(candles, idx, 10, false, 0.005);
+  const highs = pivots.filter(p => p.type === 'high').slice(0, 3);
+  const allLows = pivots.filter(p => p.type === 'low');
+
+  if (highs.length < 3 || allLows.length < 2) return null;
+
+  // 由新到舊：right shoulder, head, left shoulder
+  const [rightShoulder, head, leftShoulder] = highs;
+
+  // 頭部高於兩肩
+  if (head.price <= rightShoulder.price || head.price <= leftShoulder.price) return null;
+
+  // 兩肩價位接近（差 < 10%）
+  const shoulderDiff = Math.abs(rightShoulder.price - leftShoulder.price);
+  const shoulderAvg = (rightShoulder.price + leftShoulder.price) / 2;
+  if (shoulderDiff / shoulderAvg > 0.10) return null;
+
+  // 頸線：三高點之間的兩內部低點
+  const interiorLows = allLows.filter(
+    (l) => l.index > leftShoulder.index && l.index < rightShoulder.index,
+  );
+  if (interiorLows.length < 2) return null;
+
+  // 頸線 = 兩內部低點中較高（跌破時需要破此價）
+  const necklinePrice = Math.max(interiorLows[0].price, interiorLows[1].price);
+
+  // 目標價 = 頸線 - (頭部最高 - 頸線)
+  const patternTargetPrice = necklinePrice - (head.price - necklinePrice);
+
+  // 結構失效 = 再過右肩
+  const structureBrokenPrice = rightShoulder.price;
+
+  return { patternType: 'head-shoulder-top', necklinePrice, patternTargetPrice, structureBrokenPrice };
+}
+
+// ── 雙重頂 ────────────────────────────────────────────────────────────────
+
+const DOUBLE_TOP_TOLERANCE_PCT = 0.05;
+
+function detectDoubleTop(
+  candles: CandleWithIndicators[],
+  idx: number,
+): TopPatternMatch | null {
+  const pivots = findPivots(candles, idx, 10, false, 0.005);
+  const highs = pivots.filter(p => p.type === 'high').slice(0, 2);
+  const allLows = pivots.filter(p => p.type === 'low');
+
+  if (highs.length < 2) return null;
+
+  const [high1, high2] = highs;
+  const minHigh = Math.min(high1.price, high2.price);
+  const maxHigh = Math.max(high1.price, high2.price);
+  if ((maxHigh - minHigh) / minHigh > DOUBLE_TOP_TOLERANCE_PCT) return null;
+
+  const interiorLows = allLows.filter((l) => l.index > high2.index && l.index < high1.index);
+  if (interiorLows.length < 1) return null;
+
+  // 頸線 = 中間最低點（雙頂跌破頸線後做空）
+  const necklinePrice = Math.min(...interiorLows.map((l) => l.price));
+
+  // 目標價 = 頸線 - (兩頂最高 - 頸線)
+  const highestHigh = Math.max(high1.price, high2.price);
+  const patternTargetPrice = necklinePrice - (highestHigh - necklinePrice);
+
+  // 結構失效 = 再過最新頂
+  const structureBrokenPrice = high1.price;
+
+  return { patternType: 'double-top', necklinePrice, patternTargetPrice, structureBrokenPrice };
 }

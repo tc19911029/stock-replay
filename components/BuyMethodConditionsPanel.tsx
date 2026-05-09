@@ -527,6 +527,7 @@ function evaluateMethod(
             'complex-head-shoulder': '複式頭肩底',
             'falling-diamond': '跌菱形',
             'descending-wedge': '下降楔形',
+            'n-shape': 'N 字底',
           } as const)[r.patternType]
         : '尚未識別';
       const conditions: ConditionItem[] = [
