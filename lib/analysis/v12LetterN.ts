@@ -172,9 +172,9 @@ function detectTripleBottom(
 ): PatternMatch | null {
   const pivots = findPivots(candles, idx, 12, false);
   const lows = pivots.filter(p => p.type === 'low').slice(0, 3);
-  const highs = pivots.filter(p => p.type === 'high').slice(0, 2);
+  const allHighs = pivots.filter(p => p.type === 'high');
 
-  if (lows.length < 3 || highs.length < 2) return null;
+  if (lows.length < 3 || allHighs.length < 2) return null;
 
   // 三低點價位相近
   const [low1, low2, low3] = lows; // 由新到舊
@@ -182,8 +182,15 @@ function detectTripleBottom(
   const maxLow = Math.max(low1.price, low2.price, low3.price);
   if ((maxLow - minLow) / minLow > TRIPLE_BOTTOM_TOLERANCE_PCT) return null;
 
-  // 頸線 = 兩個 high 連線中較低的（保守取較低）
-  const necklinePrice = Math.min(highs[0].price, highs[1].price);
+  // 頸線必須由「三個底之間的兩個內部高點」組成
+  // 過濾 highs：index 在 [low3.index, low1.index] 範圍內（lows 是新→舊，所以 low3.index < low1.index）
+  const interiorHighs = allHighs.filter(
+    (h) => h.index > low3.index && h.index < low1.index,
+  );
+  if (interiorHighs.length < 2) return null;
+
+  // 頸線 = 兩內部高點連線中較低（保守取較低 — 突破時需要過此價）
+  const necklinePrice = Math.min(interiorHighs[0].price, interiorHighs[1].price);
 
   // 三重底目標價 = 頸線 + 平均底部到頸線高度
   const avgLow = (low1.price + low2.price + low3.price) / 3;
@@ -208,9 +215,9 @@ function detectHeadShoulder(
 ): PatternMatch | null {
   const pivots = findPivots(candles, idx, 10, false);
   const lows = pivots.filter(p => p.type === 'low').slice(0, 3);
-  const highs = pivots.filter(p => p.type === 'high').slice(0, 2);
+  const allHighs = pivots.filter(p => p.type === 'high');
 
-  if (lows.length < 3 || highs.length < 2) return null;
+  if (lows.length < 3 || allHighs.length < 2) return null;
 
   // 由新到舊：right shoulder, head, left shoulder
   const [rightShoulder, head, leftShoulder] = lows;
@@ -225,8 +232,16 @@ function detectHeadShoulder(
   const shoulderAvg = (rightShoulder.price + leftShoulder.price) / 2;
   if (shoulderDiff / shoulderAvg > 0.10) return null;
 
-  // 頸線 = 兩個 high 連線（取兩高點較低者保守處理）
-  const necklinePrice = Math.min(highs[0].price, highs[1].price);
+  // 頸線必須由「三低點之間的兩內部高點」組成（書本「左頸線 + 右頸線」）
+  // lows 新→舊：rightShoulder.index > head.index > leftShoulder.index
+  // 內部高點：left-high 在 leftShoulder 與 head 之間；right-high 在 head 與 rightShoulder 之間
+  const interiorHighs = allHighs.filter(
+    (h) => h.index > leftShoulder.index && h.index < rightShoulder.index,
+  );
+  if (interiorHighs.length < 2) return null;
+
+  // 頸線 = 兩內部高點連線中較低
+  const necklinePrice = Math.min(interiorHighs[0].price, interiorHighs[1].price);
 
   // 目標價 = 頸線 + (頸線 - 頭部最低)（書本明寫公式）
   const patternTargetPrice = necklinePrice + (necklinePrice - head.price);

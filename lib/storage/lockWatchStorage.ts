@@ -153,7 +153,36 @@ export async function loadLatestLockWatchSnapshot(
 // 避免兩個並發 scan-bm（例如 F :00 + N :02）lose update：
 //   T1 read → T2 read → T1 merge+write → T2 merge+write（T1 的 records 丟失）
 // 改成第二個 caller 等第一個寫完再讀新版繼續 merge
+// `withLockWatchLock` 也讓 cron evolve 共用同把鎖（避免 evolve 跟 scan-bm 並發
+// 互蓋 today 的 records — 18:55 CN evolve 跟 18:44 CN scan-bm Q 11 min margin 太窄）
 const appendInflight = new Map<string, Promise<LockWatchDailySnapshot>>();
+
+/**
+ * Cron `update-lockwatch` 用：序列化執行 read → evolve → merge → write，
+ * 跟 `appendLockWatchRecords` 共用同一把 lock 避免 race
+ *
+ * 用法：傳入 callback，內部讀寫 lockwatch snapshot 都在鎖內串行執行。
+ */
+export async function withLockWatchLock<T>(
+  market: MarketId,
+  date: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const lockKey = `${market}|${date}`;
+  const previous = appendInflight.get(lockKey);
+  const run = (previous ?? Promise.resolve()).then(fn);
+  // 把 generic Promise 存進 Map（runtime 不依賴型別 — Map 只是用來序列化）
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  appendInflight.set(lockKey, run as Promise<any>);
+  try {
+    return await run;
+  } finally {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (appendInflight.get(lockKey) === (run as Promise<any>)) {
+      appendInflight.delete(lockKey);
+    }
+  }
+}
 
 /** 合併新觸發紀錄到指定日的 snapshot（同 symbol 不重複觸發；以 newest 為主）*/
 export async function appendLockWatchRecords(

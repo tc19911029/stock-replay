@@ -48,12 +48,16 @@ export async function GET(req: NextRequest) {
       loadLockWatchSnapshot,
       saveLockWatchSnapshot,
       listLockWatchDates,
+      withLockWatchLock,
     } = await import('@/lib/storage/lockWatchStorage');
     const {
       updateLockWatch,
       checkStructureBroken,
       markStructureBroken,
     } = await import('@/lib/scanner/lockWatchManager');
+
+    // 包整段 evolve 在 lockwatch 鎖內 — 避免跟並發 scan-bm appendLockWatchRecords race
+    return await withLockWatchLock(market, today, async () => {
 
     // ── Step 1: 取「昨日 / 前一交易日」的 snapshot 作為演進來源 ─────────
     // 不可用 loadLatestLockWatchSnapshot：scan-bm 在盤中已寫入今日 snapshot
@@ -190,6 +194,7 @@ export async function GET(req: NextRequest) {
       total: newRecords.length,
       summary,
     });
+    });  // close withLockWatchLock
   } catch (err) {
     console.error(`[update-lockwatch] ${market} 失敗:`, err);
     return apiError(`update-lockwatch failed: ${String(err)}`);
