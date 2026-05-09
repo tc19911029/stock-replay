@@ -222,6 +222,24 @@ export function ScanCoachDigest(props: ScanCoachDigestProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 即時 raw trend（跟 banner / 結果欄同源）— props.marketTrend 是 saved session
+  // 寫入的舊值（含降級邏輯，可能是「盤整」），但 banner 顯示「多頭」會跟 LLM
+  // prompt 裡的「大盤趨勢：盤整」對不上，誤導 LLM 給「謹慎進場」建議。
+  const [liveTrend, setLiveTrend] = useState<string>(props.marketTrend);
+  useEffect(() => {
+    let cancelled = false;
+    if (!props.market || !props.scanDate) return;
+    fetch(`/api/scanner/market-trend?market=${props.market}&date=${props.scanDate}`)
+      .then((r) => r.json())
+      .then((j: { ok?: boolean; trend?: string }) => {
+        if (!cancelled && j.ok && j.trend) setLiveTrend(j.trend);
+      })
+      .catch(() => { /* keep prop fallback */ });
+    return () => { cancelled = true; };
+  }, [props.market, props.scanDate]);
+  // 用 effective trend 覆寫 props.marketTrend 給下游（buildRequestBody 等）
+  const effectiveProps = { ...props, marketTrend: liveTrend };
+
   // 追問狀態
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -277,7 +295,7 @@ export function ScanCoachDigest(props: ScanCoachDigestProps) {
       const res = await fetch('/api/coach/scan-digest', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(buildRequestBody(props)),
+        body: JSON.stringify(buildRequestBody(effectiveProps)),
       });
       const body = await res.json();
       if (aborted.current) return;
@@ -309,7 +327,7 @@ export function ScanCoachDigest(props: ScanCoachDigestProps) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           messages: nextMessages,
-          context: buildFollowupContext(data, props),
+          context: buildFollowupContext(data, effectiveProps),
         }),
       });
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
