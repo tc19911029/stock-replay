@@ -66,15 +66,17 @@ async function fetchForwardStats(market: MarketId, symbol: string, entryDate: st
     const idx = file.candles.findIndex((c) => c.date === entryDate);
     if (idx < 0 || idx + 5 >= file.candles.length) return { ret5d: null, mdd5d: null };
     const entry = file.candles[idx].close;
-    if (entry <= 0) return { ret5d: null, mdd5d: null };
+    if (!Number.isFinite(entry) || entry <= 0) return { ret5d: null, mdd5d: null };
     const exitClose = file.candles[idx + 5].close;
+    if (!Number.isFinite(exitClose)) return { ret5d: null, mdd5d: null };
     const ret5d = (exitClose - entry) / entry;
-    // Max drawdown over next 5 days
-    let minClose = entry;
+    // Max drawdown over next 5 days: ceiling at entry, take min of valid lows
+    let lowestPoint = entry;
     for (let j = idx + 1; j <= idx + 5; j++) {
-      if (file.candles[j].low < minClose) minClose = file.candles[j].low;
+      const low = file.candles[j]?.low;
+      if (Number.isFinite(low) && low < lowestPoint) lowestPoint = low;
     }
-    const mdd5d = (minClose - entry) / entry;  // negative = drawdown
+    const mdd5d = (lowestPoint - entry) / entry;  // ≤ 0; negative = drawdown
     return { ret5d, mdd5d };
   } catch {
     return { ret5d: null, mdd5d: null };
@@ -97,20 +99,34 @@ export async function GET(req: NextRequest) {
     const allHits: Hit[] = [];
     const symbolDateLetters = new Map<string, Set<string>>();  // "symbol|date" → Set<letter>
 
-    for (const letter of LETTERS) {
-      const dates = await listScanDates(market, 'long', letter);
+    // 並行展開所有 (letter, date) pairs；單一 await 拉 13 letters × ~20 dates → ~260 sessions
+    const datesByLetter = await Promise.all(
+      LETTERS.map((letter) => listScanDates(market, 'long', letter).then((dates) => ({ letter, dates })))
+    );
+    const sessionTasks: Array<Promise<{ letter: string; date: string; sess: Awaited<ReturnType<typeof loadScanSession>> }>> = [];
+    for (const { letter, dates } of datesByLetter) {
       for (const d of dates) {
-        const sess = await loadScanSession(market, d.date, 'long', letter);
+        sessionTasks.push(
+          loadScanSession(market, d.date, 'long', letter).then((sess) => ({
+            letter: letter as string, date: d.date, sess,
+          }))
+        );
+      }
+    }
+    // batch in chunks of 50 to avoid blob throttling
+    for (let i = 0; i < sessionTasks.length; i += 50) {
+      const chunk = await Promise.all(sessionTasks.slice(i, i + 50));
+      for (const { letter, date, sess } of chunk) {
         if (!sess?.results) continue;
         const trend = String(sess.marketTrend ?? '盤整');
         for (const r of sess.results) {
           allHits.push({
-            date: d.date, symbol: r.symbol, letter: letter as string,
-            marketTrend: trend, industry: r.industry ?? '未分類',
+            date, symbol: r.symbol, letter, marketTrend: trend,
+            industry: r.industry ?? '未分類',
           });
-          const k = `${r.symbol}|${d.date}`;
+          const k = `${r.symbol}|${date}`;
           if (!symbolDateLetters.has(k)) symbolDateLetters.set(k, new Set());
-          symbolDateLetters.get(k)!.add(letter as string);
+          symbolDateLetters.get(k)!.add(letter);
         }
       }
     }
@@ -140,24 +156,14 @@ export async function GET(req: NextRequest) {
       if (f.ret5d > 0) b.wins++;
       b.ret += f.ret5d;
     }
-    const baselineWinRate: Record<string, number> = {};
+    // 只把「有 baseline 樣本」的字母納入 — 0 樣本字母不該汙染組合 baseline
+    const baselineWinRate: Record<string, number | null> = {};
     for (const [letter, b] of Object.entries(baselineByLetter)) {
-      baselineWinRate[letter] = b.hits > 0 ? (b.wins / b.hits) * 100 : 0;
+      baselineWinRate[letter] = b.hits > 0 ? (b.wins / b.hits) * 100 : null;
     }
 
-    // 2-letter combos
+    // 2-letter combos — 單一 pass：邊讀邊建
     const comboStats: Record<string, { hits: number; wins: number; ret: number }> = {};
-    for (const [, letterSet] of symbolDateLetters) {
-      const letters = Array.from(letterSet).sort();
-      if (letters.length < 2) continue;
-      // 取 2-letter pairs
-      for (let i = 0; i < letters.length; i++) {
-        for (let j = i + 1; j < letters.length; j++) {
-          const key = `${letters[i]}+${letters[j]}`;
-          if (!comboStats[key]) comboStats[key] = { hits: 0, wins: 0, ret: 0 };
-        }
-      }
-    }
     for (const [k, letterSet] of symbolDateLetters) {
       const letters = Array.from(letterSet).sort();
       if (letters.length < 2) continue;
@@ -166,6 +172,7 @@ export async function GET(req: NextRequest) {
       for (let i = 0; i < letters.length; i++) {
         for (let j = i + 1; j < letters.length; j++) {
           const key = `${letters[i]}+${letters[j]}`;
+          if (!comboStats[key]) comboStats[key] = { hits: 0, wins: 0, ret: 0 };
           const c = comboStats[key];
           c.hits++;
           if (f.ret5d > 0) c.wins++;
@@ -179,13 +186,19 @@ export async function GET(req: NextRequest) {
         const winRate = (s.wins / s.hits) * 100;
         const avgRet = (s.ret / s.hits) * 100;
         const [a, b] = letters.split('+');
-        const baseline = ((baselineWinRate[a] ?? 0) + (baselineWinRate[b] ?? 0)) / 2;
+        const baseA = baselineWinRate[a];
+        const baseB = baselineWinRate[b];
+        // baseline = average of non-null baselines; null 兩端 → 不算 lift
+        const validBaselines = [baseA, baseB].filter((x): x is number => x != null);
+        const baseline = validBaselines.length > 0
+          ? validBaselines.reduce((acc, x) => acc + x, 0) / validBaselines.length
+          : null;
         return {
           letters,
           hits: s.hits,
           winRate: +winRate.toFixed(1),
           avgRet: +avgRet.toFixed(2),
-          vsBaseline: +(winRate - baseline).toFixed(1),
+          vsBaseline: baseline != null ? +(winRate - baseline).toFixed(1) : 0,
         };
       })
       .sort((a, b) => b.vsBaseline - a.vsBaseline)
@@ -239,11 +252,12 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // ── 4. Industry breakdown (TW only — CN industry mostly null) ──
+    // ── 4. Industry breakdown — 過濾「未分類」（CN 多半是這個，無法操作）──
     const industry: IndustryStat[] = LETTERS.map((letter) => {
       const byInd: Record<string, { hits: number; wins: number; ret: number }> = {};
       for (const h of allHits) {
         if (h.letter !== letter) continue;
+        if (h.industry === '未分類') continue;  // 跳過無產業資訊
         const f = forwardCache.get(`${h.symbol}|${h.date}`);
         if (!f || f.ret5d == null) continue;
         if (!byInd[h.industry]) byInd[h.industry] = { hits: 0, wins: 0, ret: 0 };
@@ -262,7 +276,8 @@ export async function GET(req: NextRequest) {
             winRate: +((b.wins / b.hits) * 100).toFixed(1),
             avgRet: +((b.ret / b.hits) * 100).toFixed(2),
           }))
-          .sort((a, b) => b.winRate - a.winRate)
+          // 主排序：勝率；次排序：樣本量（穩定排名）
+          .sort((a, b) => b.winRate - a.winRate || b.hits - a.hits)
           .slice(0, 5),
       };
     });

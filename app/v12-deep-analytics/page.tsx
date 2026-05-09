@@ -71,7 +71,8 @@ const TRACK_BG: Record<string, string> = {
   Q: 'bg-purple-950/30',
 };
 
-function liftColor(lift: number): string {
+function liftColor(lift: number | null): string {
+  if (lift == null) return 'text-muted-foreground';
   if (lift >= 15) return 'text-emerald-400 font-bold';
   if (lift >= 5) return 'text-emerald-300';
   if (lift >= 0) return 'text-foreground';
@@ -263,9 +264,9 @@ export default function V12DeepAnalyticsPage() {
               </div>
             </Section>
 
-            {/* 4. Industry */}
-            {market === 'TW' && (
-              <Section title="🏭 產業熱度（Industry）" subtitle="每字母在各產業的勝率排名（≥3 樣本，取前 5）。CN 大多 industry 為 null 故略過">
+            {/* 4. Industry — 已過濾「未分類」；letterCardCount=0 時整段不顯示 */}
+            {data.industry.some((i) => i.industries.length > 0) && (
+              <Section title="🏭 產業熱度（Industry）" subtitle="每字母在各產業的勝率排名（≥3 樣本，取前 5；已過濾「未分類」）">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {data.industry.filter((i) => i.industries.length > 0).map((i) => (
                     <div key={i.letter} className={`border border-border rounded-lg p-3 ${TRACK_BG[i.letter] ?? 'bg-card'}`}>
