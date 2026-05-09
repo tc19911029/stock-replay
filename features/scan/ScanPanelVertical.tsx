@@ -127,13 +127,13 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
         {/* Row 1.5: 買法選擇（只在做多時顯示） */}
         {scanDirection === 'long' && (
           <div className="space-y-0.5">
-            <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground/70">
+            <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground/70 flex-wrap">
               <span className="font-bold uppercase tracking-wider">v12 14 軌</span>
               <span className="opacity-50">·</span>
-              <span><span className="text-amber-400">●</span> 預選池</span>
-              <span><span className="text-red-400">●</span> 多頭軌</span>
-              <span><span className="text-blue-400">●</span> 轉折軌</span>
-              <span><span className="text-purple-400">●</span> 戰法軌</span>
+              <span title="預選池"><span className="text-amber-400">★</span> 預選池</span>
+              <span title="多頭軌"><span className="text-red-400">▲</span> 多頭軌</span>
+              <span title="轉折軌"><span className="text-blue-400">◆</span> 轉折軌</span>
+              <span title="戰法軌"><span className="text-purple-400">●</span> 戰法軌</span>
             </div>
           <div className="flex items-center gap-1 flex-wrap">
             {(['A', 'B', 'C', 'D', 'E', 'F', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'] as const).map(method => {

@@ -8,15 +8,15 @@ export interface StrategySignals {
   G: boolean; // ABC 突破   (detectABCBreakout，寶典 Part 11-1 位置 6) — v12 改字母為 J
   H: boolean; // 突破大量黑K (detectBlackKBreakout，寶典 Part 11-1 位置 8) — v12 改字母為 L
   I: boolean; // K線橫盤突破 (detectKlineConsolidationBreakout，寶典 Part 11-1 位置 3) — v12 改字母為 K
-  // v12 新字母（議題 33/65/93）— 預設 false，等 ETF strategy detector 接上
-  J?: boolean;  // ABC 突破（多頭軌）
-  K?: boolean;  // K線橫盤突破（多頭軌）
-  L?: boolean;  // 突破大量黑K高（多頭軌）
-  M?: boolean;  // 突破軌道線（多頭軌）
-  N?: boolean;  // 型態確認（轉折軌，走 LockWatch）
-  O?: boolean;  // 打底完成（轉折軌）
-  P?: boolean;  // 高檔拉回（多頭軌）
-  Q?: boolean;  // 三條均線戰法（戰法軌）
+  // v12 新字母（議題 33/65/93）— 已接上 ETF detector
+  J: boolean;   // ABC 突破（多頭軌）— alias of G
+  K: boolean;   // K線橫盤突破（多頭軌）— alias of I
+  L: boolean;   // 突破大量黑K高（多頭軌）— alias of H
+  M: boolean;   // 突破軌道線（多頭軌）
+  N: boolean;   // 型態確認（轉折軌，走 LockWatch）
+  O: boolean;   // 打底完成（轉折軌）
+  P: boolean;   // 高檔拉回（多頭軌）
+  Q: boolean;   // 三條均線戰法（戰法軌）
 }
 
 export interface HoldingWithStrategies {

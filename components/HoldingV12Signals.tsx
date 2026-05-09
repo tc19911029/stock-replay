@@ -36,9 +36,12 @@ interface V12SignalsResponse {
   step3: {
     stopLossPrice: number;
     method: string;
+    primaryMethod?: string;
     absoluteFloor: number;
     klineStop: number;
+    trailingActivated?: boolean;
     slDistancePct: number;
+    absoluteStopLoss?: { triggered: boolean; reason?: string; detail?: string };
   };
   step4: {
     operatingMA: string;
@@ -47,6 +50,7 @@ interface V12SignalsResponse {
     maExit: { shouldExit: boolean; reason?: string };
     canUpgradeToLong: boolean;
     upgradeProfitPct: number;
+    highDeviationOverride?: boolean;
   };
   step5: {
     takeProfit: {
@@ -86,6 +90,8 @@ export function HoldingV12Signals({ holdingId, symbol, market, entryPrice, buyDa
         buyDate,
         operationMode: operationMode ?? 'short',
         ...(triggerSignal ? { triggerSignal } : {}),
+        ...(endPhaseTriggered ? { endPhaseTriggered: 'true' } : {}),
+        ...(recentHigh != null ? { recentHigh: String(recentHigh) } : {}),
       });
       const res = await fetch(`/api/portfolio/v12-signals?${params.toString()}`);
       const json = (await res.json()) as V12SignalsResponse;
@@ -165,8 +171,18 @@ export function HoldingV12Signals({ holdingId, symbol, market, entryPrice, buyDa
                   </span>
                 </div>
                 <div className="text-[9px] text-muted-foreground mt-0.5">
-                  K 線三段式 {data.step3.klineStop.toFixed(2)} · 10% 絕對下限 {data.step3.absoluteFloor.toFixed(2)}
+                  {data.step3.method}
                 </div>
+                <div className="text-[9px] text-muted-foreground mt-0.5">
+                  K 線三段式 {data.step3.klineStop.toFixed(2)} · 10% 絕對下限 {data.step3.absoluteFloor.toFixed(2)}
+                  {data.step3.trailingActivated && <span className="text-rose-400 ml-1 font-bold">· 末升段 trailing 啟用</span>}
+                </div>
+                {/* ⑥ 5 條絕對停損觸發 */}
+                {data.step3.absoluteStopLoss?.triggered && (
+                  <div className="mt-1 px-1 py-0.5 rounded bg-red-900/60 text-red-200 font-bold text-[10px]">
+                    🚪 強制出場：{data.step3.absoluteStopLoss.detail}
+                  </div>
+                )}
               </div>
 
               {/* Step 4 操作 */}
@@ -180,6 +196,11 @@ export function HoldingV12Signals({ holdingId, symbol, market, entryPrice, buyDa
                     )}
                   </span>
                 </div>
+                {data.step4.highDeviationOverride && (
+                  <div className="mt-0.5 text-[9px] text-amber-300 bg-amber-900/30 px-1 py-0.5 rounded">
+                    ⚠️ 乖離 ≥15% — Step 5 ② 自動切 MA5 跟隨（不直接停利）
+                  </div>
+                )}
                 {/* 智慧 K 線 */}
                 {data.step4.klineExit.shouldExit && (
                   <div className="text-rose-300 mt-0.5">
