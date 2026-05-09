@@ -5,17 +5,20 @@
  * - 5 步驟 步驟 4 第 5-6 章 K 線/均線操作（p.252-280）
  * - 寶典 Part 11-2 短線 20 守則 #5/#6（B/P MA5 +10% 切換）
  * - 抓線圖 第 4 篇 第 6 章 智慧 K 線戰法 p.245-249
+ * - 寶典「操作三線」MA5-10 / MA20 / MA60（短/中/長 3 個層次）
  *
  * v12 議題：
  * - 衝突 α：Step 5 ① 寶典 #5/#6 覆寫 Step 4 ② 對 B/P MA5 邏輯
  * - 衝突 β：Step 4 ③ 升級長線後所有訊號統一 MA20
  * - Step 4 ① 智慧 K 線：跌破前一日最低 → 出場
  * - Step 4 ② 短線均線：MA5（B/P）/ MA10（其餘多頭軌）
- * - Step 4 ③ 長線均線：手動升級 MA20
+ * - Step 4 ③ 長線均線：手動升級 MA20（獲利 ≥ 10%）
+ * - Step 4 ④ 超長線：手動升級 MA60（獲利 ≥ 30%，2026-05-09 新增三階升級）
  *
  * 操作模式：
  * - 'short'：短線（MA5/MA10 跟隨）
  * - 'long'：長線（升級到 MA20 跟隨）
+ * - 'super-long'：超長線（升級到 MA60 跟隨，獲利 ≥ 30% 啟用）
  * - 'wave'：波段（trailing recent high）
  */
 
@@ -23,7 +26,7 @@ import type { CandleWithIndicators } from '../../types';
 
 import type { V12Letter } from '../analysis/v12Signals';
 
-export type OperationMode = 'short' | 'long' | 'wave';
+export type OperationMode = 'short' | 'long' | 'super-long' | 'wave';
 
 // ── Step 4 ① K 線轉折出場（智慧 K 線戰法）──────────────────────────────
 
@@ -135,19 +138,47 @@ export function canUpgradeToLongTerm(
   };
 }
 
+// ── Step 4 ④ 升級超長線（2026-05-09 新增三階升級）─────────────────────
+
+/**
+ * 升級超長線判定
+ *
+ * 寶典「操作三線」MA60 = 超長線。獲利 ≥ 30% 後 UI 提供切換按鈕（手動升級）。
+ * 升級後所有訊號統一切到 MA60（除 Q 戰法保持 MA10）。
+ *
+ * 必須先 short → long → super-long（或從 short 直接 super-long 也可）。
+ *
+ * @returns 是否可升級超長線
+ */
+export function canUpgradeToSuperLong(
+  currentClose: number,
+  entryPrice: number,
+  currentMode: OperationMode,
+): { canUpgrade: boolean; profitPct: number } {
+  const profitPct = (currentClose - entryPrice) / entryPrice;
+  return {
+    canUpgrade: profitPct >= 0.30 && (currentMode === 'short' || currentMode === 'long'),
+    profitPct,
+  };
+}
+
 // ── 操作模式對應均線 ─────────────────────────────────────────────────────
 
 /**
  * 依操作模式 + 字母回傳實際跟隨的均線
  *
  * 衝突 β：升級長線後所有訊號統一 MA20
+ * 三階升級（2026-05-09）：超長線統一 MA60（除 Q 戰法保持 MA10）
  */
 export function getOperationMA(
   letter: V12Letter,
   mode: OperationMode,
-): 'MA3' | 'MA5' | 'MA10' | 'MA20' | null {
+): 'MA3' | 'MA5' | 'MA10' | 'MA20' | 'MA60' | null {
   // Q 戰法獨立軌：永遠用 MA10（不論 mode）
   if (letter === 'Q') return 'MA10';
+
+  // 升級超長線 → 統一 MA60（書本「操作三線」最長線）
+  if (mode === 'super-long') return 'MA60';
 
   // 升級長線 → 統一 MA20（衝突 β）
   if (mode === 'long') return 'MA20';

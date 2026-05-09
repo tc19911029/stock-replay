@@ -40,7 +40,7 @@ const MIN_PRIOR_RUN_PCT = 5;     // 拉回前需有過明顯上漲（≥ 5%）
  * 條件：
  * 1. 多頭趨勢（detectTrend = 多頭）
  * 2. 過去 N 天內有過上漲，最近 1-2 天回檔（淺回）
- * 3. 拉回最低點不破 MA10 / 不破前一個 pivot low
+ * 3. 拉回最低點不破 MA20（書本 p.693「不破月線」原文，2026-05-09 從 MA10 改 MA20）/ 不破前一個 pivot low
  * 4. 今日紅 K（含漲停/跳空例外）+ 實體 ≥ 2% + 量 ≥ 1.3×
  * 5. 收盤突破前一日（拉回最後一日）K 高
  */
@@ -97,12 +97,12 @@ export function detectLetterP(
   const priorRunPct = ((recentHigh - priorLow) / priorLow) * 100;
   if (priorRunPct < MIN_PRIOR_RUN_PCT) return empty;
 
-  // 6. 拉回期間最低不破 MA10 / 不破前 pivot low
+  // 6. 拉回期間最低不破 MA20（書本 p.693「不破月線」原文）/ 不破前 pivot low
   let pullbackLow = c.low;
   for (let i = recentHighIdx; i <= idx; i++) {
     if (candles[i].low < pullbackLow) pullbackLow = candles[i].low;
   }
-  if (c.ma10 != null && pullbackLow < c.ma10) return empty;
+  if (c.ma20 != null && pullbackLow < c.ma20) return empty;
   if (pullbackLow < priorLow) return empty;
 
   // 7. 今日收盤突破前一日 K 高（書本「再上漲」 = 突破止跌 K 高點）
@@ -115,6 +115,6 @@ export function detectLetterP(
     volumeRatio,
     pullbackDays,
     prevSwingHigh: recentHigh,
-    detail: `P 高檔拉回（多頭+${pullbackDays}天淺回不破MA10+紅K${bodyPct.toFixed(2)}%+量×${volumeRatio.toFixed(2)}+突破前K高${prev.high.toFixed(1)}）`,
+    detail: `P 高檔拉回（多頭+${pullbackDays}天淺回不破MA20+紅K${bodyPct.toFixed(2)}%+量×${volumeRatio.toFixed(2)}+突破前K高${prev.high.toFixed(1)}）`,
   };
 }

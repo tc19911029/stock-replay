@@ -12,6 +12,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { LockWatchDailySnapshot, LockWatchRecord } from '@/lib/scanner/lockWatchTypes';
 import type { SelectedStock } from './ScanChartPanel';
+import { useWatchlistStore } from '@/store/watchlistStore';
 
 interface LockWatchPanelProps {
   market: 'TW' | 'CN';
@@ -227,10 +228,16 @@ function LockWatchTableRow({
   const sig = SIGNAL_LABEL[record.triggerSignal];
   const stage = STAGE_STYLE[record.currentStage];
   const patternName = record.patternType ? PATTERN_NAME[record.patternType] : null;
+  const inWatchlist = useWatchlistStore((s) => s.has(record.symbol));
   // 已結束的紀錄（撤銷/移除/結構失效/已買進）不可再移除
   const canRemove =
     record.currentStage === 'observation' || record.currentStage === 'entry-signal';
   const symbolBare = record.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
+  // 爬升空間 = 從觸發價到型態目標價的漲幅（2026-05-09 新增）
+  const upsidePct =
+    record.patternTargetPrice != null && record.triggerPrice > 0
+      ? ((record.patternTargetPrice - record.triggerPrice) / record.triggerPrice) * 100
+      : null;
 
   // 點代號 / 名稱 → 切到走圖
   const handleSelect = () => {
@@ -263,8 +270,25 @@ function LockWatchTableRow({
       <td className="py-1 px-1.5 text-right font-mono tabular-nums">
         {record.triggerPrice.toFixed(2)}
       </td>
-      <td className="py-1 px-1.5 text-right font-mono tabular-nums text-emerald-400/80">
-        {record.patternTargetPrice != null ? record.patternTargetPrice.toFixed(2) : '—'}
+      {/* 目標價 + 爬升空間 %（2026-05-09 新增爬升空間） */}
+      <td
+        className="py-1 px-1.5 text-right font-mono tabular-nums text-emerald-400/80"
+        title={
+          upsidePct != null
+            ? `型態目標價 ${record.patternTargetPrice!.toFixed(2)}（從觸發價 ${record.triggerPrice.toFixed(2)} 爬升 +${upsidePct.toFixed(1)}%）`
+            : undefined
+        }
+      >
+        {record.patternTargetPrice != null ? (
+          <>
+            {record.patternTargetPrice.toFixed(2)}
+            {upsidePct != null && (
+              <span className="ml-1 text-emerald-300/70 text-[10px]">+{upsidePct.toFixed(1)}%</span>
+            )}
+          </>
+        ) : (
+          '—'
+        )}
       </td>
       <td className="py-1 px-1.5 text-right font-mono tabular-nums text-amber-300/80">
         {record.patternAchievementRate != null
@@ -279,7 +303,7 @@ function LockWatchTableRow({
       </td>
       <td className="py-1 px-1.5">
         <div className="flex items-center justify-center gap-1">
-          {(record.currentStage === 'observation' || record.currentStage === 'entry-signal') && (
+          {canRemove && (
             <button
               onClick={() => {
                 const url = `/portfolio?prefill=${encodeURIComponent(symbolBare)}&trigger=${record.triggerSignal}&price=${record.triggerPrice}`;
@@ -289,6 +313,18 @@ function LockWatchTableRow({
               title={`進場：跳到持倉表單，自動填入 ${record.triggerSignal} 訊號 + 觸發價 ${record.triggerPrice.toFixed(2)}`}
             >
               進場
+            </button>
+          )}
+          {/* + 自選按鈕（2026-05-09 新增；未在自選股中、且還在 observation/entry-signal 階段時顯示） */}
+          {!inWatchlist && canRemove && (
+            <button
+              onClick={() =>
+                useWatchlistStore.getState().add(record.symbol, name || record.symbol, record.triggerPrice)
+              }
+              className="text-[10px] text-amber-400 hover:text-amber-300 px-1.5 rounded border border-amber-700/50 hover:bg-amber-900/30 font-bold"
+              title={`加入自選股（${symbolBare} 觸發價 ${record.triggerPrice.toFixed(2)}）`}
+            >
+              + 自選
             </button>
           )}
           {canRemove && (

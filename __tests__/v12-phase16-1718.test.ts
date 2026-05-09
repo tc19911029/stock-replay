@@ -287,7 +287,7 @@ describe('v12 Phase 1.8 — checkAbsoluteStopLoss', () => {
     });
     // close 86 跌破 V 底 88, 但跌幅 = 14% > 10% → ⑥-4 先觸發
     expect(result.triggered).toBe(true);
-    expect(['loss-over-10pct', 'broke-v-bottom']).toContain(result.reason);
+    expect(['loss-over-10pct', 'structure-broken']).toContain(result.reason);
   });
 
   it('一般情況 → 不強制出場', () => {

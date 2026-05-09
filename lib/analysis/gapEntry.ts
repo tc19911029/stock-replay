@@ -12,11 +12,18 @@
  * 3. 紅 K 實體 ≥ 2%（寶典 2024 短線做多 SOP p.55 ⑤；2026-05-04 從 2.5% 對齊寶典）
  * 4. 收紅 K（close > open）
  *
+ * 2026-05-09 加「壞缺口」過濾（書本 Part 9 缺口篇 p.591-602）：
+ *   - 排除 'rebound'    （空頭反彈不該做多）
+ *   - 排除 'exhaustion' （末升段竭盡缺口）
+ *   - 排除 'top'        （高檔島型反轉）
+ *   - 保留 'island'(低檔)/'breakout'/'runaway' 這些好訊號
+ *
  * 不限大盤趨勢（像台積電 4/8 在空頭中跳空也算）。
  * 不套戒律（書本 Part 3 K 線型態買法）。
  */
 
 import type { CandleWithIndicators } from '@/types';
+import { classifyGapUp, detectIslandReversal } from './gapPatterns';
 
 export interface GapEntryResult {
   isGapEntry: boolean;
@@ -51,12 +58,18 @@ export function detectStrategyD(
   const volumeRatio = c.volume / prev.volume;
   if (volumeRatio < 1.3) return null;
 
+  // 2026-05-09：壞缺口過濾（避免末升段竭盡 / 空頭反彈 / 高檔島型反轉誤判為進場）
+  const gapType = classifyGapUp(candles, idx);
+  if (gapType === 'rebound' || gapType === 'exhaustion') return null;
+  const islandType = detectIslandReversal(candles, idx);
+  if (islandType === 'top') return null;
+
   return {
     isGapEntry: true,
     gapPct,
     bodyPct,
     volumeRatio,
-    detail: `跳空上漲（缺口+${gapPct.toFixed(2)}%、實體+${bodyPct.toFixed(2)}%、量比×${volumeRatio.toFixed(2)}）`,
+    detail: `跳空上漲（缺口+${gapPct.toFixed(2)}%、實體+${bodyPct.toFixed(2)}%、量比×${volumeRatio.toFixed(2)}${gapType ? `、類型 ${gapType}` : ''}）`,
   };
 }
 
