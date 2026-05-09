@@ -670,6 +670,32 @@ export abstract class MarketScanner {
     }
 
     results.sort((a, b) => b.sixConditionsScore - a.sixConditionsScore);
+
+    // ── 寫 Step 1 池子 cache（書本五步法 Step 1 → Step 2 銜接）──────
+    // results = 過「六條件 + 戒律 + 淘汰法」的合格股票池
+    // 多頭軌 8 個 detector（B/C/E/J/K/L/M/P）讀這個 cache 當候選來源
+    // 反轉軌 + 戰法軌 不過 Step 1，全市場掃描（不用這個 cache）
+    // 概念：今日的池子今日用，明天會重新算
+    const poolDate = asOfDate
+      ?? new Intl.DateTimeFormat('en-CA', { timeZone: config.timezone }).format(new Date());
+    try {
+      const { saveStep1Pool } = await import('./step1Pool');
+      await saveStep1Pool({
+        market: config.marketId,
+        date: poolDate,
+        symbols: results.map(r => r.symbol),
+        generatedAt: new Date().toISOString(),
+        stats: {
+          total: stockList.length,
+          passSixCond: results.length,
+          passProhib: results.length,
+          passElim: results.length,
+        },
+      });
+    } catch (err) {
+      console.warn('[scanPure] saveStep1Pool failed (non-critical):', err);
+    }
+
     return { results, marketTrend };
   }
 
@@ -1235,7 +1261,43 @@ export abstract class MarketScanner {
     const config = this.getMarketConfig();
     const results: StockScanResult[] = [];
 
-    const candidates = this.prefilterByL2(stocks, `scanBuyMethod-${method}`);
+    // ══════════════════════════════════════════════════════════════
+    // 軌道分類 — 決定要不要過 Step 1 池子 + 戒律檢查（書本對應）
+    // ══════════════════════════════════════════════════════════════
+    // 多頭軌（B/C/E/J/K/L/M/P 8 個書本進場位置）：
+    //   → 必須先過 Step 1（六條件+戒律+淘汰法）才能進場
+    //   → 從今日 Step 1 池子挑候選，不全市場掃
+    // 反轉軌（D/F/N/O 抓底/反轉）：
+    //   → 不過 Step 1（過了就抓不到底部反轉）
+    //   → 全市場掃描
+    // 戰法軌 Q（朱老師三均線）：
+    //   → 不過 Step 1（自含 MA24 趨勢判定）
+    //   → 但仍過戒律（書本 p.262 沒說可以無視戒律）
+    //   → 全市場掃描
+    const BULLISH_TRACK = new Set(['B', 'C', 'E', 'J', 'K', 'L', 'M', 'P']);
+    const SYSTEM_TRACK = new Set(['Q']);
+    // REVERSAL_TRACK = D/F/N/O — 不過 Step 1 + 不過戒律（隱含：fall-through to default behavior）
+    const isBullish = BULLISH_TRACK.has(method);
+    const isSystem = SYSTEM_TRACK.has(method);
+
+    // 多頭軌：拿今日 Step 1 池子當候選
+    let step1Symbols: Set<string> | null = null;
+    if (isBullish) {
+      const poolDate = asOfDate
+        ?? new Intl.DateTimeFormat('en-CA', { timeZone: config.timezone }).format(new Date());
+      const { getStep1Symbols } = await import('./step1Pool');
+      step1Symbols = await getStep1Symbols(config.marketId, poolDate);
+      if (!step1Symbols) {
+        console.warn(`[scanBuyMethod] ${method} ${config.marketId} ${poolDate} Step 1 池子未準備好 — 多頭軌應等 A 預選池跑完再啟動。本輪結果將為空。`);
+        return [];  // Step 1 池子不存在 → 多頭軌空結果（保守，避免回退到全市場掃繞過 gate）
+      }
+    }
+
+    let candidates = this.prefilterByL2(stocks, `scanBuyMethod-${method}`);
+    // 多頭軌：從候選中再篩出在 Step 1 池子內的
+    if (isBullish && step1Symbols) {
+      candidates = candidates.filter(s => step1Symbols!.has(s.symbol));
+    }
 
     for (let i = 0; i < candidates.length; i += CONCURRENCY) {
       const batch = candidates.slice(i, i + CONCURRENCY);
@@ -1381,6 +1443,15 @@ export abstract class MarketScanner {
           }
 
           if (!matched) return null;
+
+          // ── 戰法軌 Q：套戒律檢查（書本 p.262 沒說可以無視戒律）──────
+          // 反轉軌（D/F/N/O）不套戒律，因為戒律 5/8（未站上月線/空頭反彈）會誤
+          // 擋掉所有抓底/反轉訊號。書本本意這 4 個就是要在底部抓。
+          if (isSystem) {
+            const { checkLongProhibitions } = await import('@/lib/rules/entryProhibitions');
+            const prohib = checkLongProhibitions(candles, lastIdx);
+            if (prohib.prohibited) return null;
+          }
 
           const prev = candles[lastIdx - 1];
           const changePercent = prev?.close > 0
