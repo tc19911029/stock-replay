@@ -8,6 +8,7 @@ import { NextRequest } from 'next/server';
 import { apiOk } from '@/lib/api/response';
 import { checkCronAuth } from '@/lib/api/cronAuth';
 import { getLastTradingDay } from '@/lib/datasource/marketHours';
+import { isTradingDay } from '@/lib/utils/tradingDay';
 import { loadLocalCandles } from '@/lib/datasource/LocalCandleStore';
 import { ACTIVE_ETF_LIST } from '@/lib/etf/etfList';
 import {
@@ -25,6 +26,13 @@ export const maxDuration = 60;
 export async function GET(req: NextRequest) {
   const authDenied = checkCronAuth(req);
   if (authDenied) return authDenied;
+
+  // Trading day guard：非交易日且未強制 → skip 避免在假日無新資料下重寫所有 tracking entries
+  const force = req.nextUrl.searchParams.get('force') === '1';
+  const todayCST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
+  if (!force && !isTradingDay(todayCST, 'TW')) {
+    return apiOk({ skipped: true, reason: 'non-trading day', today: todayCST });
+  }
 
   const date = req.nextUrl.searchParams.get('date') ?? getLastTradingDay('TW');
   let trackingUpdated = 0;

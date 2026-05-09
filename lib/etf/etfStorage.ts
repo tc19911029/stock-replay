@@ -20,7 +20,9 @@ import type {
   ETFConsensusEntry,
 } from './types';
 
-const IS_VERCEL = process.env.VERCEL === '1';
+// 對齊 lib/storage/scanStorage.ts:8 用 truthy 判斷（VERCEL 可能是 '1' / 'true' 等）
+// 不可用 `=== '1'` 否則 preview/edge 環境若回傳 'true' 會誤走 FS 路徑
+const IS_VERCEL = !!process.env.VERCEL;
 const DATA_ROOT = path.join(process.cwd(), 'data', 'etf');
 
 // ── 路徑/Key 計算 ─────────────────────────────────────────────

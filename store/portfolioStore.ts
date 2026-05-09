@@ -227,10 +227,10 @@ export const usePortfolioStore = create<PortfolioStore>()(
     }),
     {
       name: 'portfolio-v1',
-      version: 2,
+      version: 3,
       migrate: (persisted: unknown, fromVersion: number) => {
-        // v0/v1 → v2：cashBalance 從單一數字改成 { TW, CN }
         const state = (persisted ?? {}) as Record<string, unknown>;
+        // v0/v1 → v2：cashBalance 從單一數字改成 { TW, CN }
         if (fromVersion < 2) {
           const oldCash = typeof state.cashBalance === 'number' ? state.cashBalance : 1_000_000;
           state.cashBalance = { TW: oldCash, CN: 1_000_000 };
@@ -243,6 +243,17 @@ export const usePortfolioStore = create<PortfolioStore>()(
           state.cashBalance = { TW: c.TW ?? 1_000_000, CN: c.CN ?? 1_000_000 };
         }
         if (!Array.isArray(state.realizedTrades)) state.realizedTrades = [];
+
+        // v2 → v3：v12 fields default to false/undefined（避免 === false vs === undefined 不一致）
+        if (fromVersion < 3 && Array.isArray(state.holdings)) {
+          state.holdings = (state.holdings as Array<Record<string, unknown>>).map((h) => ({
+            ...h,
+            // boolean 欄位明確初始化 false（不能用 undefined，下游會誤判）
+            enhancedDisciplineEnabled: h.enhancedDisciplineEnabled ?? false,
+            endPhaseTriggered: h.endPhaseTriggered ?? false,
+            // 數值欄位保留 undefined（缺資料就是缺）— consumer 用 != null 判
+          }));
+        }
         return state as Partial<PortfolioStore>;
       },
     },

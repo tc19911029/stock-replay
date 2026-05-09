@@ -21,6 +21,14 @@ export interface ScanDateEntry {
   scanTime: string;
 }
 
+// 所有 buy-method 字母（v11 B-I + v12 J-Q）
+// 用於 listScanDates 的 legacy filter — 漏列任一字母會讓 daily 模式 date list
+// 把 buy-method post_close 誤列為 daily entry（議題：0421 -F- bug 同類）
+const BUY_METHOD_LETTERS = ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'] as const;
+const BUY_METHOD_FILE_TOKENS = BUY_METHOD_LETTERS.map((l) => `-${l}-`);
+const isBuyMethodFile = (filename: string): boolean =>
+  BUY_METHOD_FILE_TOKENS.some((token) => filename.includes(token));
+
 // ── Vercel Blob helpers ──────────────────────────────────────────────────────
 
 async function blobPut(pathname: string, data: string): Promise<void> {
@@ -338,16 +346,15 @@ export async function listScanDates(
     // so that new-format and old-format records coexist seamlessly.
     {
       let files = await fsListPrefix(`scan-${market}-${direction}-`);
-      // Filter out new-format files (already read above) — also exclude B/C/D/E buy-method files
-      files = files.filter(f => !f.includes('-daily-') && !f.includes('-mtf-') &&
-        !f.includes('-B-') && !f.includes('-C-') && !f.includes('-D-') && !f.includes('-E-') && !f.includes('-F-') &&
-        !f.includes('-G-') && !f.includes('-H-') && !f.includes('-I-'));
+      // 排除已在上面讀過的 new-format files + 所有 buy-method 字母（B-Q）
+      files = files.filter(f => !f.includes('-daily-') && !f.includes('-mtf-') && !isBuyMethodFile(f));
       // Legacy fallback (no direction prefix)
       if (files.length === 0 && direction === 'long') {
         const legacyFiles = await fsListPrefix(`scan-${market}-`);
-        files = legacyFiles.filter(f => !f.includes('-long-') && !f.includes('-short-') && !f.includes('-daily-') && !f.includes('-mtf-') &&
-          !f.includes('-B-') && !f.includes('-C-') && !f.includes('-D-') && !f.includes('-E-') && !f.includes('-F-') &&
-          !f.includes('-G-') && !f.includes('-H-') && !f.includes('-I-'));
+        files = legacyFiles.filter(f =>
+          !f.includes('-long-') && !f.includes('-short-') && !f.includes('-daily-') && !f.includes('-mtf-') &&
+          !isBuyMethodFile(f),
+        );
       }
       for (const file of files) {
         const match = file.match(/(\d{4}-\d{2}-\d{2})\.json$/);
