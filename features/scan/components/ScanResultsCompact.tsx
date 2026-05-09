@@ -14,6 +14,50 @@ function fmtRet(val: number | null | undefined): string {
   return `${val >= 0 ? '+' : ''}${val.toFixed(1)}%`;
 }
 
+// 軌道分類（書本五步法）— badge 顯示用
+const TRACK_OF: Record<string, 'pool' | 'bullish' | 'reversal' | 'system'> = {
+  A: 'pool',
+  B: 'bullish', C: 'bullish', E: 'bullish',
+  G: 'bullish', H: 'bullish', I: 'bullish',
+  J: 'bullish', K: 'bullish', L: 'bullish',
+  M: 'bullish', P: 'bullish',
+  D: 'reversal', F: 'reversal', N: 'reversal', O: 'reversal',
+  Q: 'system',
+};
+
+// v11 字母（G/H/I）跟 v12（J/K/L）是 alias，cross-strategy 顯示時去重
+const V11_ALIAS_OF_V12: Record<string, string> = { G: 'J', H: 'L', I: 'K' };
+
+/**
+ * 過濾 cross-strategy badges 只顯示「有資訊量」的：
+ *   - A 六條件：永遠保留（書本基本門檻）
+ *   - 跨軌道命中：保留（多頭+反轉雙重訊號才有意義）
+ *   - 同軌道兄弟訊號：隱藏（多頭軌主訊號旁邊掛多頭軌兄弟訊號太雜亂）
+ *   - v11 alias：去重（G/H/I 跟 J/K/L 是同 detector，只顯示一次）
+ */
+function filterCrossBadges(matched: string[], main: string): string[] {
+  const mainTrack = TRACK_OF[main] ?? 'bullish';
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const m of matched) {
+    if (m === main) continue;
+    // v11 alias 統一映射到 v12 字母去重
+    const canonical = V11_ALIAS_OF_V12[m] ?? m;
+    if (seen.has(canonical)) continue;
+    seen.add(canonical);
+    // A 永遠保留
+    if (canonical === 'A') {
+      out.push(canonical);
+      continue;
+    }
+    // 跨軌道才保留
+    if ((TRACK_OF[canonical] ?? 'bullish') !== mainTrack) {
+      out.push(canonical);
+    }
+  }
+  return out;
+}
+
 function retColor(val: number | null | undefined): string {
   if (val == null) return 'text-muted-foreground/50';
   if (val > 0) return 'text-bull';
@@ -204,7 +248,10 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                       P: '高檔拉回', Q: '三均戰法',
                     };
                     const color = methodColors[activeBuyMethod] ?? 'bg-sky-800/80 text-sky-300';
-                    const others = (r.matchedMethods ?? []).filter(m => m !== activeBuyMethod);
+                    // 只顯示「有資訊量」的 cross-strategy（A + 跨軌道，去重 v11 alias）
+                    const others = filterCrossBadges(r.matchedMethods ?? [], activeBuyMethod);
+                    // 完整列表給 hover 看
+                    const allOthers = (r.matchedMethods ?? []).filter(m => m !== activeBuyMethod);
                     return (
                       <>
                         <span className={`text-[8px] px-1.5 h-3.5 flex items-center rounded-sm max-w-[160px] truncate ${color}`}
@@ -214,10 +261,17 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                         {others.map(m => (
                           <span key={m}
                             className={`text-[8px] px-1 h-3.5 flex items-center rounded-sm font-bold ${methodColors[m] ?? 'bg-secondary/60 text-foreground/70'}`}
-                            title={`同時命中：${m}（${methodNames[m] ?? ''}）`}>
+                            title={`同時命中：${methodNames[m] ?? m}`}>
                             +{methodNames[m] ?? m}
                           </span>
                         ))}
+                        {/* 同軌道兄弟訊號隱藏，只顯示總數可 hover 看完整 */}
+                        {allOthers.length > others.length && (
+                          <span className="text-[8px] text-muted-foreground/50 px-0.5"
+                            title={`同軌道兄弟訊號（隱藏）：${allOthers.filter(m => !others.includes(m)).map(m => methodNames[m] ?? m).join('、')}`}>
+                            +{allOthers.length - others.length}
+                          </span>
+                        )}
                       </>
                     );
                   })()
@@ -249,7 +303,16 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                       M: '軌道線突破', N: '型態確認', O: '打底完成',
                       P: '高檔拉回', Q: '三均戰法',
                     };
-                    const others = (r.matchedMethods ?? []).filter(m => m !== 'A');
+                    // A tab：所有命中策略都有資訊量（六條件 + 其他進場訊號），只去重 v11 alias
+                    const seen = new Set<string>();
+                    const others = (r.matchedMethods ?? [])
+                      .filter(m => m !== 'A')
+                      .filter(m => {
+                        const canonical = V11_ALIAS_OF_V12[m] ?? m;
+                        if (seen.has(canonical)) return false;
+                        seen.add(canonical);
+                        return true;
+                      });
                     return (
                       <>
                         {[
@@ -266,7 +329,7 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                         {others.map(m => (
                           <span key={m}
                             className={`text-[8px] px-1 h-3.5 flex items-center rounded-sm font-bold ${methodColors[m] ?? 'bg-secondary/60 text-foreground/70'}`}
-                            title={`同時命中：${m}（${methodNames[m] ?? ''}）`}>
+                            title={`同時命中：${methodNames[m] ?? m}`}>
                             +{methodNames[m] ?? m}
                           </span>
                         ))}
