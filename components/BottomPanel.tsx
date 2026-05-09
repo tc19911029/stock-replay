@@ -10,6 +10,7 @@ import { usePortfolioStore } from '@/store/portfolioStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useReplayStore } from '@/store/replayStore';
 import { type MarketTab, filterByMarket, classifyMarket } from '@/lib/market/classify';
+import { HoldingV12Signals } from '@/components/HoldingV12Signals';
 import { calcNetPnL } from '@/lib/portfolio/fees';
 import { formatPercent, bullBearClass } from '@/lib/format';
 
@@ -362,8 +363,8 @@ function PortfolioContent({ holdings, prices, summary, totalReturnPct, marketTab
           const dailyPnL = cur > 0 ? h.shares * cur * (p?.changePercent ?? 0) / 100 : 0;
 
           return (
+            <div key={h.id}>
             <button
-              key={h.id}
               onClick={() => { const s = useReplayStore.getState(); s.loadStock(stripSuffix(h.symbol)).then(() => s.startPolling()); }}
               className="w-full px-3 py-2 hover:bg-muted/60 transition-colors text-left"
             >
@@ -409,6 +410,17 @@ function PortfolioContent({ holdings, prices, summary, totalReturnPct, marketTab
                 </span>
               </div>
             </button>
+            {/* v12 Step 3-5 訊號 */}
+            <HoldingV12Signals
+              holdingId={h.id}
+              symbol={h.symbol}
+              market={(classifyMarket(h.symbol) === 'CN' ? 'CN' : 'TW') as 'TW' | 'CN'}
+              entryPrice={h.costPrice}
+              buyDate={h.buyDate}
+              triggerSignal={h.triggerSignal}
+              operationMode={h.operationMode}
+            />
+            </div>
           );
         })}
       </div>
