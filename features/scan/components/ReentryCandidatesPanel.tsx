@@ -84,26 +84,28 @@ export function ReentryCandidatesPanel({ onSelectStock }: ReentryCandidatesPanel
   const count = candidates.length;
   const headerColor = count > 0 ? 'text-amber-500' : 'text-muted-foreground';
 
+  // 沒任何候選時整個區塊不渲染（避免常駐空白 header 佔版面）
+  // loading / error 時保留顯示
+  if (!loading && !error && count === 0) {
+    return null;
+  }
+
   return (
     <div className="border-b border-border bg-background/50">
       <button
         type="button"
         onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-muted/50 transition-colors"
+        className="w-full flex items-center justify-between px-2.5 py-1 text-[11px] hover:bg-muted/40 transition-colors"
         aria-expanded={expanded}
       >
-        <span className="flex items-center gap-2">
-          <span className={`font-medium ${headerColor}`}>
-            再進場候選（書本：回後買上漲）
+        <span className="flex items-center gap-1.5">
+          <span className={`font-semibold ${headerColor}`}>再進場候選</span>
+          <span className="text-[10px] font-mono bg-amber-700 text-amber-100 px-1.5 py-px rounded font-bold">
+            {count} 檔
           </span>
-          {loading && <span className="text-muted-foreground">載入中…</span>}
-          {!loading && (
-            <span className="text-muted-foreground">
-              {count} 檔 · 最近 {LOOKBACK_DAYS} 天曾入選且今日站回 MA5
-            </span>
-          )}
+          {loading && <span className="text-[9px] text-muted-foreground">載入中…</span>}
         </span>
-        <span className="text-muted-foreground">{expanded ? '▼' : '▶'}</span>
+        <span className="text-xs text-muted-foreground">{expanded ? '▼' : '▶'}</span>
       </button>
 
       {expanded && (

@@ -110,11 +110,17 @@ export function LockWatchPanel({ market }: LockWatchPanelProps) {
   const activeCount = activeRecords.length;
   const totalCount = snapshot?.records.length ?? 0;
 
+  // 沒任何 active record 時整個區塊不渲染（避免「暫無」一行佔版面）
+  // loading / error 時保留顯示
+  if (!loading && !error && activeCount === 0) {
+    return null;
+  }
+
   return (
     <div className="border-b border-border/60">
       <button
         onClick={() => setCollapsed((v) => !v)}
-        className={`w-full flex items-center justify-between px-2.5 py-1.5 text-[11px] hover:bg-muted/40 transition-colors ${
+        className={`w-full flex items-center justify-between px-2.5 py-1 text-[11px] hover:bg-muted/40 transition-colors ${
           activeCount > 0
             ? 'bg-amber-900/30 text-amber-200 hover:bg-amber-900/40'
             : 'text-muted-foreground hover:text-foreground'
@@ -123,13 +129,9 @@ export function LockWatchPanel({ market }: LockWatchPanelProps) {
       >
         <span className="flex items-center gap-1.5">
           <span className="font-semibold">鎖股觀察</span>
-          {activeCount > 0 ? (
-            <span className="text-[10px] font-mono bg-amber-700 text-amber-100 px-1.5 py-px rounded font-bold">
-              {activeCount} 檔
-            </span>
-          ) : (
-            <span className="text-[9px] opacity-50">（暫無）</span>
-          )}
+          <span className="text-[10px] font-mono bg-amber-700 text-amber-100 px-1.5 py-px rounded font-bold">
+            {activeCount} 檔
+          </span>
           {snapshot?.date && (
             <span className="text-[9px] font-mono opacity-60">{snapshot.date.slice(5)}</span>
           )}
