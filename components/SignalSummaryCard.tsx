@@ -438,53 +438,53 @@ export default function SignalSummaryCard() {
           {/* ── 3. 金額區（進場 / 停損 / 停利）+ 風向 ── */}
           <div className="border-t border-border/40 pt-2 space-y-3">
 
-            {/* 金額：進場價（大字）+ 停損（含守 MAxx）+ 停利（含紀律來源）*/}
-            <div className="space-y-1.5">
+            {/* 金額：4 row 統一 grid 兩欄排版（label 固定寬度、value 右對齊）*/}
+            <div className="space-y-1">
               {!hasPosition && (
                 <p className="text-[11px] text-muted-foreground/80">若今日進場：</p>
               )}
-              <div className="flex items-baseline justify-between text-sm">
+              {/* 進場 */}
+              <div className="grid grid-cols-[4em_1fr] items-baseline text-xs">
                 <span className="text-foreground/80 font-bold">進場</span>
-                <span className="font-mono font-bold text-foreground">
+                <span className="text-right font-mono font-bold text-foreground">
                   {candle.close.toFixed(2)}
                 </span>
               </div>
-              {/* 停損 — 書本《抓住線圖》紅 K 三段式（防爆倉硬停損）*/}
-              <div className="flex items-baseline justify-between font-mono text-xs">
+              {/* 停損 — 書本紅 K 三段式（防爆倉硬停損）*/}
+              <div className="grid grid-cols-[4em_1fr] items-baseline text-xs">
                 <span className="text-rose-300">停損</span>
-                <span>
+                <span className="text-right font-mono">
                   <span className="text-rose-300 font-bold">{stopLoss.toFixed(2)}</span>
                   <span className="text-muted-foreground/70 ml-1.5">({slPct.toFixed(1)}%)</span>
                 </span>
               </div>
-              {/* 持倉時 — Q/B 等 V12 字母對應的操作均線（動態，跌破才出場）*/}
+              {/* 持倉時 — V12 字母對應的操作均線（動態，跌破才出場）*/}
               {operatingMA && (() => {
                 const maKey = operatingMA.toLowerCase() as 'ma5' | 'ma10' | 'ma20' | 'ma60' | 'ma240';
                 const maVal = (candle as unknown as Record<string, number | undefined>)[maKey];
                 if (maVal == null) return null;
                 const maPct = ((maVal - candle.close) / candle.close) * 100;
                 return (
-                  <div className="flex items-baseline justify-between font-mono text-xs">
+                  <div className="grid grid-cols-[4em_1fr] items-baseline text-xs">
                     <span className="text-rose-300/80" title="進場後持倉期間，跌破此均線才出場（書本：跟著均線走，動態跟蹤停損）">持倉時</span>
-                    <span className="font-sans text-rose-300/80">
-                      跌破 <span className="font-mono font-bold">{maVal.toFixed(2)}</span>
+                    <span className="text-right text-rose-300/80">
+                      <span className="font-sans">跌破 {operatingMA} </span>
+                      <span className="font-mono font-bold">{maVal.toFixed(2)}</span>
                       <span className="text-muted-foreground/70 ml-1.5 font-mono">({maPct.toFixed(1)}%)</span>
-                      <span className="text-muted-foreground/70 ml-1"> 出場</span>
-                      <span className="text-muted-foreground/70 ml-2 font-mono">{operatingMA}</span>
+                      <span className="text-muted-foreground/70 ml-1 font-sans">出場</span>
                     </span>
                   </div>
                 );
               })()}
-              <div className="flex items-baseline justify-between font-mono text-xs">
-                <span className="text-emerald-300">
-                  停利
-                  <span className="text-[11px] text-muted-foreground/60 ml-1.5 font-sans">
-                    {profitTargetSource === 'pattern' ? '型態目標' : '10%紀律'}
-                  </span>
-                </span>
-                <span>
+              {/* 停利 */}
+              <div className="grid grid-cols-[4em_1fr] items-baseline text-xs">
+                <span className="text-emerald-300">停利</span>
+                <span className="text-right font-mono">
                   <span className="text-emerald-300 font-bold">{profitTarget.toFixed(2)}</span>
                   <span className="text-muted-foreground/70 ml-1.5">({ptPct >= 0 ? '+' : ''}{ptPct.toFixed(1)}%)</span>
+                  <span className="text-[11px] text-muted-foreground/60 ml-2 font-sans">
+                    {profitTargetSource === 'pattern' ? '型態目標' : '10%紀律'}
+                  </span>
                 </span>
               </div>
             </div>
