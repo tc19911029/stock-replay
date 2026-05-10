@@ -349,17 +349,27 @@ function LockWatchTableRow({
               進場
             </button>
           ) : <span className="w-[42px]" />}
-          {/* + 自選 — 已在自選或不可移除時佔位保持等寬 */}
-          {!inWatchlist && canRemove ? (
-            <button
-              onClick={() =>
-                useWatchlistStore.getState().add(record.symbol, name || record.symbol, record.triggerPrice)
-              }
-              className="shrink-0 px-2 py-0.5 rounded border border-amber-700/50 text-amber-400 hover:text-amber-300 hover:bg-amber-900/30 font-bold"
-              title={`加入自選股（${symbolBare} 觸發價 ${record.triggerPrice.toFixed(2)}）`}
-            >
-              自選
-            </button>
+          {/* 自選 toggle — 加入/移除自選股；不可動的記錄佔位保持等寬 */}
+          {canRemove ? (
+            inWatchlist ? (
+              <button
+                onClick={() => useWatchlistStore.getState().remove(record.symbol)}
+                className="shrink-0 px-2 py-0.5 rounded border border-amber-700/50 bg-amber-900/30 text-amber-300 hover:bg-amber-900/50 font-bold"
+                title={`已在自選股，點擊取消（${symbolBare}）`}
+              >
+                ✓自選
+              </button>
+            ) : (
+              <button
+                onClick={() =>
+                  useWatchlistStore.getState().add(record.symbol, name || record.symbol, record.triggerPrice)
+                }
+                className="shrink-0 px-2 py-0.5 rounded border border-amber-700/50 text-amber-400 hover:text-amber-300 hover:bg-amber-900/30 font-bold"
+                title={`加入自選股（${symbolBare} 觸發價 ${record.triggerPrice.toFixed(2)}）`}
+              >
+                自選
+              </button>
+            )
           ) : <span className="w-[36px]" />}
           {canRemove ? (
             <button
