@@ -1474,18 +1474,25 @@ export abstract class MarketScanner {
                 };
               }
             } else {
-              // Phase C：未觸發但結構成立（close 未過 ×3%）→ 寫 LockWatch pending-breakout
+              // Phase C：未觸發但結構成立 → 寫 LockWatch pending-breakout
+              // 過濾條件（避免全候選池都進來）：
+              //   1. close ≥ neckline × 0.95（距真突破 ≤ 8%，書本「即將突破」才鎖）
+              //   2. 達成率 ≥ 70%（過濾 double-bottom 36% 等低達成率型態）
               const struct = detectLetterNStructure(candles, lastIdx);
               if (struct.pivots && struct.pivots.length > 0
                   && struct.necklinePrice != null && struct.patternType) {
-                lockWatchPayload = {
-                  triggerPrice: struct.necklinePrice,
-                  patternType: struct.patternType,
-                  patternTargetPrice: struct.patternTargetPrice,
-                  patternAchievementRate:
-                    typeof struct.achievementRate === 'number' ? struct.achievementRate / 100 : undefined,
-                };
-                // matched 仍為 false — r 將以 lockWatchOnly 身分通過 filter，不污染 ScanSession
+                const closeNearNeckline = last.close >= struct.necklinePrice * 0.95;
+                const highAchievement = (struct.achievementRate ?? 0) >= 70;
+                if (closeNearNeckline && highAchievement) {
+                  lockWatchPayload = {
+                    triggerPrice: struct.necklinePrice,
+                    patternType: struct.patternType,
+                    patternTargetPrice: struct.patternTargetPrice,
+                    patternAchievementRate:
+                      typeof struct.achievementRate === 'number' ? struct.achievementRate / 100 : undefined,
+                  };
+                  // matched 仍為 false — r 將以 lockWatchOnly 身分通過 filter，不污染 ScanSession
+                }
               }
             }
           } else if (method === 'O') {
