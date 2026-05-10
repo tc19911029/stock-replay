@@ -946,7 +946,16 @@ export const useBacktestStore = create<BacktestState>()(
             const json = await res.json();
             if (!res.ok || !json.ok) throw new Error(json.error ?? '載入失敗');
             const session = (json as { sessions?: Array<{ results: StockScanResult[] }> })?.sessions?.[0];
-            const scanResults = session?.results ?? [];
+            // Step 2 tab 顯示邏輯（書本軌道分類）：
+            // - 多頭軌（B/C/E/J/K/L/M/P）：必須過 Step 1（六條件+戒律+淘汰法）→ 要 matchedMethods 含 'A'
+            // - 反轉軌（D/F/N/O）：書本「抓底/反轉」設計就是不過 Step 1 全市場掃 → 不過濾 A
+            // - 戰法軌（Q）：自含 MA24 趨勢判定，不過 Step 1 → 不過濾 A
+            // 之前的 bug：所有 method 都加 A filter，導致 N/F/O/D/Q session 內反轉軌訊號被擋（如 3026 跌菱形 80% 沒過 A 但 N matched 應顯示）
+            const REVERSAL_OR_SYSTEM = new Set(['D', 'F', 'N', 'O', 'Q']);
+            const requireA = !REVERSAL_OR_SYSTEM.has(activeBuyMethod);
+            const scanResults = (session?.results ?? []).filter(r =>
+              !requireA || r.matchedMethods?.includes('A'),
+            );
             set({ scanResults, isLoadingBuyMethod: false });
 
             // 補填 forward performance（同 A 路徑）
@@ -1038,12 +1047,45 @@ export const useBacktestStore = create<BacktestState>()(
           if (!res.ok) throw new Error('無法載入歷史掃描結果');
           const json = await res.json() as { sessions?: Array<{ results: StockScanResult[]; marketTrend?: string; dataFreshness?: { avgStaleDays: number; maxStaleDays: number; staleCount: number; totalScanned: number; coverageRate: number; dataStatus: string } }> };
           const session0 = json.sessions?.[0];
-          const scanResults = session0?.results ?? [];
+          let scanResults = session0?.results ?? [];
           if (scanResults.length === 0) {
             set({ isLoadingCronSession: false });
             return;
           }
           const sessionMarketTrend = session0?.marketTrend ?? null;
+
+          // Daily writer (MarketScanner.ts:529-561) 只跑 A-I 的 matchedMethods，
+          // 沒跑 v12 新字母 M/N/O/P/Q → 池內股票徽章不全（例：4749 在 Q session 命中
+          // 但 daily 看不到 Q）。這裡平行載入 M/N/O/P/Q 並把命中字母 merge 回現有池子，
+          // 不引入新股票（池子的成員仍由 Step 1 決定）。
+          // J/K/L 是 v11 G/H/I 的 alias，daily 已算過 G/H/I → 不需補。
+          const enrichLetters = await Promise.all(
+            (['M', 'N', 'O', 'P', 'Q'] as const).map(letter =>
+              fetch(`/api/scanner/results?market=${market}&date=${date}&direction=${apiDirection}&mtf=${letter}`)
+                .then(r => (r.ok ? r.json() : null))
+                .then((j: { sessions?: Array<{ results: StockScanResult[] }> } | null) =>
+                  ({ letter, results: j?.sessions?.[0]?.results ?? [] }),
+                )
+                .catch(() => ({ letter, results: [] as StockScanResult[] })),
+            ),
+          );
+          const symbolToExtraLetters = new Map<string, Set<string>>();
+          for (const { letter, results } of enrichLetters) {
+            for (const r of results) {
+              let set = symbolToExtraLetters.get(r.symbol);
+              if (!set) { set = new Set(); symbolToExtraLetters.set(r.symbol, set); }
+              set.add(letter);
+            }
+          }
+          if (symbolToExtraLetters.size > 0) {
+            const order = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q'];
+            scanResults = scanResults.map(r => {
+              const extras = symbolToExtraLetters.get(r.symbol);
+              if (!extras) return r;
+              const merged = new Set([...(r.matchedMethods ?? []), ...extras]);
+              return { ...r, matchedMethods: order.filter(m => merged.has(m)) };
+            });
+          }
 
           // MTF ON → 前端過濾（API 永遠返回完整結果）
           let displayResults = scanResults;
