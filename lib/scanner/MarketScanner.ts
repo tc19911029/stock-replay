@@ -1479,6 +1479,7 @@ export abstract class MarketScanner {
               //   1. close ≥ neckline × 0.98（距真突破 ≤ 5%，明後天可能突破才鎖）
               //   2. 達成率 ≥ 80%（只取書本高勝率型態）
               //   3. close < target × 0.97（型態還沒達標；超過 = 型態已完成不該再算即將突破）
+              //   4. close ≤ neckline × 1.20（突破已發生很久就不該追，如 002788.SZ neckline 10.12 vs close 14.17 = +40% 過頭）
               const struct = detectLetterNStructure(candles, lastIdx);
               if (struct.pivots && struct.pivots.length > 0
                   && struct.necklinePrice != null && struct.patternType) {
@@ -1486,7 +1487,8 @@ export abstract class MarketScanner {
                 const highAchievement = (struct.achievementRate ?? 0) >= 80;
                 const notReachedTarget = struct.patternTargetPrice != null
                   && last.close < struct.patternTargetPrice * 0.97;
-                if (closeNearNeckline && highAchievement && notReachedTarget) {
+                const notOvershoot = last.close <= struct.necklinePrice * 1.20;
+                if (closeNearNeckline && highAchievement && notReachedTarget && notOvershoot) {
                   lockWatchPayload = {
                     triggerPrice: struct.necklinePrice,
                     patternType: struct.patternType,

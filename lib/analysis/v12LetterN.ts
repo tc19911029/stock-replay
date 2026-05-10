@@ -216,6 +216,13 @@ function makeResult(
     return structureOnly('N 型態結構成立但未過 ×3% 真突破');
   }
 
+  // 2026-05-11 補：close 已遠超頸線 ≥ 20% 表示突破已發生很久，detector 偵測到的
+  // 是舊型態的延伸線（如 002788.SZ neckline 10.12 vs close 14.17 = +40%），
+  // 不該算「即將/剛突破」清單。書本本意：突破當下進場，不追過頭。
+  if (closePrice > match.necklinePrice * 1.20) {
+    return structureOnly('N 型態 close 已遠超頸線（>+20%），突破已發生很久非進場時機');
+  }
+
   // 2026-05-10 補：close 已超過 patternTargetPrice × 0.97 視為「型態已達目標」，
   // 不再算進場訊號（避免 4722.TW 這種 close=236 但 target 才 193 的「過晚觸發」雜訊）
   // 書本《抓飆股》Part 7：型態突破後達目標即啟動停利，不會再被視為新進場機會
