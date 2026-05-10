@@ -85,6 +85,27 @@ const TOP_PATTERN_LABEL: Record<TopPatternType, string> = {
   'double-top': '雙重頂',
 };
 
+/** V12 字母解釋（hover tooltip 顯示）— 用於「操作均線」行的字母 underline */
+const V12_LETTER_DESC: Record<string, string> = {
+  A: 'A 六條件 — 純結構過濾池',
+  B: 'B 回後買上漲 — 多頭回檔站回 MA5',
+  C: 'C 盤整突破',
+  D: 'D 一字底（均線糾結）',
+  E: 'E 跳空缺口進場',
+  F: 'F V 形反轉（變盤線止跌）',
+  G: 'G ABC 突破',
+  H: 'H 過大量黑K高',
+  I: 'I K 線橫盤突破',
+  J: 'J ABC 突破（v12 多頭軌）',
+  K: 'K K 線橫盤突破（v12 多頭軌）',
+  L: 'L 過大量黑K（v12 多頭軌）',
+  M: 'M 突破上升軌道線',
+  N: 'N 型態確認（書本 25 種型態）',
+  O: 'O 打底完成（空頭→多頭）',
+  P: 'P 高檔拉回（淺回 1-2 天）',
+  Q: 'Q 三條均線戰法（MA3+10+24）',
+};
+
 const PATTERN_LABEL: Record<string, string> = {
   'head-shoulder': '頭肩底', 'complex-head-shoulder': '複式頭肩底',
   'triple-bottom': '三重底', 'falling-diamond': '跌菱形',
@@ -414,36 +435,57 @@ export default function SignalSummaryCard() {
             )}
           </div>
 
-          {/* ── 3. 數字行：停損 · 停利 · 操作均線 · 走勢偏向 ── */}
-          <div className="border-t border-border/40 pt-2 space-y-1">
+          {/* ── 3. 停損 / 停利 / 操作均線（每項獨立一行，不再擠一行）── */}
+          <div className="border-t border-border/40 pt-2 space-y-1.5">
             {!hasPosition && (
               <p className="text-[11px] text-muted-foreground/80">若今日進場 {candle.close.toFixed(2)}：</p>
             )}
-            <p className="text-xs font-mono leading-relaxed">
-              <span className="text-rose-300">停損 {stopLoss.toFixed(2)}</span>
-              <span className="text-muted-foreground/80 ml-0.5">({slPct.toFixed(1)}%)</span>
-              <span className="text-muted-foreground mx-1">·</span>
-              <span className="text-emerald-300">停利 {profitTarget.toFixed(2)}</span>
-              <span className="text-muted-foreground/80 ml-0.5">({ptPct >= 0 ? '+' : ''}{ptPct.toFixed(1)}%)</span>
-              <span className="text-[11px] text-muted-foreground/60 ml-1">
-                {profitTargetSource === 'pattern' ? '型態目標' : '10%紀律'}
+            {/* 停損 */}
+            <div className="flex items-baseline justify-between font-mono text-xs">
+              <span className="text-rose-300">停損</span>
+              <span>
+                <span className="text-rose-300 font-bold">{stopLoss.toFixed(2)}</span>
+                <span className="text-muted-foreground/70 ml-1.5">({slPct.toFixed(1)}%)</span>
               </span>
-              {operatingMA && (
-                <>
-                  <span className="text-muted-foreground mx-1">·</span>
-                  <span className="text-foreground/80">{primaryLetter} 跟 {operatingMA}</span>
-                </>
-              )}
-            </p>
-            <p className="text-[11px]">
-              <span className="text-muted-foreground">走勢偏向：</span>
-              <span className={`font-bold ${trendBiasColor}`}>{trendBiasLabel}</span>
-              {(bullCount > 0 || bearCount > 0) && (
-                <span className="text-muted-foreground/60 ml-1">
-                  （33 圖像 · 多 {bullCount} / 空 {bearCount}）
+            </div>
+            {/* 停利（單獨一行，附型態目標/10%紀律來源 tag）*/}
+            <div className="flex items-baseline justify-between font-mono text-xs">
+              <span className="text-emerald-300">
+                停利
+                <span className="text-[11px] text-muted-foreground/60 ml-1.5 font-sans">
+                  {profitTargetSource === 'pattern' ? '型態目標' : '10%紀律'}
                 </span>
-              )}
-            </p>
+              </span>
+              <span>
+                <span className="text-emerald-300 font-bold">{profitTarget.toFixed(2)}</span>
+                <span className="text-muted-foreground/70 ml-1.5">({ptPct >= 0 ? '+' : ''}{ptPct.toFixed(1)}%)</span>
+              </span>
+            </div>
+            {/* 操作均線（B/M/N/Q 等 V12 字母 + 跟隨 MA）*/}
+            {operatingMA && (
+              <div className="flex items-baseline justify-between text-xs">
+                <span className="text-muted-foreground">操作均線</span>
+                <span className="font-mono">
+                  <span title={V12_LETTER_DESC[primaryLetter] ?? primaryLetter} className="text-foreground/80 underline decoration-dotted decoration-muted-foreground/40">
+                    {primaryLetter}
+                  </span>
+                  <span className="text-muted-foreground"> 跟 </span>
+                  <span className="text-foreground/80 font-bold">{operatingMA}</span>
+                </span>
+              </div>
+            )}
+            {/* 走勢偏向 */}
+            <div className="flex items-baseline justify-between text-[11px]">
+              <span className="text-muted-foreground">走勢偏向</span>
+              <span>
+                <span className={`font-bold ${trendBiasColor}`}>{trendBiasLabel}</span>
+                {(bullCount > 0 || bearCount > 0) && (
+                  <span className="text-muted-foreground/60 ml-1">
+                    （33 圖像 · 多 {bullCount} / 空 {bearCount}）
+                  </span>
+                )}
+              </span>
+            </div>
           </div>
 
           {/* ── 4. 為什麼？分組 ───────────────────────────── */}
@@ -496,30 +538,42 @@ function Reasons({
     <div className="border-t border-border/40 pt-2 space-y-2">
       <p className="text-xs font-semibold text-foreground/80">為什麼？</p>
 
-      {/* V12 字母進場訊號（多頭軌/轉折軌/戰法軌）*/}
+      {/* V12 字母進場訊號（多頭軌/轉折軌/戰法軌）— 卡片格式跟 ReasonGroup 一致 */}
       {v12Hits.length > 0 && (
-        <div className="space-y-1">
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-bold mb-1 text-sky-300">V12 進場訊號</p>
           {v12Hits.map(h => (
-            <div key={h.letter} className="flex items-start gap-1.5 text-[11px]">
-              <span className={`font-bold px-1.5 py-px rounded shrink-0 text-[11px] ${V12_TRACK_BADGE[h.letter]}`}>
-                {h.letter}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="font-semibold text-foreground/90">{h.trackName}</div>
-                <div className="text-[11px] text-muted-foreground leading-tight">{h.detail}</div>
-                {h.patternType && h.patternTargetPrice && h.necklinePrice && (
-                  <div className="mt-0.5 flex items-center gap-1.5 text-[11px] flex-wrap">
+            <div key={h.letter} className="rounded px-2.5 py-2 bg-sky-900/15">
+              {/* Header: 字母 badge + 軌道名 */}
+              <div className="flex items-baseline gap-2 mb-1">
+                <span className={`font-bold px-1.5 py-0.5 rounded shrink-0 text-[11px] ${V12_TRACK_BADGE[h.letter]}`}>
+                  {h.letter}
+                </span>
+                <span className="text-xs font-bold text-foreground/90">{h.trackName}</span>
+              </div>
+              {/* Body: detail */}
+              <p className="text-[11px] text-foreground/75 leading-relaxed">{h.detail}</p>
+              {/* 型態詳情（N 字母才有）*/}
+              {h.patternType && h.patternTargetPrice && h.necklinePrice && (
+                <div className="mt-1.5 pt-1.5 border-t border-sky-700/30 space-y-0.5 text-[11px]">
+                  <div className="flex items-baseline justify-between">
                     <span className="text-indigo-300 font-bold">{PATTERN_LABEL[h.patternType] ?? h.patternType}</span>
                     {h.achievementRate != null && (
-                      <span className="text-amber-300">{(h.achievementRate * 100).toFixed(0)}%</span>
+                      <span className="text-amber-300">達成率 {(h.achievementRate * 100).toFixed(0)}%</span>
                     )}
-                    <span className="text-muted-foreground">頸線 {h.necklinePrice.toFixed(2)}</span>
-                    <span className="text-emerald-400">
-                      → {h.patternTargetPrice.toFixed(2)}（{((h.patternTargetPrice - todayClose) / todayClose * 100).toFixed(1)}% 空間）
+                  </div>
+                  <div className="flex items-baseline justify-between text-muted-foreground">
+                    <span>頸線</span>
+                    <span className="font-mono">{h.necklinePrice.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-baseline justify-between text-emerald-400">
+                    <span>目標價</span>
+                    <span className="font-mono">
+                      {h.patternTargetPrice.toFixed(2)} ({((h.patternTargetPrice - todayClose) / todayClose * 100).toFixed(1)}%)
                     </span>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -545,25 +599,40 @@ function Reasons({
         />
       )}
 
-      {/* 頂部型態警示（持股中才顯示）— 書本：見頂部型態 + 跌破頸線 → 出場 */}
+      {/* 頂部型態警示（持股=該出場、未持倉=不要進場）*/}
       {topPatternHit && (
-        <div className="rounded border border-emerald-700/40 bg-emerald-900/15 px-2 py-1.5">
-          <p className="text-[11px] font-bold text-emerald-300 mb-0.5">頂部型態警示 — 書本：跌破頸線立即出場</p>
-          <div className="flex items-center gap-1.5 text-[11px] flex-wrap">
-            <span className="text-emerald-300 font-bold">{TOP_PATTERN_LABEL[topPatternHit.patternType]}</span>
-            {topPatternHit.achievementRate != null && (
-              <span className="text-amber-300">{(topPatternHit.achievementRate * 100).toFixed(0)}%</span>
-            )}
-            {topPatternHit.necklinePrice != null && (
-              <span className="text-muted-foreground">頸線 {topPatternHit.necklinePrice.toFixed(2)}</span>
-            )}
-            {topPatternHit.patternTargetPrice != null && (
-              <span className="text-rose-300">
-                ↓ {topPatternHit.patternTargetPrice.toFixed(2)}（{((topPatternHit.patternTargetPrice - todayClose) / todayClose * 100).toFixed(1)}%）
-              </span>
-            )}
+        <div>
+          <p className="text-[11px] font-bold mb-1 text-rose-300">頂部型態警示</p>
+          <div className="rounded px-2.5 py-2 bg-rose-900/15">
+            {/* Header: 型態名 + 達成率 */}
+            <div className="flex items-baseline justify-between gap-2 mb-1">
+              <span className="text-xs font-bold text-rose-300">{TOP_PATTERN_LABEL[topPatternHit.patternType]}</span>
+              {topPatternHit.achievementRate != null && (
+                <span className="text-[11px] text-amber-300">達成率 {(topPatternHit.achievementRate * 100).toFixed(0)}%</span>
+              )}
+            </div>
+            {/* Body: 頸線 / 目標 / detail */}
+            <div className="space-y-0.5 text-[11px]">
+              {topPatternHit.necklinePrice != null && (
+                <div className="flex items-baseline justify-between text-muted-foreground">
+                  <span>頸線</span>
+                  <span className="font-mono">{topPatternHit.necklinePrice.toFixed(2)}</span>
+                </div>
+              )}
+              {topPatternHit.patternTargetPrice != null && (
+                <div className="flex items-baseline justify-between text-rose-300">
+                  <span>目標價（下跌）</span>
+                  <span className="font-mono">
+                    {topPatternHit.patternTargetPrice.toFixed(2)} ({((topPatternHit.patternTargetPrice - todayClose) / todayClose * 100).toFixed(1)}%)
+                  </span>
+                </div>
+              )}
+            </div>
+            <p className="text-[11px] text-foreground/70 leading-relaxed mt-1.5 pt-1.5 border-t border-rose-700/30">
+              {topPatternHit.detail}
+            </p>
+            <p className="text-[11px] text-muted-foreground/60 mt-1">書本：見頂部型態+跌破頸線即出場</p>
           </div>
-          <p className="text-[11px] text-muted-foreground/80 leading-snug mt-0.5">{topPatternHit.detail}</p>
         </div>
       )}
 
@@ -593,7 +662,7 @@ function ReasonGroup({
   return (
     <div>
       <p className={`text-[11px] font-bold mb-1 ${color}`}>{title}</p>
-      <div className="space-y-1">
+      <div className="space-y-1.5">
         {signals.map((s, i) => {
           const override = SIGNAL_EXPLAIN[s.label];
           // 優先級：手寫白話覆寫 > 訊號 description（含書本意圖）+ reason 第一行
@@ -601,19 +670,23 @@ function ReasonGroup({
           const bookRef = override ? undefined : extractBookRef(s.reason);
           const operationHint = override ? undefined : extractOperationHint(s.reason);
           return (
-            <div key={i} className={`rounded px-2 py-1.5 ${bgColor}`}>
-              <div className="flex items-start gap-1.5">
-                <span className={`text-[11px] font-bold shrink-0 ${color}`}>· {s.label}</span>
-                <div className="flex-1 min-w-0 space-y-0.5">
-                  <p className="text-[11px] text-foreground/85 leading-snug">{mainText}</p>
-                  {operationHint && (
-                    <p className="text-[11px] text-foreground/60 leading-snug">{operationHint}</p>
-                  )}
-                  {bookRef && (
-                    <p className="text-[11px] text-muted-foreground/70 leading-snug">{bookRef}</p>
-                  )}
-                </div>
+            // 標題在上、說明分行 — 書本根據對齊右側 small 字
+            <div key={i} className={`rounded px-2.5 py-2 ${bgColor}`}>
+              {/* Header: label + 書本根據 tag（同一行）*/}
+              <div className="flex items-baseline justify-between gap-2 mb-1">
+                <span className={`text-xs font-bold ${color}`}>{s.label}</span>
+                {bookRef && (
+                  <span className="text-[11px] text-muted-foreground/60 shrink-0">{bookRef}</span>
+                )}
               </div>
+              {/* Body: 主說明 */}
+              {mainText && (
+                <p className="text-[11px] text-foreground/85 leading-relaxed">{mainText}</p>
+              )}
+              {/* 操作建議（粗體強調，書本實戰指引）*/}
+              {operationHint && (
+                <p className="text-[11px] text-foreground/70 leading-relaxed mt-1">{operationHint}</p>
+              )}
             </div>
           );
         })}

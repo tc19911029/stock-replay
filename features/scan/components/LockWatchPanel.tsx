@@ -181,15 +181,36 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
               <table className="w-full text-[11px] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
                 <thead className="text-[11px] text-muted-foreground border-b border-border/50 sticky top-0 bg-card">
                   <tr>
-                    <th className="text-left py-1.5 px-2">訊號</th>
+                    <th className="text-left py-1.5 px-2"
+                        title="觸發類型：F=V反轉（變盤線止跌+紅K突破），N=型態確認（書本 25 種底部型態）">
+                      訊號
+                    </th>
                     <th className="text-left py-1.5 px-2">代號</th>
                     <th className="text-left py-1.5 px-2">名稱</th>
-                    <th className="text-left py-1.5 px-2">型態</th>
-                    <th className="text-right py-1.5 px-2" title="觸發鎖定價">鎖定價</th>
-                    <th className="text-right py-1.5 px-2" title="型態目標價（書本）">目標價</th>
-                    <th className="text-right py-1.5 px-2" title="型態達成率">達成率</th>
-                    <th className="text-center py-1.5 px-2">階段</th>
-                    <th className="text-right py-1.5 px-2" title="觀察天數">天</th>
+                    <th className="text-left py-1.5 px-2"
+                        title="N 訊號的具體型態（頭肩底/三重底/圓弧底/複式頭肩底/跌菱形/下降楔形/雙重底/N 字底/三個頂部型態）">
+                      型態
+                    </th>
+                    <th className="text-center py-1.5 px-2"
+                        title="N 訊號=突破時的型態頸線價；F 訊號=V 反彈起點 close。不是進場價（進場應等趨勢確認後）">
+                      鎖定價
+                    </th>
+                    <th className="text-center py-1.5 px-2"
+                        title="書本《抓飆股》Part 7 型態測量幅度：頸線 + (頸線 − 最低點)。達標即觸發停利">
+                      目標價
+                    </th>
+                    <th className="text-center py-1.5 px-2"
+                        title="書本明寫的型態達成率（《抓飆股》p.314-342）：三重底95%、下降楔形90%、圓弧底85%、頭肩底83%、複式頭肩/跌菱形80%、N 字底75%、雙重底36%">
+                      達成率
+                    </th>
+                    <th className="text-center py-1.5 px-2"
+                        title="觀察中=結構成立等趨勢確認；可進場=趨勢確認可考慮買進；已買進=用戶買進；已撤銷=close 跌破鎖定價或趨勢翻空；結構失效=跌破型態關鍵支撐">
+                      階段
+                    </th>
+                    <th className="text-center py-1.5 px-2"
+                        title="觸發後經過的交易日數（不含週末/假日）。0d 表示今天剛觸發或上次 cron 還沒跑">
+                      天數
+                    </th>
                     <th className="text-center py-1.5 px-2 min-w-[110px]">動作</th>
                   </tr>
                 </thead>
@@ -272,12 +293,12 @@ function LockWatchTableRow({
         {name || '—'}
       </td>
       <td className="whitespace-nowrap py-1.5 px-2 text-muted-foreground">{patternName ?? '—'}</td>
-      <td className="whitespace-nowrap py-1.5 px-2 text-right font-mono tabular-nums">
+      <td className="whitespace-nowrap py-1.5 px-2 text-center font-mono tabular-nums">
         {record.triggerPrice.toFixed(2)}
       </td>
       {/* 目標價 + 爬升空間 %（2026-05-09 新增爬升空間） */}
       <td
-        className="py-1.5 px-2 text-right font-mono tabular-nums text-emerald-400/80"
+        className="whitespace-nowrap py-1.5 px-2 text-center font-mono tabular-nums text-emerald-400/80"
         title={
           upsidePct != null
             ? `型態目標價 ${record.patternTargetPrice!.toFixed(2)}（從觸發價 ${record.triggerPrice.toFixed(2)} 爬升 +${upsidePct.toFixed(1)}%）`
@@ -295,7 +316,7 @@ function LockWatchTableRow({
           '—'
         )}
       </td>
-      <td className="whitespace-nowrap py-1.5 px-2 text-right font-mono tabular-nums text-amber-300/80">
+      <td className="whitespace-nowrap py-1.5 px-2 text-center font-mono tabular-nums text-amber-300/80">
         {record.patternAchievementRate != null
           ? `${(record.patternAchievementRate * 100).toFixed(0)}%`
           : '—'}
@@ -303,7 +324,7 @@ function LockWatchTableRow({
       <td className={`whitespace-nowrap py-1.5 px-2 text-center ${stage.color}`}>
         {stage.label}
       </td>
-      <td className="whitespace-nowrap py-1.5 px-2 text-right font-mono text-muted-foreground/60">
+      <td className="whitespace-nowrap py-1.5 px-2 text-center font-mono text-muted-foreground/60">
         {record.daysObserved}d
       </td>
       {/* 動作欄：3 個按鈕統一同寬 + 同 padding，固定 min-w-[110px] 防擠 */}
