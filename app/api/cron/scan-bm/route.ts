@@ -131,6 +131,10 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Step 5: 買法掃描 ────────────────────────────────────────────────
+    // Step 1 池子狀態先查（同一查詢供 deriveStep1FilterState 與 audit 用）
+    const { loadStep1Pool, deriveStep1FilterState } = await import('@/lib/scanner/step1Pool');
+    const step1Pool = await loadStep1Pool(market, date);
+    const step1Filter = deriveStep1FilterState(method, !!step1Pool && step1Pool.symbols.length > 0);
     const bmResults = await scanner.scanBuyMethod(method, stocks, date);
 
     // 注入成交額排名
@@ -151,6 +155,9 @@ export async function GET(req: NextRequest) {
     } catch { /* non-critical */ }
 
     // ── Step 6: 存入 L4 post_close session ─────────────────────────────
+    // Phase C：lockWatchOnly entries（matched=false 但帶 lockWatchPayload，pending-breakout 用）
+    // 過濾掉，不污染 ScanSession 顯示池
+    const sessionResults = bmResults.filter(r => (r.matchedMethods?.length ?? 0) > 0);
     // v12 新字母（J-Q）標 schemaVersion='v12'，舊字母（B-I）保留 'v11' 向後相容
     const isV12Letter = ['J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'].includes(method);
     const bmSession = {
@@ -161,13 +168,17 @@ export async function GET(req: NextRequest) {
       multiTimeframeEnabled: false,
       sessionType: 'post_close' as const,
       scanTime: new Date().toISOString(),
-      resultCount: bmResults.length,
-      results: bmResults,
+      resultCount: sessionResults.length,
+      results: sessionResults,
       marketTrend,
       buyMethod: method,
       schemaVersion: (isV12Letter ? 'v12' : 'v11') as 'v11' | 'v12',
+      step1Filter,
     };
     await saveScanSession(bmSession, { allowOverwritePostClose: true });
+    if (step1Filter === 'missing') {
+      console.error(`[scan-bm] ⚠ ${market} ${method} ${date} Step 1 池子缺漏，多頭軌應為空（saveScanSession 仍寫入空集）`);
+    }
 
     // ── Step 7: F / N 訊號 → 寫入 LockWatch 鎖股觀察名單（v12 議題 23/65/93）─────
     let lockWatchWritten = 0;
@@ -197,6 +208,7 @@ export async function GET(req: NextRequest) {
               triggeredDate: date,
               patternType: p.patternType,
               triggerPrice: p.triggerPrice,
+              currentClose: r.price,  // Phase C：依 close 跟 neckline×1.03 比較決定 stage
               patternTargetPrice: p.patternTargetPrice,
               patternAchievementRate: p.patternAchievementRate,
             });

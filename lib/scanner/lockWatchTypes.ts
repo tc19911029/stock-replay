@@ -107,8 +107,9 @@ export interface LockWatchRecord {
   /**
    * 當前生命週期階段
    *
-   * 議題 23 / 65 / 93 / 17 / 62：
-   * - observation：結構成立等趨勢確認
+   * 議題 23 / 65 / 93 / 17 / 62（2026-05-10 Phase C 新增 pending-breakout）：
+   * - pending-breakout：N 結構成立但 close 未過 ×3% 真突破，等突破（即將突破清單）
+   * - observation：已過 ×3% 真突破 / F V 反彈，等趨勢確認
    * - entry-signal：趨勢確認 + SOP 過，可進場
    * - purchased：用戶已買進（同步寫入持倉 watchlist）
    * - revoked：訊號失效（close < triggerPrice / 翻空 / 結構失效）
@@ -116,6 +117,7 @@ export interface LockWatchRecord {
    * - structure-broken：結構失效自動移除
    */
   currentStage:
+    | 'pending-breakout'
     | 'observation'
     | 'entry-signal'
     | 'purchased'
@@ -139,6 +141,7 @@ export interface LockWatchEvent {
     | 'triggered'
     | 'provisional-pass'
     | 'provisional-revoke'
+    | 'breakout-confirmed'   // close 過頸線×1.03 真突破 → pending-breakout 升級 observation
     | 'trend-confirmed'      // detectTrend 翻多 → entry-signal 升級
     | 'sop-passed'           // 進場 SOP 通過
     | 'purchased'            // 用戶買進

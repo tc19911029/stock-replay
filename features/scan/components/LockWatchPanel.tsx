@@ -46,6 +46,7 @@ const PATTERN_NAME: Record<NonNullable<LockWatchRecord['patternType']>, string> 
 };
 
 const STAGE_STYLE: Record<LockWatchRecord['currentStage'], { label: string; color: string }> = {
+  'pending-breakout': { label: '等突破', color: 'text-cyan-300' },
   observation: { label: '觀察中', color: 'text-amber-300' },
   'entry-signal': { label: '可進場', color: 'text-emerald-300 font-bold' },
   purchased: { label: '已買進', color: 'text-sky-300' },
@@ -126,9 +127,12 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
     fetchData();
   }, [fetchData]);
 
-  // Active = 觀察中 / 可進場（已買進、撤銷、移除不在主視圖突出）
+  // Active = 等突破 / 觀察中 / 可進場（已買進、撤銷、移除不在主視圖突出）
+  // Phase C：pending-breakout 是新主力 stage（即將突破清單）
   const activeRecords = (snapshot?.records ?? []).filter(
-    (r) => r.currentStage === 'observation' || r.currentStage === 'entry-signal',
+    (r) => r.currentStage === 'pending-breakout'
+      || r.currentStage === 'observation'
+      || r.currentStage === 'entry-signal',
   );
   const activeCount = activeRecords.length;
   const totalCount = snapshot?.records.length ?? 0;

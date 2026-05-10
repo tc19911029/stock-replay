@@ -35,6 +35,7 @@ interface MarketStats {
 }
 
 const EMPTY_STAGE: Record<LockWatchRecord['currentStage'], number> = {
+  'pending-breakout': 0,
   observation: 0,
   'entry-signal': 0,
   purchased: 0,

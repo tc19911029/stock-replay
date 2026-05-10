@@ -45,19 +45,33 @@ describe('v12 Phase 1.6 — LockWatch 機制', () => {
     expect(record.history[0].event).toBe('triggered');
   });
 
-  it('建立 N LockWatch 含 patternType', () => {
+  it('建立 N LockWatch 含 patternType（close 已過 ×3% 真突破 → observation）', () => {
     const record = createLockWatchFromN({
       symbol: '3035',
       market: 'TW',
       triggeredDate: '2026-05-08',
       patternType: 'triple-bottom',
       triggerPrice: 50,
+      currentClose: 52,  // 50 × 1.03 = 51.5，close 52 已過 → observation
       patternTargetPrice: 60,
       patternAchievementRate: 95,
     });
     expect(record.triggerSignal).toBe('N');
     expect(record.patternType).toBe('triple-bottom');
+    expect(record.currentStage).toBe('observation');
     expect(record.patternAchievementRate).toBe(95);
+  });
+
+  it('建立 N LockWatch close 未過 ×3% → pending-breakout', () => {
+    const record = createLockWatchFromN({
+      symbol: '3035',
+      market: 'TW',
+      triggeredDate: '2026-05-08',
+      patternType: 'triple-bottom',
+      triggerPrice: 50,
+      currentClose: 50.5,  // 50 × 1.03 = 51.5，close 50.5 未過 → pending-breakout
+    });
+    expect(record.currentStage).toBe('pending-breakout');
   });
 
   it('用戶手動移除 LockWatch（議題 17）', () => {
@@ -73,7 +87,7 @@ describe('v12 Phase 1.6 — LockWatch 機制', () => {
   it('用戶買進事件（議題 62）', () => {
     const original = createLockWatchFromN({
       symbol: '2330', market: 'TW', triggeredDate: '2026-05-08',
-      patternType: 'head-shoulder', triggerPrice: 100,
+      patternType: 'head-shoulder', triggerPrice: 100, currentClose: 105,
     });
     const purchased = markLockWatchPurchased(original, '2026-05-13', 102.5);
     expect(purchased.currentStage).toBe('purchased');

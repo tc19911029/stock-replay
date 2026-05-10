@@ -33,17 +33,28 @@ import type {
 import type { MarketId } from './types';
 
 /**
- * 觸發 N 訊號 → 寫入 LockWatch（observation 階段）
+ * 觸發 N 訊號 → 寫入 LockWatch
+ *
+ * 2026-05-10 Phase C：依 close 跟頸線×1.03 比較決定初始 stage
+ * - close < neckline×1.03 → 'pending-breakout'（結構成立等突破，即將突破清單）
+ * - close ≥ neckline×1.03 → 'observation'（已突破，等趨勢確認）
  */
 export function createLockWatchFromN(args: {
   symbol: string;
   market: MarketId;
   triggeredDate: string;
   patternType: NonNullable<LockWatchRecord['patternType']>;
-  triggerPrice: number;
+  triggerPrice: number;  // 頸線價
+  currentClose: number;  // 觸發當天 close（決定初始 stage）
   patternTargetPrice?: number;
   patternAchievementRate?: number;
 }): LockWatchRecord {
+  const breakoutThreshold = args.triggerPrice * 1.03;
+  const initialStage: LockWatchRecord['currentStage'] =
+    args.currentClose >= breakoutThreshold ? 'observation' : 'pending-breakout';
+  const eventDetail = initialStage === 'pending-breakout'
+    ? `N 結構成立（${args.patternType}）close=${args.currentClose.toFixed(2)} 等過 ${breakoutThreshold.toFixed(2)} 真突破`
+    : `N 型態突破（${args.patternType}）close=${args.currentClose.toFixed(2)} ≥ ${breakoutThreshold.toFixed(2)}`;
   return {
     symbol: args.symbol,
     market: args.market,
@@ -53,13 +64,13 @@ export function createLockWatchFromN(args: {
     triggerPrice: args.triggerPrice,
     patternTargetPrice: args.patternTargetPrice,
     patternAchievementRate: args.patternAchievementRate,
-    currentStage: 'observation',
+    currentStage: initialStage,
     daysObserved: 0,
     history: [
       {
         date: args.triggeredDate,
         event: 'triggered',
-        detail: `N 型態確認結構成立（${args.patternType}）`,
+        detail: eventDetail,
       },
     ],
   };
@@ -149,6 +160,21 @@ export function updateLockWatch(
     daysObserved: Math.max(0, newDaysObserved),
     history: [...record.history],
   };
+
+  // ── 0. pending-breakout 升級條件（2026-05-10 Phase C 新增）──
+  // close 過頸線×1.03 真突破 → 升級 observation；未過 → 維持 pending-breakout
+  // 注意：pending-breakout 階段 close < triggerPrice 是正常的（結構成立等突破），
+  // 跳過下方「close < triggerPrice 撤銷」邏輯避免誤撤銷
+  if (record.currentStage === 'pending-breakout') {
+    const breakoutThreshold = record.triggerPrice * 1.03;
+    if (c.close >= breakoutThreshold) {
+      updatedRecord.currentStage = 'observation';
+      addEvent(updatedRecord, today, 'breakout-confirmed', `close=${c.close.toFixed(2)} ≥ ${breakoutThreshold.toFixed(2)} 真突破`);
+      return { changed: true, record: updatedRecord };
+    }
+    // 還沒突破，繼續觀察
+    return { changed: false, record: updatedRecord };
+  }
 
   // ── 1. 撤銷條件：close < triggerPrice ──
   // F 訊號的 triggerPrice 是 rebound close（鎖定價），不是 V 底；不該因 close 跌破鎖定價就撤銷

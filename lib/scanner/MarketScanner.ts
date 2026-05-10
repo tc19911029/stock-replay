@@ -559,6 +559,27 @@ export abstract class MarketScanner {
         const { detectKlineConsolidationBreakout } = await import('@/lib/analysis/klineConsolidationBreakout');
         if (detectKlineConsolidationBreakout(candles, lastIdx)?.isBreakout) matchedMethods.push('I');
       } catch { /* non-critical */ }
+      // v12 後補字母 M/N/O/P/Q（J/K/L 是 G/H/I 的 alias，UI 端 dedupe 處理 → 不重複算）
+      try {
+        const { detectLetterM } = await import('@/lib/analysis/v12LetterM');
+        if (detectLetterM(candles, lastIdx, config.marketId, symbol).triggered) matchedMethods.push('M');
+      } catch { /* non-critical */ }
+      try {
+        const { detectLetterN } = await import('@/lib/analysis/v12LetterN');
+        if (detectLetterN(candles, lastIdx, config.marketId, symbol).triggered) matchedMethods.push('N');
+      } catch { /* non-critical */ }
+      try {
+        const { detectLetterO } = await import('@/lib/analysis/v12LetterO');
+        if (detectLetterO(candles, lastIdx, config.marketId, symbol).triggered) matchedMethods.push('O');
+      } catch { /* non-critical */ }
+      try {
+        const { detectLetterP } = await import('@/lib/analysis/v12LetterP');
+        if (detectLetterP(candles, lastIdx, config.marketId, symbol).triggered) matchedMethods.push('P');
+      } catch { /* non-critical */ }
+      try {
+        const { detectLetterQ } = await import('@/lib/analysis/v12LetterQ');
+        if (detectLetterQ(candles, lastIdx, config.marketId, symbol).triggered) matchedMethods.push('Q');
+      } catch { /* non-critical */ }
 
       return {
         symbol,
@@ -1435,8 +1456,9 @@ export abstract class MarketScanner {
             const r = detectLetterM(candles, lastIdx, config.marketId, symbol);
             if (r.triggered) { matched = true; detail = r.detail; }
           } else if (method === 'N') {
-            // N=型態確認（v12 新增；7 種底部型態）
-            const { detectLetterN } = await import('@/lib/analysis/v12LetterN');
+            // N=型態確認（v12 新增；8 種底部型態）
+            // 2026-05-10 Phase C：擴大 LockWatch 寫入條件 — 結構成立但未過 ×3% 真突破也寫入（pending-breakout stage）
+            const { detectLetterN, detectLetterNStructure } = await import('@/lib/analysis/v12LetterN');
             const r = detectLetterN(candles, lastIdx, config.marketId, symbol);
             if (r.triggered) {
               matched = true;
@@ -1450,6 +1472,20 @@ export abstract class MarketScanner {
                   patternAchievementRate:
                     typeof r.achievementRate === 'number' ? r.achievementRate / 100 : undefined,
                 };
+              }
+            } else {
+              // Phase C：未觸發但結構成立（close 未過 ×3%）→ 寫 LockWatch pending-breakout
+              const struct = detectLetterNStructure(candles, lastIdx);
+              if (struct.pivots && struct.pivots.length > 0
+                  && struct.necklinePrice != null && struct.patternType) {
+                lockWatchPayload = {
+                  triggerPrice: struct.necklinePrice,
+                  patternType: struct.patternType,
+                  patternTargetPrice: struct.patternTargetPrice,
+                  patternAchievementRate:
+                    typeof struct.achievementRate === 'number' ? struct.achievementRate / 100 : undefined,
+                };
+                // matched 仍為 false — r 將以 lockWatchOnly 身分通過 filter，不污染 ScanSession
               }
             }
           } else if (method === 'O') {
@@ -1469,12 +1505,14 @@ export abstract class MarketScanner {
             if (r.triggered) { matched = true; detail = r.detail; }
           }
 
-          if (!matched) return null;
+          // Phase C：matched=false 但 lockWatchPayload!=null（pending-breakout 結構成立）也要 return r，
+          // 由下方流程帶 lockWatchPayload 給 cron 寫入 LockWatch。matchedMethods 為空，不污染 ScanSession。
+          if (!matched && !lockWatchPayload) return null;
 
           // ── 戰法軌 Q：套戒律檢查（書本 p.262 沒說可以無視戒律）──────
           // 反轉軌（D/F/N/O）不套戒律，因為戒律 5/8（未站上月線/空頭反彈）會誤
           // 擋掉所有抓底/反轉訊號。書本本意這 4 個就是要在底部抓。
-          if (isSystem) {
+          if (isSystem && matched) {
             const { checkLongProhibitions } = await import('@/lib/rules/entryProhibitions');
             const prohib = checkLongProhibitions(candles, lastIdx);
             if (prohib.prohibited) return null;
@@ -1493,7 +1531,8 @@ export abstract class MarketScanner {
           // 跨策略命中：A 六條件 + 其他 7 個 detector（B/C/D/E/F/G/H/I 排除 self）
           // 同時計算 sixConditionsScore + breakdown 供 UI 顯示（不用於 gate；反轉軌不過六條件，
           // 但 UI 仍應呈現實際分數，否則 ScanResultsCompact / ScanCoachDigest 會永遠顯示 0/6）
-          const matchedMethods: string[] = [method];
+          // Phase C：lockWatchOnly result（matched=false）matchedMethods 為空，不會出現在 ScanSession UI
+          const matchedMethods: string[] = matched ? [method] : [];
           let sixCondsResult: ReturnType<typeof evaluateSixConditions> | null = null;
           try {
             const { evaluateSixConditions } = await import('@/lib/analysis/trendAnalysis');
