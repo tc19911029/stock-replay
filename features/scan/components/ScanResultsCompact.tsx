@@ -216,9 +216,10 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                 isExpanded
                   ? 'bg-secondary/60 border-sky-700/50'
                   : hasProhibition
-                    ? 'bg-zinc-900/40 border-border/30 opacity-60 hover:opacity-80'
+                    ? 'bg-zinc-900/60 border-rose-900/40 hover:bg-zinc-900/80'
                     : 'bg-card border-border/60 hover:bg-secondary/40'
               }`}
+              style={hasProhibition && !isExpanded ? { filter: 'grayscale(0.6) brightness(0.65)' } : undefined}
               onClick={() => setExpandedStock(isExpanded ? null : r.symbol)}
               title={hasProhibition ? `⚠ 戒律觸發 ${prohibitionsCount} 條 — ${r.longProhibitionsReasons!.slice(0, 2).join('；')}（書本：硬性禁忌不該追）` : undefined}
             >
