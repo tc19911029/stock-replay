@@ -169,7 +169,8 @@ export function detectLetterNStructure(
         necklinePrice: m.necklinePrice,
         breakoutThreshold: m.necklinePrice * (1 + TRUE_BREAKOUT_PCT),
         patternTargetPrice: m.patternTargetPrice,
-        structureBrokenPrice: m.structureBrokenPrice,
+        // 結構失效門檻 = 頸線 ×0.97（與真突破對稱）
+        structureBrokenPrice: m.structureBrokenPrice * (1 - TRUE_BREAKOUT_PCT),
         pivots: m.pivots,
         detail: `結構偵測：${getPatternName(m.patternType)}`,
       };
@@ -194,6 +195,8 @@ function makeResult(
   volumeRatio: number,
 ): LetterNResult {
   const breakoutThreshold = match.necklinePrice * (1 + TRUE_BREAKOUT_PCT);
+  // 結構失效門檻 = 頸線 ×0.97（與真突破對稱，書本對「跌破」也用 ×3% 確認）
+  const structureBrokenThreshold = match.structureBrokenPrice * (1 - TRUE_BREAKOUT_PCT);
 
   // 結構成立但未過真突破 / 已達目標：triggered=false，但仍回傳 pivots+頸線等供走圖視覺化
   const structureOnly = (detail: string): LetterNResult => ({
@@ -203,7 +206,7 @@ function makeResult(
     necklinePrice: match.necklinePrice,
     breakoutThreshold,
     patternTargetPrice: match.patternTargetPrice,
-    structureBrokenPrice: match.structureBrokenPrice,
+    structureBrokenPrice: structureBrokenThreshold,
     pivots: match.pivots,
     detail,
   });
@@ -227,7 +230,7 @@ function makeResult(
     necklinePrice: match.necklinePrice,
     breakoutThreshold,
     patternTargetPrice: match.patternTargetPrice,
-    structureBrokenPrice: match.structureBrokenPrice,
+    structureBrokenPrice: structureBrokenThreshold,
     pivots: match.pivots,
     bodyPct,
     volumeRatio,
@@ -780,7 +783,8 @@ export function detectTopPatternsStructure(
         necklinePrice: m.necklinePrice,
         breakdownThreshold: m.necklinePrice * (1 - TRUE_BREAKDOWN_PCT),
         patternTargetPrice: m.patternTargetPrice,
-        structureBrokenPrice: m.structureBrokenPrice,
+        // 結構失效門檻 = 頸線 ×1.03（與真跌破對稱：跌破後又反彈過頸線×3% = 假跌破）
+        structureBrokenPrice: m.structureBrokenPrice * (1 + TRUE_BREAKDOWN_PCT),
         pivots: m.pivots,
         detail: `結構偵測：${getTopPatternName(m.patternType)}`,
       };
@@ -791,6 +795,8 @@ export function detectTopPatternsStructure(
 
 function makeTopResult(match: TopPatternMatch, closePrice: number): TopPatternResult {
   const breakdownThreshold = match.necklinePrice * (1 - TRUE_BREAKDOWN_PCT);
+  // 結構失效門檻 = 頸線 ×1.03（與真跌破對稱）
+  const structureBrokenThreshold = match.structureBrokenPrice * (1 + TRUE_BREAKDOWN_PCT);
 
   // 結構成立但未過真跌破 / 已達目標：triggered=false，但仍回傳 pivots+頸線等供走圖視覺化
   const structureOnly = (detail: string): TopPatternResult => ({
@@ -800,7 +806,7 @@ function makeTopResult(match: TopPatternMatch, closePrice: number): TopPatternRe
     necklinePrice: match.necklinePrice,
     breakdownThreshold,
     patternTargetPrice: match.patternTargetPrice,
-    structureBrokenPrice: match.structureBrokenPrice,
+    structureBrokenPrice: structureBrokenThreshold,
     pivots: match.pivots,
     detail,
   });
@@ -823,7 +829,7 @@ function makeTopResult(match: TopPatternMatch, closePrice: number): TopPatternRe
     necklinePrice: match.necklinePrice,
     breakdownThreshold,
     patternTargetPrice: match.patternTargetPrice,
-    structureBrokenPrice: match.structureBrokenPrice,
+    structureBrokenPrice: structureBrokenThreshold,
     pivots: match.pivots,
     detail: `${getTopPatternName(match.patternType)}（達成率 ${TOP_PATTERN_ACHIEVEMENT[match.patternType]}%${TOP_PATTERN_ACHIEVEMENT[match.patternType] < 50 ? ' ⚠️ 低達成率' : ''}+跌破頸線 ${match.necklinePrice.toFixed(2)}×3%）`,
   };
