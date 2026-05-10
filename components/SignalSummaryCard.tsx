@@ -64,11 +64,11 @@ const SIGNAL_EXPLAIN: Record<string, string> = {
 type EntryLetter = 'M' | 'N' | 'O' | 'P' | 'Q';
 
 const V12_TRACK_NAMES: Record<EntryLetter, string> = {
-  M: '多頭軌·軌道線突破',
-  N: '轉折軌·型態確認',
-  O: '轉折軌·打底完成',
-  P: '多頭軌·高檔拉回',
-  Q: '戰法軌·三均線',
+  M: 'M 突破上升軌道（多頭續攻）',
+  N: 'N 型態確認突破頸線（25 種圖形）',
+  O: 'O 打底完成由空翻多',
+  P: 'P 高檔淺回 1-2 天後再上漲',
+  Q: 'Q 三均線戰法（朱家泓 MA3+10+24）',
 };
 
 const V12_TRACK_BADGE: Record<EntryLetter, string> = {
@@ -465,23 +465,23 @@ export default function SignalSummaryCard() {
             {operatingMA && (
               <div className="flex items-baseline justify-between text-xs">
                 <span className="text-muted-foreground">操作均線</span>
-                <span className="font-mono">
+                <span>
                   <span title={V12_LETTER_DESC[primaryLetter] ?? primaryLetter} className="text-foreground/80 underline decoration-dotted decoration-muted-foreground/40">
-                    {primaryLetter}
+                    {V12_LETTER_DESC[primaryLetter]?.replace(/^[A-Z]\s+/, '') ?? primaryLetter}
                   </span>
-                  <span className="text-muted-foreground"> 跟 </span>
-                  <span className="text-foreground/80 font-bold">{operatingMA}</span>
+                  <span className="text-muted-foreground"> ／ 停損守 </span>
+                  <span className="text-foreground/80 font-bold font-mono">{operatingMA}</span>
                 </span>
               </div>
             )}
             {/* 走勢偏向 */}
             <div className="flex items-baseline justify-between text-[11px]">
-              <span className="text-muted-foreground">走勢偏向</span>
+              <span className="text-muted-foreground" title="33 種 K 棒型態（書本《抓住線圖》附錄）綜合得分。+ 偏多、− 偏空、0 中性">走勢偏向</span>
               <span>
                 <span className={`font-bold ${trendBiasColor}`}>{trendBiasLabel}</span>
                 {(bullCount > 0 || bearCount > 0) && (
                   <span className="text-muted-foreground/60 ml-1">
-                    （33 圖像 · 多 {bullCount} / 空 {bearCount}）
+                    （33 種 K 棒型態：多頭 {bullCount}／空頭 {bearCount}）
                   </span>
                 )}
               </span>
