@@ -63,12 +63,13 @@ const SIGNAL_EXPLAIN: Record<string, string> = {
 /** 進場類字母（只有這 5 個會在訊號卡顯示，避免和持倉 letter 混淆）*/
 type EntryLetter = 'M' | 'N' | 'O' | 'P' | 'Q';
 
+// trackName 不含字母前綴（badge 已標 M/N/O/P/Q，避免顯示時 Q + Q 三均線戰法 + Q ... 三層重複）
 const V12_TRACK_NAMES: Record<EntryLetter, string> = {
-  M: 'M 突破上升軌道（多頭續攻）',
-  N: 'N 型態確認突破頸線（25 種圖形）',
-  O: 'O 打底完成由空翻多',
-  P: 'P 高檔淺回 1-2 天後再上漲',
-  Q: 'Q 三均線戰法（朱家泓 MA3+10+24）',
+  M: '突破上升軌道（多頭續攻）',
+  N: '型態確認突破頸線（25 種圖形）',
+  O: '打底完成由空翻多',
+  P: '高檔淺回 1-2 天後再上漲',
+  Q: '三均線戰法（朱家泓 MA3+10+24）',
 };
 
 const V12_TRACK_BADGE: Record<EntryLetter, string> = {
@@ -574,7 +575,7 @@ function Reasons({
                   </span>
                   <span className="text-xs font-bold text-foreground/90">{h.trackName}</span>
                 </div>
-                <p className="text-[11px] text-foreground/75 leading-relaxed">{h.detail}</p>
+                <p className="text-[11px] text-foreground/75 leading-relaxed">{h.detail.replace(/^[A-Z]\s+/, '')}</p>
                 {h.patternType && h.patternTargetPrice && h.necklinePrice && (
                   <div className="mt-1.5 pt-1.5 border-t border-sky-700/30 space-y-0.5 text-[11px]">
                     <div className="flex items-baseline justify-between">
