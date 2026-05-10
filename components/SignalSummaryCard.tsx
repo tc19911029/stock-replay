@@ -455,7 +455,7 @@ export default function SignalSummaryCard() {
                 <span className="ml-2 font-mono text-emerald-300 font-bold">{stopLoss.toFixed(2)}</span>
                 <span className="ml-1.5 font-mono text-muted-foreground/70">({slPct.toFixed(1)}%)</span>
               </p>
-              {/* 持倉時 — 跌破操作均線出場（綠 = 跌）*/}
+              {/* 持倉時 — 跌破操作均線出場（綠 = 跌）；「出場」往前移避免換行被擠 */}
               {operatingMA && (() => {
                 const maKey = operatingMA.toLowerCase() as 'ma5' | 'ma10' | 'ma20' | 'ma60' | 'ma240';
                 const maVal = (candle as unknown as Record<string, number | undefined>)[maKey];
@@ -464,10 +464,9 @@ export default function SignalSummaryCard() {
                 return (
                   <p className="text-emerald-300/80">
                     <span title="進場後持倉期間，跌破此均線才出場（書本：跟著均線走，動態跟蹤停損）">持倉時</span>
-                    <span className="ml-2">跌破 {operatingMA}</span>
+                    <span className="ml-2">跌破 {operatingMA} 出場</span>
                     <span className="ml-1.5 font-mono font-bold">{maVal.toFixed(2)}</span>
                     <span className="ml-1.5 font-mono text-muted-foreground/70">({maPct.toFixed(1)}%)</span>
-                    <span className="ml-1.5 text-muted-foreground/70">出場</span>
                   </p>
                 );
               })()}
@@ -557,9 +556,17 @@ function Reasons({
           <p className="text-[11px] font-bold mb-1 text-rose-300">進場依據</p>
           <div className="space-y-1.5">
             {/* V12 字母卡片（M/N/O/P/Q）— 跟 entry signal 統一視覺，無 badge、灰底 */}
-            {v12Hits.map(h => (
+            {v12Hits.map(h => {
+              // trackName 拆主標 / 副標：以第一個括號為界（朱家泓 MA3+10+24 之類細節獨立小字一行）
+              const m = h.trackName.match(/^([^（]+?)(?:（(.+)）)?$/);
+              const titleMain = m?.[1]?.trim() ?? h.trackName;
+              const titleSub = m?.[2]?.trim();
+              return (
               <div key={h.letter} className="rounded px-2.5 py-2 bg-secondary/30">
-                <p className="text-sm font-bold text-foreground/90">{h.trackName}</p>
+                <p className="text-sm font-bold text-foreground/90">{titleMain}</p>
+                {titleSub && (
+                  <p className="text-[11px] text-muted-foreground/70 mt-0.5">（{titleSub}）</p>
+                )}
                 <p className="text-[11px] text-foreground/75 leading-relaxed mt-1">{h.detail.replace(/^[A-Z]\s+/, '')}</p>
                 {h.patternType && h.patternTargetPrice && h.necklinePrice && (
                   <div className="mt-1.5 pt-1.5 border-t border-border/30 space-y-0.5 text-[11px]">
@@ -582,7 +589,8 @@ function Reasons({
                   </div>
                 )}
               </div>
-            ))}
+            );
+            })}
             {/* 朱家泓書本進場規則（朱SOP / 回檔再上漲 / 均線撐漲 / 下缺回補等）*/}
             {entrySigs.slice(0, 4).map((s, i) => (
               <ReasonRow key={`entry-${i}`} signal={s} bgColor="bg-secondary/30" />
