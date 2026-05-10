@@ -449,34 +449,28 @@ export default function SignalSummaryCard() {
                   {candle.close.toFixed(2)}
                 </span>
               </div>
-              {/* 初始停損 — 書本《抓住線圖》紅 K 三段式（防爆倉硬停損）*/}
+              {/* 停損 — 書本《抓住線圖》紅 K 三段式（防爆倉硬停損）*/}
               <div className="flex items-baseline justify-between font-mono text-xs">
-                <span className="text-rose-300">
-                  停損
-                  <span className="text-[11px] text-muted-foreground/60 ml-1.5 font-sans">初始</span>
-                </span>
+                <span className="text-rose-300">停損</span>
                 <span>
                   <span className="text-rose-300 font-bold">{stopLoss.toFixed(2)}</span>
                   <span className="text-muted-foreground/70 ml-1.5">({slPct.toFixed(1)}%)</span>
                 </span>
               </div>
-              {/* 持倉跟蹤線 — Q/B 等 V12 字母對應的操作均線（動態，跌破才出場）*/}
+              {/* 持倉時 — Q/B 等 V12 字母對應的操作均線（動態，跌破才出場）*/}
               {operatingMA && (() => {
-                // candle 上的 maX 動態值
                 const maKey = operatingMA.toLowerCase() as 'ma5' | 'ma10' | 'ma20' | 'ma60' | 'ma240';
                 const maVal = (candle as unknown as Record<string, number | undefined>)[maKey];
                 if (maVal == null) return null;
                 const maPct = ((maVal - candle.close) / candle.close) * 100;
                 return (
                   <div className="flex items-baseline justify-between font-mono text-xs">
-                    <span className="text-rose-300/80">
-                      跟蹤線
-                      <span className="text-[11px] text-muted-foreground/60 ml-1.5 font-sans" title="持倉期間跌破此均線才出場（書本：跟著均線走，動態跟蹤停損）">持倉跌破出場</span>
-                    </span>
-                    <span>
-                      <span className="text-rose-300/80 font-bold">{maVal.toFixed(2)}</span>
-                      <span className="text-muted-foreground/70 ml-1.5">({maPct.toFixed(1)}%)</span>
-                      <span className="text-muted-foreground/70 ml-2 font-sans">{operatingMA}</span>
+                    <span className="text-rose-300/80" title="進場後持倉期間，跌破此均線才出場（書本：跟著均線走，動態跟蹤停損）">持倉時</span>
+                    <span className="font-sans text-rose-300/80">
+                      跌破 <span className="font-mono font-bold">{maVal.toFixed(2)}</span>
+                      <span className="text-muted-foreground/70 ml-1.5 font-mono">({maPct.toFixed(1)}%)</span>
+                      <span className="text-muted-foreground/70 ml-1"> 出場</span>
+                      <span className="text-muted-foreground/70 ml-2 font-mono">{operatingMA}</span>
                     </span>
                   </div>
                 );
@@ -552,14 +546,14 @@ function Reasons({
   if (empty) {
     return (
       <p className="text-xs text-muted-foreground/70 border-t border-border/40 pt-2">
-        為什麼？ — 今日無觸發訊號
+        分析 — 今日無觸發訊號
       </p>
     );
   }
 
   return (
     <div className="border-t border-border/40 pt-2 space-y-2">
-      <p className="text-xs font-semibold text-foreground/80">為什麼？</p>
+      <p className="text-xs font-semibold text-foreground/80">分析</p>
 
       {/* V12 字母進場訊號（多頭軌/轉折軌/戰法軌）— 卡片格式跟 ReasonGroup 一致 */}
       {v12Hits.length > 0 && (
