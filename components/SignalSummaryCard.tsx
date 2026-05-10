@@ -365,6 +365,12 @@ export default function SignalSummaryCard() {
         <div className={`w-1 shrink-0 ${STRENGTH_BAR[verdict.level]}`} />
         <div className="flex-1 p-3 space-y-3">
 
+          {/* 字體系統（3 級）：
+                Heading: text-base font-bold（一句話結論「該出場」「可進場」）
+                Body:    text-xs（一般文字 / 數字 / 描述）
+                Small:   text-[11px]（label / 書本根據 tag / 細節）
+              避免 9px / 10px / lg 混用 */}
+
           {/* ── 1. 持倉狀態（雙行版面：身分 / 報價對照） ───────────────── */}
           <div className="space-y-1">
             {/* 第一行：身分標籤 + 數量 */}
@@ -373,7 +379,7 @@ export default function SignalSummaryCard() {
                 {hasPosition ? '持股中' : '未持倉'}
               </span>
               {hasPosition && heldPosition && (
-                <span className="text-[10px] text-muted-foreground font-mono">
+                <span className="text-[11px] text-muted-foreground font-mono">
                   {formatSharesAsLots(heldPosition.shares, market)}
                 </span>
               )}
@@ -381,12 +387,12 @@ export default function SignalSummaryCard() {
             {/* 第二行：現價 + 成本 + PnL（持股才顯示成本對照） */}
             <div className="flex items-center justify-between font-mono text-xs">
               <span>
-                <span className="text-muted-foreground/70 text-[10px]">現價</span>
+                <span className="text-muted-foreground/70 text-[11px]">現價</span>
                 <span className="ml-1 text-foreground font-bold">{candle.close.toFixed(2)}</span>
               </span>
               {heldPosition?.costPrice != null && (
                 <span>
-                  <span className="text-muted-foreground/70 text-[10px]">成本</span>
+                  <span className="text-muted-foreground/70 text-[11px]">成本</span>
                   <span className="ml-1 text-foreground/80">{heldPosition.costPrice.toFixed(2)}</span>
                   {pnlPct != null && (
                     <span className={`ml-1.5 font-bold ${pnlPct >= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
@@ -398,42 +404,42 @@ export default function SignalSummaryCard() {
             </div>
           </div>
 
-          {/* ── 2. 一句話結論 ───────────────────────────── */}
+          {/* ── 2. 一句話結論（Heading 級） ───────────────────────────── */}
           <div>
-            <p className={`text-lg font-bold leading-tight ${STRENGTH_TEXT[verdict.level]}`}>
+            <p className={`text-base font-bold leading-tight ${STRENGTH_TEXT[verdict.level]}`}>
               {verdict.label}
             </p>
             {verdict.basis && (
-              <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{verdict.basis}</p>
+              <p className="text-xs text-muted-foreground mt-1 leading-snug">{verdict.basis}</p>
             )}
           </div>
 
           {/* ── 3. 數字行：停損 · 停利 · 操作均線 · 走勢偏向 ── */}
           <div className="border-t border-border/40 pt-2 space-y-1">
             {!hasPosition && (
-              <p className="text-[10px] text-muted-foreground/80">若今日進場 {candle.close.toFixed(2)}：</p>
+              <p className="text-[11px] text-muted-foreground/80">若今日進場 {candle.close.toFixed(2)}：</p>
             )}
-            <p className="text-xs font-mono">
+            <p className="text-xs font-mono leading-relaxed">
               <span className="text-rose-300">停損 {stopLoss.toFixed(2)}</span>
-              <span className="text-[10px] opacity-70 ml-0.5">({slPct.toFixed(1)}%)</span>
-              <span className="text-muted-foreground"> · </span>
+              <span className="text-muted-foreground/80 ml-0.5">({slPct.toFixed(1)}%)</span>
+              <span className="text-muted-foreground mx-1">·</span>
               <span className="text-emerald-300">停利 {profitTarget.toFixed(2)}</span>
-              <span className="text-[10px] opacity-70 ml-0.5">({ptPct >= 0 ? '+' : ''}{ptPct.toFixed(1)}%)</span>
-              <span className="text-[9px] text-muted-foreground/70 ml-0.5">
-                {profitTargetSource === 'pattern' ? '·型態目標' : '·10%紀律'}
+              <span className="text-muted-foreground/80 ml-0.5">({ptPct >= 0 ? '+' : ''}{ptPct.toFixed(1)}%)</span>
+              <span className="text-[11px] text-muted-foreground/60 ml-1">
+                {profitTargetSource === 'pattern' ? '型態目標' : '10%紀律'}
               </span>
               {operatingMA && (
                 <>
-                  <span className="text-muted-foreground"> · </span>
+                  <span className="text-muted-foreground mx-1">·</span>
                   <span className="text-foreground/80">{primaryLetter} 跟 {operatingMA}</span>
                 </>
               )}
             </p>
-            <p className="text-[10px]">
+            <p className="text-[11px]">
               <span className="text-muted-foreground">走勢偏向：</span>
               <span className={`font-bold ${trendBiasColor}`}>{trendBiasLabel}</span>
               {(bullCount > 0 || bearCount > 0) && (
-                <span className="text-muted-foreground/70 ml-1">
+                <span className="text-muted-foreground/60 ml-1">
                   （33 圖像 · 多 {bullCount} / 空 {bearCount}）
                 </span>
               )}
@@ -495,14 +501,14 @@ function Reasons({
         <div className="space-y-1">
           {v12Hits.map(h => (
             <div key={h.letter} className="flex items-start gap-1.5 text-[11px]">
-              <span className={`font-bold px-1.5 py-px rounded shrink-0 text-[10px] ${V12_TRACK_BADGE[h.letter]}`}>
+              <span className={`font-bold px-1.5 py-px rounded shrink-0 text-[11px] ${V12_TRACK_BADGE[h.letter]}`}>
                 {h.letter}
               </span>
               <div className="min-w-0 flex-1">
                 <div className="font-semibold text-foreground/90">{h.trackName}</div>
-                <div className="text-[10px] text-muted-foreground leading-tight">{h.detail}</div>
+                <div className="text-[11px] text-muted-foreground leading-tight">{h.detail}</div>
                 {h.patternType && h.patternTargetPrice && h.necklinePrice && (
-                  <div className="mt-0.5 flex items-center gap-1.5 text-[10px] flex-wrap">
+                  <div className="mt-0.5 flex items-center gap-1.5 text-[11px] flex-wrap">
                     <span className="text-indigo-300 font-bold">{PATTERN_LABEL[h.patternType] ?? h.patternType}</span>
                     {h.achievementRate != null && (
                       <span className="text-amber-300">{(h.achievementRate * 100).toFixed(0)}%</span>
@@ -542,8 +548,8 @@ function Reasons({
       {/* 頂部型態警示（持股中才顯示）— 書本：見頂部型態 + 跌破頸線 → 出場 */}
       {topPatternHit && (
         <div className="rounded border border-emerald-700/40 bg-emerald-900/15 px-2 py-1.5">
-          <p className="text-[10px] font-bold text-emerald-300 mb-0.5">頂部型態警示 — 書本：跌破頸線立即出場</p>
-          <div className="flex items-center gap-1.5 text-[10px] flex-wrap">
+          <p className="text-[11px] font-bold text-emerald-300 mb-0.5">頂部型態警示 — 書本：跌破頸線立即出場</p>
+          <div className="flex items-center gap-1.5 text-[11px] flex-wrap">
             <span className="text-emerald-300 font-bold">{TOP_PATTERN_LABEL[topPatternHit.patternType]}</span>
             {topPatternHit.achievementRate != null && (
               <span className="text-amber-300">{(topPatternHit.achievementRate * 100).toFixed(0)}%</span>
@@ -557,7 +563,7 @@ function Reasons({
               </span>
             )}
           </div>
-          <p className="text-[10px] text-muted-foreground/80 leading-snug mt-0.5">{topPatternHit.detail}</p>
+          <p className="text-[11px] text-muted-foreground/80 leading-snug mt-0.5">{topPatternHit.detail}</p>
         </div>
       )}
 
@@ -586,7 +592,7 @@ function ReasonGroup({
 }) {
   return (
     <div>
-      <p className={`text-[10px] font-bold mb-1 ${color}`}>{title}</p>
+      <p className={`text-[11px] font-bold mb-1 ${color}`}>{title}</p>
       <div className="space-y-1">
         {signals.map((s, i) => {
           const override = SIGNAL_EXPLAIN[s.label];
@@ -597,14 +603,14 @@ function ReasonGroup({
           return (
             <div key={i} className={`rounded px-2 py-1.5 ${bgColor}`}>
               <div className="flex items-start gap-1.5">
-                <span className={`text-[10px] font-bold shrink-0 ${color}`}>· {s.label}</span>
+                <span className={`text-[11px] font-bold shrink-0 ${color}`}>· {s.label}</span>
                 <div className="flex-1 min-w-0 space-y-0.5">
-                  <p className="text-[10px] text-foreground/85 leading-snug">{mainText}</p>
+                  <p className="text-[11px] text-foreground/85 leading-snug">{mainText}</p>
                   {operationHint && (
-                    <p className="text-[10px] text-foreground/60 leading-snug">{operationHint}</p>
+                    <p className="text-[11px] text-foreground/60 leading-snug">{operationHint}</p>
                   )}
                   {bookRef && (
-                    <p className="text-[9px] text-muted-foreground/70 leading-snug">{bookRef}</p>
+                    <p className="text-[11px] text-muted-foreground/70 leading-snug">{bookRef}</p>
                   )}
                 </div>
               </div>

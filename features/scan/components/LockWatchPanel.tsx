@@ -177,19 +177,20 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
           )}
           {!loading && !error && totalCount > 0 && (
             <div className="overflow-x-auto max-h-[40vh] overflow-y-auto">
-              <table className="w-full text-[11px]">
-                <thead className="text-[10px] text-muted-foreground border-b border-border/50 sticky top-0 bg-card">
+              {/* 整表禁止換行（td/th 都套 whitespace-nowrap）— 避免「型態確認」、按鈕擠成兩行 */}
+              <table className="w-full text-[11px] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
+                <thead className="text-[11px] text-muted-foreground border-b border-border/50 sticky top-0 bg-card">
                   <tr>
-                    <th className="text-left py-1 px-1.5">訊號</th>
-                    <th className="text-left py-1 px-1.5">代號</th>
-                    <th className="text-left py-1 px-1.5">名稱</th>
-                    <th className="text-left py-1 px-1.5">型態</th>
-                    <th className="text-right py-1 px-1.5" title="觸發鎖定價">鎖定價</th>
-                    <th className="text-right py-1 px-1.5" title="型態目標價（書本）">目標價</th>
-                    <th className="text-right py-1 px-1.5" title="型態達成率">達成率</th>
-                    <th className="text-center py-1 px-1.5">階段</th>
-                    <th className="text-right py-1 px-1.5" title="觀察天數">天</th>
-                    <th className="text-center py-1 px-1.5">動作</th>
+                    <th className="text-left py-1.5 px-2">訊號</th>
+                    <th className="text-left py-1.5 px-2">代號</th>
+                    <th className="text-left py-1.5 px-2">名稱</th>
+                    <th className="text-left py-1.5 px-2">型態</th>
+                    <th className="text-right py-1.5 px-2" title="觸發鎖定價">鎖定價</th>
+                    <th className="text-right py-1.5 px-2" title="型態目標價（書本）">目標價</th>
+                    <th className="text-right py-1.5 px-2" title="型態達成率">達成率</th>
+                    <th className="text-center py-1.5 px-2">階段</th>
+                    <th className="text-right py-1.5 px-2" title="觀察天數">天</th>
+                    <th className="text-center py-1.5 px-2 min-w-[110px]">動作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -250,33 +251,33 @@ function LockWatchTableRow({
 
   return (
     <tr className="border-b border-border/30 hover:bg-muted/20">
-      <td className="py-1 px-1.5">
-        {/* 訊號用中文名（V反轉 / 型態確認）取代 F/N 字母 */}
-        <span className={`text-[9px] px-1 py-0.5 rounded-sm ${sig.color}`} title={`${sig.name} (${record.triggerSignal})`}>
+      <td className="whitespace-nowrap py-1.5 px-2">
+        {/* 訊號 badge 跟其他列字體統一 [11px] */}
+        <span className={`inline-block text-[11px] px-1.5 py-0.5 rounded-sm ${sig.color}`} title={`${sig.name} (${record.triggerSignal})`}>
           {sig.name}
         </span>
       </td>
       <td
-        className="py-1 px-1.5 font-mono cursor-pointer hover:text-sky-300"
+        className="py-1.5 px-2 font-mono cursor-pointer hover:text-sky-300"
         onClick={handleSelect}
         title="點擊切換到走圖"
       >
         {symbolBare}
       </td>
       <td
-        className="py-1 px-1.5 truncate max-w-[6rem] cursor-pointer hover:text-sky-300"
+        className="py-1.5 px-2 truncate max-w-[6rem] cursor-pointer hover:text-sky-300"
         onClick={handleSelect}
         title="點擊切換到走圖"
       >
         {name || '—'}
       </td>
-      <td className="py-1 px-1.5 text-muted-foreground">{patternName ?? '—'}</td>
-      <td className="py-1 px-1.5 text-right font-mono tabular-nums">
+      <td className="whitespace-nowrap py-1.5 px-2 text-muted-foreground">{patternName ?? '—'}</td>
+      <td className="whitespace-nowrap py-1.5 px-2 text-right font-mono tabular-nums">
         {record.triggerPrice.toFixed(2)}
       </td>
       {/* 目標價 + 爬升空間 %（2026-05-09 新增爬升空間） */}
       <td
-        className="py-1 px-1.5 text-right font-mono tabular-nums text-emerald-400/80"
+        className="py-1.5 px-2 text-right font-mono tabular-nums text-emerald-400/80"
         title={
           upsidePct != null
             ? `型態目標價 ${record.patternTargetPrice!.toFixed(2)}（從觸發價 ${record.triggerPrice.toFixed(2)} 爬升 +${upsidePct.toFixed(1)}%）`
@@ -287,51 +288,52 @@ function LockWatchTableRow({
           <>
             {record.patternTargetPrice.toFixed(2)}
             {upsidePct != null && (
-              <span className="ml-1 text-emerald-300/70 text-[10px]">+{upsidePct.toFixed(1)}%</span>
+              <span className="ml-1 text-emerald-300/70">+{upsidePct.toFixed(1)}%</span>
             )}
           </>
         ) : (
           '—'
         )}
       </td>
-      <td className="py-1 px-1.5 text-right font-mono tabular-nums text-amber-300/80">
+      <td className="whitespace-nowrap py-1.5 px-2 text-right font-mono tabular-nums text-amber-300/80">
         {record.patternAchievementRate != null
           ? `${(record.patternAchievementRate * 100).toFixed(0)}%`
           : '—'}
       </td>
-      <td className={`py-1 px-1.5 text-center text-[10px] ${stage.color}`}>
+      <td className={`whitespace-nowrap py-1.5 px-2 text-center ${stage.color}`}>
         {stage.label}
       </td>
-      <td className="py-1 px-1.5 text-right font-mono text-muted-foreground/60 text-[10px]">
+      <td className="whitespace-nowrap py-1.5 px-2 text-right font-mono text-muted-foreground/60">
         {record.daysObserved}d
       </td>
-      <td className="py-1 px-1.5">
-        <div className="flex items-center justify-center gap-1">
-          {canRemove && (
+      {/* 動作欄：3 個按鈕統一同寬 + 同 padding，固定 min-w-[110px] 防擠 */}
+      <td className="whitespace-nowrap py-1.5 px-2">
+        <div className="flex items-center justify-center gap-1 min-w-[100px]">
+          {canRemove ? (
             <button
               onClick={() => {
                 const url = `/portfolio?prefill=${encodeURIComponent(symbolBare)}&trigger=${record.triggerSignal}&price=${record.triggerPrice}`;
                 window.open(url, '_self');
               }}
-              className="text-[10px] text-emerald-400 hover:text-emerald-300 px-1.5 rounded border border-emerald-700/50 hover:bg-emerald-900/30 font-bold"
+              className="shrink-0 px-2 py-0.5 rounded border border-emerald-700/50 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-900/30 font-bold"
               title={`進場：跳到持倉表單，自動填入 ${record.triggerSignal} 訊號 + 觸發價 ${record.triggerPrice.toFixed(2)}`}
             >
               進場
             </button>
-          )}
-          {/* + 自選按鈕（2026-05-09 新增；未在自選股中、且還在 observation/entry-signal 階段時顯示） */}
-          {!inWatchlist && canRemove && (
+          ) : <span className="w-[42px]" />}
+          {/* + 自選 — 已在自選或不可移除時佔位保持等寬 */}
+          {!inWatchlist && canRemove ? (
             <button
               onClick={() =>
                 useWatchlistStore.getState().add(record.symbol, name || record.symbol, record.triggerPrice)
               }
-              className="text-[10px] text-amber-400 hover:text-amber-300 px-1.5 rounded border border-amber-700/50 hover:bg-amber-900/30 font-bold"
+              className="shrink-0 px-2 py-0.5 rounded border border-amber-700/50 text-amber-400 hover:text-amber-300 hover:bg-amber-900/30 font-bold"
               title={`加入自選股（${symbolBare} 觸發價 ${record.triggerPrice.toFixed(2)}）`}
             >
-              + 自選
+              自選
             </button>
-          )}
-          {canRemove && (
+          ) : <span className="w-[36px]" />}
+          {canRemove ? (
             <button
               onClick={() => {
                 if (confirm(`移除 ${symbolBare} ${sig.name}？`)) {
@@ -339,12 +341,12 @@ function LockWatchTableRow({
                 }
               }}
               disabled={removing}
-              className="text-[10px] text-rose-400 hover:text-rose-300 px-1 rounded border border-rose-700/50 hover:bg-rose-900/30 disabled:opacity-40"
+              className="shrink-0 px-1.5 py-0.5 rounded border border-rose-700/50 text-rose-400 hover:text-rose-300 hover:bg-rose-900/30 disabled:opacity-40"
               title="手動移除"
             >
               {removing ? '…' : '✕'}
             </button>
-          )}
+          ) : <span className="w-[22px]" />}
         </div>
       </td>
     </tr>
