@@ -49,6 +49,15 @@ function calculateChipScore(
   dt: { dayTradeVolume: number; dayTradeRatio: number } | undefined,
   lt: { buy: number; sell: number; net: number } | undefined,
 ): { score: number; grade: string; signal: string; detail: string } {
+  // 2026-05-11 fix: 全部 input 都缺或全空殼（小型股/上櫃股常無資料）→ 回傳「無資料」避免誤導性 50/B/中性
+  const hasAnyInst = inst && (inst.foreignBuy !== 0 || inst.trustBuy !== 0 || inst.dealerBuy !== 0 || inst.totalBuy !== 0);
+  const hasAnyMargin = margin && (margin.marginBalance !== 0 || margin.marginNet !== 0 || margin.shortBalance !== 0 || margin.shortNet !== 0);
+  const hasAnyDt = dt && (dt.dayTradeVolume !== 0 || dt.dayTradeRatio !== 0);
+  const hasAnyLt = lt && (lt.buy !== 0 || lt.sell !== 0 || lt.net !== 0);
+  if (!hasAnyInst && !hasAnyMargin && !hasAnyDt && !hasAnyLt) {
+    return { score: 0, grade: '—', signal: '無資料', detail: '無籌碼資料（小型股/上櫃股 / 資料源未涵蓋）' };
+  }
+
   let score = 50;
   const details: string[] = [];
 
