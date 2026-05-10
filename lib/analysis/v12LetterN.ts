@@ -293,8 +293,8 @@ function detectTripleBottom(
   const lowestLow = Math.min(low1.price, low2.price, low3.price);
   const patternTargetPrice = necklinePrice + (necklinePrice - lowestLow);
 
-  // 結構失效 = 跌破第 3 個底（最新的 low）
-  const structureBrokenPrice = low1.price;
+  // 結構失效 = 跌破頸線（書本《抓飆股》Part 7 標準：突破後回測頸線跌破則結構破壞）
+  const structureBrokenPrice = necklinePrice;
 
   // pivots 順序：3 lows (新→舊) + 2 interior highs（標籤 L1/L2/L3 + H1/H2）
   return {
@@ -345,8 +345,8 @@ function detectHeadShoulder(
   // 目標價 = 頸線 + (頸線 - 頭部最低)（書本明寫公式）
   const patternTargetPrice = necklinePrice + (necklinePrice - head.price);
 
-  // 結構失效 = 跌破右肩
-  const structureBrokenPrice = rightShoulder.price;
+  // 結構失效 = 跌破頸線（書本標準：突破後回測頸線跌破則結構破壞）
+  const structureBrokenPrice = necklinePrice;
 
   // pivots 順序：RS / Head / LS + 2 interior necks（標籤 RS/H/LS + RN/LN）
   return {
@@ -416,7 +416,7 @@ function detectDescendingWedge(
     patternType: 'descending-wedge',
     necklinePrice: upperToday,
     patternTargetPrice,
-    structureBrokenPrice: lows[0].price,  // 跌破最近低 = 結構失效
+    structureBrokenPrice: upperToday,  // 跌破上切線 = 結構失效（書本標準：突破點即頸線）
     pivots: [highs[0], highs[1], lows[0], lows[1]],
   };
 }
@@ -475,8 +475,8 @@ function detectComplexHeadShoulder(
 
   // 目標價 = 頸線 + (頸線 - 頭部最低)
   const patternTargetPrice = necklinePrice + (necklinePrice - head.price);
-  // 結構失效 = 跌破最新右肩
-  const structureBrokenPrice = rightShoulders[0].price;
+  // 結構失效 = 跌破頸線（書本標準）
+  const structureBrokenPrice = necklinePrice;
 
   // pivots 順序：rightShoulders (新→舊) + head + leftShoulders (新→舊) + interiorHighs (前 2)
   // 走圖顯示「複式頭肩底」的所有低點 + 兩個關鍵頸線高點
@@ -528,7 +528,7 @@ function detectFallingDiamond(
     patternType: 'falling-diamond',
     necklinePrice: peakHigh,
     patternTargetPrice,
-    structureBrokenPrice: peakLow,
+    structureBrokenPrice: peakHigh,  // 跌破頸線（菱形上頸線=peakHigh）
     pivots: [...highs, ...lows],
   };
 }
@@ -573,7 +573,7 @@ function detectDoubleBottom(
     patternType: 'double-bottom',
     necklinePrice,
     patternTargetPrice,
-    structureBrokenPrice: low1.price,  // 跌破最新底 = 結構失效
+    structureBrokenPrice: necklinePrice,  // 跌破頸線（書本標準）
     pivots: [low1, low2, peakHigh],
   };
 }
@@ -630,7 +630,7 @@ function detectRoundingBottom(
     patternType: 'rounding-bottom',
     necklinePrice,
     patternTargetPrice,
-    structureBrokenPrice: arcLow,
+    structureBrokenPrice: necklinePrice,  // 跌破頸線（書本標準；之前誤標為弧底）
     pivots: [
       { index: afterHighIdx,  price: afterHigh,  type: 'high' },
       { index: arcLowIdx,     price: arcLow,     type: 'low'  },
@@ -688,7 +688,7 @@ function detectNShape(
     patternType: 'n-shape',
     necklinePrice: a.price,           // A 高 = 突破點
     patternTargetPrice,
-    structureBrokenPrice: b.price,    // 跌破 B 低 = 結構失效
+    structureBrokenPrice: a.price,    // 跌破頸線（A 高 = 突破點 = 頸線）；書本標準
     pivots: [a, b],
   };
 }
@@ -860,8 +860,8 @@ function detectTripleTop(
   const highestHigh = Math.max(high1.price, high2.price, high3.price);
   const patternTargetPrice = necklinePrice - (highestHigh - necklinePrice);
 
-  // 結構失效 = 再過第 3 個頂（最新的 high）
-  const structureBrokenPrice = high1.price;
+  // 結構失效 = 再過頸線（書本標準：跌破後反彈過頸線則結構破壞，假跌破）
+  const structureBrokenPrice = necklinePrice;
 
   // pivots 順序：3 highs (新→舊) + 2 interior lows（標籤 H1/H2/H3 + L1/L2）
   return {
@@ -908,8 +908,8 @@ function detectHeadShoulderTop(
   // 目標價 = 頸線 - (頭部最高 - 頸線)
   const patternTargetPrice = necklinePrice - (head.price - necklinePrice);
 
-  // 結構失效 = 再過右肩
-  const structureBrokenPrice = rightShoulder.price;
+  // 結構失效 = 再過頸線（書本標準）
+  const structureBrokenPrice = necklinePrice;
 
   // pivots 順序：RS / Head / LS + 2 interior necks（標籤 RS/H/LS + RN/LN）
   return {
@@ -950,8 +950,8 @@ function detectDoubleTop(
   const highestHigh = Math.max(high1.price, high2.price);
   const patternTargetPrice = necklinePrice - (highestHigh - necklinePrice);
 
-  // 結構失效 = 再過最新頂
-  const structureBrokenPrice = high1.price;
+  // 結構失效 = 再過頸線（書本標準）
+  const structureBrokenPrice = necklinePrice;
 
   // pivots 順序：2 highs (新→舊) + 中間最低低點（標籤 H1/H2 + L）
   const valleyLow = interiorLows.find(l => l.price === necklinePrice) ?? interiorLows[0];
