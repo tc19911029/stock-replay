@@ -139,7 +139,7 @@ export function ReentryCandidatesPanel({ onSelectStock }: ReentryCandidatesPanel
             </div>
           )}
           {!error && count > 0 && (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto overflow-y-auto max-h-[50vh]">
               <table className="w-full text-xs">
                 <thead className="text-muted-foreground border-b border-border/50">
                   <tr>
