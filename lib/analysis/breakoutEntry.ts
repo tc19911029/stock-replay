@@ -73,11 +73,11 @@ export function detectConsolidationBreakout(
 /**
  * 回後買上漲偵測（B 買法）
  *
- * 寶典 p.37 多頭趨勢進場 2 大口訣 ①：
- *   多頭回檔**不破前低** + 昨日仍在 MA5 之下 + 今日站回 MA5 + 帶量中長紅K + 突破前一日最高
+ * 寶典 p.37 + p.238「回後買上漲是指上升走勢中回檔後再次上漲時買進」：
+ *   多頭回檔**不破前低** + 站回 MA5 + 站回後守 MA5 + 帶量中長紅K + 突破前一日最高
  *
- * 2026-05-09 統一 detector：B 買法跟 ③ 加分 tag 都呼叫 detectPullbackBuy 共用邏輯。
- * 含 7 條 gate（多頭 + 跨MA5時序 + 不破前低 + 紅K2% + 量1.3x + 突破前K高），對齊書本 p.37 原文。
+ * 2026-05-10 放寬時序：站回 MA5 與放量突破允許跨 K 棒（站回當日 / 隔 1-2 日皆可），
+ * 涵蓋「T-2<MA5, T-1 站回但無量, T 才補量突破前 K 高」的真實型態。
  */
 export function detectBreakoutEntry(
   candles: CandleWithIndicators[],
@@ -85,6 +85,10 @@ export function detectBreakoutEntry(
 ): BreakoutEntryResult | null {
   const pb = detectPullbackBuy(candles, idx);
   if (!pb) return null;
+
+  const reclaimNote = pb.barsSinceReclaim === 0
+    ? '今日站回MA5'
+    : `站回MA5+${pb.barsSinceReclaim}日`;
 
   return {
     isBreakout: true,
@@ -94,6 +98,6 @@ export function detectBreakoutEntry(
     volumeRatio: pb.volumeRatio,
     prevSwingLow: pb.prevSwingLow,
     preEntryDays: pb.pullbackDays,
-    detail: `回後買上漲（多頭+昨日<MA5+今日站回MA5+不破前低${pb.prevSwingLow.toFixed(2)}+紅K實體${pb.bodyPct.toFixed(2)}%+量×${pb.volumeRatio.toFixed(2)}+突破前K高${pb.breakoutPrice.toFixed(1)}）`,
+    detail: `回後買上漲（多頭+${reclaimNote}+守MA5+不破前低${pb.prevSwingLow.toFixed(2)}+紅K實體${pb.bodyPct.toFixed(2)}%+量×${pb.volumeRatio.toFixed(2)}+突破前K高${pb.breakoutPrice.toFixed(1)}）`,
   };
 }

@@ -280,17 +280,19 @@ export function detectFalseBreakRebound(
 /**
  * 回後買上漲完整 detector — B 買法 + ③ 高勝率位置 2 共用
  *
- * 書本依據：寶典 p.37 多頭趨勢進場 2 大口訣 ①
- *   「上漲一波後回檔不破前低 + 帶量中長紅 K + 收盤突破 MA5 + 突破前一日最高」
+ * 書本依據：寶典 p.37 多頭趨勢進場 2 大口訣 ① + p.238「回後買上漲是指上升走勢中
+ * 回檔後再次上漲時買進，不是回檔就買」
  *
- * 7 條 gate（全部必滿足，2026-05-09 補回書本明寫的「不破前低」+ 統一 detector）：
+ * 8 條 gate（2026-05-10 放寬「站回 MA5 → 放量突破」時序，允許跨 K 棒確認）：
  *   1. 多頭趨勢（detectTrend === '多頭'）
- *   2. 昨日 close < MA5（昨日仍在 MA5 之下，回檔中）
- *   3. 今日 close > MA5（今日剛站回 MA5，止跌反攻）
+ *   2. 近 3 根 K 棒內存在「站回日 j」：candles[j-1].close < ma5 && candles[j].close ≥ ma5，
+ *      j ∈ [index-2, index]（站回當日 / 隔 1 日 / 隔 2 日皆可）
+ *   3. 自 j 起每日 close ≥ ma5（站回後不再跌破 MA5）
  *   4. 不破前低：今日 low ≥ findPivots confirmed lows[0].price
  *   5. 紅 K 實體 ≥ 2%（寶典 SOP p.55 ⑤）
  *   6. 量 ≥ 前日 × 1.3（寶典 p.488 攻擊量）
  *   7. 收盤 > 前一日 high（突破前一日最高）
+ *   8. （隱含於 gate 2 找最早合格 j + gate 3 守 MA5）擋掉「站回 → 跌破 → 又站回 → 突破」雜訊
  */
 export interface PullbackBuyResult {
   prevSwingLow: number;     // 前低（停損參考）
@@ -298,7 +300,11 @@ export interface PullbackBuyResult {
   bodyPct: number;          // 紅 K 實體 %
   volumeRatio: number;      // 量比
   breakoutPrice: number;    // 前一日 high（被突破）
+  reclaimDay: number;       // 站回 MA5 的 K 棒 index（絕對 index）
+  barsSinceReclaim: number; // 站回後第幾日補量突破（0 = 站回當日 = 舊行為）
 }
+
+const RECLAIM_LOOKBACK = 2; // 共 3 根：index, index-1, index-2
 
 export function detectPullbackBuy(
   candles: CandleWithIndicators[],
@@ -315,13 +321,28 @@ export function detectPullbackBuy(
   // 1. 多頭趨勢
   if (detectTrend(candles, index) !== '多頭') return null;
 
-  // 2. 昨日 close < MA5
-  if (prev.close >= prev.ma5) return null;
+  // 2. 近 3 根內找最早的合格站回日 j（取最早是為了讓 gate 3 能擋掉
+  //    「站回 → 跌破 → 又站回 → 突破」的雜訊）
+  let reclaimDay = -1;
+  for (let j = Math.max(1, index - RECLAIM_LOOKBACK); j <= index; j++) {
+    const bj = candles[j];
+    const bjPrev = candles[j - 1];
+    if (!bj || !bjPrev) continue;
+    if (bj.ma5 == null || bjPrev.ma5 == null) continue;
+    if (bjPrev.close < bjPrev.ma5 && bj.close >= bj.ma5) {
+      reclaimDay = j;
+      break;
+    }
+  }
+  if (reclaimDay < 0) return null;
 
-  // 3. 今日 close > MA5
-  if (c.close <= c.ma5) return null;
+  // 3. 自 reclaimDay 起每日 close ≥ MA5（含 index 自己）
+  for (let k = reclaimDay; k <= index; k++) {
+    const bk = candles[k];
+    if (bk.ma5 == null || bk.close < bk.ma5) return null;
+  }
 
-  // 4. 不破前低（書本 p.37 原文，2026-05-09 補實作）
+  // 4. 不破前低（書本 p.37 原文）
   const pivots = findPivots(candles, index, 8, false); // confirmed only
   const lastLow = pivots.find(p => p.type === 'low');
   if (!lastLow) return null;                   // 沒確認底，無法判定「不破前低」
@@ -339,9 +360,9 @@ export function detectPullbackBuy(
   // 7. 收盤 > 前一日 high
   if (c.close <= prev.high) return null;
 
-  // 回檔天數（info only）
+  // 回檔天數（info only）— 從 reclaimDay-1 往回數連續 close < MA5 的天數
   let pullbackDays = 0;
-  for (let i = index - 1; i >= Math.max(0, index - 20); i--) {
+  for (let i = reclaimDay - 1; i >= Math.max(0, reclaimDay - 20); i--) {
     const bar = candles[i];
     if (bar.ma5 == null || bar.close >= bar.ma5) break;
     pullbackDays++;
@@ -353,6 +374,8 @@ export function detectPullbackBuy(
     bodyPct,
     volumeRatio,
     breakoutPrice: prev.high,
+    reclaimDay,
+    barsSinceReclaim: index - reclaimDay,
   };
 }
 
