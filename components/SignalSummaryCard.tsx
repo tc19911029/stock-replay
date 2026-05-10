@@ -439,70 +439,60 @@ export default function SignalSummaryCard() {
           {/* ── 3. 金額區（進場 / 停損 / 停利）+ 風向 ── */}
           <div className="border-t border-border/40 pt-2 space-y-3">
 
-            {/* 金額：5 row 統一 grid 兩欄排版（label 5em 固定寬度避免直書、value 右對齊允許 wrap）*/}
-            <div className="space-y-1">
+            {/* 金額：自然流動 layout（label + value 同行，內容超過自動 wrap，不固定欄位）*/}
+            <div className="space-y-1 text-xs leading-relaxed">
               {!hasPosition && (
                 <p className="text-[11px] text-muted-foreground/80">若今日進場：</p>
               )}
               {/* 進場 */}
-              <div className="grid grid-cols-[5em_1fr] items-baseline text-xs">
-                <span className="text-foreground/80 font-bold whitespace-nowrap">進場</span>
-                <span className="text-right font-mono font-bold text-foreground">
-                  {candle.close.toFixed(2)}
-                </span>
-              </div>
-              {/* 停損 — 書本紅 K 三段式（綠色 = 跌，台股配色）*/}
-              <div className="grid grid-cols-[5em_1fr] items-baseline text-xs">
-                <span className="text-emerald-300 whitespace-nowrap">停損</span>
-                <span className="text-right font-mono">
-                  <span className="text-emerald-300 font-bold">{stopLoss.toFixed(2)}</span>
-                  <span className="text-muted-foreground/70 ml-1.5">({slPct.toFixed(1)}%)</span>
-                </span>
-              </div>
-              {/* 持倉時 — V12 字母對應的操作均線（綠色 = 跌）*/}
+              <p>
+                <span className="text-foreground/80 font-bold">進場</span>
+                <span className="ml-2 font-mono font-bold text-foreground">{candle.close.toFixed(2)}</span>
+              </p>
+              {/* 停損（綠 = 跌）*/}
+              <p>
+                <span className="text-emerald-300">停損</span>
+                <span className="ml-2 font-mono text-emerald-300 font-bold">{stopLoss.toFixed(2)}</span>
+                <span className="ml-1.5 font-mono text-muted-foreground/70">({slPct.toFixed(1)}%)</span>
+              </p>
+              {/* 持倉時 — 跌破操作均線出場（綠 = 跌）*/}
               {operatingMA && (() => {
                 const maKey = operatingMA.toLowerCase() as 'ma5' | 'ma10' | 'ma20' | 'ma60' | 'ma240';
                 const maVal = (candle as unknown as Record<string, number | undefined>)[maKey];
                 if (maVal == null) return null;
                 const maPct = ((maVal - candle.close) / candle.close) * 100;
                 return (
-                  <div className="grid grid-cols-[5em_1fr] items-baseline text-xs">
-                    <span className="text-emerald-300/80 whitespace-nowrap" title="進場後持倉期間，跌破此均線才出場（書本：跟著均線走，動態跟蹤停損）">持倉時</span>
-                    <span className="text-right text-emerald-300/80">
-                      <span className="font-sans">跌破 {operatingMA} </span>
-                      <span className="font-mono font-bold">{maVal.toFixed(2)}</span>
-                      <span className="text-muted-foreground/70 ml-1.5 font-mono">({maPct.toFixed(1)}%)</span>
-                      <span className="text-muted-foreground/70 ml-1 font-sans">出場</span>
-                    </span>
-                  </div>
+                  <p className="text-emerald-300/80">
+                    <span title="進場後持倉期間，跌破此均線才出場（書本：跟著均線走，動態跟蹤停損）">持倉時</span>
+                    <span className="ml-2">跌破 {operatingMA}</span>
+                    <span className="ml-1.5 font-mono font-bold">{maVal.toFixed(2)}</span>
+                    <span className="ml-1.5 font-mono text-muted-foreground/70">({maPct.toFixed(1)}%)</span>
+                    <span className="ml-1.5 text-muted-foreground/70">出場</span>
+                  </p>
                 );
               })()}
-              {/* 停利（紅色 = 漲，台股配色）*/}
-              <div className="grid grid-cols-[5em_1fr] items-baseline text-xs">
-                <span className="text-rose-300 whitespace-nowrap">停利</span>
-                <span className="text-right font-mono">
-                  <span className="text-rose-300 font-bold">{profitTarget.toFixed(2)}</span>
-                  <span className="text-muted-foreground/70 ml-1.5">({ptPct >= 0 ? '+' : ''}{ptPct.toFixed(1)}%)</span>
-                  <span className="text-[11px] text-muted-foreground/60 ml-2 font-sans">
-                    {profitTargetSource === 'pattern' ? '型態目標' : '10%紀律'}
-                  </span>
+              {/* 停利（紅 = 漲）*/}
+              <p>
+                <span className="text-rose-300">停利</span>
+                <span className="ml-2 font-mono text-rose-300 font-bold">{profitTarget.toFixed(2)}</span>
+                <span className="ml-1.5 font-mono text-muted-foreground/70">({ptPct >= 0 ? '+' : ''}{ptPct.toFixed(1)}%)</span>
+                <span className="ml-2 text-[11px] text-muted-foreground/60">
+                  {profitTargetSource === 'pattern' ? '型態目標' : '10%紀律'}
                 </span>
-              </div>
+              </p>
             </div>
 
-            {/* 風向（走勢偏向）— 跟其他 row 同 grid 結構對齊 */}
+            {/* 風向（走勢偏向）*/}
             <div className="pt-2 border-t border-border/20">
-              <div className="grid grid-cols-[5em_1fr] items-baseline text-[11px]">
-                <span className="text-muted-foreground whitespace-nowrap" title="33 種 K 棒型態（書本《抓住線圖》附錄）綜合得分。+ 偏多、− 偏空、0 中性">走勢偏向</span>
-                <span className="text-right">
-                  <span className={`font-bold ${trendBiasColor}`}>{trendBiasLabel}</span>
-                  {(bullCount > 0 || bearCount > 0) && (
-                    <span className="text-muted-foreground/60 ml-1">
-                      （33 種 K 棒型態：多頭 {bullCount}／空頭 {bearCount}）
-                    </span>
-                  )}
-                </span>
-              </div>
+              <p className="text-[11px] leading-relaxed">
+                <span className="text-muted-foreground" title="33 種 K 棒型態（書本《抓住線圖》附錄）綜合得分。+ 偏多、− 偏空、0 中性">走勢偏向</span>
+                <span className={`ml-2 font-bold ${trendBiasColor}`}>{trendBiasLabel}</span>
+                {(bullCount > 0 || bearCount > 0) && (
+                  <span className="ml-1.5 text-muted-foreground/60">
+                    （33 種 K 棒型態：多頭 {bullCount}／空頭 {bearCount}）
+                  </span>
+                )}
+              </p>
             </div>
           </div>
 
