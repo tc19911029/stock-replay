@@ -169,6 +169,15 @@ function getVerdict(
       basis: `戒律觸發 ${prohibitionCount} 條 — 書本硬性禁忌，詳見「條件」分頁`,
     };
   }
+  // 2026-05-10 補：未持倉 + 頂部型態觸發 → 該檔股票正在下跌，禁止進場
+  // （對稱持股中頂部型態 = 出場警示；對未持倉就是「不要碰」）
+  if (hasTopPattern) {
+    return {
+      level: 'bad',
+      label: '不要進場',
+      basis: '頂部型態跌破頸線 — 股票方向轉空，書本：禁止做多',
+    };
+  }
 
   if (counts.entry_strong > 0 && counts.exit_strong === 0 && counts.exit_soft === 0) {
     return {
@@ -304,7 +313,7 @@ export default function SignalSummaryCard() {
     subtypes,
     { entry: entrySigs.map(s => s.label), exit: exitSigs.map(s => s.label) },
     longProhibitions?.reasons?.length ?? 0,
-    hasPosition && topPatternHit !== null,  // 持股中且頂部型態觸發
+    topPatternHit !== null,  // 頂部型態觸發（持股 → 該出場；未持倉 → 不要進場）
   );
 
   // 主訊號字母（V12 進場字母優先順序 Q > N > M > P > O；無命中時用持倉觸發字母）
@@ -432,9 +441,10 @@ export default function SignalSummaryCard() {
           </div>
 
           {/* ── 4. 為什麼？分組 ───────────────────────────── */}
+          {/* topPatternHit 不論持倉都傳，跟 verdict 邏輯對稱（持股=該出場、未持倉=不要進場）*/}
           <Reasons
             v12Hits={v12Hits}
-            topPatternHit={hasPosition ? topPatternHit : null}
+            topPatternHit={topPatternHit}
             entrySigs={entrySigs}
             exitSigs={exitSigs}
             warnSigs={warnSigs}
