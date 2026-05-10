@@ -64,9 +64,9 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
   // 股票名稱對照（symbol → name），lockwatch record 沒存 name 欄位，UI 端從 stock list API 拉
   const [nameMap, setNameMap] = useState<Record<string, string>>({});
   // 排序設定
-  type SortKey = 'signal' | 'symbol' | 'name' | 'pattern' | 'triggerPrice' | 'currentClose' | 'upside' | 'achievement' | 'stage' | 'days';
-  const [sortKey, setSortKey] = useState<SortKey>('stage');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  type SortKey = 'signal' | 'symbol' | 'name' | 'pattern' | 'triggerPrice' | 'currentClose' | 'upside' | 'achievement' | 'stage' | 'triggeredDate' | 'days';
+  const [sortKey, setSortKey] = useState<SortKey>('upside');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [favFirst, setFavFirst] = useState(false);
   const watchlistItems = useWatchlistStore((s) => s.items);  // 訂閱以便 toggle 自選後重新排序
   const inWatchlistSet = useMemo(() => new Set(watchlistItems.map(i => i.symbol)), [watchlistItems]);
@@ -194,6 +194,7 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
         }
         case 'achievement': cmp = (a.patternAchievementRate ?? 0) - (b.patternAchievementRate ?? 0); break;
         case 'stage': cmp = (STAGE_ORDER[a.currentStage] ?? 99) - (STAGE_ORDER[b.currentStage] ?? 99); break;
+        case 'triggeredDate': cmp = a.triggeredDate.localeCompare(b.triggeredDate); break;
         case 'days': cmp = a.daysObserved - b.daysObserved; break;
       }
       return sortDir === 'asc' ? cmp : -cmp;
@@ -310,6 +311,11 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
                         className="text-center py-1.5 px-2 cursor-pointer hover:text-foreground select-none"
                         title="可進場 → 等突破 → 觀察中 → 已買進 → 撤銷類。點擊排序">
                       階段{sortIndicator('stage')}
+                    </th>
+                    <th onClick={() => toggleSort('triggeredDate')}
+                        className="text-center py-1.5 px-2 cursor-pointer hover:text-foreground select-none"
+                        title="該記錄被鎖定（觸發 LockWatch）的日期。點擊排序">
+                      觸發日{sortIndicator('triggeredDate')}
                     </th>
                     <th onClick={() => toggleSort('days')}
                         className="text-center py-1.5 px-2 cursor-pointer hover:text-foreground select-none"
@@ -461,6 +467,9 @@ function LockWatchTableRow({
       </td>
       <td className={`whitespace-nowrap py-1.5 px-2 text-center ${stage.color}`}>
         {stage.label}
+      </td>
+      <td className="whitespace-nowrap py-1.5 px-2 text-center font-mono text-muted-foreground/80 text-[10px]">
+        {record.triggeredDate.slice(5)}
       </td>
       <td className="whitespace-nowrap py-1.5 px-2 text-center font-mono text-muted-foreground/60">
         {record.daysObserved}d
