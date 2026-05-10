@@ -183,11 +183,14 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
           break;
         }
         case 'upside': {
-          const aU = a.patternTargetPrice && a.triggerPrice > 0
-            ? (a.patternTargetPrice - a.triggerPrice) / a.triggerPrice
+          // Phase D：用現價算到目標的爬升空間（跟 UI 顯示一致）
+          const aRef = a.currentClose ?? a.triggerPrice;
+          const bRef = b.currentClose ?? b.triggerPrice;
+          const aU = a.patternTargetPrice && aRef > 0
+            ? (a.patternTargetPrice - aRef) / aRef
             : -Infinity;
-          const bU = b.patternTargetPrice && b.triggerPrice > 0
-            ? (b.patternTargetPrice - b.triggerPrice) / b.triggerPrice
+          const bU = b.patternTargetPrice && bRef > 0
+            ? (b.patternTargetPrice - bRef) / bRef
             : -Infinity;
           cmp = aU - bU;
           break;
