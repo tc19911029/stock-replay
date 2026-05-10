@@ -551,118 +551,141 @@ function Reasons({
     );
   }
 
+  // V12 進場字母 + 進場理由視為同一語意層（都在解釋「為什麼能買」），合併顯示
+  const hasEntry = v12Hits.length > 0 || entrySigs.length > 0;
+  // 出場理由 + 頂部型態視為同一語意層（都在說「為什麼該出場」）
+  const hasExit = exitSigs.length > 0 || topPatternHit != null;
+
   return (
     <div className="border-t border-border/40 pt-2 space-y-2">
       <p className="text-xs font-semibold text-foreground/80">分析</p>
 
-      {/* V12 字母進場訊號（多頭軌/轉折軌/戰法軌）— 卡片格式跟 ReasonGroup 一致 */}
-      {v12Hits.length > 0 && (
-        <div className="space-y-1.5">
-          <p className="text-[11px] font-bold mb-1 text-sky-300">V12 進場訊號</p>
-          {v12Hits.map(h => (
-            <div key={h.letter} className="rounded px-2.5 py-2 bg-sky-900/15">
-              {/* Header: 字母 badge + 軌道名 */}
-              <div className="flex items-baseline gap-2 mb-1">
-                <span className={`font-bold px-1.5 py-0.5 rounded shrink-0 text-[11px] ${V12_TRACK_BADGE[h.letter]}`}>
-                  {h.letter}
-                </span>
-                <span className="text-xs font-bold text-foreground/90">{h.trackName}</span>
-              </div>
-              {/* Body: detail */}
-              <p className="text-[11px] text-foreground/75 leading-relaxed">{h.detail}</p>
-              {/* 型態詳情（N 字母才有）*/}
-              {h.patternType && h.patternTargetPrice && h.necklinePrice && (
-                <div className="mt-1.5 pt-1.5 border-t border-sky-700/30 space-y-0.5 text-[11px]">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-indigo-300 font-bold">{PATTERN_LABEL[h.patternType] ?? h.patternType}</span>
-                    {h.achievementRate != null && (
-                      <span className="text-amber-300">達成率 {(h.achievementRate * 100).toFixed(0)}%</span>
-                    )}
-                  </div>
-                  <div className="flex items-baseline justify-between text-muted-foreground">
-                    <span>頸線</span>
-                    <span className="font-mono">{h.necklinePrice.toFixed(2)}</span>
-                  </div>
-                  <div className="flex items-baseline justify-between text-emerald-400">
-                    <span>目標價</span>
-                    <span className="font-mono">
-                      {h.patternTargetPrice.toFixed(2)} ({((h.patternTargetPrice - todayClose) / todayClose * 100).toFixed(1)}%)
-                    </span>
-                  </div>
+      {/* 進場依據（V12 字母 + 朱家泓書本規則合併）*/}
+      {hasEntry && (
+        <div>
+          <p className="text-[11px] font-bold mb-1 text-rose-300">進場依據</p>
+          <div className="space-y-1.5">
+            {/* V12 字母卡片（M/N/O/P/Q）— 主訊號，淡藍背景區別 */}
+            {v12Hits.map(h => (
+              <div key={h.letter} className="rounded px-2.5 py-2 bg-sky-900/15">
+                <div className="flex items-baseline gap-2 mb-1">
+                  <span className={`font-bold px-1.5 py-0.5 rounded shrink-0 text-[11px] ${V12_TRACK_BADGE[h.letter]}`}>
+                    {h.letter}
+                  </span>
+                  <span className="text-xs font-bold text-foreground/90">{h.trackName}</span>
                 </div>
-              )}
-            </div>
-          ))}
+                <p className="text-[11px] text-foreground/75 leading-relaxed">{h.detail}</p>
+                {h.patternType && h.patternTargetPrice && h.necklinePrice && (
+                  <div className="mt-1.5 pt-1.5 border-t border-sky-700/30 space-y-0.5 text-[11px]">
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-indigo-300 font-bold">{PATTERN_LABEL[h.patternType] ?? h.patternType}</span>
+                      {h.achievementRate != null && (
+                        <span className="text-amber-300">達成率 {(h.achievementRate * 100).toFixed(0)}%</span>
+                      )}
+                    </div>
+                    <div className="flex items-baseline justify-between text-muted-foreground">
+                      <span>頸線</span>
+                      <span className="font-mono">{h.necklinePrice.toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-baseline justify-between text-emerald-400">
+                      <span>目標價</span>
+                      <span className="font-mono">
+                        {h.patternTargetPrice.toFixed(2)} ({((h.patternTargetPrice - todayClose) / todayClose * 100).toFixed(1)}%)
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+            {/* 朱家泓書本進場規則（朱SOP / 回檔再上漲 / 均線撐漲 / 下缺回補等）*/}
+            {entrySigs.slice(0, 4).map((s, i) => (
+              <ReasonRow key={`entry-${i}`} signal={s} bgColor="bg-rose-900/15" />
+            ))}
+          </div>
         </div>
       )}
 
-      {/* 進場訊號 */}
-      {entrySigs.length > 0 && (
-        <ReasonGroup
-          title="進場理由"
-          color="text-rose-300"
-          bgColor="bg-rose-900/15"
-          signals={entrySigs.slice(0, 4)}
-        />
-      )}
-
-      {/* 出場訊號 */}
-      {exitSigs.length > 0 && (
-        <ReasonGroup
-          title="出場理由"
-          color="text-emerald-300"
-          bgColor="bg-emerald-900/15"
-          signals={exitSigs.slice(0, 4)}
-        />
-      )}
-
-      {/* 頂部型態警示（持股=該出場、未持倉=不要進場）*/}
-      {topPatternHit && (
+      {/* 出場警示（出場理由 + 頂部型態合併）*/}
+      {hasExit && (
         <div>
-          <p className="text-[11px] font-bold mb-1 text-rose-300">頂部型態警示</p>
-          <div className="rounded px-2.5 py-2 bg-rose-900/15">
-            {/* Header: 型態名 + 達成率 */}
-            <div className="flex items-baseline justify-between gap-2 mb-1">
-              <span className="text-xs font-bold text-rose-300">{TOP_PATTERN_LABEL[topPatternHit.patternType]}</span>
-              {topPatternHit.achievementRate != null && (
-                <span className="text-[11px] text-amber-300">達成率 {(topPatternHit.achievementRate * 100).toFixed(0)}%</span>
-              )}
-            </div>
-            {/* Body: 頸線 / 目標 / detail */}
-            <div className="space-y-0.5 text-[11px]">
-              {topPatternHit.necklinePrice != null && (
-                <div className="flex items-baseline justify-between text-muted-foreground">
-                  <span>頸線</span>
-                  <span className="font-mono">{topPatternHit.necklinePrice.toFixed(2)}</span>
+          <p className="text-[11px] font-bold mb-1 text-emerald-300">出場警示</p>
+          <div className="space-y-1.5">
+            {/* 頂部型態（持股=該出場、未持倉=不要進場）*/}
+            {topPatternHit && (
+              <div className="rounded px-2.5 py-2 bg-rose-900/15">
+                <div className="flex items-baseline justify-between gap-2 mb-1">
+                  <span className="text-xs font-bold text-rose-300">{TOP_PATTERN_LABEL[topPatternHit.patternType]}</span>
+                  {topPatternHit.achievementRate != null && (
+                    <span className="text-[11px] text-amber-300">達成率 {(topPatternHit.achievementRate * 100).toFixed(0)}%</span>
+                  )}
                 </div>
-              )}
-              {topPatternHit.patternTargetPrice != null && (
-                <div className="flex items-baseline justify-between text-rose-300">
-                  <span>目標價（下跌）</span>
-                  <span className="font-mono">
-                    {topPatternHit.patternTargetPrice.toFixed(2)} ({((topPatternHit.patternTargetPrice - todayClose) / todayClose * 100).toFixed(1)}%)
-                  </span>
+                <div className="space-y-0.5 text-[11px]">
+                  {topPatternHit.necklinePrice != null && (
+                    <div className="flex items-baseline justify-between text-muted-foreground">
+                      <span>頸線</span>
+                      <span className="font-mono">{topPatternHit.necklinePrice.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {topPatternHit.patternTargetPrice != null && (
+                    <div className="flex items-baseline justify-between text-rose-300">
+                      <span>目標價（下跌）</span>
+                      <span className="font-mono">
+                        {topPatternHit.patternTargetPrice.toFixed(2)} ({((topPatternHit.patternTargetPrice - todayClose) / todayClose * 100).toFixed(1)}%)
+                      </span>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-            <p className="text-[11px] text-foreground/70 leading-relaxed mt-1.5 pt-1.5 border-t border-rose-700/30">
-              {topPatternHit.detail}
-            </p>
-            <p className="text-[11px] text-muted-foreground/60 mt-1">書本：見頂部型態+跌破頸線即出場</p>
+                <p className="text-[11px] text-foreground/70 leading-relaxed mt-1.5 pt-1.5 border-t border-rose-700/30">
+                  {topPatternHit.detail}
+                </p>
+                <p className="text-[11px] text-muted-foreground/60 mt-1">書本：見頂部型態+跌破頸線即出場</p>
+              </div>
+            )}
+            {/* 一般出場訊號 */}
+            {exitSigs.slice(0, 4).map((s, i) => (
+              <ReasonRow key={`exit-${i}`} signal={s} bgColor="bg-emerald-900/15" />
+            ))}
           </div>
         </div>
       )}
 
       {/* 戒律：訊號分頁不顯示，verdict 已表達且詳情在「條件」分頁 */}
 
-      {/* 警示訊號（非進出場，但需注意）*/}
+      {/* 注意事項（非進出場，但需注意）*/}
       {warnSigs.length > 0 && (
         <ReasonGroup
-          title="警示"
+          title="注意事項"
           color="text-yellow-300"
           bgColor="bg-yellow-900/15"
           signals={warnSigs.slice(0, 3)}
         />
+      )}
+    </div>
+  );
+}
+
+function ReasonRow({ signal: s, bgColor }: { signal: RuleSignal; bgColor: string }) {
+  const override = SIGNAL_EXPLAIN[s.label];
+  const mainText = override ?? s.description ?? '';
+  const bookRef = override ? undefined : extractBookRef(s.reason);
+  const operationHint = override ? undefined : extractOperationHint(s.reason);
+  return (
+    <div className={`rounded px-2.5 py-2 ${bgColor}`}>
+      <p className="text-xs font-bold whitespace-nowrap text-foreground/90">{s.label}</p>
+      {mainText && (
+        <p className="text-[11px] text-foreground/85 leading-snug mt-1 break-words">
+          {mainText}
+        </p>
+      )}
+      {operationHint && (
+        <p className="text-[11px] text-foreground/70 leading-snug mt-1 break-words">
+          {operationHint}
+        </p>
+      )}
+      {bookRef && (
+        <p className="text-[11px] text-muted-foreground/60 leading-snug mt-1 break-words">
+          {bookRef}
+        </p>
       )}
     </div>
   );
@@ -680,39 +703,7 @@ function ReasonGroup({
     <div>
       <p className={`text-[11px] font-bold mb-1 ${color}`}>{title}</p>
       <div className="space-y-1.5">
-        {signals.map((s, i) => {
-          const override = SIGNAL_EXPLAIN[s.label];
-          // 優先級：手寫白話覆寫 > 訊號 description（含書本意圖）+ reason 第一行
-          const mainText = override ?? s.description ?? '';
-          const bookRef = override ? undefined : extractBookRef(s.reason);
-          const operationHint = override ? undefined : extractOperationHint(s.reason);
-          return (
-            // 三段式排版：訊號名 → 主說明（+ 操作建議）→ 書本根據（最末行 muted）
-            // 不再 header row 擠 label + bookRef — bookRef 太長會把 label 壓成直書
-            <div key={i} className={`rounded px-2.5 py-2 ${bgColor}`}>
-              {/* Header: 訊號名（單行不換行） */}
-              <p className={`text-xs font-bold whitespace-nowrap ${color}`}>{s.label}</p>
-              {/* Body: 主說明 */}
-              {mainText && (
-                <p className="text-[11px] text-foreground/85 leading-snug mt-1 break-words">
-                  {mainText}
-                </p>
-              )}
-              {/* 操作建議（書本實戰指引）*/}
-              {operationHint && (
-                <p className="text-[11px] text-foreground/70 leading-snug mt-1 break-words">
-                  {operationHint}
-                </p>
-              )}
-              {/* 書本根據（最末行 muted）*/}
-              {bookRef && (
-                <p className="text-[11px] text-muted-foreground/60 leading-snug mt-1 break-words">
-                  {bookRef}
-                </p>
-              )}
-            </div>
-          );
-        })}
+        {signals.map((s, i) => <ReasonRow key={i} signal={s} bgColor={bgColor} />)}
       </div>
     </div>
   );
