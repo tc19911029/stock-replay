@@ -482,17 +482,17 @@ export default function SignalSummaryCard() {
               </p>
             </div>
 
-            {/* 風向（走勢偏向）*/}
-            <div className="pt-2 border-t border-border/20">
+            {/* 風向（走勢偏向）— 主訊息一行、明細獨立下一行 */}
+            <div className="pt-2 border-t border-border/20 space-y-0.5">
               <p className="text-[11px] leading-relaxed">
                 <span className="text-muted-foreground" title="33 種 K 棒型態（書本《抓住線圖》附錄）綜合得分。+ 偏多、− 偏空、0 中性">走勢偏向</span>
                 <span className={`ml-2 font-bold ${trendBiasColor}`}>{trendBiasLabel}</span>
-                {(bullCount > 0 || bearCount > 0) && (
-                  <span className="ml-1.5 text-muted-foreground/60">
-                    （33 種 K 棒型態：多頭 {bullCount}／空頭 {bearCount}）
-                  </span>
-                )}
               </p>
+              {(bullCount > 0 || bearCount > 0) && (
+                <p className="text-[11px] text-muted-foreground/60 leading-relaxed">
+                  （33 種 K 棒型態：多頭 {bullCount}／空頭 {bearCount}）
+                </p>
+              )}
             </div>
           </div>
 
@@ -556,18 +556,13 @@ function Reasons({
         <div>
           <p className="text-[11px] font-bold mb-1 text-rose-300">進場依據</p>
           <div className="space-y-1.5">
-            {/* V12 字母卡片（M/N/O/P/Q）— 主訊號，淡藍背景區別 */}
+            {/* V12 字母卡片（M/N/O/P/Q）— 跟 entry signal 統一視覺，無 badge、灰底 */}
             {v12Hits.map(h => (
-              <div key={h.letter} className="rounded px-2.5 py-2 bg-sky-900/15">
-                <div className="flex items-baseline gap-2 mb-1">
-                  <span className={`font-bold px-1.5 py-0.5 rounded shrink-0 text-[11px] ${V12_TRACK_BADGE[h.letter]}`}>
-                    {h.letter}
-                  </span>
-                  <span className="text-xs font-bold text-foreground/90">{h.trackName}</span>
-                </div>
-                <p className="text-[11px] text-foreground/75 leading-relaxed">{h.detail.replace(/^[A-Z]\s+/, '')}</p>
+              <div key={h.letter} className="rounded px-2.5 py-2 bg-secondary/30">
+                <p className="text-sm font-bold text-foreground/90">{h.trackName}</p>
+                <p className="text-[11px] text-foreground/75 leading-relaxed mt-1">{h.detail.replace(/^[A-Z]\s+/, '')}</p>
                 {h.patternType && h.patternTargetPrice && h.necklinePrice && (
-                  <div className="mt-1.5 pt-1.5 border-t border-sky-700/30 space-y-0.5 text-[11px]">
+                  <div className="mt-1.5 pt-1.5 border-t border-border/30 space-y-0.5 text-[11px]">
                     <div className="flex items-baseline justify-between">
                       <span className="text-indigo-300 font-bold">{PATTERN_LABEL[h.patternType] ?? h.patternType}</span>
                       {h.achievementRate != null && (
@@ -590,7 +585,7 @@ function Reasons({
             ))}
             {/* 朱家泓書本進場規則（朱SOP / 回檔再上漲 / 均線撐漲 / 下缺回補等）*/}
             {entrySigs.slice(0, 4).map((s, i) => (
-              <ReasonRow key={`entry-${i}`} signal={s} bgColor="bg-rose-900/15" />
+              <ReasonRow key={`entry-${i}`} signal={s} bgColor="bg-secondary/30" />
             ))}
           </div>
         </div>
@@ -662,7 +657,7 @@ function ReasonRow({ signal: s, bgColor }: { signal: RuleSignal; bgColor: string
   const operationHint = override ? undefined : extractOperationHint(s.reason);
   return (
     <div className={`rounded px-2.5 py-2 ${bgColor}`}>
-      <p className="text-xs font-bold whitespace-nowrap text-foreground/90">{s.label}</p>
+      <p className="text-sm font-bold text-foreground/90">{s.label}</p>
       {mainText && (
         <p className="text-[11px] text-foreground/85 leading-snug mt-1 break-words">
           {mainText}
