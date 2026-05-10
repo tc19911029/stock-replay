@@ -1475,15 +1475,18 @@ export abstract class MarketScanner {
               }
             } else {
               // Phase C：未觸發但結構成立 → 寫 LockWatch pending-breakout
-              // 過濾條件（書本「即將突破」應該是少量精選）：
+              // 過濾條件（書本「即將突破」= 結構成立 + 接近突破 + 還沒達標）：
               //   1. close ≥ neckline × 0.98（距真突破 ≤ 5%，明後天可能突破才鎖）
               //   2. 達成率 ≥ 80%（只取書本高勝率型態）
+              //   3. close < target × 0.97（型態還沒達標；超過 = 型態已完成不該再算即將突破）
               const struct = detectLetterNStructure(candles, lastIdx);
               if (struct.pivots && struct.pivots.length > 0
                   && struct.necklinePrice != null && struct.patternType) {
                 const closeNearNeckline = last.close >= struct.necklinePrice * 0.98;
                 const highAchievement = (struct.achievementRate ?? 0) >= 80;
-                if (closeNearNeckline && highAchievement) {
+                const notReachedTarget = struct.patternTargetPrice != null
+                  && last.close < struct.patternTargetPrice * 0.97;
+                if (closeNearNeckline && highAchievement && notReachedTarget) {
                   lockWatchPayload = {
                     triggerPrice: struct.necklinePrice,
                     patternType: struct.patternType,
