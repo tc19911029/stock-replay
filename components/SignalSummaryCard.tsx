@@ -449,16 +449,38 @@ export default function SignalSummaryCard() {
                   {candle.close.toFixed(2)}
                 </span>
               </div>
+              {/* 初始停損 — 書本《抓住線圖》紅 K 三段式（防爆倉硬停損）*/}
               <div className="flex items-baseline justify-between font-mono text-xs">
-                <span className="text-rose-300">停損</span>
+                <span className="text-rose-300">
+                  停損
+                  <span className="text-[11px] text-muted-foreground/60 ml-1.5 font-sans">初始</span>
+                </span>
                 <span>
                   <span className="text-rose-300 font-bold">{stopLoss.toFixed(2)}</span>
                   <span className="text-muted-foreground/70 ml-1.5">({slPct.toFixed(1)}%)</span>
-                  {operatingMA && (
-                    <span className="text-muted-foreground/70 ml-2 font-sans">守 {operatingMA}</span>
-                  )}
                 </span>
               </div>
+              {/* 持倉跟蹤線 — Q/B 等 V12 字母對應的操作均線（動態，跌破才出場）*/}
+              {operatingMA && (() => {
+                // candle 上的 maX 動態值
+                const maKey = operatingMA.toLowerCase() as 'ma5' | 'ma10' | 'ma20' | 'ma60' | 'ma240';
+                const maVal = (candle as unknown as Record<string, number | undefined>)[maKey];
+                if (maVal == null) return null;
+                const maPct = ((maVal - candle.close) / candle.close) * 100;
+                return (
+                  <div className="flex items-baseline justify-between font-mono text-xs">
+                    <span className="text-rose-300/80">
+                      跟蹤線
+                      <span className="text-[11px] text-muted-foreground/60 ml-1.5 font-sans" title="持倉期間跌破此均線才出場（書本：跟著均線走，動態跟蹤停損）">持倉跌破出場</span>
+                    </span>
+                    <span>
+                      <span className="text-rose-300/80 font-bold">{maVal.toFixed(2)}</span>
+                      <span className="text-muted-foreground/70 ml-1.5">({maPct.toFixed(1)}%)</span>
+                      <span className="text-muted-foreground/70 ml-2 font-sans">{operatingMA}</span>
+                    </span>
+                  </div>
+                );
+              })()}
               <div className="flex items-baseline justify-between font-mono text-xs">
                 <span className="text-emerald-300">
                   停利
