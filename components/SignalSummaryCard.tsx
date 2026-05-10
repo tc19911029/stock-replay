@@ -435,19 +435,28 @@ export default function SignalSummaryCard() {
             )}
           </div>
 
-          {/* ── 3. 進場價碼 + 戰法依據 + 風向（依語意分 3 組，視覺分隔）── */}
+          {/* ── 3. 金額區（進場 / 停損 / 停利）+ 風向 ── */}
           <div className="border-t border-border/40 pt-2 space-y-3">
 
-            {/* 組 1：金額（停損 / 停利）— 進場必看 */}
+            {/* 金額：進場價（大字）+ 停損（含守 MAxx）+ 停利（含紀律來源）*/}
             <div className="space-y-1.5">
               {!hasPosition && (
-                <p className="text-[11px] text-muted-foreground/80">若今日進場 {candle.close.toFixed(2)}：</p>
+                <p className="text-[11px] text-muted-foreground/80">若今日進場：</p>
               )}
+              <div className="flex items-baseline justify-between text-sm">
+                <span className="text-foreground/80 font-bold">進場</span>
+                <span className="font-mono font-bold text-foreground">
+                  {candle.close.toFixed(2)}
+                </span>
+              </div>
               <div className="flex items-baseline justify-between font-mono text-xs">
                 <span className="text-rose-300">停損</span>
                 <span>
                   <span className="text-rose-300 font-bold">{stopLoss.toFixed(2)}</span>
                   <span className="text-muted-foreground/70 ml-1.5">({slPct.toFixed(1)}%)</span>
+                  {operatingMA && (
+                    <span className="text-muted-foreground/70 ml-2 font-sans">守 {operatingMA}</span>
+                  )}
                 </span>
               </div>
               <div className="flex items-baseline justify-between font-mono text-xs">
@@ -464,26 +473,7 @@ export default function SignalSummaryCard() {
               </div>
             </div>
 
-            {/* 組 2：戰法依據（操作 / 均線）— 為什麼這樣設停損 */}
-            {operatingMA && (
-              <div className="space-y-1.5 pt-2 border-t border-border/20">
-                <div className="flex items-baseline justify-between text-xs">
-                  <span className="text-muted-foreground">操作</span>
-                  <span title={V12_LETTER_DESC[primaryLetter] ?? primaryLetter} className="text-foreground/80 underline decoration-dotted decoration-muted-foreground/40">
-                    {V12_LETTER_DESC[primaryLetter]?.replace(/^[A-Z]\s+/, '') ?? primaryLetter}
-                  </span>
-                </div>
-                <div className="flex items-baseline justify-between text-xs">
-                  <span className="text-muted-foreground">均線</span>
-                  <span>
-                    <span className="text-muted-foreground">停損守 </span>
-                    <span className="text-foreground/80 font-bold font-mono">{operatingMA}</span>
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* 組 3：風向（走勢偏向）— 補充參考 */}
+            {/* 風向（走勢偏向）— 補充參考 */}
             <div className="pt-2 border-t border-border/20">
               <div className="flex items-baseline justify-between text-[11px]">
                 <span className="text-muted-foreground" title="33 種 K 棒型態（書本《抓住線圖》附錄）綜合得分。+ 偏多、− 偏空、0 中性">走勢偏向</span>
