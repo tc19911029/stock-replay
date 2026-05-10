@@ -450,15 +450,15 @@ export default function SignalSummaryCard() {
                   {candle.close.toFixed(2)}
                 </span>
               </div>
-              {/* 停損 — 書本紅 K 三段式（防爆倉硬停損）*/}
+              {/* 停損 — 書本紅 K 三段式（綠色 = 跌，台股配色）*/}
               <div className="grid grid-cols-[4em_1fr] items-baseline text-xs">
-                <span className="text-rose-300">停損</span>
-                <span className="text-right font-mono">
-                  <span className="text-rose-300 font-bold">{stopLoss.toFixed(2)}</span>
+                <span className="text-emerald-300">停損</span>
+                <span className="text-right font-mono whitespace-nowrap">
+                  <span className="text-emerald-300 font-bold">{stopLoss.toFixed(2)}</span>
                   <span className="text-muted-foreground/70 ml-1.5">({slPct.toFixed(1)}%)</span>
                 </span>
               </div>
-              {/* 持倉時 — V12 字母對應的操作均線（動態，跌破才出場）*/}
+              {/* 持倉時 — V12 字母對應的操作均線（綠色 = 跌）*/}
               {operatingMA && (() => {
                 const maKey = operatingMA.toLowerCase() as 'ma5' | 'ma10' | 'ma20' | 'ma60' | 'ma240';
                 const maVal = (candle as unknown as Record<string, number | undefined>)[maKey];
@@ -466,8 +466,8 @@ export default function SignalSummaryCard() {
                 const maPct = ((maVal - candle.close) / candle.close) * 100;
                 return (
                   <div className="grid grid-cols-[4em_1fr] items-baseline text-xs">
-                    <span className="text-rose-300/80" title="進場後持倉期間，跌破此均線才出場（書本：跟著均線走，動態跟蹤停損）">持倉時</span>
-                    <span className="text-right text-rose-300/80">
+                    <span className="text-emerald-300/80" title="進場後持倉期間，跌破此均線才出場（書本：跟著均線走，動態跟蹤停損）">持倉時</span>
+                    <span className="text-right text-emerald-300/80 whitespace-nowrap">
                       <span className="font-sans">跌破 {operatingMA} </span>
                       <span className="font-mono font-bold">{maVal.toFixed(2)}</span>
                       <span className="text-muted-foreground/70 ml-1.5 font-mono">({maPct.toFixed(1)}%)</span>
@@ -476,11 +476,11 @@ export default function SignalSummaryCard() {
                   </div>
                 );
               })()}
-              {/* 停利 */}
+              {/* 停利（紅色 = 漲，台股配色）*/}
               <div className="grid grid-cols-[4em_1fr] items-baseline text-xs">
-                <span className="text-emerald-300">停利</span>
-                <span className="text-right font-mono">
-                  <span className="text-emerald-300 font-bold">{profitTarget.toFixed(2)}</span>
+                <span className="text-rose-300">停利</span>
+                <span className="text-right font-mono whitespace-nowrap">
+                  <span className="text-rose-300 font-bold">{profitTarget.toFixed(2)}</span>
                   <span className="text-muted-foreground/70 ml-1.5">({ptPct >= 0 ? '+' : ''}{ptPct.toFixed(1)}%)</span>
                   <span className="text-[11px] text-muted-foreground/60 ml-2 font-sans">
                     {profitTargetSource === 'pattern' ? '型態目標' : '10%紀律'}
