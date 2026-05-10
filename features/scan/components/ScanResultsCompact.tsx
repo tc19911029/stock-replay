@@ -6,6 +6,7 @@ import { useWatchlistStore } from '@/store/watchlistStore';
 import type { SelectedStock } from './ScanChartPanel';
 import type { StockForwardPerformance } from '@/lib/scanner/types';
 import type { TrendState } from '@/lib/analysis/trendAnalysis';
+import type { LockWatchRecord, LockWatchDailySnapshot } from '@/lib/scanner/lockWatchTypes';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -112,6 +113,32 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
     return () => { cancelled = true; };
   }, [market, scanDate]);
   const marketTrend = liveTrend ?? storeTrend;
+
+  // ── LockWatch records cross-ref（已失效 N 形態訊號標 ✗）──────────────────
+  // 同 LockWatchPanel 的資料來源；ScanResultsCompact 只需要 currentStage 來標失效 row
+  const [lockWatchRecords, setLockWatchRecords] = useState<LockWatchRecord[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    if (!market) return;
+    fetch(`/api/lockwatch?market=${market}`)
+      .then((r) => r.json())
+      .then((j: { ok?: boolean; snapshot?: LockWatchDailySnapshot | null }) => {
+        if (cancelled || !j.ok || !j.snapshot) return;
+        setLockWatchRecords(j.snapshot.records ?? []);
+      })
+      .catch(() => { /* 拉不到就不顯示失效標記，不影響其他功能 */ });
+    return () => { cancelled = true; };
+  }, [market]);
+  // symbol → 最新 N 訊號的 currentStage（一支股可能有多個 record，取最新觸發的 N）
+  const lockWatchStageBySymbol = useMemo(() => {
+    const map = new Map<string, LockWatchRecord['currentStage']>();
+    for (const r of lockWatchRecords) {
+      if (r.triggerSignal !== 'N') continue;
+      // 後到的覆蓋，假設 records 大致依時序 — 同一支股取最新 record
+      map.set(r.symbol, r.currentStage);
+    }
+    return map;
+  }, [lockWatchRecords]);
 
   const perfMap = useMemo(() => {
     const map = new Map<string, StockForwardPerformance>();
@@ -383,16 +410,25 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                   // 目標相對現價的距離 — 正 = 仍有上漲空間；負 = 已達/超過目標
                   const upsideNum = target ? ((target - r.price) / r.price * 100) : null;
                   const reached = upsideNum != null && upsideNum <= 0;
+                  // 結構失效 / 已撤銷 → 整個 N 徽章降灰 + 加 ✗ 後綴
+                  const stage = lockWatchStageBySymbol.get(r.symbol);
+                  const failed = stage === 'structure-broken' || stage === 'revoked';
+                  const failReason = stage === 'structure-broken'
+                    ? `已跌破頸線 ${r.lockWatchPayload.triggerPrice.toFixed(2)} ×0.97 = ${(r.lockWatchPayload.triggerPrice * 0.97).toFixed(2)}，型態結構失效`
+                    : stage === 'revoked' ? '訊號已撤銷' : '';
+                  const baseTitle = reached
+                    ? `N 型態：${name} · 達成率 ${rate ? (rate * 100).toFixed(0) : '?'}% · 頸線 ${r.lockWatchPayload.triggerPrice.toFixed(2)} · 目標 ${target?.toFixed(2) ?? '?'}（已達標：現價超過目標 ${Math.abs(upsideNum!).toFixed(1)}%）`
+                    : `N 型態：${name} · 達成率 ${rate ? (rate * 100).toFixed(0) : '?'}% · 頸線 ${r.lockWatchPayload.triggerPrice.toFixed(2)} · 目標 ${target?.toFixed(2) ?? '?'}（距目標還有 ${upsideNum?.toFixed(1) ?? '?'}% 空間）`;
                   return (
                     <span
-                      className="text-[8px] px-1 h-3.5 flex items-center gap-0.5 rounded-sm bg-indigo-900/60 text-indigo-200 font-bold"
-                      title={
-                        reached
-                          ? `N 型態：${name} · 達成率 ${rate ? (rate * 100).toFixed(0) : '?'}% · 頸線 ${r.lockWatchPayload.triggerPrice.toFixed(2)} · 目標 ${target?.toFixed(2) ?? '?'}（已達標：現價超過目標 ${Math.abs(upsideNum!).toFixed(1)}%）`
-                          : `N 型態：${name} · 達成率 ${rate ? (rate * 100).toFixed(0) : '?'}% · 頸線 ${r.lockWatchPayload.triggerPrice.toFixed(2)} · 目標 ${target?.toFixed(2) ?? '?'}（距目標還有 ${upsideNum?.toFixed(1) ?? '?'}% 空間）`
-                      }>
+                      className={`text-[8px] px-1 h-3.5 flex items-center gap-0.5 rounded-sm font-bold ${
+                        failed
+                          ? 'bg-zinc-800/60 text-zinc-500 line-through'
+                          : 'bg-indigo-900/60 text-indigo-200'
+                      }`}
+                      title={failed ? `${baseTitle}\n— ${failReason}` : baseTitle}>
                       {name}{rate != null && <span className="opacity-75 ml-0.5">{(rate * 100).toFixed(0)}%</span>}
-                      {target != null && upsideNum != null && (
+                      {target != null && upsideNum != null && !failed && (
                         reached ? (
                           // 已達 / 超過目標 → 提示停利
                           <span className="ml-0.5 text-amber-300" title="目標已達，可考慮停利">
@@ -404,6 +440,11 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                             目標 {target.toFixed(0)} (+{upsideNum.toFixed(1)}%)
                           </span>
                         )
+                      )}
+                      {failed && (
+                        <span className="ml-0.5 text-rose-400/80 no-underline" title={failReason}>
+                          ✗ {stage === 'structure-broken' ? '結構失效' : '已撤銷'}
+                        </span>
                       )}
                     </span>
                   );
