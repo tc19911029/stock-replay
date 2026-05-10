@@ -66,6 +66,7 @@ export function createLockWatchFromN(args: {
     patternAchievementRate: args.patternAchievementRate,
     currentStage: initialStage,
     daysObserved: 0,
+    currentClose: args.currentClose,  // Phase D：UI 顯示用
     history: [
       {
         date: args.triggeredDate,
@@ -84,6 +85,7 @@ export function createLockWatchFromF(args: {
   market: MarketId;
   triggeredDate: string;
   triggerPrice: number;  // V 底反彈起點 close（鎖定價）
+  currentClose?: number; // Phase D：寫入時 close（UI 顯示用）
   vBottom?: number;      // 變盤線 low（結構失效判定用，書本「V 底」）
 }): LockWatchRecord {
   return {
@@ -95,6 +97,7 @@ export function createLockWatchFromF(args: {
     vBottom: args.vBottom,
     currentStage: 'observation',
     daysObserved: 0,
+    currentClose: args.currentClose,
     history: [
       {
         date: args.triggeredDate,
@@ -158,6 +161,7 @@ export function updateLockWatch(
   const updatedRecord: LockWatchRecord = {
     ...record,
     daysObserved: Math.max(0, newDaysObserved),
+    currentClose: c.close,  // Phase D：每天 update 都重新抓 close，UI 顯示「現價」用
     history: [...record.history],
   };
 

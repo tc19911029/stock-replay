@@ -131,6 +131,13 @@ export interface LockWatchRecord {
    */
   daysObserved: number;
 
+  /**
+   * 最近一次更新時的 close（每日 update-lockwatch cron 自動維護）
+   * UI 顯示「現價」+ 重算「目標價距現價爬升空間」用
+   * 2026-05-11 Phase D 新增
+   */
+  currentClose?: number;
+
   /** 完整事件歷史 */
   history: LockWatchEvent[];
 }

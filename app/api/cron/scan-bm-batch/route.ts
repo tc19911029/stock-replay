@@ -183,6 +183,7 @@ export async function GET(req: NextRequest) {
                   market: market as 'TW' | 'CN',
                   triggeredDate: date,
                   triggerPrice: p.triggerPrice,
+                  currentClose: r.price,  // Phase D：UI 顯示用
                   vBottom: p.vBottom,
                 });
               }

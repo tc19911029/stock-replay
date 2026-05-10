@@ -64,7 +64,7 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
   // 股票名稱對照（symbol → name），lockwatch record 沒存 name 欄位，UI 端從 stock list API 拉
   const [nameMap, setNameMap] = useState<Record<string, string>>({});
   // 排序設定
-  type SortKey = 'signal' | 'symbol' | 'name' | 'pattern' | 'triggerPrice' | 'upside' | 'achievement' | 'stage' | 'days';
+  type SortKey = 'signal' | 'symbol' | 'name' | 'pattern' | 'triggerPrice' | 'currentClose' | 'upside' | 'achievement' | 'stage' | 'days';
   const [sortKey, setSortKey] = useState<SortKey>('stage');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [favFirst, setFavFirst] = useState(false);
@@ -176,6 +176,12 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
         case 'name': cmp = (nameMap[a.symbol] ?? '').localeCompare(nameMap[b.symbol] ?? ''); break;
         case 'pattern': cmp = (a.patternType ?? '').localeCompare(b.patternType ?? ''); break;
         case 'triggerPrice': cmp = a.triggerPrice - b.triggerPrice; break;
+        case 'currentClose': {
+          const aC = a.currentClose ?? -Infinity;
+          const bC = b.currentClose ?? -Infinity;
+          cmp = aC - bC;
+          break;
+        }
         case 'upside': {
           const aU = a.patternTargetPrice && a.triggerPrice > 0
             ? (a.patternTargetPrice - a.triggerPrice) / a.triggerPrice
@@ -285,9 +291,14 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
                         title="N 訊號=突破時的型態頸線價；F 訊號=V 反彈起點 close。點擊排序">
                       鎖定價{sortIndicator('triggerPrice')}
                     </th>
+                    <th onClick={() => toggleSort('currentClose')}
+                        className="text-center py-1.5 px-2 cursor-pointer hover:text-foreground select-none"
+                        title="現價（每日 cron 維護的最近 close）+ 相對鎖定價的漲跌幅。點擊排序">
+                      現價{sortIndicator('currentClose')}
+                    </th>
                     <th onClick={() => toggleSort('upside')}
                         className="text-center py-1.5 px-2 cursor-pointer hover:text-foreground select-none"
-                        title="目標價及爬升空間（從鎖定價算起）。點擊按爬升空間排序">
+                        title="目標價及爬升空間（從現價算起，反映「現在進場到目標還能賺多少」）。點擊按爬升空間排序">
                       目標價{sortIndicator('upside')}
                     </th>
                     <th onClick={() => toggleSort('achievement')}
@@ -356,10 +367,16 @@ function LockWatchTableRow({
     || record.currentStage === 'observation'
     || record.currentStage === 'entry-signal';
   const symbolBare = record.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
-  // 爬升空間 = 從觸發價到型態目標價的漲幅（2026-05-09 新增）
+  // Phase D：用現價算到目標價的爬升空間（從現價買進到目標還能賺多少）
+  const refPrice = record.currentClose ?? record.triggerPrice;
   const upsidePct =
-    record.patternTargetPrice != null && record.triggerPrice > 0
-      ? ((record.patternTargetPrice - record.triggerPrice) / record.triggerPrice) * 100
+    record.patternTargetPrice != null && refPrice > 0
+      ? ((record.patternTargetPrice - refPrice) / refPrice) * 100
+      : null;
+  // 現價相對鎖定價的漲幅（看現在已經漲多少）
+  const closeVsTriggerPct =
+    record.currentClose != null && record.triggerPrice > 0
+      ? ((record.currentClose - record.triggerPrice) / record.triggerPrice) * 100
       : null;
 
   // 點代號 / 名稱 → 切到走圖
@@ -393,12 +410,34 @@ function LockWatchTableRow({
       <td className="whitespace-nowrap py-1.5 px-2 text-center font-mono tabular-nums">
         {record.triggerPrice.toFixed(2)}
       </td>
-      {/* 目標價 + 爬升空間 %（2026-05-09 新增爬升空間） */}
+      {/* Phase D：現價（每日 cron 維護的最近 close） */}
+      <td
+        className="whitespace-nowrap py-1.5 px-2 text-center font-mono tabular-nums"
+        title={
+          record.currentClose != null
+            ? `最近一次更新時 close = ${record.currentClose.toFixed(2)}（每日 cron 自動維護）`
+            : '尚未有 cron update，現價未維護'
+        }
+      >
+        {record.currentClose != null ? (
+          <>
+            {record.currentClose.toFixed(2)}
+            {closeVsTriggerPct != null && (
+              <span className={`ml-1 ${closeVsTriggerPct >= 0 ? 'text-rose-300/70' : 'text-emerald-300/70'}`}>
+                {closeVsTriggerPct >= 0 ? '+' : ''}{closeVsTriggerPct.toFixed(1)}%
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="text-muted-foreground/40">—</span>
+        )}
+      </td>
+      {/* 目標價 + 爬升空間 %（Phase D：基準改為現價，反映「現在進場到目標還能賺多少」） */}
       <td
         className="whitespace-nowrap py-1.5 px-2 text-center font-mono tabular-nums text-emerald-400/80"
         title={
           upsidePct != null
-            ? `型態目標價 ${record.patternTargetPrice!.toFixed(2)}（從觸發價 ${record.triggerPrice.toFixed(2)} 爬升 +${upsidePct.toFixed(1)}%）`
+            ? `型態目標價 ${record.patternTargetPrice!.toFixed(2)}（從現價 ${refPrice.toFixed(2)} 爬升 ${upsidePct >= 0 ? '+' : ''}${upsidePct.toFixed(1)}%）`
             : undefined
         }
       >
@@ -406,7 +445,9 @@ function LockWatchTableRow({
           <>
             {record.patternTargetPrice.toFixed(2)}
             {upsidePct != null && (
-              <span className="ml-1 text-emerald-300/70">+{upsidePct.toFixed(1)}%</span>
+              <span className={`ml-1 ${upsidePct >= 0 ? 'text-emerald-300/70' : 'text-rose-400/70'}`}>
+                {upsidePct >= 0 ? '+' : ''}{upsidePct.toFixed(1)}%
+              </span>
             )}
           </>
         ) : (
