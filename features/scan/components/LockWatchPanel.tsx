@@ -9,7 +9,7 @@
  * 收合預設關閉（避免占主畫面）；展開後顯示當日 active 紀錄。
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import type { LockWatchDailySnapshot, LockWatchRecord } from '@/lib/scanner/lockWatchTypes';
 import type { SelectedStock } from './ScanChartPanel';
 import { useWatchlistStore } from '@/store/watchlistStore';
@@ -63,6 +63,18 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
   const [removingKey, setRemovingKey] = useState<string | null>(null);
   // 股票名稱對照（symbol → name），lockwatch record 沒存 name 欄位，UI 端從 stock list API 拉
   const [nameMap, setNameMap] = useState<Record<string, string>>({});
+  // 排序設定
+  type SortKey = 'signal' | 'symbol' | 'name' | 'pattern' | 'triggerPrice' | 'upside' | 'achievement' | 'stage' | 'days';
+  const [sortKey, setSortKey] = useState<SortKey>('stage');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [favFirst, setFavFirst] = useState(false);
+  const watchlistItems = useWatchlistStore((s) => s.items);  // 訂閱以便 toggle 自選後重新排序
+  const inWatchlistSet = useMemo(() => new Set(watchlistItems.map(i => i.symbol)), [watchlistItems]);
+  const toggleSort = (k: SortKey) => {
+    if (sortKey === k) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(k); setSortDir('desc'); }
+  };
+  const sortIndicator = (k: SortKey) => sortKey === k ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
 
   // 拉股票名稱對照表（每市場一次，cache 在 component state）
   useEffect(() => {
@@ -137,6 +149,52 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
   const activeCount = activeRecords.length;
   const totalCount = snapshot?.records.length ?? 0;
 
+  // 排序：可進場 > 等突破 > 觀察中 > 已買進 > 撤銷類
+  const STAGE_ORDER: Record<LockWatchRecord['currentStage'], number> = {
+    'entry-signal': 0,
+    'pending-breakout': 1,
+    observation: 2,
+    purchased: 3,
+    'manually-removed': 4,
+    revoked: 5,
+    'structure-broken': 6,
+  };
+
+  const sortedRecords = useMemo(() => {
+    const arr = [...(snapshot?.records ?? [])];
+    arr.sort((a, b) => {
+      // 自選優先（toggle 開時）
+      if (favFirst) {
+        const af = inWatchlistSet.has(a.symbol) ? 0 : 1;
+        const bf = inWatchlistSet.has(b.symbol) ? 0 : 1;
+        if (af !== bf) return af - bf;
+      }
+      let cmp = 0;
+      switch (sortKey) {
+        case 'signal': cmp = a.triggerSignal.localeCompare(b.triggerSignal); break;
+        case 'symbol': cmp = a.symbol.localeCompare(b.symbol); break;
+        case 'name': cmp = (nameMap[a.symbol] ?? '').localeCompare(nameMap[b.symbol] ?? ''); break;
+        case 'pattern': cmp = (a.patternType ?? '').localeCompare(b.patternType ?? ''); break;
+        case 'triggerPrice': cmp = a.triggerPrice - b.triggerPrice; break;
+        case 'upside': {
+          const aU = a.patternTargetPrice && a.triggerPrice > 0
+            ? (a.patternTargetPrice - a.triggerPrice) / a.triggerPrice
+            : -Infinity;
+          const bU = b.patternTargetPrice && b.triggerPrice > 0
+            ? (b.patternTargetPrice - b.triggerPrice) / b.triggerPrice
+            : -Infinity;
+          cmp = aU - bU;
+          break;
+        }
+        case 'achievement': cmp = (a.patternAchievementRate ?? 0) - (b.patternAchievementRate ?? 0); break;
+        case 'stage': cmp = (STAGE_ORDER[a.currentStage] ?? 99) - (STAGE_ORDER[b.currentStage] ?? 99); break;
+        case 'days': cmp = a.daysObserved - b.daysObserved; break;
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return arr;
+  }, [snapshot, sortKey, sortDir, favFirst, nameMap, inWatchlistSet]);
+
   // 沒任何 active record 時整個區塊不渲染（避免「暫無」一行佔版面）
   // loading / error 時保留顯示
   if (!loading && !error && activeCount === 0) {
@@ -168,6 +226,23 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
 
       {!collapsed && (
         <div className="px-2.5 pb-1.5">
+          {/* 排序選項列 */}
+          <div className="flex items-center gap-2 py-1.5 text-[10px]">
+            <span className="text-muted-foreground/60">排序：</span>
+            <button
+              onClick={() => setFavFirst(v => !v)}
+              className={`px-1.5 py-0.5 rounded font-medium transition ${
+                favFirst
+                  ? 'bg-amber-700/60 text-amber-100'
+                  : 'bg-secondary text-muted-foreground/70 hover:text-foreground'
+              }`}
+              title="開啟後，已加自選的 row 永遠排在最前面"
+            >
+              {favFirst ? '✓ 自選優先' : '自選優先'}
+            </button>
+            <span className="text-muted-foreground/40">|</span>
+            <span className="text-muted-foreground/60 text-[9px]">表頭點擊切換排序欄位</span>
+          </div>
           {loading && (
             <div className="text-[10px] text-muted-foreground py-1">載入中…</div>
           )}
@@ -185,41 +260,56 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
               <table className="w-full text-[11px] [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap">
                 <thead className="text-[11px] text-muted-foreground border-b border-border/50 sticky top-0 bg-card">
                   <tr>
-                    <th className="text-left py-1.5 px-2"
-                        title="觸發類型：F=V反轉（變盤線止跌+紅K突破），N=型態確認（書本 25 種底部型態）">
-                      訊號
+                    <th onClick={() => toggleSort('signal')}
+                        className="text-left py-1.5 px-2 cursor-pointer hover:text-foreground select-none"
+                        title="觸發類型：F=V反轉（變盤線止跌+紅K突破），N=型態確認（書本 25 種底部型態）。點擊排序">
+                      訊號{sortIndicator('signal')}
                     </th>
-                    <th className="text-left py-1.5 px-2">代號</th>
-                    <th className="text-left py-1.5 px-2">名稱</th>
-                    <th className="text-left py-1.5 px-2"
-                        title="N 訊號的具體型態（頭肩底/三重底/圓弧底/複式頭肩底/跌菱形/下降楔形/雙重底/N 字底/三個頂部型態）">
-                      型態
+                    <th onClick={() => toggleSort('symbol')}
+                        className="text-left py-1.5 px-2 cursor-pointer hover:text-foreground select-none"
+                        title="點擊排序">
+                      代號{sortIndicator('symbol')}
                     </th>
-                    <th className="text-center py-1.5 px-2"
-                        title="N 訊號=突破時的型態頸線價；F 訊號=V 反彈起點 close。不是進場價（進場應等趨勢確認後）">
-                      鎖定價
+                    <th onClick={() => toggleSort('name')}
+                        className="text-left py-1.5 px-2 cursor-pointer hover:text-foreground select-none"
+                        title="點擊排序">
+                      名稱{sortIndicator('name')}
                     </th>
-                    <th className="text-center py-1.5 px-2"
-                        title="書本《抓飆股》Part 7 型態測量幅度：頸線 + (頸線 − 最低點)。達標即觸發停利">
-                      目標價
+                    <th onClick={() => toggleSort('pattern')}
+                        className="text-left py-1.5 px-2 cursor-pointer hover:text-foreground select-none"
+                        title="N 訊號的具體型態。點擊排序">
+                      型態{sortIndicator('pattern')}
                     </th>
-                    <th className="text-center py-1.5 px-2"
-                        title="書本明寫的型態達成率（《抓飆股》p.314-342）：三重底95%、下降楔形90%、圓弧底85%、頭肩底83%、複式頭肩/跌菱形80%、N 字底75%、雙重底36%">
-                      達成率
+                    <th onClick={() => toggleSort('triggerPrice')}
+                        className="text-center py-1.5 px-2 cursor-pointer hover:text-foreground select-none"
+                        title="N 訊號=突破時的型態頸線價；F 訊號=V 反彈起點 close。點擊排序">
+                      鎖定價{sortIndicator('triggerPrice')}
                     </th>
-                    <th className="text-center py-1.5 px-2"
-                        title="觀察中=結構成立等趨勢確認；可進場=趨勢確認可考慮買進；已買進=用戶買進；已撤銷=close 跌破鎖定價或趨勢翻空；結構失效=跌破型態關鍵支撐">
-                      階段
+                    <th onClick={() => toggleSort('upside')}
+                        className="text-center py-1.5 px-2 cursor-pointer hover:text-foreground select-none"
+                        title="目標價及爬升空間（從鎖定價算起）。點擊按爬升空間排序">
+                      目標價{sortIndicator('upside')}
                     </th>
-                    <th className="text-center py-1.5 px-2"
-                        title="觸發後經過的交易日數（不含週末/假日）。0d 表示今天剛觸發或上次 cron 還沒跑">
-                      天數
+                    <th onClick={() => toggleSort('achievement')}
+                        className="text-center py-1.5 px-2 cursor-pointer hover:text-foreground select-none"
+                        title="書本明寫的型態達成率（《抓飆股》p.314-342）。點擊排序">
+                      達成率{sortIndicator('achievement')}
+                    </th>
+                    <th onClick={() => toggleSort('stage')}
+                        className="text-center py-1.5 px-2 cursor-pointer hover:text-foreground select-none"
+                        title="可進場 → 等突破 → 觀察中 → 已買進 → 撤銷類。點擊排序">
+                      階段{sortIndicator('stage')}
+                    </th>
+                    <th onClick={() => toggleSort('days')}
+                        className="text-center py-1.5 px-2 cursor-pointer hover:text-foreground select-none"
+                        title="觸發後經過的交易日數。點擊排序">
+                      天數{sortIndicator('days')}
                     </th>
                     <th className="text-center py-1.5 px-2 min-w-[110px]">動作</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(snapshot?.records ?? []).map((r) => (
+                  {sortedRecords.map((r) => (
                     <LockWatchTableRow
                       key={`${r.symbol}-${r.triggerSignal}-${r.triggeredDate}`}
                       record={r}
