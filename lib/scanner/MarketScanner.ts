@@ -1524,10 +1524,14 @@ export abstract class MarketScanner {
           // ── 戰法軌 Q：套戒律檢查（書本 p.262 沒說可以無視戒律）──────
           // 反轉軌（D/F/N/O）不套戒律，因為戒律 5/8（未站上月線/空頭反彈）會誤
           // 擋掉所有抓底/反轉訊號。書本本意這 4 個就是要在底部抓。
-          if (isSystem && matched) {
+          // 但反轉軌仍跑 checkLongProhibitions 蒐集 reasons → 寫入 r.longProhibitionsReasons
+          // 給 UI 警示用（用戶看到反轉訊號 row + 戒律觸發提示，書本「掃出但別追高」）
+          let longProhibitionsReasons: string[] = [];
+          {
             const { checkLongProhibitions } = await import('@/lib/rules/entryProhibitions');
             const prohib = checkLongProhibitions(candles, lastIdx);
-            if (prohib.prohibited) return null;
+            longProhibitionsReasons = prohib.reasons;
+            if (isSystem && matched && prohib.prohibited) return null;  // Q 戰法軌仍 reject
           }
 
           const prev = candles[lastIdx - 1];
@@ -1664,6 +1668,7 @@ export abstract class MarketScanner {
             mtfMonthlyDetail: mtfResult.monthly.detail,
             lockWatchPayload,
             provisional,
+            longProhibitionsReasons: longProhibitionsReasons.length > 0 ? longProhibitionsReasons : undefined,
             dataFreshness: {
               lastCandleDate: fetchResult.lastCandleDate,
               daysStale: fetchResult.staleDays,

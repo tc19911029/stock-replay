@@ -7,6 +7,7 @@ import type { SelectedStock } from './ScanChartPanel';
 import type { StockForwardPerformance } from '@/lib/scanner/types';
 import type { TrendState } from '@/lib/analysis/trendAnalysis';
 import type { LockWatchRecord, LockWatchDailySnapshot } from '@/lib/scanner/lockWatchTypes';
+import { buildAllStrategyReasons, type StrategyReasonRow } from './strategyReasons';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -15,48 +16,39 @@ function fmtRet(val: number | null | undefined): string {
   return `${val >= 0 ? '+' : ''}${val.toFixed(1)}%`;
 }
 
-// 軌道分類（書本五步法）— badge 顯示用
-const TRACK_OF: Record<string, 'pool' | 'bullish' | 'reversal' | 'system'> = {
-  A: 'pool',
-  B: 'bullish', C: 'bullish', E: 'bullish',
-  G: 'bullish', H: 'bullish', I: 'bullish',
-  J: 'bullish', K: 'bullish', L: 'bullish',
-  M: 'bullish', P: 'bullish',
-  D: 'reversal', F: 'reversal', N: 'reversal', O: 'reversal',
-  Q: 'system',
-};
-
 // v11 字母（G/H/I）跟 v12（J/K/L）是 alias，cross-strategy 顯示時去重
 const V11_ALIAS_OF_V12: Record<string, string> = { G: 'J', H: 'L', I: 'K' };
 
 /**
- * 過濾 cross-strategy badges 只顯示「有資訊量」的：
- *   - A 六條件：永遠保留（書本基本門檻）
- *   - 跨軌道命中：保留（多頭+反轉雙重訊號才有意義）
- *   - 同軌道兄弟訊號：隱藏（多頭軌主訊號旁邊掛多頭軌兄弟訊號太雜亂）
- *   - v11 alias：去重（G/H/I 跟 J/K/L 是同 detector，只顯示一次）
+ * Cross-strategy badges 去重：
+ *   - 排除 main 自己
+ *   - v11 alias（G/H/I）統一映射到 v12 字母（J/L/K）去重
+ *   - 全部命中策略都列出（不折疊、不過濾同軌道兄弟訊號）
  */
-function filterCrossBadges(matched: string[], main: string): string[] {
-  const mainTrack = TRACK_OF[main] ?? 'bullish';
+function dedupeCrossBadges(matched: string[], main: string): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const m of matched) {
     if (m === main) continue;
-    // v11 alias 統一映射到 v12 字母去重
     const canonical = V11_ALIAS_OF_V12[m] ?? m;
     if (seen.has(canonical)) continue;
     seen.add(canonical);
-    // A 永遠保留
-    if (canonical === 'A') {
-      out.push(canonical);
-      continue;
-    }
-    // 跨軌道才保留
-    if ((TRACK_OF[canonical] ?? 'bullish') !== mainTrack) {
-      out.push(canonical);
-    }
+    out.push(canonical);
   }
   return out;
+}
+
+/**
+ * 主徽章名稱清理：
+ *   - 去掉「J 」「M 」「F 」等單字母前綴（detector detail 慣例帶字母）
+ *   - 去掉尾端 `（...）` 詳細參數
+ */
+function cleanMainBadgeName(ruleName: string): string {
+  return ruleName
+    .replace(/^[A-Z]\s+/, '')
+    .replace(/（.*）$/, '')
+    .replace(/[:：].*$/, '')
+    .trim();
 }
 
 function retColor(val: number | null | undefined): string {
@@ -213,17 +205,35 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
         const perf = perfMap.get(r.symbol);
         const isExpanded = expandedStock === r.symbol;
         const ticker = r.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
+        // 戒律觸發 row 灰化（書本：detector 訊號可看，但戒律是硬性禁忌不該追）
+        const prohibitionsCount = r.longProhibitionsReasons?.length ?? 0;
+        const hasProhibition = prohibitionsCount > 0;
 
         return (
           <Fragment key={r.symbol}>
             <div
-              className={`rounded-lg border border-border/60 px-2.5 py-2 cursor-pointer hover:bg-secondary/40 transition-colors ${isExpanded ? 'bg-secondary/60 border-sky-700/50' : 'bg-card'}`}
+              className={`rounded-lg border px-2.5 py-2 cursor-pointer transition-colors ${
+                isExpanded
+                  ? 'bg-secondary/60 border-sky-700/50'
+                  : hasProhibition
+                    ? 'bg-zinc-900/40 border-border/30 opacity-60 hover:opacity-80'
+                    : 'bg-card border-border/60 hover:bg-secondary/40'
+              }`}
               onClick={() => setExpandedStock(isExpanded ? null : r.symbol)}
+              title={hasProhibition ? `⚠ 戒律觸發 ${prohibitionsCount} 條 — ${r.longProhibitionsReasons!.slice(0, 2).join('；')}（書本：硬性禁忌不該追）` : undefined}
             >
               {/* Row 1: Symbol + Name + Change% + Actions */}
               <div className="flex items-center gap-1.5 mb-1">
                 <span className="font-mono text-[11px] text-foreground/90 shrink-0">{ticker}</span>
                 <span className="text-[11px] text-foreground/80 truncate flex-1">{r.name}</span>
+                {hasProhibition && (
+                  <span
+                    className="text-[8px] px-1 h-3.5 flex items-center rounded-sm bg-rose-900/40 text-rose-300 font-bold shrink-0"
+                    title={r.longProhibitionsReasons!.join('；')}
+                  >
+                    ⚠ 戒律 {prohibitionsCount}
+                  </span>
+                )}
                 <span className={`font-mono text-[11px] font-bold shrink-0 ${r.changePercent >= 0 ? 'text-bull' : 'text-bear'}`}>
                   {r.changePercent >= 0 ? '+' : ''}{r.changePercent.toFixed(1)}%
                 </span>
@@ -279,30 +289,20 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                       P: '高檔拉回', Q: '三均戰法',
                     };
                     const color = methodColors[activeBuyMethod] ?? 'bg-sky-800/80 text-sky-300';
-                    // 只顯示「有資訊量」的 cross-strategy（A + 跨軌道，去重 v11 alias）
-                    const others = filterCrossBadges(r.matchedMethods ?? [], activeBuyMethod);
-                    // 完整列表給 hover 看
-                    const allOthers = (r.matchedMethods ?? []).filter(m => m !== activeBuyMethod);
+                    const others = dedupeCrossBadges(r.matchedMethods ?? [], activeBuyMethod);
                     return (
                       <>
                         <span className={`text-[8px] px-1.5 h-3.5 flex items-center rounded-sm max-w-[160px] truncate ${color}`}
                           title={rule?.ruleName ?? ''}>
-                          {rule ? rule.ruleName.replace(/（.*）$/, '') : activeBuyMethod}
+                          {rule ? cleanMainBadgeName(rule.ruleName) : (methodNames[activeBuyMethod] ?? activeBuyMethod)}
                         </span>
                         {others.map(m => (
                           <span key={m}
                             className={`text-[8px] px-1 h-3.5 flex items-center rounded-sm font-bold ${methodColors[m] ?? 'bg-secondary/60 text-foreground/70'}`}
                             title={`同時命中：${methodNames[m] ?? m}`}>
-                            +{methodNames[m] ?? m}
+                            {methodNames[m] ?? m}
                           </span>
                         ))}
-                        {/* 同軌道兄弟訊號隱藏，只顯示總數可 hover 看完整 */}
-                        {allOthers.length > others.length && (
-                          <span className="text-[8px] text-muted-foreground/50 px-0.5"
-                            title={`同軌道兄弟訊號（隱藏）：${allOthers.filter(m => !others.includes(m)).map(m => methodNames[m] ?? m).join('、')}`}>
-                            +{allOthers.length - others.length}
-                          </span>
-                        )}
                       </>
                     );
                   })()
@@ -357,11 +357,16 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                           <span key={label} className={`text-[8px] w-3.5 h-3.5 flex items-center justify-center rounded-sm ${pass ? 'bg-sky-800/80 text-sky-300' : 'bg-secondary/50 text-muted-foreground/60'}`}>{label}</span>
                         ))}
                         <span className="text-[9px] text-sky-400 ml-0.5">{r.sixConditionsScore}/6</span>
+                        {/* 六條件 badge — 放在 cross-strategy badges 之間，與其他 tab 命中徽章一致 */}
+                        <span className="text-[8px] px-1 h-3.5 flex items-center rounded-sm font-bold bg-amber-800/80 text-amber-200"
+                          title={`六條件 ${r.sixConditionsScore}/6`}>
+                          六條件
+                        </span>
                         {others.map(m => (
                           <span key={m}
                             className={`text-[8px] px-1 h-3.5 flex items-center rounded-sm font-bold ${methodColors[m] ?? 'bg-secondary/60 text-foreground/70'}`}
                             title={`同時命中：${methodNames[m] ?? m}`}>
-                            +{methodNames[m] ?? m}
+                            {methodNames[m] ?? m}
                           </span>
                         ))}
                       </>
@@ -557,29 +562,51 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
             {/* Expanded details */}
             {isExpanded && (
               <div className="rounded-lg border border-sky-700/30 bg-card/80 px-2.5 py-2 space-y-2 text-[10px]">
-                {/* MTF info — 週線六條件 checklist（= 日線六條件套週線）+ 月線趨勢 */}
-                {r.mtfScore != null && (
-                  <div>
-                    <div className="text-muted-foreground font-medium mb-0.5">長線保護短線 {r.mtfScore}/7</div>
-                    <div className="space-y-0.5 text-[9px]">
-                      {([
-                        { label: '週①趨勢',   pass: r.mtfWeeklyChecks?.trend     ?? (r.mtfWeeklyTrend !== '空頭'), desc: '週線頭頭高底底高' },
-                        { label: '週②均線',   pass: r.mtfWeeklyChecks?.ma        ?? false,                          desc: 'MA5/10/20 三線多排 + MA10/20 向上' },
-                        { label: '週③位置',   pass: r.mtfWeeklyChecks?.position  ?? false,                          desc: '收盤 > MA10 AND MA20' },
-                        { label: '週④量',     pass: r.mtfWeeklyChecks?.volume    ?? false,                          desc: '週量 ≥ 前週 × 1.3' },
-                        { label: '週⑤紅K',    pass: r.mtfWeeklyChecks?.kbar      ?? false,                          desc: '紅K實體≥2% + 高收盤 + 上影≤實體' },
-                        { label: '週⑥指標',   pass: r.mtfWeeklyChecks?.indicator ?? false,                          desc: 'MACD 綠縮/紅延 + KD 金叉向上' },
-                        { label: '月線趨勢',   pass: r.mtfMonthlyPass ?? false,                                     desc: '月線不是空頭' },
-                      ]).map(({ label, pass, desc }) => (
-                        <div key={label} className="flex items-center gap-1.5">
-                          <span className={pass ? 'text-green-400' : 'text-red-400'}>{pass ? '✅' : '❌'}</span>
-                          <span className="text-muted-foreground font-medium">{label}</span>
-                          <span className="text-muted-foreground/50">{desc}</span>
-                        </div>
-                      ))}
+                {/* 符合策略原因 — 按 matchedMethods 順序列出每個命中策略的命中原因 */}
+                {(() => {
+                  const blocks = buildAllStrategyReasons(r, activeBuyMethod);
+                  if (blocks.length === 0) return null;
+                  const toneClass = (tone?: StrategyReasonRow['tone']) =>
+                    tone === 'good' ? 'text-emerald-300' :
+                    tone === 'bad'  ? 'text-rose-300' :
+                    tone === 'warn' ? 'text-amber-300' :
+                                      'text-foreground/80';
+                  return (
+                    <div>
+                      <div className="text-muted-foreground font-medium mb-1">符合策略原因</div>
+                      <div className="space-y-1.5">
+                        {blocks.map((block) => (
+                          <div key={block.method} className="rounded border border-border/40 bg-secondary/30 px-2 py-1.5">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <span className="text-[9px] font-mono px-1 rounded bg-sky-900/60 text-sky-200">{block.method}</span>
+                              <span className="text-[10px] text-foreground/90 font-medium">{block.title}</span>
+                              {block.summary && (
+                                <span className="text-[9px] text-sky-400">{block.summary}</span>
+                              )}
+                            </div>
+                            <div className="space-y-0.5 text-[9px]">
+                              {block.rows.map((row, i) => (
+                                <div key={i} className="flex items-start gap-1.5">
+                                  {row.pass !== undefined ? (
+                                    <span className={row.pass ? 'text-green-400' : 'text-red-400'}>
+                                      {row.pass ? '✅' : '❌'}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground/50">·</span>
+                                  )}
+                                  {row.label && (
+                                    <span className="text-muted-foreground font-medium shrink-0">{row.label}</span>
+                                  )}
+                                  <span className={toneClass(row.tone)}>{row.text}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
                 {/* 33 種贏家圖像（寶典 Part 12） */}
                 {((r.winnerBullishPatterns ?? []).length > 0 || (r.winnerBearishPatterns ?? []).length > 0) && (
                   <div>

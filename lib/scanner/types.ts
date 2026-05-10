@@ -53,6 +53,8 @@ export interface StockScanResult {
   // ── 淘汰法 ────────────────────────────────────────────────────────────
   eliminationReasons?: string[];      // 淘汰原因
   eliminationPenalty?: number;        // 淘汰扣分
+  // ── 戒律（書本進場禁忌；反轉軌訊號不會被 reject 但會記錄 count 供 UI 警示）──
+  longProhibitionsReasons?: string[]; // 觸發的戒律 reason 字串
   // ── 做空方向 ──────────────────────────────────────────────────────────────
   direction?: 'long' | 'short';              // 做多/做空方向
   shortSixConditionsScore?: number;          // 0–6
@@ -575,4 +577,12 @@ export interface ScanSession {
     coverageRate: number;       // 0-100%
     dataStatus: 'complete' | 'partial' | 'insufficient';
   };
+  /**
+   * Step 1 過濾狀態（議題：用戶 0510 反映「漏跑 Step 1 直接跑 Step 2」）
+   *  - 'applied'    多頭軌字母（B/C/E/J/K/L/M/P）+ Step 1 池子存在 → 結果是池子子集
+   *  - 'bypassed'   反轉軌（D/F/N/O）/ 戰法軌（Q）/ 六條件 daily session → 設計上不過 Step 1
+   *  - 'missing'    多頭軌但 Step 1 池子缺漏 → MarketScanner 已回 [] 但保留欄位讓 UI 顯示警告
+   *  - 未填代表舊資料（v11 之前的 session）
+   */
+  step1Filter?: 'applied' | 'bypassed' | 'missing';
 }
