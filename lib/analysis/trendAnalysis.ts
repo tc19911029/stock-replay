@@ -59,12 +59,17 @@ interface Pivot {
  *
  * @param includeOpen true 時把「進行中段」的 running max/min 當成 provisional pivot 加在最後
  *                    （用於即時趨勢判定；書本嚴格確認要等 MA5 反向穿越）
+ * @param minSwingRatio 最小擺幅比例（預設 0 = 不過濾）。> 0 時，過濾掉相鄰反向 pivot
+ *                      價差 < `minSwingRatio × close` 或 `0.5 × ATR(14)` 取大者的小擺動。
+ *                      用於型態偵測（避免震盪雜訊產生的假頭底擾亂三重底/頭肩底辨識）。
+ *                      不影響原有呼叫點（detectTrend / 走圖 marker 走預設 0）。
  */
 export function findPivots(
   candles: CandleWithIndicators[],
   endIndex: number,
   maxPivots = 10,
   includeOpen = false,
+  minSwingRatio = 0,
 ): Pivot[] {
   const lookback = Math.min(endIndex, 120);
   const start = Math.max(0, endIndex - lookback);
@@ -124,7 +129,43 @@ export function findPivots(
     }
   }
 
-  return pivots.slice(-maxPivots).reverse();
+  // 可選：ATR / 比例過濾（minSwingRatio > 0）— 移除震盪雜訊產生的小擺幅 pivot
+  // 演算法：oldest→newest 走，若新 pivot 與前一個保留 pivot 的價差小於 threshold，
+  //   則：若同向（不會發生於原始 MA5 分段法，但合併後可能）則保留更極端者；
+  //        若反向但擺幅太小，丟棄當前 pivot（讓真正的轉折繼續）
+  // 注意：findPivots 原本以 MA5 正負區交替產出 high-low-high-low，過濾後仍維持交替。
+  let filtered = pivots;
+  if (minSwingRatio > 0 && pivots.length >= 2) {
+    const last = candles[endIndex];
+    const closeRef = last?.close ?? 0;
+    const atrRef = last?.atr14 ?? 0;
+    const threshold = Math.max(minSwingRatio * closeRef, 0.5 * atrRef);
+    if (threshold > 0) {
+      const out: Pivot[] = [];
+      for (const p of pivots) {
+        const prev = out[out.length - 1];
+        if (!prev) {
+          out.push(p);
+          continue;
+        }
+        if (prev.type === p.type) {
+          // 同向（過濾後可能出現）：保留更極端者
+          const isHigh = p.type === 'high';
+          if ((isHigh && p.price > prev.price) || (!isHigh && p.price < prev.price)) {
+            out[out.length - 1] = p;
+          }
+          continue;
+        }
+        // 反向：擺幅太小則丟棄當前 pivot
+        const swing = Math.abs(p.price - prev.price);
+        if (swing < threshold) continue;
+        out.push(p);
+      }
+      filtered = out;
+    }
+  }
+
+  return filtered.slice(-maxPivots).reverse();
 }
 
 // ── Trend detection ───────────────────────────────────────────────────────────
@@ -133,11 +174,15 @@ export function findPivots(
  * 朱老師趨勢判斷（對齊寶典 p.35）：
  *   「由最後一天收盤 K 線往左和最近的「頭」及最近的「底」比較，判定是否符合多頭架構」
  *
- *   多頭 = 頭頭高 + 底底高 同時成立
- *   空頭 = 頭頭低 + 底底低 同時成立
- *   盤整 = 波浪不完整 / 矛盾（頭高底低、頭低底高）/ 轉折中
+ *   多頭 = 頭頭高 + 不破前底（含底底相等）
+ *   空頭 = 底底低 + 不過前頭（含頭頭相等）
+ *   盤整 = 波浪不完整 / 矛盾（頭高底低、頭低底高）/ 兩邊都未突破
  *
- * 不再加 MA 粗判或 fallback — 書本只看波浪結構。
+ * 2026-05-10 放寬：底底「相等」也算「不破底」（書本「底底高」精神是「不破前底」）。
+ *   例：6770 力積電兩底都 51.6 + 新頭突破前頭 → 應為多頭，原嚴格 > 誤判為盤整。
+ *   對稱：頭頭「相等」也算「不過頭」。
+ *   不是 ε 容差（exact equality only），符合「不加數值容差」原則。
+ *
  * 波浪由 findPivots (p.22 MA5 分段法) 產出。
  */
 export function detectTrend(
@@ -164,13 +209,16 @@ export function detectTrend(
   const immediateNewHigh = c.close > highs[0].price;
   const immediateNewLow  = c.close < lows[0].price;
 
+  // 多頭側：頭頭高（嚴格）+ 不破前底（含相等）
   const higherHighs = highs[0].price > highs[1].price || immediateNewHigh;
-  const higherLows  = !immediateNewLow && lows[0].price > lows[1].price;
-  const lowerHighs  = !higherHighs && highs[0].price < highs[1].price;
+  const noLowerLow  = !immediateNewLow && lows[0].price >= lows[1].price;
+  // 空頭側：底底低（嚴格）+ 不過前頭（含相等）— 鏡像對稱
   const lowerLows   = lows[0].price < lows[1].price || immediateNewLow;
+  const noHigherHigh = !immediateNewHigh && highs[0].price <= highs[1].price;
 
-  if (higherHighs && higherLows) return '多頭';
-  if (lowerHighs  && lowerLows)  return '空頭';
+  // 多頭 / 空頭 條件互斥；同時成立（極罕見極端 case）→ 留給盤整
+  if (higherHighs && noLowerLow && !lowerLows) return '多頭';
+  if (lowerLows  && noHigherHigh && !higherHighs) return '空頭';
   return '盤整';
 }
 

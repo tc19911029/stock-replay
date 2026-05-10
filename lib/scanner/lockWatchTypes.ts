@@ -36,7 +36,9 @@ export interface LockWatchRecord {
   triggerSignal: 'F' | 'N';
 
   /**
-   * N 訊號的具體型態類型
+   * N 訊號的具體型態類型（多頭進場：底部型態 + N 字底）
+   *
+   * 底部型態（向上突破做多）：
    * - 'head-shoulder' 頭肩底
    * - 'complex-head-shoulder' 複式頭肩底
    * - 'triple-bottom' 三重底
@@ -44,6 +46,12 @@ export interface LockWatchRecord {
    * - 'rounding-bottom' 圓弧底
    * - 'descending-wedge' 下降楔形
    * - 'double-bottom' 雙重底
+   * - 'n-shape' N 字底（A 高→B 低→C 突破 A 高，2026-05-10 補實作）
+   *
+   * 頂部型態（向下跌破做空 / 出場警示，2026-05-10 補實作）：
+   * - 'head-shoulder-top' 頭肩頂
+   * - 'triple-top' 三重頂
+   * - 'double-top' 雙重頂
    */
   patternType?:
     | 'head-shoulder'
@@ -52,7 +60,11 @@ export interface LockWatchRecord {
     | 'falling-diamond'
     | 'rounding-bottom'
     | 'descending-wedge'
-    | 'double-bottom';
+    | 'double-bottom'
+    | 'n-shape'
+    | 'head-shoulder-top'
+    | 'triple-top'
+    | 'double-top';
 
   /**
    * 觸發日鎖定的突破點價格（議題 24 / 75）
@@ -74,11 +86,15 @@ export interface LockWatchRecord {
    *
    * 達目標價 → 觸發 Step 5 停利訊號
    *
-   * 計算公式（依型態）：
+   * 計算公式（依型態，2026-05-10 對齊書本《抓飆股》Part 7）：
    * - 頭肩底：頸線 + (頸線 - 頭部最低)
-   * - 三重底：頸線 + 平均底部到頸線高度
-   * - 圓弧底：弧底深度 × 1.5
-   * - 雙重底：頸線 + 高度
+   * - 三重底：頸線 + (頸線 - 三底最低點)
+   * - 圓弧底：頸線 + 弧底深度
+   * - 雙重底：頸線 + (頸線 - 兩底最低)
+   * - N 字底：C 突破點 + (A 高 - B 低)
+   * - 頭肩頂：頸線 - (頭部最高 - 頸線)
+   * - 三重頂：頸線 - (最高點 - 頸線)
+   * - 雙重頂：頸線 - (最高點 - 頸線)
    */
   patternTargetPrice?: number;
 

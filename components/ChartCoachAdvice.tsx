@@ -140,12 +140,18 @@ function buildFollowupContext(
   return lines.join('\n');
 }
 
-export default function ChartCoachAdvice() {
+interface ChartCoachAdviceProps {
+  /** true 時：已有結論的卡片預設摺疊（只顯示題頭 + verdict 一行），點開才出 reasoning + 對話 */
+  defaultCollapsed?: boolean;
+}
+
+export default function ChartCoachAdvice({ defaultCollapsed = false }: ChartCoachAdviceProps) {
   const {
     currentSignals, allCandles, currentIndex, currentStock,
     trendState, trendPosition, sixConditions, longProhibitions, winnerPatterns,
   } = useReplayStore();
   const { holdings } = usePortfolioStore();
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
   const candle = allCandles[currentIndex];
   const prev   = allCandles[currentIndex - 1];
@@ -389,11 +395,23 @@ export default function ChartCoachAdvice() {
         )}
       </div>
 
-      {data.overview && (
+      {/* defaultCollapsed=true 時，verdict 下方 reasoning + 對話框可摺疊 */}
+      {defaultCollapsed && (
+        <button
+          type="button"
+          onClick={() => setCollapsed(v => !v)}
+          className="w-full flex items-center justify-between text-[10px] text-muted-foreground hover:text-foreground py-0.5"
+        >
+          <span>{collapsed ? '展開分析要點與追問' : '收起分析要點'}</span>
+          <span>{collapsed ? '▼' : '▲'}</span>
+        </button>
+      )}
+
+      {!collapsed && data.overview && (
         <div className="text-foreground leading-relaxed">{data.overview}</div>
       )}
 
-      {data.reasoning.length > 0 && (
+      {!collapsed && data.reasoning.length > 0 && (
         <div className="space-y-0.5 pl-1">
           {data.reasoning.map((r, i) => (
             <div key={i} className="text-muted-foreground leading-snug flex items-start gap-1.5">
@@ -404,13 +422,14 @@ export default function ChartCoachAdvice() {
         </div>
       )}
 
-      {data.caveat && (
+      {!collapsed && data.caveat && (
         <div className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-amber-200">
           ⚠️ {data.caveat}
         </div>
       )}
 
-      {/* 追問區 */}
+      {/* 追問區（收起時不顯示）*/}
+      {!collapsed && (
       <div className="pt-2 mt-2 border-t border-purple-500/20 space-y-1.5">
         {chat.length > 0 && (
           <div className="space-y-1.5 max-h-[320px] overflow-y-auto pr-1">
@@ -464,6 +483,7 @@ export default function ChartCoachAdvice() {
           >送出</button>
         </div>
       </div>
+      )}
     </div>
   );
 }

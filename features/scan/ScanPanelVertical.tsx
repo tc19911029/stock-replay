@@ -200,9 +200,18 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
           type M = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q';
           const renderBtn = (method: M, color: string) => {
             const m = META[method];
+            const isBullish = ['B', 'C', 'E', 'J', 'K', 'L', 'M', 'P'].includes(method);
+            const isReversal = ['D', 'F', 'N', 'O'].includes(method);
+            const isSystem = method === 'Q';
             const tooltip = method === 'A'
-              ? `A · ${m.name}（基礎篩選池：六條件 + 戒律 + 淘汰法）`
-              : `${method} · ${m.name} · ${m.track} · 守 ${m.ma}`;
+              ? `A · ${m.name}（書本五步法 Step 1 預選池：六條件 + 戒律 + 淘汰法）。多頭軌字母 B/C/E/J/K/L/M/P 都從這個池子挑進場時機。`
+              : isBullish
+                ? `${method} · ${m.name} · ${m.track} · 守 ${m.ma}\n✓ 從 Step 1 池子篩選（結果為 A 子集；若池子被重新生成過，舊 session 不會 retro-filter）`
+                : isReversal
+                  ? `${method} · ${m.name} · ${m.track} · 守 ${m.ma}\n⚠ 全市場掃 — 不過 Step 1（書本：抓底/反轉就不能先過六條件，過了就抓不到底）`
+                  : isSystem
+                    ? `${method} · ${m.name} · ${m.track} · 守 ${m.ma}\n⚠ 全市場掃 — 自含 SOP（過戒律但不過 Step 1）`
+                    : `${method} · ${m.name} · ${m.track} · 守 ${m.ma}`;
             return (
               <button key={method}
                 onClick={() => setActiveBuyMethod(method)}
@@ -222,9 +231,10 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
             <div className="space-y-1.5">
               {/* Step 1：選股池 */}
               <div className="space-y-0.5">
-                <div className="text-[9px] text-muted-foreground/70 px-0.5">
+                <div className="text-[9px] text-muted-foreground/70 px-0.5"
+                  title="Step 1 預選池：過六條件 + 戒律 + 淘汰法的合格股票。所有 Step 2 多頭軌字母都從這個池子挑。">
                   <span className="font-bold text-amber-300/80">Step 1 選股池</span>
-                  <span className="ml-1.5">過六條件 + 戒律 + 淘汰法的合格股票</span>
+                  <span className="ml-1.5">📌 過六條件 + 戒律 + 淘汰法的合格股票（所有 Step 2 多頭軌的源頭）</span>
                 </div>
                 <div className="flex items-center gap-1 flex-wrap">
                   {renderBtn('A', 'bg-amber-700/70 border-amber-600 text-amber-100')}
@@ -233,9 +243,10 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
 
               {/* Step 2：多頭進場（從 Step 1 池子挑）*/}
               <div className="space-y-0.5">
-                <div className="text-[9px] text-muted-foreground/70 px-0.5">
+                <div className="text-[9px] text-muted-foreground/70 px-0.5"
+                  title="多頭軌字母（B/C/E/J/K/L/M/P）只從 Step 1 池子裡挑；結果必為 A 子集">
                   <span className="font-bold text-red-300/80">Step 2 多頭進場</span>
-                  <span className="ml-1.5">從 Step 1 池子挑進場時機 · 書本 8 種多頭位置</span>
+                  <span className="ml-1.5">✓ 從 Step 1 池子挑進場時機 · 書本 8 種多頭位置</span>
                 </div>
                 <div className="flex items-center gap-1 flex-wrap">
                   {(['B', 'C', 'E', 'J', 'K', 'L', 'M', 'P'] as const).map(m =>
@@ -246,9 +257,10 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
 
               {/* 反轉訊號（不過 Step 1，全市場掃）*/}
               <div className="space-y-0.5">
-                <div className="text-[9px] text-muted-foreground/70 px-0.5">
+                <div className="text-[9px] text-muted-foreground/70 px-0.5"
+                  title="反轉軌字母（D/F/N/O）全市場掃，不過 Step 1；結果可能不在 A 池子裡，這是書本要求（抓底就不能先過六條件）">
                   <span className="font-bold text-blue-300/80">反轉訊號</span>
-                  <span className="ml-1.5">全市場抓底 / 反轉 · 不過六條件（過了就抓不到底）</span>
+                  <span className="ml-1.5">⚠ 全市場抓底 / 反轉 · 不過六條件（過了就抓不到底）</span>
                 </div>
                 <div className="flex items-center gap-1 flex-wrap">
                   {(['D', 'F', 'N', 'O'] as const).map(m =>
@@ -259,9 +271,10 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
 
               {/* 戰法軌（朱老師三均線）*/}
               <div className="space-y-0.5">
-                <div className="text-[9px] text-muted-foreground/70 px-0.5">
+                <div className="text-[9px] text-muted-foreground/70 px-0.5"
+                  title="戰法軌（Q）自含 SOP（MA24 趨勢判定）+ 過戒律，但不過 Step 1；結果可能不在 A 池子裡">
                   <span className="font-bold text-purple-300/80">朱老師戰法</span>
-                  <span className="ml-1.5">三條均線戰法（書本《抓住線圖》p.262）· 自含 SOP + 過戒律</span>
+                  <span className="ml-1.5">⚠ 三條均線戰法（書本《抓住線圖》p.262）· 自含 SOP + 過戒律</span>
                 </div>
                 <div className="flex items-center gap-1 flex-wrap">
                   {renderBtn('Q', 'bg-purple-700/70 border-purple-600 text-purple-100')}

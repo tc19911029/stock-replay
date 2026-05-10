@@ -30,6 +30,7 @@ import { detectLetterO } from '@/lib/analysis/v12LetterO';
 import { detectLetterP } from '@/lib/analysis/v12LetterP';
 import { detectLetterQ } from '@/lib/analysis/v12LetterQ';
 import type { CandleWithIndicators } from '@/types';
+import ProhibitionsBlock from './ProhibitionsBlock';
 
 type BuyMethod =
   | 'B' | 'C' | 'D' | 'E' | 'F'
@@ -527,6 +528,7 @@ function evaluateMethod(
             'complex-head-shoulder': '複式頭肩底',
             'falling-diamond': '跌菱形',
             'descending-wedge': '下降楔形',
+            'n-shape': 'N 字底',
           } as const)[r.patternType]
         : '尚未識別';
       const conditions: ConditionItem[] = [
@@ -724,6 +726,9 @@ export default function BuyMethodConditionsPanel({ method }: { method: BuyMethod
           未完全符合 — 此 K 棒不滿足 {title} 條件
         </div>
       )}
+
+      {/* 進場 10 大戒律狀態（書本：硬性禁忌，任一觸發即不應進場） */}
+      <ProhibitionsBlock />
     </div>
   );
 }

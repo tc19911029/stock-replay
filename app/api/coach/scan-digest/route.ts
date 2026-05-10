@@ -137,7 +137,8 @@ function buildUserPrompt(input: DigestInput): string {
         'head-shoulder': '頭肩底', 'complex-head-shoulder': '複式頭肩底',
         'triple-bottom': '三重底', 'rounding-bottom': '圓弧底',
         'double-bottom': '雙重底', 'falling-diamond': '跌菱形',
-        'descending-wedge': '下降楔形',
+        'descending-wedge': '下降楔形', 'n-shape': 'N 字底',
+        'head-shoulder-top': '頭肩頂', 'triple-top': '三重頂', 'double-top': '雙重頂',
       };
       const name = PATTERN[c.patternType] ?? c.patternType;
       const rate = c.patternAchievementRate ? (c.patternAchievementRate * 100).toFixed(0) + '%' : '';

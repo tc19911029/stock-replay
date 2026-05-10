@@ -602,10 +602,48 @@ export async function loadScanSession(
     // turnover filter 只適用 A（daily）session；B/C/D/E 掃全市場，不限 top500
     if (mtfMode === 'daily') {
       await applyTurnoverFilter(session, market);
+    } else if (BULLISH_LETTERS.has(mtfMode)) {
+      // 多頭軌字母 (B/C/E/J/K/L/M/P) retro-filter：只保留仍在當日 Step 1 池子內的股票
+      // 防 drift：池子被 cron 重跑 / 手動 scan / 回填 覆蓋後，凍結 session 不會 retro-filter
+      // 結果：UI 會看到 leak。filter-on-read 是 belt-and-suspenders 防呆。
+      await applyStep1Filter(session);
     }
     return session;
   } catch {
     return null;
+  }
+}
+
+/** 多頭軌字母（書本 8 個進場位置）— 必須過 Step 1 池子才能進場 */
+const BULLISH_LETTERS = new Set<MtfMode>(['B', 'C', 'E', 'J', 'K', 'L', 'M', 'P']);
+
+/**
+ * 多頭軌 letter session 的 retro-filter：丟掉不在當日 Step 1 池子的結果
+ *
+ * 池子缺漏處理（保守）：
+ *   - 池子不存在 → 不過濾（避免 cron 失敗時整版空白誤殺）
+ *   - 池子存在但空 → 不過濾（abnormal state，不該讓 UI 全空）
+ *
+ * 副作用：mutate session.results + session.resultCount。沿用 applyTurnoverFilter pattern。
+ */
+async function applyStep1Filter(session: ScanSession): Promise<void> {
+  if (!session.results || session.results.length === 0) return;
+  try {
+    const { loadStep1Pool } = await import('@/lib/scanner/step1Pool');
+    const pool = await loadStep1Pool(session.market, session.date);
+    if (!pool || pool.symbols.length === 0) return;
+    const allowed = new Set(pool.symbols);
+    const before = session.results.length;
+    const filtered = session.results.filter((r) => allowed.has(r.symbol));
+    if (filtered.length < before) {
+      session.results = filtered;
+      session.resultCount = filtered.length;
+      console.info(
+        `[scanStorage] Step1 retro-filter: ${session.market}/${session.buyMethod ?? '?'}/${session.date} ${before} → ${filtered.length}`,
+      );
+    }
+  } catch {
+    /* 池子讀失敗 — 保持原樣 */
   }
 }
 
