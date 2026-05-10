@@ -1475,14 +1475,14 @@ export abstract class MarketScanner {
               }
             } else {
               // Phase C：未觸發但結構成立 → 寫 LockWatch pending-breakout
-              // 過濾條件（避免全候選池都進來）：
-              //   1. close ≥ neckline × 0.95（距真突破 ≤ 8%，書本「即將突破」才鎖）
-              //   2. 達成率 ≥ 70%（過濾 double-bottom 36% 等低達成率型態）
+              // 過濾條件（書本「即將突破」應該是少量精選）：
+              //   1. close ≥ neckline × 0.98（距真突破 ≤ 5%，明後天可能突破才鎖）
+              //   2. 達成率 ≥ 80%（只取書本高勝率型態）
               const struct = detectLetterNStructure(candles, lastIdx);
               if (struct.pivots && struct.pivots.length > 0
                   && struct.necklinePrice != null && struct.patternType) {
-                const closeNearNeckline = last.close >= struct.necklinePrice * 0.95;
-                const highAchievement = (struct.achievementRate ?? 0) >= 70;
+                const closeNearNeckline = last.close >= struct.necklinePrice * 0.98;
+                const highAchievement = (struct.achievementRate ?? 0) >= 80;
                 if (closeNearNeckline && highAchievement) {
                   lockWatchPayload = {
                     triggerPrice: struct.necklinePrice,
