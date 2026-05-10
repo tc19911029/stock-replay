@@ -670,22 +670,28 @@ function ReasonGroup({
           const bookRef = override ? undefined : extractBookRef(s.reason);
           const operationHint = override ? undefined : extractOperationHint(s.reason);
           return (
-            // 標題在上、說明分行 — 書本根據對齊右側 small 字
+            // 三段式排版：訊號名 → 主說明（+ 操作建議）→ 書本根據（最末行 muted）
+            // 不再 header row 擠 label + bookRef — bookRef 太長會把 label 壓成直書
             <div key={i} className={`rounded px-2.5 py-2 ${bgColor}`}>
-              {/* Header: label + 書本根據 tag（同一行）*/}
-              <div className="flex items-baseline justify-between gap-2 mb-1">
-                <span className={`text-xs font-bold ${color}`}>{s.label}</span>
-                {bookRef && (
-                  <span className="text-[11px] text-muted-foreground/60 shrink-0">{bookRef}</span>
-                )}
-              </div>
+              {/* Header: 訊號名（單行不換行） */}
+              <p className={`text-xs font-bold whitespace-nowrap ${color}`}>{s.label}</p>
               {/* Body: 主說明 */}
               {mainText && (
-                <p className="text-[11px] text-foreground/85 leading-relaxed">{mainText}</p>
+                <p className="text-[11px] text-foreground/85 leading-snug mt-1 break-words">
+                  {mainText}
+                </p>
               )}
-              {/* 操作建議（粗體強調，書本實戰指引）*/}
+              {/* 操作建議（書本實戰指引）*/}
               {operationHint && (
-                <p className="text-[11px] text-foreground/70 leading-relaxed mt-1">{operationHint}</p>
+                <p className="text-[11px] text-foreground/70 leading-snug mt-1 break-words">
+                  {operationHint}
+                </p>
+              )}
+              {/* 書本根據（最末行 muted）*/}
+              {bookRef && (
+                <p className="text-[11px] text-muted-foreground/60 leading-snug mt-1 break-words">
+                  {bookRef}
+                </p>
               )}
             </div>
           );
