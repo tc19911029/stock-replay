@@ -435,35 +435,38 @@ export default function SignalSummaryCard() {
             )}
           </div>
 
-          {/* ── 3. 停損 / 停利 / 操作均線（每項獨立一行，不再擠一行）── */}
-          <div className="border-t border-border/40 pt-2 space-y-1.5">
-            {!hasPosition && (
-              <p className="text-[11px] text-muted-foreground/80">若今日進場 {candle.close.toFixed(2)}：</p>
-            )}
-            {/* 停損 */}
-            <div className="flex items-baseline justify-between font-mono text-xs">
-              <span className="text-rose-300">停損</span>
-              <span>
-                <span className="text-rose-300 font-bold">{stopLoss.toFixed(2)}</span>
-                <span className="text-muted-foreground/70 ml-1.5">({slPct.toFixed(1)}%)</span>
-              </span>
-            </div>
-            {/* 停利（單獨一行，附型態目標/10%紀律來源 tag）*/}
-            <div className="flex items-baseline justify-between font-mono text-xs">
-              <span className="text-emerald-300">
-                停利
-                <span className="text-[11px] text-muted-foreground/60 ml-1.5 font-sans">
-                  {profitTargetSource === 'pattern' ? '型態目標' : '10%紀律'}
+          {/* ── 3. 進場價碼 + 戰法依據 + 風向（依語意分 3 組，視覺分隔）── */}
+          <div className="border-t border-border/40 pt-2 space-y-3">
+
+            {/* 組 1：金額（停損 / 停利）— 進場必看 */}
+            <div className="space-y-1.5">
+              {!hasPosition && (
+                <p className="text-[11px] text-muted-foreground/80">若今日進場 {candle.close.toFixed(2)}：</p>
+              )}
+              <div className="flex items-baseline justify-between font-mono text-xs">
+                <span className="text-rose-300">停損</span>
+                <span>
+                  <span className="text-rose-300 font-bold">{stopLoss.toFixed(2)}</span>
+                  <span className="text-muted-foreground/70 ml-1.5">({slPct.toFixed(1)}%)</span>
                 </span>
-              </span>
-              <span>
-                <span className="text-emerald-300 font-bold">{profitTarget.toFixed(2)}</span>
-                <span className="text-muted-foreground/70 ml-1.5">({ptPct >= 0 ? '+' : ''}{ptPct.toFixed(1)}%)</span>
-              </span>
+              </div>
+              <div className="flex items-baseline justify-between font-mono text-xs">
+                <span className="text-emerald-300">
+                  停利
+                  <span className="text-[11px] text-muted-foreground/60 ml-1.5 font-sans">
+                    {profitTargetSource === 'pattern' ? '型態目標' : '10%紀律'}
+                  </span>
+                </span>
+                <span>
+                  <span className="text-emerald-300 font-bold">{profitTarget.toFixed(2)}</span>
+                  <span className="text-muted-foreground/70 ml-1.5">({ptPct >= 0 ? '+' : ''}{ptPct.toFixed(1)}%)</span>
+                </span>
+              </div>
             </div>
-            {/* 操作（V12 字母對應的戰法／型態） */}
+
+            {/* 組 2：戰法依據（操作 / 均線）— 為什麼這樣設停損 */}
             {operatingMA && (
-              <>
+              <div className="space-y-1.5 pt-2 border-t border-border/20">
                 <div className="flex items-baseline justify-between text-xs">
                   <span className="text-muted-foreground">操作</span>
                   <span title={V12_LETTER_DESC[primaryLetter] ?? primaryLetter} className="text-foreground/80 underline decoration-dotted decoration-muted-foreground/40">
@@ -477,19 +480,22 @@ export default function SignalSummaryCard() {
                     <span className="text-foreground/80 font-bold font-mono">{operatingMA}</span>
                   </span>
                 </div>
-              </>
+              </div>
             )}
-            {/* 走勢偏向 */}
-            <div className="flex items-baseline justify-between text-[11px]">
-              <span className="text-muted-foreground" title="33 種 K 棒型態（書本《抓住線圖》附錄）綜合得分。+ 偏多、− 偏空、0 中性">走勢偏向</span>
-              <span>
-                <span className={`font-bold ${trendBiasColor}`}>{trendBiasLabel}</span>
-                {(bullCount > 0 || bearCount > 0) && (
-                  <span className="text-muted-foreground/60 ml-1">
-                    （33 種 K 棒型態：多頭 {bullCount}／空頭 {bearCount}）
-                  </span>
-                )}
-              </span>
+
+            {/* 組 3：風向（走勢偏向）— 補充參考 */}
+            <div className="pt-2 border-t border-border/20">
+              <div className="flex items-baseline justify-between text-[11px]">
+                <span className="text-muted-foreground" title="33 種 K 棒型態（書本《抓住線圖》附錄）綜合得分。+ 偏多、− 偏空、0 中性">走勢偏向</span>
+                <span>
+                  <span className={`font-bold ${trendBiasColor}`}>{trendBiasLabel}</span>
+                  {(bullCount > 0 || bearCount > 0) && (
+                    <span className="text-muted-foreground/60 ml-1">
+                      （33 種 K 棒型態：多頭 {bullCount}／空頭 {bearCount}）
+                    </span>
+                  )}
+                </span>
+              </div>
             </div>
           </div>
 
