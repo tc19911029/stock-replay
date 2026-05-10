@@ -69,7 +69,7 @@ const V12_TRACK_NAMES: Record<EntryLetter, string> = {
   N: '型態確認突破頸線（25 種圖形）',
   O: '打底完成由空翻多',
   P: '高檔淺回 1-2 天後再上漲',
-  Q: '三均線戰法（朱家泓 MA3+10+24）',
+  Q: '三均線戰法（MA3+10+24）',
 };
 
 const V12_TRACK_BADGE: Record<EntryLetter, string> = {
