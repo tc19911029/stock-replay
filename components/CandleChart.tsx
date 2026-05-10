@@ -730,7 +730,21 @@ export default function CandleChart({
     const t1 = toTime(candles[lastIdx].date);
 
     if (showNeckline) {
-      neckSeries.setData([{ time: t0, value: necklinePrice }, { time: t1, value: necklinePrice }]);
+      // descending-wedge / falling-diamond 的頸線是「兩高點延伸線」，本質上是斜線
+      // detectDescendingWedge 回傳 necklinePrice = upperToday（今日延伸值），需要從較舊 high 連到 upperToday
+      // 其他底/頂部型態的頸線是水平線（兩內部 pivot 連線取較高/較低，水平延伸）
+      const slopedPatterns = new Set(['descending-wedge']);
+      if (slopedPatterns.has(activePattern.patternType) && activePattern.pivots.length >= 2) {
+        // pivots[1] = highs[1]（較舊 high），detector 順序：[highs[0], highs[1], lows[0], lows[1]]
+        const olderHigh = activePattern.pivots[1];
+        const olderTime = toTime(candles[olderHigh.index].date);
+        neckSeries.setData([
+          { time: olderTime, value: olderHigh.price },
+          { time: t1, value: necklinePrice },
+        ]);
+      } else {
+        neckSeries.setData([{ time: t0, value: necklinePrice }, { time: t1, value: necklinePrice }]);
+      }
       tgtSeries.setData([{ time: t0, value: targetPrice }, { time: t1, value: targetPrice }]);
       stopSeries.setData([{ time: t0, value: stopPrice }, { time: t1, value: stopPrice }]);
     }

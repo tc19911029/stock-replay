@@ -114,7 +114,7 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
   }, [market, scanDate]);
   const marketTrend = liveTrend ?? storeTrend;
 
-  // ── LockWatch records cross-ref（已失效 N 形態訊號標 ✗）──────────────────
+  // ── LockWatch records cross-ref（已失效 N / F 訊號標 ✗）──────────────────
   // 同 LockWatchPanel 的資料來源；ScanResultsCompact 只需要 currentStage 來標失效 row
   const [lockWatchRecords, setLockWatchRecords] = useState<LockWatchRecord[]>([]);
   useEffect(() => {
@@ -129,16 +129,20 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
       .catch(() => { /* 拉不到就不顯示失效標記，不影響其他功能 */ });
     return () => { cancelled = true; };
   }, [market]);
-  // symbol → 最新 N 訊號的 currentStage（一支股可能有多個 record，取最新觸發的 N）
-  const lockWatchStageBySymbol = useMemo(() => {
-    const map = new Map<string, LockWatchRecord['currentStage']>();
+  // (symbol, triggerSignal, triggeredDate) → record；用 row.scanDate 對齊 record.triggeredDate
+  // 解兩個 bug：(a) 同支股多筆 N 不會互蓋；(b) 看歷史 scan 拿到對應日期的 record 而非最新 state
+  const lockWatchByKey = useMemo(() => {
+    const map = new Map<string, LockWatchRecord>();
     for (const r of lockWatchRecords) {
-      if (r.triggerSignal !== 'N') continue;
-      // 後到的覆蓋，假設 records 大致依時序 — 同一支股取最新 record
-      map.set(r.symbol, r.currentStage);
+      if (r.triggerSignal !== 'N' && r.triggerSignal !== 'F') continue;
+      map.set(`${r.symbol}|${r.triggerSignal}|${r.triggeredDate}`, r);
     }
     return map;
   }, [lockWatchRecords]);
+  const findLockWatch = (symbol: string, signal: 'N' | 'F'): LockWatchRecord | undefined => {
+    if (!scanDate) return undefined;
+    return lockWatchByKey.get(`${symbol}|${signal}|${scanDate}`);
+  };
 
   const perfMap = useMemo(() => {
     const map = new Map<string, StockForwardPerformance>();
@@ -411,7 +415,7 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                   const upsideNum = target ? ((target - r.price) / r.price * 100) : null;
                   const reached = upsideNum != null && upsideNum <= 0;
                   // 結構失效 / 已撤銷 → 整個 N 徽章降灰 + 加 ✗ 後綴
-                  const stage = lockWatchStageBySymbol.get(r.symbol);
+                  const stage = findLockWatch(r.symbol, 'N')?.currentStage;
                   const failed = stage === 'structure-broken' || stage === 'revoked';
                   const failReason = stage === 'structure-broken'
                     ? `已跌破頸線 ${r.lockWatchPayload.triggerPrice.toFixed(2)} ×0.97 = ${(r.lockWatchPayload.triggerPrice * 0.97).toFixed(2)}，型態結構失效`
@@ -450,14 +454,33 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                   );
                 })()}
 
-                {/* v12 F V 反轉觸發鎖定價 */}
-                {r.lockWatchPayload?.triggerPrice && !r.lockWatchPayload.patternType && (
-                  <span
-                    className="text-[8px] px-1 h-3.5 flex items-center rounded-sm bg-rose-900/60 text-rose-200 font-bold"
-                    title={`F V 反轉鎖定價（觸發即進場參考）：${r.lockWatchPayload.triggerPrice.toFixed(2)}`}>
-                    🔒{r.lockWatchPayload.triggerPrice.toFixed(2)}
-                  </span>
-                )}
+                {/* v12 F V 反轉觸發鎖定價（含結構失效 cross-ref ✗）*/}
+                {r.lockWatchPayload?.triggerPrice && !r.lockWatchPayload.patternType && (() => {
+                  const fStage = findLockWatch(r.symbol, 'F')?.currentStage;
+                  const fFailed = fStage === 'structure-broken' || fStage === 'revoked';
+                  const fReason = fStage === 'structure-broken'
+                    ? `已跌破 V 底（變盤線 low），結構失效`
+                    : fStage === 'revoked' ? '訊號已撤銷' : '';
+                  return (
+                    <span
+                      className={`text-[8px] px-1 h-3.5 flex items-center gap-0.5 rounded-sm font-bold ${
+                        fFailed
+                          ? 'bg-zinc-800/60 text-zinc-500 line-through'
+                          : 'bg-rose-900/60 text-rose-200'
+                      }`}
+                      title={fFailed
+                        ? `F V 反轉鎖定價：${r.lockWatchPayload.triggerPrice.toFixed(2)}\n— ${fReason}`
+                        : `F V 反轉鎖定價（觸發即進場參考）：${r.lockWatchPayload.triggerPrice.toFixed(2)}`
+                      }>
+                      🔒{r.lockWatchPayload.triggerPrice.toFixed(2)}
+                      {fFailed && (
+                        <span className="ml-0.5 text-rose-400/80 no-underline" title={fReason}>
+                          ✗ {fStage === 'structure-broken' ? '結構失效' : '已撤銷'}
+                        </span>
+                      )}
+                    </span>
+                  );
+                })()}
 
                 {/* v12 Provisional 三天驗證（K/D 型態訊號用，議題 75）*/}
                 {r.provisional && (() => {
