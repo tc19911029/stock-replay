@@ -8,7 +8,7 @@ import { DabanResultsCompact } from './components/DabanResultsCompact';
 import { ScanCoachDigest } from './components/ScanCoachDigest';
 import { MarketTrendBanner } from './components/MarketTrendBanner';
 import { LockWatchPanel } from './components/LockWatchPanel';
-import { ReentryCandidatesPanel } from './components/ReentryCandidatesPanel';
+// 2026-05-11 ReentryCandidatesPanel 移除：用戶反饋無實質用途（跟 B 回後買上漲重疊高、書本對齊度低）。檔案保留供日後重做
 import { SectionBoundary } from '@/components/ErrorBoundary';
 import type { SelectedStock } from './components/ScanChartPanel';
 
@@ -35,6 +35,8 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
     // setScanOnly 暫保留 destructure（以後可能會加回手動掃描）
   } = useBacktestStore();
   void setScanOnly;
+  void useMultiTimeframe;
+  void toggleMultiTimeframe;
 
   const [coachCollapsed, setCoachCollapsed] = useState(true);
 
@@ -164,13 +166,14 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
             )}
           </div>
 
-          {/* 長線保護短線 toggle */}
+          {/* 長線保護短線 toggle — 暫時隱藏（保留 store 邏輯，日後可恢復）
           {scanDirection !== 'daban' && (
             <button onClick={toggleMultiTimeframe}
               className={`px-1.5 py-1 rounded text-[10px] font-medium border ${useMultiTimeframe ? 'bg-blue-700/60 border-blue-600 text-blue-200' : 'bg-secondary border-border text-muted-foreground hover:bg-muted'}`}>
               長線保護短線
             </button>
           )}
+          */}
 
         </div>
 
@@ -234,7 +237,7 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
                 <div className="text-[9px] text-muted-foreground/70 px-0.5"
                   title="Step 1 預選池：過六條件 + 戒律 + 淘汰法的合格股票。所有 Step 2 多頭軌字母都從這個池子挑。">
                   <span className="font-bold text-amber-300/80">Step 1 選股池</span>
-                  <span className="ml-1.5">📌 過六條件 + 戒律 + 淘汰法的合格股票（所有 Step 2 多頭軌的源頭）</span>
+                  <span className="ml-1.5">過六條件 + 戒律 + 淘汰法的合格股票（所有 Step 2 多頭軌的源頭）</span>
                 </div>
                 <div className="flex items-center gap-1 flex-wrap">
                   {renderBtn('A', 'bg-amber-700/70 border-amber-600 text-amber-100')}
@@ -297,10 +300,9 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
 
       </div>
 
-      {/* ── 鎖股觀察 + 再進場候選（4 區塊之後，結果列表之前）── */}
+      {/* ── 鎖股觀察（4 區塊之後，結果列表之前）── */}
       <div className="shrink-0 border-b border-border bg-card/40">
         {scanDirection !== 'daban' && <LockWatchPanel market={market} onSelectStock={onSelectStock} />}
-        {scanDirection !== 'daban' && <ReentryCandidatesPanel onSelectStock={onSelectStock} />}
       </div>
 
       {/* 朱老師跨檔分析（只在非打板時顯示） */}
