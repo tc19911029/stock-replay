@@ -41,7 +41,7 @@ export interface SixConditionsResult {
 
 // ── Pivot detection ───────────────────────────────────────────────────────────
 
-interface Pivot {
+export interface Pivot {
   index: number;
   price: number;
   type: 'high' | 'low';

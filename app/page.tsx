@@ -196,6 +196,8 @@ export default function HomePage() {
   const [showSupportResistance, setShowSupportResistance] = useState(false);
   const [showAscendingTrendline, setShowAscendingTrendline] = useState(false);
   const [showDescendingTrendline, setShowDescendingTrendline] = useState(false);
+  const [showNeckline, setShowNeckline] = useState(false);  // 形態頸線 + 目標價 + 結構失效價
+  const [showPattern, setShowPattern] = useState(false);    // 形態 ABCDE 關鍵點與連線
   const [maToggles, setMaToggles] = useState({ ma5: true, ma10: true, ma20: true, ma60: true, ma240: false });
   const [showBollinger, setShowBollinger] = useState(false);
   const [indicators, setIndicators] = useState({
@@ -476,6 +478,10 @@ export default function HomePage() {
                 onPivotsToggle={() => setShowPivots(v => !v)}
                 showSupportResistance={showSupportResistance}
                 onSupportResistanceToggle={() => setShowSupportResistance(v => !v)}
+                showNeckline={showNeckline}
+                onNecklineToggle={() => setShowNeckline(v => !v)}
+                showPattern={showPattern}
+                onPatternToggle={() => setShowPattern(v => !v)}
                 showAscendingTrendline={showAscendingTrendline}
                 onAscendingTrendlineToggle={() => setShowAscendingTrendline(v => !v)}
                 showDescendingTrendline={showDescendingTrendline}
@@ -516,6 +522,8 @@ export default function HomePage() {
                   showSupportResistance={showSupportResistance}
                   showAscendingTrendline={showAscendingTrendline}
                   showDescendingTrendline={showDescendingTrendline}
+                  showNeckline={showNeckline}
+                  showPattern={showPattern}
                   highlightDate={targetDate ?? undefined}
                 />
               </ErrorBoundary>
@@ -710,6 +718,10 @@ export default function HomePage() {
                 onPivotsToggle={() => setShowPivots(v => !v)}
                 showSupportResistance={showSupportResistance}
                 onSupportResistanceToggle={() => setShowSupportResistance(v => !v)}
+                showNeckline={showNeckline}
+                onNecklineToggle={() => setShowNeckline(v => !v)}
+                showPattern={showPattern}
+                onPatternToggle={() => setShowPattern(v => !v)}
                 showAscendingTrendline={showAscendingTrendline}
                 onAscendingTrendlineToggle={() => setShowAscendingTrendline(v => !v)}
                 showDescendingTrendline={showDescendingTrendline}
@@ -754,6 +766,8 @@ export default function HomePage() {
                       showSupportResistance={showSupportResistance}
                       showAscendingTrendline={showAscendingTrendline}
                       showDescendingTrendline={showDescendingTrendline}
+                      showNeckline={showNeckline}
+                      showPattern={showPattern}
                       highlightDate={targetDate ?? undefined}
                     />
                   </ErrorBoundary>

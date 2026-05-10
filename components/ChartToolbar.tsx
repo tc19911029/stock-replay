@@ -44,6 +44,10 @@ interface ChartToolbarProps {
   onPivotsToggle?: () => void;
   showSupportResistance?: boolean;
   onSupportResistanceToggle?: () => void;
+  showNeckline?: boolean;
+  onNecklineToggle?: () => void;
+  showPattern?: boolean;
+  onPatternToggle?: () => void;
   showAscendingTrendline?: boolean;
   onAscendingTrendlineToggle?: () => void;
   showDescendingTrendline?: boolean;
@@ -103,6 +107,8 @@ export default function ChartToolbar({
   signalStrengthMin, onSignalStrengthChange,
   showPivots = false, onPivotsToggle,
   showSupportResistance = false, onSupportResistanceToggle,
+  showNeckline = false, onNecklineToggle,
+  showPattern = false, onPatternToggle,
   showAscendingTrendline = false, onAscendingTrendlineToggle,
   showDescendingTrendline = false, onDescendingTrendlineToggle,
   avgCost, shares,
@@ -236,6 +242,28 @@ export default function ChartToolbar({
             }`}
             title="顯示/隱藏前高壓 / 前低撐 / 大量撐壓"
           >壓撐</button>
+        )}
+        {onNecklineToggle && (
+          <button
+            onClick={onNecklineToggle}
+            aria-pressed={showNeckline}
+            aria-label={`${showNeckline ? '隱藏' : '顯示'}形態頸線`}
+            className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition ${
+              showNeckline ? 'bg-cyan-600/60 text-cyan-100' : 'bg-secondary text-muted-foreground/50 hover:text-muted-foreground'
+            }`}
+            title="顯示/隱藏 形態頸線（實線）+ 目標價（虛線）+ 結構失效價（虛線）"
+          >頸線</button>
+        )}
+        {onPatternToggle && (
+          <button
+            onClick={onPatternToggle}
+            aria-pressed={showPattern}
+            aria-label={`${showPattern ? '隱藏' : '顯示'}形態關鍵點`}
+            className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition ${
+              showPattern ? 'bg-fuchsia-600/60 text-fuchsia-100' : 'bg-secondary text-muted-foreground/50 hover:text-muted-foreground'
+            }`}
+            title="顯示/隱藏 形態 ABCDE 關鍵點與連線（系統判斷依據）"
+          >形態</button>
         )}
         {onAscendingTrendlineToggle && (
           <button

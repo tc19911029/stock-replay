@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   createChart,
   IChartApi,
@@ -16,7 +16,8 @@ import {
 import { CandleWithIndicators, RuleSignal, ChartSignalMarker } from '@/types';
 
 import { getBullBearColors } from '@/lib/chart/colors';
-import { findPivots } from '@/lib/analysis/trendAnalysis';
+import { findPivots, type Pivot } from '@/lib/analysis/trendAnalysis';
+import { detectLetterNStructure, detectTopPatternsStructure } from '@/lib/analysis/v12LetterN';
 
 const MA_COLORS = {
   ma5:   '#facc15', // 黃
@@ -74,6 +75,67 @@ function getMarkerConfig(): Record<ChartSignalMarker['type'], {
   };
 }
 
+/** 形態 patternType → 中文顯示名稱 */
+function getPatternDisplayName(patternType: string): string {
+  const names: Record<string, string> = {
+    'triple-bottom': '三重底',
+    'head-shoulder': '頭肩底',
+    'rounding-bottom': '圓弧底',
+    'complex-head-shoulder': '複式頭肩底',
+    'falling-diamond': '跌菱形',
+    'descending-wedge': '下降楔形',
+    'double-bottom': '雙重底',
+    'n-shape': 'N 字底',
+    'triple-top': '三重頂',
+    'head-shoulder-top': '頭肩頂',
+    'double-top': '雙重頂',
+  };
+  return names[patternType] ?? patternType;
+}
+
+/** 形態 pivots 的中文標籤對照（順序與 v12LetterN.ts 各 detector 內部一致）*/
+function getPivotLabels(patternType: string, pivots: Pivot[]): string[] {
+  switch (patternType) {
+    case 'triple-bottom':       return ['L1', 'L2', 'L3', 'H1', 'H2'];
+    case 'head-shoulder':       return ['RS', '頭', 'LS', 'RN', 'LN'];
+    case 'descending-wedge':    return ['H1', 'H2', 'L1', 'L2'];
+    case 'falling-diamond':     return ['H1', 'H2', 'H3', 'H4', 'L1', 'L2', 'L3', 'L4'];
+    case 'double-bottom':       return ['L1', 'L2', 'H'];
+    case 'rounding-bottom':     return ['H1', '弧底', 'H2'];
+    case 'n-shape':             return ['A', 'B'];
+    case 'triple-top':          return ['H1', 'H2', 'H3', 'L1', 'L2'];
+    case 'head-shoulder-top':   return ['RS', '頂', 'LS', 'RN', 'LN'];
+    case 'double-top':          return ['H1', 'H2', 'L'];
+    case 'complex-head-shoulder': {
+      // 結構：[...rightShoulders, head(最低), ...leftShoulders, h1, h2]
+      // 找 head：lows 中 price 最小者
+      let headIdx = -1;
+      let headPrice = Infinity;
+      for (let i = 0; i < pivots.length; i++) {
+        if (pivots[i].type === 'low' && pivots[i].price < headPrice) {
+          headPrice = pivots[i].price;
+          headIdx = i;
+        }
+      }
+      const labels: string[] = [];
+      let lowCount = 0;
+      let highCount = 0;
+      for (let i = 0; i < pivots.length; i++) {
+        if (i === headIdx) labels.push('頭');
+        else if (pivots[i].type === 'low') {
+          lowCount++;
+          labels.push(`肩${lowCount}`);
+        } else {
+          highCount++;
+          labels.push(`頸${highCount}`);
+        }
+      }
+      return labels;
+    }
+    default: return pivots.map((_, i) => `P${i + 1}`);
+  }
+}
+
 interface CandleChartProps {
   candles: CandleWithIndicators[];
   signals: RuleSignal[];
@@ -96,6 +158,10 @@ interface CandleChartProps {
   showPivots?: boolean;
   /** 顯示前高壓/前低撐/大量撐壓線，預設關 */
   showSupportResistance?: boolean;
+  /** 顯示形態頸線 + 目標價 + 結構失效價，預設關 */
+  showNeckline?: boolean;
+  /** 顯示形態關鍵點（ABCDE / L1L2L3 + H1H2 等）與連線，預設關 */
+  showPattern?: boolean;
   /** 高亮指定日期的 K 棒（黃色菱形標記） */
   highlightDate?: string;
   /** 將指定日期的 K 棒捲動至畫面中央 */
@@ -111,6 +177,8 @@ export default function CandleChart({
   showDescendingTrendline,
   showPivots = false,
   showSupportResistance = false,
+  showNeckline = false,
+  showPattern = false,
   highlightDate,
   centerOnDate,
 }: CandleChartProps) {
@@ -124,6 +192,11 @@ export default function CandleChart({
   const avgCostLineRef   = useRef<ReturnType<ISeriesApi<'Candlestick'>['createPriceLine']> | null>(null);
   const stopLossLineRef  = useRef<ReturnType<ISeriesApi<'Candlestick'>['createPriceLine']> | null>(null);
   const srLineRefs       = useRef<ReturnType<ISeriesApi<'Candlestick'>['createPriceLine']>[]>([]);
+  // 形態 toggle 用 LineSeries（支援水平+斜線；descending-wedge 頸線是斜的）
+  const necklineRef       = useRef<ISeriesApi<'Line'> | null>(null);
+  const targetRef         = useRef<ISeriesApi<'Line'> | null>(null);
+  const stopRef           = useRef<ISeriesApi<'Line'> | null>(null);
+  const patternConnectorRef = useRef<ISeriesApi<'Line'> | null>(null);
   // Keep latest candles accessible inside event closures without re-subscribing
   const candlesRef     = useRef<CandleWithIndicators[]>(candles);
   const timeMapRef     = useRef<Map<string | number, CandleWithIndicators>>(new Map());
@@ -143,6 +216,47 @@ export default function CandleChart({
   }, [candles]);
   useEffect(() => { onCrosshairRef.current = onCrosshairMove; }, [onCrosshairMove]);
   useEffect(() => { onDoubleClickRef.current = onDoubleClick; }, [onDoubleClick]);
+
+  // ── 形態結構偵測（最新 K 棒，跳過紅K/量比 gate；toggle 開啟時用） ──
+  // 即使型態未觸發進場訊號，只要結構成立就能視覺化頸線/關鍵點
+  const activePattern = useMemo<{
+    kind: 'bottom' | 'top';
+    pivots: Pivot[];
+    necklinePrice: number;
+    targetPrice: number;
+    stopPrice: number;
+    patternType: string;
+    achievementRate?: number;
+  } | null>(() => {
+    if (!showNeckline && !showPattern) return null;
+    if (candles.length < 30) return null;
+    const lastIdx = candles.length - 1;
+    const bottom = detectLetterNStructure(candles, lastIdx);
+    if (bottom.pivots && bottom.necklinePrice != null && bottom.patternTargetPrice != null && bottom.structureBrokenPrice != null) {
+      return {
+        kind: 'bottom',
+        pivots: bottom.pivots,
+        necklinePrice: bottom.necklinePrice,
+        targetPrice: bottom.patternTargetPrice,
+        stopPrice: bottom.structureBrokenPrice,
+        patternType: bottom.patternType ?? '',
+        achievementRate: bottom.achievementRate,
+      };
+    }
+    const top = detectTopPatternsStructure(candles, lastIdx);
+    if (top.pivots && top.necklinePrice != null && top.patternTargetPrice != null && top.structureBrokenPrice != null) {
+      return {
+        kind: 'top',
+        pivots: top.pivots,
+        necklinePrice: top.necklinePrice,
+        targetPrice: top.patternTargetPrice,
+        stopPrice: top.structureBrokenPrice,
+        patternType: top.patternType ?? '',
+        achievementRate: top.achievementRate,
+      };
+    }
+    return null;
+  }, [candles, showNeckline, showPattern]);
 
   useEffect(() => {
     const node = containerRef.current;
@@ -200,6 +314,27 @@ export default function CandleChart({
     });
     trendlineRefs.current.ascending = chart.addSeries(LineSeries, {
       color: '#ef4444',   // 紅：上升切線（連底底高）
+      lineWidth: 1, priceLineVisible: false, lastValueVisible: false, lineStyle: 0,
+    });
+
+    // ── 形態頸線 / 目標 / 結構失效 / 形態連線（toggle 控制） ──
+    necklineRef.current = chart.addSeries(LineSeries, {
+      color: '#22d3ee',   // 青：頸線（實線）
+      lineWidth: 2, priceLineVisible: false, lastValueVisible: true, lineStyle: 0,
+      title: '頸線',
+    });
+    targetRef.current = chart.addSeries(LineSeries, {
+      color: '#86efac',   // 淡綠：目標價（虛線）
+      lineWidth: 1, priceLineVisible: false, lastValueVisible: true, lineStyle: 2,
+      title: '目標',
+    });
+    stopRef.current = chart.addSeries(LineSeries, {
+      color: '#fdba74',   // 淡橘：結構失效（虛線）
+      lineWidth: 1, priceLineVisible: false, lastValueVisible: true, lineStyle: 2,
+      title: '結構失效',
+    });
+    patternConnectorRef.current = chart.addSeries(LineSeries, {
+      color: '#e879f9',   // 紫桃：形態連線
       lineWidth: 1, priceLineVisible: false, lastValueVisible: false, lineStyle: 0,
     });
 
@@ -488,6 +623,23 @@ export default function CandleChart({
         });
       }
     }
+    // 加入形態 ABCDE 關鍵點標籤（showPattern toggle）
+    if (showPattern && activePattern) {
+      const labels = getPivotLabels(activePattern.patternType, activePattern.pivots);
+      for (let i = 0; i < activePattern.pivots.length; i++) {
+        const p = activePattern.pivots[i];
+        const c = candles[p.index];
+        if (!c) continue;
+        converted.push({
+          time: toTime(c.date),
+          position: p.type === 'high' ? 'aboveBar' : 'belowBar',
+          shape: 'circle',
+          color: '#e879f9',  // 紫桃，配合 patternConnectorRef
+          text: labels[i] ?? `P${i + 1}`,
+          size: 2,
+        });
+      }
+    }
     // lightweight-charts 要求 markers 按時間升序
     converted.sort((a, b) => {
       const ta = String(a.time);
@@ -495,7 +647,7 @@ export default function CandleChart({
       return ta < tb ? -1 : ta > tb ? 1 : 0;
     });
     markersPlugRef.current.setMarkers(converted);
-  }, [chartMarkers, highlightDate, candles, showPivots]);
+  }, [chartMarkers, highlightDate, candles, showPivots, showPattern, activePattern]);
 
   // ── Support/resistance price lines (前高壓 / 前低撐 / 大量撐壓) ──────────
   useEffect(() => {
@@ -553,6 +705,51 @@ export default function CandleChart({
     }
   }, [showSupportResistance, candles]);
 
+  // ── 頸線 / 目標 / 結構失效（showNeckline）+ 形態連線（showPattern） ──
+  useEffect(() => {
+    const neckSeries = necklineRef.current;
+    const tgtSeries = targetRef.current;
+    const stopSeries = stopRef.current;
+    const connSeries = patternConnectorRef.current;
+    if (!neckSeries || !tgtSeries || !stopSeries || !connSeries) return;
+
+    // 預設清空所有
+    neckSeries.setData([]);
+    tgtSeries.setData([]);
+    stopSeries.setData([]);
+    connSeries.setData([]);
+
+    if (!activePattern) return;
+    const { pivots, necklinePrice, targetPrice, stopPrice } = activePattern;
+
+    // 頸線/目標/結構失效：從最早 pivot 延伸到最後一根 K 棒（水平線）
+    const sortedByIndex = [...pivots].sort((a, b) => a.index - b.index);
+    const firstIdx = sortedByIndex[0].index;
+    const lastIdx = candles.length - 1;
+    const t0 = toTime(candles[firstIdx].date);
+    const t1 = toTime(candles[lastIdx].date);
+
+    if (showNeckline) {
+      neckSeries.setData([{ time: t0, value: necklinePrice }, { time: t1, value: necklinePrice }]);
+      tgtSeries.setData([{ time: t0, value: targetPrice }, { time: t1, value: targetPrice }]);
+      stopSeries.setData([{ time: t0, value: stopPrice }, { time: t1, value: stopPrice }]);
+    }
+
+    // 形態連線：依時間順序連接 pivots（去重 time，lightweight-charts 要求嚴格升序）
+    if (showPattern) {
+      const seen = new Set<string>();
+      const points = sortedByIndex
+        .map(p => ({ time: toTime(candles[p.index].date), value: p.price }))
+        .filter(pt => {
+          const key = String(pt.time);
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      connSeries.setData(points);
+    }
+  }, [activePattern, showNeckline, showPattern, candles]);
+
   // MA legend: show hovered candle's values if hovering, else last candle
   const last = candles[candles.length - 1];
   const displayForLegend = hoverCandle ?? last;
@@ -603,6 +800,32 @@ export default function CandleChart({
           </div>
         );
       })()}
+
+      {/* 形態 / 頸線 圖例 — 只在 toggle 開啟且偵測到結構時顯示 */}
+      {(showNeckline || showPattern) && activePattern && (
+        <div className="absolute top-7 right-3 z-10 flex flex-col items-end gap-0.5 text-[11px] font-mono pointer-events-none">
+          <span className="px-1.5 py-0.5 rounded bg-fuchsia-900/80 text-fuchsia-100">
+            {getPatternDisplayName(activePattern.patternType)}
+            {activePattern.achievementRate != null && ` ${activePattern.achievementRate}%`}
+          </span>
+          {showNeckline && (
+            <div className="flex flex-col items-end gap-0.5">
+              <span className="flex items-center gap-1" style={{ color: '#22d3ee' }}>
+                <span className="inline-block w-4 h-[2px]" style={{ background: '#22d3ee' }} />
+                頸線 {activePattern.necklinePrice.toFixed(2)}
+              </span>
+              <span className="flex items-center gap-1" style={{ color: '#86efac' }}>
+                <span className="inline-block w-4 h-[2px] border-t border-dashed" style={{ borderColor: '#86efac' }} />
+                目標 {activePattern.targetPrice.toFixed(2)}
+              </span>
+              <span className="flex items-center gap-1" style={{ color: '#fdba74' }}>
+                <span className="inline-block w-4 h-[2px] border-t border-dashed" style={{ borderColor: '#fdba74' }} />
+                結構失效 {activePattern.stopPrice.toFixed(2)}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Signal badge — only show highest-priority non-WATCH signal */}
       {(() => {
