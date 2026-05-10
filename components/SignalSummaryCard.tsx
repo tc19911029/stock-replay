@@ -121,6 +121,7 @@ function getVerdict(
   subtypes: SignalSubtype[],
   signalLabels: { entry: string[]; exit: string[] },
   prohibitionCount: number,
+  hasTopPattern: boolean = false,
 ): Verdict {
   const counts: Record<SignalSubtype, number> = {
     entry_strong: 0, entry_soft: 0, exit_strong: 0, exit_soft: 0, trend: 0, warn: 0,
@@ -128,6 +129,15 @@ function getVerdict(
   for (const s of subtypes) counts[s]++;
 
   if (hasPosition) {
+    // 2026-05-10 補：頂部型態觸發（三重頂/頭肩頂/雙重頂跌破頸線）= 硬出場警示
+    // 書本：見頂部型態跌破 = 立即出場，視同 exit_strong 級別
+    if (hasTopPattern) {
+      return {
+        level: 'bad',
+        label: '該出場',
+        basis: '頂部型態跌破頸線（書本：見頂部型態+跌破頸線即出場）',
+      };
+    }
     if (counts.exit_strong > 0) {
       return {
         level: 'bad',
@@ -294,6 +304,7 @@ export default function SignalSummaryCard() {
     subtypes,
     { entry: entrySigs.map(s => s.label), exit: exitSigs.map(s => s.label) },
     longProhibitions?.reasons?.length ?? 0,
+    hasPosition && topPatternHit !== null,  // 持股中且頂部型態觸發
   );
 
   // 主訊號字母（V12 進場字母優先順序 Q > N > M > P > O；無命中時用持倉觸發字母）
