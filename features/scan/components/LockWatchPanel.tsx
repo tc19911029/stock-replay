@@ -260,8 +260,11 @@ function LockWatchTableRow({
   const patternName = record.patternType ? PATTERN_NAME[record.patternType] : null;
   const inWatchlist = useWatchlistStore((s) => s.has(record.symbol));
   // 已結束的紀錄（撤銷/移除/結構失效/已買進）不可再移除
+  // Phase C：pending-breakout（等突破）也是 active stage，按鈕同 observation/entry-signal
   const canRemove =
-    record.currentStage === 'observation' || record.currentStage === 'entry-signal';
+    record.currentStage === 'pending-breakout'
+    || record.currentStage === 'observation'
+    || record.currentStage === 'entry-signal';
   const symbolBare = record.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
   // 爬升空間 = 從觸發價到型態目標價的漲幅（2026-05-09 新增）
   const upsidePct =
