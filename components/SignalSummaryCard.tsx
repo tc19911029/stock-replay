@@ -461,18 +461,23 @@ export default function SignalSummaryCard() {
                 <span className="text-muted-foreground/70 ml-1.5">({ptPct >= 0 ? '+' : ''}{ptPct.toFixed(1)}%)</span>
               </span>
             </div>
-            {/* 操作均線（B/M/N/Q 等 V12 字母 + 跟隨 MA）*/}
+            {/* 操作（V12 字母對應的戰法／型態） */}
             {operatingMA && (
-              <div className="flex items-baseline justify-between text-xs">
-                <span className="text-muted-foreground">操作均線</span>
-                <span>
+              <>
+                <div className="flex items-baseline justify-between text-xs">
+                  <span className="text-muted-foreground">操作</span>
                   <span title={V12_LETTER_DESC[primaryLetter] ?? primaryLetter} className="text-foreground/80 underline decoration-dotted decoration-muted-foreground/40">
                     {V12_LETTER_DESC[primaryLetter]?.replace(/^[A-Z]\s+/, '') ?? primaryLetter}
                   </span>
-                  <span className="text-muted-foreground"> ／ 停損守 </span>
-                  <span className="text-foreground/80 font-bold font-mono">{operatingMA}</span>
-                </span>
-              </div>
+                </div>
+                <div className="flex items-baseline justify-between text-xs">
+                  <span className="text-muted-foreground">均線</span>
+                  <span>
+                    <span className="text-muted-foreground">停損守 </span>
+                    <span className="text-foreground/80 font-bold font-mono">{operatingMA}</span>
+                  </span>
+                </div>
+              </>
             )}
             {/* 走勢偏向 */}
             <div className="flex items-baseline justify-between text-[11px]">
