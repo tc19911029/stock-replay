@@ -16,12 +16,15 @@
 
 import { useEffect, useState } from 'react';
 import type { TrendState } from '@/lib/analysis/trendAnalysis';
+import type { SelectedStock } from './ScanChartPanel';
 
 interface MarketTrendBannerProps {
   market: 'TW' | 'CN';
   /** 當有 saved session 時可以傳入做為初始值，避免閃爍；最終以 API 即時值為準 */
   marketTrend?: TrendState | null;
   scanDate: string | null;
+  /** 點擊載入大盤指數走圖（TW=^TWII / CN=000001.SS） */
+  onSelectStock?: (stock: SelectedStock) => void;
 }
 
 interface BannerStyle {
@@ -65,7 +68,12 @@ const INDEX_NAME: Record<'TW' | 'CN', string> = {
   CN: '上證指數',
 };
 
-export function MarketTrendBanner({ market, marketTrend: initialTrend, scanDate }: MarketTrendBannerProps) {
+const INDEX_SYMBOL: Record<'TW' | 'CN', string> = {
+  TW: '^TWII',
+  CN: '000001.SS',
+};
+
+export function MarketTrendBanner({ market, marketTrend: initialTrend, scanDate, onSelectStock }: MarketTrendBannerProps) {
   // 即時 fetch 純 detectTrend 結果；用 prop 當 fallback 避免初始閃爍
   const [trend, setTrend] = useState<TrendState | null>(initialTrend ?? null);
 
@@ -85,14 +93,20 @@ export function MarketTrendBanner({ market, marketTrend: initialTrend, scanDate 
   const style = trend ? TREND_STYLE[trend] : NEUTRAL_STYLE;
   const indexName = INDEX_NAME[market];
 
+  const handleClick = () => {
+    onSelectStock?.({ symbol: INDEX_SYMBOL[market], name: indexName, market });
+  };
+
   return (
     <div
-      className={`flex items-center gap-2 px-2.5 py-2 border-b border-l-4 text-[11px] font-medium ${style.bg} ${style.text}`}
-      title="大盤趨勢：進場做多的最高前提（寶典 p.687）"
+      className={`flex items-center gap-2 px-2.5 py-2 border-b border-l-4 text-[11px] font-medium cursor-pointer hover:brightness-110 transition ${style.bg} ${style.text}`}
+      title={`點擊載入${indexName}走圖（大盤趨勢=進場做多最高前提，寶典 p.687）`}
+      onClick={handleClick}
+      role="button"
     >
       <div className="flex-1 min-w-0 flex items-center gap-1.5 overflow-hidden">
         <span className="font-bold shrink-0 text-[10px] opacity-70 tracking-wider">大盤</span>
-        <span className="font-semibold shrink-0">{indexName}</span>
+        <span className="font-semibold shrink-0 underline decoration-dotted decoration-current/40 underline-offset-2">{indexName}</span>
         <span className="font-mono shrink-0 font-bold">{style.label}</span>
         <span className="opacity-80 truncate">{style.hint}</span>
       </div>

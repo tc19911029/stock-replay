@@ -76,12 +76,13 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
 
   return (
     <div className="flex flex-col min-h-0 h-full text-foreground text-xs">
-      {/* ── 頂端：大盤 banner（最高優先資訊）── */}
+      {/* ── 頂端：大盤 banner（最高優先資訊；點擊載入大盤指數走圖）── */}
       {scanDirection !== 'daban' && (
         <MarketTrendBanner
           market={market}
           marketTrend={marketTrend ?? null}
           scanDate={scanDate ?? null}
+          onSelectStock={onSelectStock}
         />
       )}
 
