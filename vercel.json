@@ -5,6 +5,10 @@
       "schedule": "45 5 * * 1-5"
     },
     {
+      "path": "/api/cron/download-candles?market=TW",
+      "schedule": "0 8 * * 1-5"
+    },
+    {
       "path": "/api/cron/append-from-snapshot?market=TW&force=1",
       "schedule": "5 6 * * 1-5"
     },
@@ -136,6 +140,16 @@
     { "path": "/api/cron/update-intraday-bm?market=CN&method=G", "schedule": "1-59/10 1-7 * * 1-5" },
     { "path": "/api/cron/update-intraday-bm?market=CN&method=H", "schedule": "3-59/10 1-7 * * 1-5" },
     { "path": "/api/cron/update-intraday-bm?market=CN&method=I", "schedule": "5-59/10 1-7 * * 1-5" },
+    { "path": "/api/cron/update-intraday-bm?market=TW&method=M", "schedule": "7-59/10 1-5 * * 1-5" },
+    { "path": "/api/cron/update-intraday-bm?market=TW&method=N", "schedule": "9-59/10 1-5 * * 1-5" },
+    { "path": "/api/cron/update-intraday-bm?market=TW&method=O", "schedule": "0-59/30 1-5 * * 1-5" },
+    { "path": "/api/cron/update-intraday-bm?market=TW&method=P", "schedule": "5-59/30 1-5 * * 1-5" },
+    { "path": "/api/cron/update-intraday-bm?market=TW&method=Q", "schedule": "10-59/30 1-5 * * 1-5" },
+    { "path": "/api/cron/update-intraday-bm?market=CN&method=M", "schedule": "7-59/10 1-7 * * 1-5" },
+    { "path": "/api/cron/update-intraday-bm?market=CN&method=N", "schedule": "9-59/10 1-7 * * 1-5" },
+    { "path": "/api/cron/update-intraday-bm?market=CN&method=O", "schedule": "0-59/30 1-7 * * 1-5" },
+    { "path": "/api/cron/update-intraday-bm?market=CN&method=P", "schedule": "5-59/30 1-7 * * 1-5" },
+    { "path": "/api/cron/update-intraday-bm?market=CN&method=Q", "schedule": "10-59/30 1-7 * * 1-5" },
     { "path": "/api/cron/scan-bm-batch?market=TW&track=bullish",  "schedule": "10 6 * * 1-5" },
     { "path": "/api/cron/scan-bm-batch?market=TW&track=reversal", "schedule": "13 6 * * 1-5" },
     { "path": "/api/cron/scan-bm-batch?market=TW&track=system",   "schedule": "15 6 * * 1-5" },

@@ -46,8 +46,11 @@ export async function register() {
   console.log('[local-cron] 本地開發模式：定期呼叫 API route 模擬 Vercel Cron');
   console.log('[local-cron] L2：每 5 分鐘 | 六條件盤中：每 10 分鐘 | 買法 BCDEF：每 10 分鐘 | 盤後：L1+scan 14:10 TW / 16:10 CN | ETF：18:00/23:00 CST 1-5');
 
-  // ── 盤中：買法掃描（B/C/D/E/F/G/H/I），輪流觸發 —— 獨立於 A 六條件避免單輪超時 ──
-  async function scanBuyMethodIntraday(market: 'TW' | 'CN', method: 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I') {
+  // ── 盤中：買法掃描（B-I + v12 J-Q），輪流觸發 —— 獨立於 A 六條件避免單輪超時 ──
+  async function scanBuyMethodIntraday(
+    market: 'TW' | 'CN',
+    method: 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q',
+  ) {
     if (!isMarketOpen(market) && !isPostCloseWindow(market)) return;
     const data = await callRoute(
       `/api/cron/update-intraday-bm?market=${market}&method=${method}`,
@@ -120,7 +123,10 @@ export async function register() {
   // TW：收盤後 14:10 CST（UTC+8 = 06:10 UTC），確保 L1 已下載
   // CN：收盤後 16:10 CST（UTC+8 = 08:10 UTC），確保 L1 已下載
   const postCloseBmDone = { TW: '', CN: '' };
-  async function scanBuyMethodPostClose(market: 'TW' | 'CN', method: 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I') {
+  async function scanBuyMethodPostClose(
+    market: 'TW' | 'CN',
+    method: 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q',
+  ) {
     const tz = market === 'TW' ? 'Asia/Taipei' : 'Asia/Shanghai';
     const nowLocal = new Date(new Date().toLocaleString('en-US', { timeZone: tz }));
     const todayLocal = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
@@ -151,17 +157,40 @@ export async function register() {
   }
 
   // ── 盤後：L1 下載（走 download-candles route） ──
-  // 規則：收盤後到隔日盤前之間都可跑。以「最後一個交易日」為 key 去重，
-  // 確保 dev server 若在 postClose 窗口後才啟動，當天 L1 仍會補下載。
-  const l1Downloaded = { TW: '', CN: '' };
+  // 0510 修：原本「每個交易日只跑一次」會有 stale 問題 — 第一次在 post-close 30 min
+  // 窗口跑時，data provider 對 .TWO 上櫃股還可能是盤中快照（TPEx 14:00 才結算完）。
+  // 改成每日「2 個 phase」各跑一次：
+  //   TW: phase=initial 13:30-14:30 CST（best effort）+ phase=final 16:00-17:00 CST（覆蓋確認）
+  //   CN: phase=initial 15:00-16:00 CST + phase=final 17:30-18:30 CST
+  // 不在窗口內 = phase='rest'，每天最多再補一次。
+  const l1Downloaded: Record<'TW' | 'CN', Set<string>> = { TW: new Set(), CN: new Set() };
+  function l1DownloadPhase(market: 'TW' | 'CN'): 'initial' | 'final' | 'rest' {
+    const tz = market === 'TW' ? 'Asia/Taipei' : 'Asia/Shanghai';
+    const hhmm = parseInt(
+      new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false })
+        .format(new Date()).replace(':', ''),
+      10,
+    );
+    if (market === 'TW') {
+      if (hhmm >= 1330 && hhmm < 1430) return 'initial';
+      if (hhmm >= 1600 && hhmm < 1700) return 'final';
+      return 'rest';
+    }
+    // CN
+    if (hhmm >= 1500 && hhmm < 1600) return 'initial';
+    if (hhmm >= 1730 && hhmm < 1830) return 'final';
+    return 'rest';
+  }
   async function downloadL1(market: 'TW' | 'CN') {
     if (isMarketOpen(market)) return; // 盤中不下（收盤價還沒定）
     const lastTrading = getLastTradingDay(market);
-    if (l1Downloaded[market] === lastTrading) return;
+    const phase = l1DownloadPhase(market);
+    const key = `${lastTrading}:${phase}`;
+    if (l1Downloaded[market].has(key)) return;
 
-    l1Downloaded[market] = lastTrading; // 先標記，防重複執行
-    console.log(`[local-cron] ${market} 觸發 download-candles (lastTrading=${lastTrading})...`);
-    await callRoute(`/api/cron/download-candles?market=${market}`, `${market} download-candles`);
+    l1Downloaded[market].add(key); // 先標記，防重複執行
+    console.log(`[local-cron] ${market} 觸發 download-candles (lastTrading=${lastTrading}, phase=${phase})...`);
+    await callRoute(`/api/cron/download-candles?market=${market}`, `${market} download-candles ${phase}`);
   }
 
   // ── 盤後：L2 快照補 L1（收盤後 30 分鐘，TW≥14:00 / CN≥15:30，每日一次） ──
@@ -222,15 +251,41 @@ export async function register() {
     scanIntradayDaily('CN').catch(err => console.error('[local-cron] CN scan-intraday:', err));
   }, 10 * 60 * 1000);
 
-  // 買法 B/C/D/E/F/G/H/I/G/H/I 錯開：每分鐘檢查，每 10 分鐘輪一圈
+  // 買法 B/C/D/E/F/G/H/I 盤中：每分鐘檢查，每 10 分鐘輪一圈
   // 對齊 vercel.json 的排程映射：
-  //   :00→F :01→G :02→B :03→H :04→C :05→I :06→D :08→E（:07/:09 留空）
+  //   :00→F :01→G :02→B :03→H :04→C :05→I :06→D :08→E（:07/:09 留 v12）
   setInterval(() => {
     const rem = new Date().getMinutes() % 10;
     const method =
       rem === 0 ? 'F' : rem === 1 ? 'G' : rem === 2 ? 'B' :
       rem === 3 ? 'H' : rem === 4 ? 'C' : rem === 5 ? 'I' :
       rem === 6 ? 'D' : rem === 8 ? 'E' : null;
+    if (!method) return;
+    scanBuyMethodIntraday('TW', method).catch(err => console.error(`[local-cron] TW bm ${method}:`, err));
+    scanBuyMethodIntraday('CN', method).catch(err => console.error(`[local-cron] CN bm ${method}:`, err));
+  }, 60 * 1000);
+
+  // v12 字母盤中（M/N/O/P/Q + J/K/L alias），2026-05-11 新增
+  // 每 5 分鐘輪一個字母（密度比 v11 低一半，總計 8 字母共 40 分鐘輪完）
+  // 排程映射：rem10 = 7→M, 9→N, 5min:1→O, 5min:2→P, 5min:3→Q
+  // J/K/L 跟 v11 G/H/I 是 alias 同 detector，多輪一次容錯
+  setInterval(() => {
+    const now = new Date();
+    const rem10 = now.getMinutes() % 10;
+    // 使用 v11 沒用的 :07 和 :09 slot 給 M、N（型態確認最重要）
+    let method: 'M' | 'N' | 'O' | 'P' | 'Q' | 'J' | 'K' | 'L' | null = null;
+    if (rem10 === 7) method = 'M';
+    else if (rem10 === 9) method = 'N';
+    // O/P/Q/J/K/L 用 30 分鐘輪一次（minute mod 30）
+    else {
+      const rem30 = now.getMinutes() % 30;
+      if (rem30 === 0) method = 'O';
+      else if (rem30 === 5) method = 'P';
+      else if (rem30 === 10) method = 'Q';
+      else if (rem30 === 15) method = 'J';
+      else if (rem30 === 20) method = 'K';
+      else if (rem30 === 25) method = 'L';
+    }
     if (!method) return;
     scanBuyMethodIntraday('TW', method).catch(err => console.error(`[local-cron] TW bm ${method}:`, err));
     scanBuyMethodIntraday('CN', method).catch(err => console.error(`[local-cron] CN bm ${method}:`, err));
@@ -246,9 +301,10 @@ export async function register() {
     appendL1FromSnapshot('CN').catch(err => console.error('[local-cron] CN appendL1FromSnapshot:', err));
   }, 5 * 60 * 1000);
 
-  // 盤後買法掃描：每分鐘檢查，時間窗口內對 B/C/D/E/F/G/H/I/G/H/I 各觸發一次
+  // 盤後買法掃描：每分鐘檢查，時間窗口內對 B-I + J-Q（v12 字母）各觸發一次
+  // 2026-05-11 加 v12 字母（J/K/L/M/N/O/P/Q）— 之前只有 vercel.json scan-bm-batch 跑，本地 instrumentation 沒同步
   setInterval(() => {
-    for (const method of ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'] as const) {
+    for (const method of ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'] as const) {
       scanBuyMethodPostClose('TW', method).catch(err => console.error(`[local-cron] TW scan-bm ${method}:`, err));
       scanBuyMethodPostClose('CN', method).catch(err => console.error(`[local-cron] CN scan-bm ${method}:`, err));
     }
@@ -300,6 +356,50 @@ export async function register() {
       console.log('[local-cron] ETF update-tracking 觸發');
       callRoute('/api/cron/update-etf-tracking', 'ETF update-tracking').catch(err =>
         console.error('[local-cron] ETF tracking failed:', err),
+      );
+    }
+  }, 60 * 1000);
+
+  // 每 30 分鐘 log heap 用量。超 2GB 印警告（之前出過 next-server 5.3GB 案例 — L1CandleCache lazy expire bug，已於 5/07 修正 evict + maxSize hard cap 6000）
+  setInterval(() => {
+    try {
+      const mem = process.memoryUsage();
+      const heapMB = Math.round(mem.heapUsed / 1024 / 1024);
+      const rssMB = Math.round(mem.rss / 1024 / 1024);
+      const tag = heapMB > 2048 ? '⚠️ heap > 2GB' : heapMB > 1024 ? '注意' : '正常';
+      console.log(`[local-cron] heap=${heapMB}MB rss=${rssMB}MB [${tag}]`);
+    } catch (err) {
+      console.error('[local-cron] heap log failed:', err);
+    }
+  }, 30 * 60 * 1000);
+
+  // 每日健康快照：盤後 30 分鐘各觸發一次（TW 14:30 / CN 16:30），
+  // 把 /api/health/data 兩市場結果固化到 data/health-snapshot/health-{date}.json
+  // UI /health 頁讀此快照顯示紅綠燈。一天各市場 1 次去重。
+  let lastDailyHealthDate = '';
+  setInterval(() => {
+    const now = new Date();
+    const tw = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Taipei', hour12: false, hour: '2-digit', minute: '2-digit',
+    }).formatToParts(now);
+    const cn = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Shanghai', hour12: false, hour: '2-digit', minute: '2-digit',
+    }).formatToParts(now);
+    const get = (parts: Intl.DateTimeFormatPart[], t: string) => parts.find(p => p.type === t)?.value ?? '';
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(now);
+    const twHHMM = parseInt(get(tw, 'hour'), 10) * 100 + parseInt(get(tw, 'minute'), 10);
+    const cnHHMM = parseInt(get(cn, 'hour'), 10) * 100 + parseInt(get(cn, 'minute'), 10);
+
+    // TW 14:30–14:35：抓 TW snapshot
+    // CN 16:30–16:35：抓 CN snapshot（也會合併進同一天的檔）
+    // 用 ≥ 比對讓中途啟動的 dev server 也能補跑當日；旗標避免重複觸發
+    const triggerTw = twHHMM >= 1430 && twHHMM < 1435;
+    const triggerCn = cnHHMM >= 1630 && cnHHMM < 1635;
+    if ((triggerTw || triggerCn) && today !== lastDailyHealthDate) {
+      lastDailyHealthDate = today;
+      console.log('[local-cron] daily-health-snapshot 觸發');
+      callRoute('/api/cron/daily-health-snapshot', 'daily-health-snapshot').catch(err =>
+        console.error('[local-cron] daily-health-snapshot failed:', err),
       );
     }
   }, 60 * 1000);
