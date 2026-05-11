@@ -1521,17 +1521,19 @@ export abstract class MarketScanner {
           // 由下方流程帶 lockWatchPayload 給 cron 寫入 LockWatch。matchedMethods 為空，不污染 ScanSession。
           if (!matched && !lockWatchPayload) return null;
 
-          // ── 戰法軌 Q：套戒律檢查（書本 p.262 沒說可以無視戒律）──────
-          // 反轉軌（D/F/N/O）不套戒律，因為戒律 5/8（未站上月線/空頭反彈）會誤
-          // 擋掉所有抓底/反轉訊號。書本本意這 4 個就是要在底部抓。
-          // 但反轉軌仍跑 checkLongProhibitions 蒐集 reasons → 寫入 r.longProhibitionsReasons
-          // 給 UI 警示用（用戶看到反轉訊號 row + 戒律觸發提示，書本「掃出但別追高」）
+          // ── 戒律檢查（書本 p.54 / p.82-85 進場 10 大戒律）─────────────
+          // 軌道分類：
+          //   - 多頭軌（B/C/E/J/K/L/M/P）：已過 Step 1 池子（含戒律）→ longProhibitionsReasons 應該空
+          //   - 反轉軌（D/F/N/O）：書本本意「在底部抓」不套戒律 reject，但寫 reasons 給 UI 警示
+          //   - 戰法軌（Q）：書本《抓住線圖》第 4 篇第 8 章 p.261-265 講三均線 SOP，
+          //                 **沒明說 Q 過戒律**。原本程式「保守反推」加 reject 是自創邏輯，
+          //                 2026-05-11 移除 reject 改 UI 警示（跟反轉軌一致，忠書本 + 用戶可判斷）
           let longProhibitionsReasons: string[] = [];
           {
             const { checkLongProhibitions } = await import('@/lib/rules/entryProhibitions');
             const prohib = checkLongProhibitions(candles, lastIdx);
             longProhibitionsReasons = prohib.reasons;
-            if (isSystem && matched && prohib.prohibited) return null;  // Q 戰法軌仍 reject
+            // 不再 reject — 任何軌道（D/F/N/O/Q）都讓 reason 寫入 result，UI 統一灰化警示
           }
 
           const prev = candles[lastIdx - 1];
