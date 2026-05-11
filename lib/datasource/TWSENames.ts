@@ -147,12 +147,19 @@ type NameMap = Record<string, string>; // code → Chinese name
 async function buildNameMap(): Promise<NameMap> {
   const map: NameMap = {};
 
-  // 三個來源並行抓取：TWSE上市、TPEx上櫃（可能被Cloudflare擋）、ISIN上櫃備援
+  // 三個來源並行抓取
+  // 2026-05-11：TWSE + TPEx JSON 走 fetchJsonWithCurlFallback（Cloudflare TLS 阻 Node fetch）；
+  //            ISIN 是 Big5 HTML，仍走 Node fetch（不同基礎設施，目前未被擋）
+  const { fetchJsonWithCurlFallback } = await import('./curlFetch');
   const [listedRes, otcRes, isinOtcRes] = await Promise.allSettled([
-    fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL',
-      { signal: AbortSignal.timeout(10000) }),
-    fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes',
-      { signal: AbortSignal.timeout(10000) }),
+    fetchJsonWithCurlFallback<{ Code: string; Name: string }[]>(
+      'https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL',
+      { timeoutMs: 10000 },
+    ),
+    fetchJsonWithCurlFallback<{ SecuritiesCompanyCode: string; CompanyName: string }[]>(
+      'https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes',
+      { timeoutMs: 10000 },
+    ),
     fetch('https://isin.twse.com.tw/isin/C_public.jsp?strMode=4',
       { signal: AbortSignal.timeout(15000) }),
   ]);
@@ -161,17 +168,15 @@ async function buildNameMap(): Promise<NameMap> {
   const CODE_RE = /^\d{4,5}[A-Z]?$/;
 
   // 上市股票（TWSE STOCK_DAY_ALL，僅含當日有成交的股票）
-  if (listedRes.status === 'fulfilled' && listedRes.value.ok) {
-    const data = await listedRes.value.json() as { Code: string; Name: string }[];
-    for (const s of data) {
+  if (listedRes.status === 'fulfilled') {
+    for (const s of listedRes.value.data) {
       if (CODE_RE.test(s.Code)) map[s.Code] = s.Name;
     }
   }
 
   // 上櫃股票：優先用 TPEx JSON，被 Cloudflare 擋時用 ISIN HTML 備援
-  if (otcRes.status === 'fulfilled' && otcRes.value.ok) {
-    const data = await otcRes.value.json() as { SecuritiesCompanyCode: string; CompanyName: string }[];
-    for (const s of data) {
+  if (otcRes.status === 'fulfilled') {
+    for (const s of otcRes.value.data) {
       if (CODE_RE.test(s.SecuritiesCompanyCode)) {
         map[s.SecuritiesCompanyCode] ??= s.CompanyName;
       }

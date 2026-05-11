@@ -9,6 +9,7 @@
  */
 
 import { globalCache } from './MemoryCache';
+import { fetchJsonWithCurlFallback } from './curlFetch';
 
 export interface TWSEQuote {
   code: string;       // 純數字代碼，如 "2330"
@@ -116,20 +117,27 @@ function parseChange(s: string | undefined): number | null {
 async function fetchAllQuotes(): Promise<Map<string, TWSEQuote>> {
   const map = new Map<string, TWSEQuote>();
 
+  // 2026-05-11：Node fetch 對 TPEx openapi 越來越常被 Cloudflare TLS 阻擋（403），
+  // 改走 fetchJsonWithCurlFallback：Node fetch 先試，失敗就 curl shell 補上。
+  // 用 allSettled 確保一邊掛了另一邊仍能寫進 map。
   const [twseRes, tpexRes] = await Promise.allSettled([
-    fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL', {
-      signal: AbortSignal.timeout(15000),
-    }),
-    fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes', {
-      signal: AbortSignal.timeout(15000),
-    }),
+    fetchJsonWithCurlFallback<TWSERawRow[]>(
+      'https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL',
+      { timeoutMs: 15000 },
+    ),
+    fetchJsonWithCurlFallback<TPExRawRow[]>(
+      'https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes',
+      { timeoutMs: 15000 },
+    ),
   ]);
 
   // ── TWSE 上市 ──
-  if (twseRes.status === 'fulfilled' && twseRes.value.ok) {
+  if (twseRes.status === 'fulfilled') {
+    if (twseRes.value.source === 'curl') {
+      console.info('[TWSERealtime] STOCK_DAY_ALL 經 curl fallback 成功');
+    }
     try {
-      const data = await twseRes.value.json() as TWSERawRow[];
-      for (const row of data) {
+      for (const row of twseRes.value.data) {
         if (!/^\d{4,5}$/.test(row.Code)) continue;
         const close = parseNum(row.ClosingPrice);
         if (close <= 0) continue; // 跳過無交易的股票
@@ -150,13 +158,17 @@ async function fetchAllQuotes(): Promise<Map<string, TWSEQuote>> {
     } catch {
       // TWSE parse error, skip
     }
+  } else {
+    console.warn('[TWSERealtime] STOCK_DAY_ALL 兩條路徑都掛:', twseRes.reason instanceof Error ? twseRes.reason.message : twseRes.reason);
   }
 
   // ── TPEx 上櫃 ──
-  if (tpexRes.status === 'fulfilled' && tpexRes.value.ok) {
+  if (tpexRes.status === 'fulfilled') {
+    if (tpexRes.value.source === 'curl') {
+      console.info('[TWSERealtime] TPEx tpex_mainboard_quotes 經 curl fallback 成功');
+    }
     try {
-      const data = await tpexRes.value.json() as TPExRawRow[];
-      for (const row of data) {
+      for (const row of tpexRes.value.data) {
         const code = row.SecuritiesCompanyCode;
         if (!/^\d{4,5}$/.test(code)) continue;
         const close = parseNum(row.Close);
@@ -178,6 +190,8 @@ async function fetchAllQuotes(): Promise<Map<string, TWSEQuote>> {
     } catch {
       // TPEx parse error, skip
     }
+  } else {
+    console.warn('[TWSERealtime] TPEx tpex_mainboard_quotes 兩條路徑都掛:', tpexRes.reason instanceof Error ? tpexRes.reason.message : tpexRes.reason);
   }
 
   return map;
@@ -299,31 +313,38 @@ async function fetchIntradayQuotes(): Promise<Map<string, TWSEQuote>> {
   const map = new Map<string, TWSEQuote>();
 
   // ── Step 1: 取全市場代碼清單（區分上市/上櫃）──
+  // 2026-05-11：Node fetch 對 TPEx 越來越常被 Cloudflare TLS 阻擋；改走 curl fallback
   const [twseRes, tpexRes] = await Promise.allSettled([
-    fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL', {
-      signal: AbortSignal.timeout(10000),
-    }),
-    fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes', {
-      signal: AbortSignal.timeout(10000),
-    }),
+    fetchJsonWithCurlFallback<TWSERawRow[]>(
+      'https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL',
+      { timeoutMs: 10000 },
+    ),
+    fetchJsonWithCurlFallback<TPExRawRow[]>(
+      'https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes',
+      { timeoutMs: 10000 },
+    ),
   ]);
 
   const tseCodes: string[] = [];
   const otcCodes: string[] = [];
 
-  if (twseRes.status === 'fulfilled' && twseRes.value.ok) {
+  if (twseRes.status === 'fulfilled') {
+    if (twseRes.value.source === 'curl') {
+      console.info('[TWSERealtimeIntraday] STOCK_DAY_ALL 經 curl fallback 成功');
+    }
     try {
-      const data = await twseRes.value.json() as TWSERawRow[];
-      for (const row of data) {
+      for (const row of twseRes.value.data) {
         if (/^\d{4,5}$/.test(row.Code)) tseCodes.push(row.Code);
       }
     } catch { /* parse error */ }
   }
 
-  if (tpexRes.status === 'fulfilled' && tpexRes.value.ok) {
+  if (tpexRes.status === 'fulfilled') {
+    if (tpexRes.value.source === 'curl') {
+      console.info('[TWSERealtimeIntraday] TPEx tpex_mainboard_quotes 經 curl fallback 成功');
+    }
     try {
-      const data = await tpexRes.value.json() as TPExRawRow[];
-      for (const row of data) {
+      for (const row of tpexRes.value.data) {
         if (/^\d{4,5}$/.test(row.SecuritiesCompanyCode)) otcCodes.push(row.SecuritiesCompanyCode);
       }
     } catch { /* parse error */ }

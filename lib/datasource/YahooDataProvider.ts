@@ -367,28 +367,25 @@ export async function getYahooTWRealtime(): Promise<Map<string, TWSEQuote>> {
   const out = new Map<string, TWSEQuote>();
   const todayTW = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
 
-  // Step 1: 取代碼清單（沿用 TWSE/TPEx OpenAPI — 這兩個端點很穩定）
+  // Step 1: 取代碼清單（TWSE/TPEx OpenAPI，2026-05-11 改用 curl fallback）
+  const { fetchJsonWithCurlFallback } = await import('./curlFetch');
   const [twseRes, tpexRes] = await Promise.allSettled([
-    fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL', {
-      signal: AbortSignal.timeout(10000),
-    }),
-    fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes', {
-      signal: AbortSignal.timeout(10000),
-    }),
+    fetchJsonWithCurlFallback<Array<{ Code: string }>>(
+      'https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL',
+      { timeoutMs: 10000 },
+    ),
+    fetchJsonWithCurlFallback<Array<{ SecuritiesCompanyCode: string }>>(
+      'https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes',
+      { timeoutMs: 10000 },
+    ),
   ]);
 
   const symbols: string[] = [];
-  if (twseRes.status === 'fulfilled' && twseRes.value.ok) {
-    try {
-      const rows = await twseRes.value.json() as Array<{ Code: string }>;
-      for (const r of rows) if (/^\d{4,5}$/.test(r.Code)) symbols.push(`${r.Code}.TW`);
-    } catch { /* skip */ }
+  if (twseRes.status === 'fulfilled') {
+    for (const r of twseRes.value.data) if (/^\d{4,5}$/.test(r.Code)) symbols.push(`${r.Code}.TW`);
   }
-  if (tpexRes.status === 'fulfilled' && tpexRes.value.ok) {
-    try {
-      const rows = await tpexRes.value.json() as Array<{ SecuritiesCompanyCode: string }>;
-      for (const r of rows) if (/^\d{4,5}$/.test(r.SecuritiesCompanyCode)) symbols.push(`${r.SecuritiesCompanyCode}.TWO`);
-    } catch { /* skip */ }
+  if (tpexRes.status === 'fulfilled') {
+    for (const r of tpexRes.value.data) if (/^\d{4,5}$/.test(r.SecuritiesCompanyCode)) symbols.push(`${r.SecuritiesCompanyCode}.TWO`);
   }
 
   if (symbols.length === 0) {
@@ -470,27 +467,24 @@ export async function getYahooTWRealtimeViaChart(): Promise<Map<string, TWSEQuot
   const out = new Map<string, TWSEQuote>();
   const todayTW = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
 
-  // Step 1: 取代碼清單
+  // Step 1: 取代碼清單（TWSE/TPEx OpenAPI，2026-05-11 改用 curl fallback）
+  const { fetchJsonWithCurlFallback } = await import('./curlFetch');
   const [twseRes, tpexRes] = await Promise.allSettled([
-    fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL', {
-      signal: AbortSignal.timeout(10000),
-    }),
-    fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes', {
-      signal: AbortSignal.timeout(10000),
-    }),
+    fetchJsonWithCurlFallback<Array<{ Code: string }>>(
+      'https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL',
+      { timeoutMs: 10000 },
+    ),
+    fetchJsonWithCurlFallback<Array<{ SecuritiesCompanyCode: string }>>(
+      'https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes',
+      { timeoutMs: 10000 },
+    ),
   ]);
   const symbols: string[] = [];
-  if (twseRes.status === 'fulfilled' && twseRes.value.ok) {
-    try {
-      const rows = await twseRes.value.json() as Array<{ Code: string }>;
-      for (const r of rows) if (/^\d{4,5}$/.test(r.Code)) symbols.push(`${r.Code}.TW`);
-    } catch { /* skip */ }
+  if (twseRes.status === 'fulfilled') {
+    for (const r of twseRes.value.data) if (/^\d{4,5}$/.test(r.Code)) symbols.push(`${r.Code}.TW`);
   }
-  if (tpexRes.status === 'fulfilled' && tpexRes.value.ok) {
-    try {
-      const rows = await tpexRes.value.json() as Array<{ SecuritiesCompanyCode: string }>;
-      for (const r of rows) if (/^\d{4,5}$/.test(r.SecuritiesCompanyCode)) symbols.push(`${r.SecuritiesCompanyCode}.TWO`);
-    } catch { /* skip */ }
+  if (tpexRes.status === 'fulfilled') {
+    for (const r of tpexRes.value.data) if (/^\d{4,5}$/.test(r.SecuritiesCompanyCode)) symbols.push(`${r.SecuritiesCompanyCode}.TWO`);
   }
   if (symbols.length === 0) {
     console.warn('[YahooV8] 取不到代碼清單，放棄');

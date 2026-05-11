@@ -127,25 +127,27 @@ async function fetchTWSEStocks(): Promise<(StockEntry & { vol: number })[]> {
 }
 
 /** 從 TPEx 取得上櫃股票，按當日成交量排序
- *  Primary: TPEx openapi  Fallback: ISIN C_public.jsp (tpex.org.tw 被 Cloudflare 封鎖時用) */
+ *  Primary: TPEx openapi (Node fetch + curl fallback)  Fallback: ISIN C_public.jsp */
 async function fetchTPExStocks(): Promise<(StockEntry & { vol: number })[]> {
   try {
-    const res = await fetch(
+    // 2026-05-11：Node fetch 被 Cloudflare TLS 擋（5/11 cron 為此漏 853 支上櫃），走 curl fallback
+    const { fetchJsonWithCurlFallback } = await import('@/lib/datasource/curlFetch');
+    const { data, source } = await fetchJsonWithCurlFallback<TPExRow[]>(
       'https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes',
-      { signal: AbortSignal.timeout(10000) }
+      { timeoutMs: 15000 },
     );
-    if (res.ok) {
-      const data = await res.json() as TPExRow[];
-      const stocks = data
-        .filter(s => /^[1-9]\d{3,4}$/.test(s.SecuritiesCompanyCode))
-        .map(s => ({
-          symbol: `${s.SecuritiesCompanyCode}.TWO`,
-          name: s.CompanyName.trim(),
-          vol: parseInt((s.TradingShares ?? '0').replace(/,/g, ''), 10) || 0,
-        }))
-        .sort((a, b) => b.vol - a.vol);
-      if (stocks.length > 0) return stocks;
+    if (source === 'curl') {
+      console.info('[TaiwanScanner] fetchTPExStocks 經 curl fallback 成功');
     }
+    const stocks = data
+      .filter(s => /^[1-9]\d{3,4}$/.test(s.SecuritiesCompanyCode))
+      .map(s => ({
+        symbol: `${s.SecuritiesCompanyCode}.TWO`,
+        name: s.CompanyName.trim(),
+        vol: parseInt((s.TradingShares ?? '0').replace(/,/g, ''), 10) || 0,
+      }))
+      .sort((a, b) => b.vol - a.vol);
+    if (stocks.length > 0) return stocks;
   } catch { /* TPEx blocked or down, fall through to ISIN */ }
 
   // ISIN C_public.jsp?strMode=4 — Big5 HTML，未被 Cloudflare 封鎖

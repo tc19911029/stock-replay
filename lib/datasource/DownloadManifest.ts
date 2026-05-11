@@ -19,6 +19,10 @@ export interface DownloadManifestData {
   coverage: number;        // 0-100%
   durationSec: number;
   timestamp?: string;       // ISO
+  /** 個別失敗的 symbol + 原因（cron 失敗時用來追根因，避免只有聚合計數） */
+  failedSymbols?: Array<{ symbol: string; reason: string }>;
+  /** stocklist 抓回的大小，若顯著小於近期平均 → 表示 provider transient（例如 TPEx 阻擋） */
+  stocklistSize?: number;
 }
 
 function getManifestPath(market: 'TW' | 'CN', date: string): string {

@@ -31,6 +31,7 @@ import {
   MAX_ATTEMPTS,
 } from '@/lib/datasource/BackfillQueue';
 import { dataProvider } from '@/lib/datasource/MultiMarketProvider';
+import { fetchJsonWithCurlFallback } from '@/lib/datasource/curlFetch';
 
 // ── TWSE MI_INDEX 官方日收盤（上市，集合競價後才更新） ───────────────────────────
 
@@ -43,9 +44,11 @@ interface BulkOHLCV { open: number; high: number; low: number; close: number; vo
 async function fetchTWSEBulkClose(dateStr: string): Promise<Map<string, BulkOHLCV>> {
   const d = dateStr.replace(/-/g, ''); // "2026-04-29" → "20260429"
   const url = `https://www.twse.com.tw/exchangeReport/MI_INDEX?response=json&date=${d}&type=ALLBUT0999`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
-  if (!res.ok) throw new Error(`TWSE MI_INDEX HTTP ${res.status}`);
-  const data = await res.json() as { stat: string; tables: Array<{ fields: string[]; data: string[][] }> };
+  // 2026-05-11：Node fetch 對 www.twse.com.tw 也可能被 Cloudflare 擋，走 fetchJsonWithCurlFallback
+  const { data, source } = await fetchJsonWithCurlFallback<{ stat: string; tables: Array<{ fields: string[]; data: string[][] }> }>(
+    url, { timeoutMs: 30_000 },
+  );
+  if (source === 'curl') console.info('[download-candles] TWSE MI_INDEX 經 curl fallback 成功');
   if (data.stat !== 'OK') throw new Error(`TWSE MI_INDEX stat=${data.stat}`);
   const table = data.tables?.[8];
   if (!table?.data?.length) throw new Error('TWSE MI_INDEX table 8 missing or empty');
@@ -62,6 +65,54 @@ async function fetchTWSEBulkClose(dateStr: string): Promise<Map<string, BulkOHLC
     const volume = Math.round(parseNum(row[2]) / 1000); // 股 → 張
     if (close > 0 && open > 0) map.set(code, { open, high, low, close, volume });
   }
+  return map;
+}
+
+// ── TPEx 上櫃官方日收盤（集合競價後才更新）──────────────────────────────────
+/**
+ * 抓 TPEx OpenAPI tpex_mainboard_quotes，所有上櫃股票最新交易日 OHLCV。
+ * 跟 TWSE MI_INDEX 平行，給 .TWO 上櫃股當 ground truth 安全網。
+ *
+ * 注意：endpoint 只回最新交易日資料（不能指定歷史日期）；用 dateStr 比對 row.Date
+ *      確保抓到的是目標交易日。TPEx 結算約 14:00 CST 完成。
+ */
+interface TPExRawRow {
+  Date?: string; SecuritiesCompanyCode?: string;
+  Open?: string; High?: string; Low?: string; Close?: string;
+  TradingShares?: string;
+}
+function parseROCDateLocal(raw?: string): string | null {
+  if (!raw) return null;
+  const m = raw.trim().match(/^(\d{2,3})\/(\d{2})\/(\d{2})$/);
+  if (!m) return null;
+  const yyyy = String(parseInt(m[1], 10) + 1911);
+  return `${yyyy}-${m[2]}-${m[3]}`;
+}
+async function fetchTPExBulkClose(targetDate: string): Promise<Map<string, BulkOHLCV>> {
+  const url = 'https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes';
+  // 2026-05-11：Node fetch 對 TPEx 被 Cloudflare 擋（5/11 cron 漏 853 支上櫃的元兇），走 curl fallback
+  const { data: rows, source } = await fetchJsonWithCurlFallback<TPExRawRow[]>(url, { timeoutMs: 30_000 });
+  if (source === 'curl') console.info('[download-candles] TPEx OpenAPI 經 curl fallback 成功');
+  if (!Array.isArray(rows) || rows.length === 0) throw new Error('TPEx OpenAPI empty');
+
+  const parseNum = (s?: string) => { if (!s) return 0; const n = parseFloat(s.replace(/,/g, '')); return isNaN(n) ? 0 : n; };
+  const map = new Map<string, BulkOHLCV>();
+  let dateMatched = 0;
+  for (const row of rows) {
+    const code = row.SecuritiesCompanyCode?.trim();
+    if (!code || !/^\d{4,5}[A-Z]?$/.test(code)) continue;
+    // 只接受目標日的資料（避免跑在交易日 cron 太早撈到前一日 stale 結果）
+    const rowDate = parseROCDateLocal(row.Date);
+    if (rowDate !== targetDate) continue;
+    dateMatched++;
+    const open = parseNum(row.Open);
+    const high = parseNum(row.High);
+    const low = parseNum(row.Low);
+    const close = parseNum(row.Close);
+    const volume = Math.round(parseNum(row.TradingShares) / 1000); // 股 → 張
+    if (close > 0 && open > 0) map.set(code, { open, high, low, close, volume });
+  }
+  if (dateMatched === 0) throw new Error(`TPEx OpenAPI 無 ${targetDate} 資料（可能還沒結算）`);
   return map;
 }
 
@@ -98,6 +149,20 @@ export async function GET(req: NextRequest) {
 
   try {
     const stocks = await scanner.getStockList();
+
+    // Stocklist size sanity check：5/11 教訓 — cron 14:37 CST 跑時 TPEx openapi 暫時掛掉，
+    // stocklist 只回上市 1077（少了 853 支上櫃），但 ScanPipeline 安全閘 (200) 沒擋住，
+    // 結果 853 支上櫃股的 5/11 row 完全沒下載。這裡用近期 manifest 平均 vs 本次大小做監測。
+    try {
+      const expectedMin = market === 'TW' ? 1500 : 2700;
+      if (stocks.length < expectedMin) {
+        console.warn(
+          `[download-candles] ${market}: ⚠ stocklist=${stocks.length} 顯著小於預期 ≥${expectedMin}，` +
+          `可能 provider transient 失效（TPEx/EastMoney 階段性掛掉）。此次 cron 將只下載到的部分，` +
+          `下一輪 cron 或 BackfillQueue 會補。`
+        );
+      }
+    } catch { /* sanity check 失敗不擋主流程 */ }
 
     // ── Step -1: 消費 Backfill Queue（上輪 verify 發現缺棒的股票，針對性補拉） ──
     // 在主下載之前跑，補拉也會觸發 writeCandleFile merge，讓主下載看到已補齊狀態。
@@ -162,6 +227,19 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // ── TW 上櫃：TPEx OpenAPI 官方日收盤（給 .TWO 當 ground truth，平行 TWSE 安全網）──
+    // 0510 加：原本 .TWO 只能靠 data provider，13:45 cron 抓到的可能是盤中快照
+    let tpexMap: Map<string, BulkOHLCV> | null = null;
+    let tpexInjected = 0;
+    if (market === 'TW') {
+      try {
+        tpexMap = await fetchTPExBulkClose(lastTradingDate);
+        console.info(`[download-candles] TW: TPEx OpenAPI 官方收盤已載入 ${tpexMap.size} 支上櫃股票`);
+      } catch (err) {
+        console.warn('[download-candles] TW: TPEx OpenAPI 載入失敗（可能還沒結算），改用 L2+API fallback:', err);
+      }
+    }
+
     // ── L2 快照（TWO 上櫃 fallback，或 TWSE 載入失敗時的備援）──
     let l2Map: Map<string, IntradayQuote> | null = null;
     let l2Injected = 0;
@@ -181,13 +259,17 @@ export async function GET(req: NextRequest) {
 
     console.info(
       `[download-candles] ${market}: ${stocks.length} 支，` +
-      `TWSE=${twseMap?.size ?? 0}，L2=${l2Map?.size ?? 0}`
+      `TWSE=${twseMap?.size ?? 0}，TPEx=${tpexMap?.size ?? 0}，L2=${l2Map?.size ?? 0}`
     );
+
+    // 收集每支失敗的 symbol + 原因，供 manifest 寫入（2026-05-11：原本只記計數
+    // 導致 5/11 cron 失敗 5 支時根本不知道是哪 5 支）
+    const failedSymbols: Array<{ symbol: string; reason: string }> = [];
 
     for (let i = 0; i < stocks.length; i += CONCURRENCY) {
       const batch = stocks.slice(i, i + CONCURRENCY);
       const settled = await Promise.allSettled(
-        batch.map(async ({ symbol }) => {
+        batch.map(async ({ symbol }): Promise<number | { failed: true; reason: string }> => {
           const code = symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
           const existing = await readCandleFile(symbol, market);
 
@@ -201,6 +283,16 @@ export async function GET(req: NextRequest) {
             if (ohlcv) {
               await saveLocalCandles(symbol, market, [{ date: lastTradingDate, ...ohlcv }]);
               twseInjected++;
+              return 1;
+            }
+          }
+
+          // ── 優先路徑 1b：TPEx 官方日收盤（只對上櫃 .TWO 股票）──
+          if (symbol.endsWith('.TWO') && tpexMap) {
+            const ohlcv = tpexMap.get(code);
+            if (ohlcv) {
+              await saveLocalCandles(symbol, market, [{ date: lastTradingDate, ...ohlcv }]);
+              tpexInjected++;
               return 1;
             }
           }
@@ -226,22 +318,39 @@ export async function GET(req: NextRequest) {
           }
 
           // ── 全量 API 下載（L1 缺失、太舊、或兩個快照都無此股）──
-          const candles = await scanner.fetchCandles(symbol);
-          if (candles.length > 0) {
-            await saveLocalCandles(symbol, market, candles);
-            return candles.length;
+          try {
+            const candles = await scanner.fetchCandles(symbol);
+            if (candles.length > 0) {
+              await saveLocalCandles(symbol, market, candles);
+              return candles.length;
+            }
+            // 拉到空陣列：所有 provider 都沒回 → 可能停牌或退市
+            return { failed: true, reason: 'all-providers-empty' };
+          } catch (err) {
+            return { failed: true, reason: `fetch-error:${err instanceof Error ? err.message.slice(0, 80) : 'unknown'}` };
           }
-          return 0;
         })
       );
 
-      for (const r of settled) {
+      for (let j = 0; j < settled.length; j++) {
+        const r = settled[j];
         if (r.status === 'fulfilled') {
-          if (r.value === -1) skipped++;
-          else if (r.value > 0) succeeded++;
-          else failed++;
+          const v = r.value;
+          if (typeof v === 'number') {
+            if (v === -1) skipped++;
+            else if (v > 0) succeeded++;
+            else failed++;
+          } else {
+            // 失敗物件
+            failed++;
+            failedSymbols.push({ symbol: batch[j].symbol, reason: v.reason });
+          }
         } else {
           failed++;
+          failedSymbols.push({
+            symbol: batch[j].symbol,
+            reason: `rejected:${r.reason instanceof Error ? r.reason.message.slice(0, 80) : String(r.reason).slice(0, 80)}`,
+          });
         }
       }
 
@@ -256,7 +365,7 @@ export async function GET(req: NextRequest) {
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
     console.info(
       `[download-candles] ${market}: 完成 — ${succeeded} API下載, ` +
-      `${twseInjected} TWSE注入, ${l2Injected} L2注入, ${skipped} 跳過, ${failed} 失敗, ${duration}s`
+      `${twseInjected} TWSE注入, ${tpexInjected} TPEx注入, ${l2Injected} L2注入, ${skipped} 跳過, ${failed} 失敗, ${duration}s`
     );
 
     // 保存下載清單（供掃描前檢查覆蓋率使用）
@@ -267,7 +376,15 @@ export async function GET(req: NextRequest) {
       failed,
       coverage: Math.round((succeeded + skipped) / stocks.length * 100),
       durationSec: parseFloat(duration),
+      failedSymbols: failedSymbols.length > 0 ? failedSymbols : undefined,
+      stocklistSize: stocks.length,
     }).catch(err => console.warn('[download-candles] manifest save failed:', err));
+
+    // 失敗 list 太長時印頭幾筆，方便排查
+    if (failedSymbols.length > 0) {
+      const preview = failedSymbols.slice(0, 10).map(f => `${f.symbol}(${f.reason.slice(0, 30)})`).join(', ');
+      console.warn(`[download-candles] ${market}: ${failedSymbols.length} 支失敗，前 10：${preview}`);
+    }
 
     // ── 生成 MA Base（供盤中粗掃即時 MA 計算用）──
     let maBaseResult = { total: 0, succeeded: 0, failed: 0 };
@@ -334,6 +451,45 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // ── 最終守護：TPEx OpenAPI 全量交叉稽核 + 自動修復（TW 上櫃 .TWO 專用）──
+    // 跟 twseAudit 平行：對所有有 TPEx 官方資料的 .TWO 股票，比對 L1 vs 官方，偏差 > 0.5% 自動覆寫
+    let tpexAudit: { checked: number; repaired: number; samples: string[] } | undefined;
+    if (market === 'TW' && tpexMap) {
+      let checked = 0, repaired = 0;
+      const samples: string[] = [];
+      for (const stock of stocks) {
+        if (!stock.symbol.endsWith('.TWO')) continue;
+        const code = stock.symbol.replace(/\.TWO$/i, '');
+        const official = tpexMap.get(code);
+        if (!official) continue;
+
+        const l1Data = await readCandleFile(stock.symbol, market);
+        if (!l1Data || l1Data.lastDate !== lastTradingDate) continue;
+        const lastBar = l1Data.candles[l1Data.candles.length - 1];
+        if (!lastBar) continue;
+        checked++;
+
+        const diffAbs = Math.abs(lastBar.close - official.close);
+        const diffPct = diffAbs / official.close;
+        if (diffAbs > 1 || diffPct > 0.005) {
+          await saveLocalCandles(stock.symbol, market, [{ date: lastTradingDate, ...official }]);
+          repaired++;
+          if (samples.length < 5) {
+            samples.push(`${stock.symbol}: L1=${lastBar.close} → TPEx=${official.close} (${(diffPct * 100).toFixed(2)}%)`);
+          }
+        }
+      }
+      tpexAudit = { checked, repaired, samples };
+      if (repaired > 0) {
+        console.warn(
+          `[download-candles] TW: ★ TPEx 交叉稽核修復 ${repaired}/${checked} 支偏差上櫃股票`
+        );
+        for (const s of samples) console.warn(`  ${s}`);
+      } else {
+        console.info(`[download-candles] TW: TPEx 交叉稽核通過 ${checked} 支全部一致`);
+      }
+    }
+
     // ── L1 抽查（Yahoo 交叉核驗 — 第三道防線） ──
     let spotCheck: import('@/lib/datasource/L1SpotCheck').SpotCheckResult | undefined;
     try {
@@ -348,6 +504,7 @@ export async function GET(req: NextRequest) {
       totalStocks: stocks.length,
       succeeded,
       twseInjected,
+      tpexInjected,
       l2Injected,
       skipped,
       failed,
@@ -360,6 +517,7 @@ export async function GET(req: NextRequest) {
         skipped: backfillSkipped,
       },
       twseAudit,
+      tpexAudit,
       spotCheck: spotCheck ? { passed: spotCheck.passed, failed: spotCheck.failed, suspicious: spotCheck.suspicious } : undefined,
     });
   } catch (err) {
