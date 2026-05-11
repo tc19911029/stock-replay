@@ -52,6 +52,12 @@ interface ChartToolbarProps {
   onAscendingTrendlineToggle?: () => void;
   showDescendingTrendline?: boolean;
   onDescendingTrendlineToggle?: () => void;
+  showAscendingChannel?: boolean;
+  onAscendingChannelToggle?: () => void;
+  showDescendingChannel?: boolean;
+  onDescendingChannelToggle?: () => void;
+  showConsolidationLines?: boolean;
+  onConsolidationLinesToggle?: () => void;
   avgCost?: number;
   shares?: number;
   onPrev?: () => void;
@@ -111,6 +117,9 @@ export default function ChartToolbar({
   showPattern = false, onPatternToggle,
   showAscendingTrendline = false, onAscendingTrendlineToggle,
   showDescendingTrendline = false, onDescendingTrendlineToggle,
+  showAscendingChannel = false, onAscendingChannelToggle,
+  showDescendingChannel = false, onDescendingChannelToggle,
+  showConsolidationLines = false, onConsolidationLinesToggle,
   avgCost, shares,
   onPrev, onNext, onReset,
   canPrev = true, canNext = true,
@@ -269,23 +278,56 @@ export default function ChartToolbar({
           <button
             onClick={onAscendingTrendlineToggle}
             aria-pressed={showAscendingTrendline}
-            aria-label={`${showAscendingTrendline ? '隱藏' : '顯示'}上升趨勢線`}
+            aria-label={`${showAscendingTrendline ? '隱藏' : '顯示'}上升切線`}
             className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition ${
               showAscendingTrendline ? 'bg-red-600/60 text-red-100' : 'bg-secondary text-muted-foreground/50 hover:text-muted-foreground'
             }`}
-            title="顯示/隱藏上升切線（連最近兩個底，兩端各延 20 天）"
-          >上升線</button>
+            title="顯示/隱藏上升切線（連最近兩個底，兩端各延 20 天）｜書本：上升切線=上升趨勢線"
+          >上升切線</button>
         )}
         {onDescendingTrendlineToggle && (
           <button
             onClick={onDescendingTrendlineToggle}
             aria-pressed={showDescendingTrendline}
-            aria-label={`${showDescendingTrendline ? '隱藏' : '顯示'}下降趨勢線`}
+            aria-label={`${showDescendingTrendline ? '隱藏' : '顯示'}下降切線`}
             className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition ${
               showDescendingTrendline ? 'bg-emerald-600/60 text-emerald-100' : 'bg-secondary text-muted-foreground/50 hover:text-muted-foreground'
             }`}
-            title="顯示/隱藏下降切線（連最近兩個頭，兩端各延 20 天）"
-          >下降線</button>
+            title="顯示/隱藏下降切線（連最近兩個頭，兩端各延 20 天）｜書本：下降切線=下降趨勢線"
+          >下降切線</button>
+        )}
+        {onAscendingChannelToggle && (
+          <button
+            onClick={onAscendingChannelToggle}
+            aria-pressed={showAscendingChannel}
+            aria-label={`${showAscendingChannel ? '隱藏' : '顯示'}上升軌道線`}
+            className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition ${
+              showAscendingChannel ? 'bg-red-600/40 text-red-100' : 'bg-secondary text-muted-foreground/50 hover:text-muted-foreground'
+            }`}
+            title="顯示/隱藏上升軌道線（與上升切線平行，穿過兩底之間最高點）｜書本：抓住飆股 p.205-208"
+          >上升軌道</button>
+        )}
+        {onDescendingChannelToggle && (
+          <button
+            onClick={onDescendingChannelToggle}
+            aria-pressed={showDescendingChannel}
+            aria-label={`${showDescendingChannel ? '隱藏' : '顯示'}下跌軌道線`}
+            className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition ${
+              showDescendingChannel ? 'bg-emerald-600/40 text-emerald-100' : 'bg-secondary text-muted-foreground/50 hover:text-muted-foreground'
+            }`}
+            title="顯示/隱藏下跌軌道線（與下降切線平行，穿過兩頭之間最低點）｜書本：抓住飆股 p.205-208"
+          >下跌軌道</button>
+        )}
+        {onConsolidationLinesToggle && (
+          <button
+            onClick={onConsolidationLinesToggle}
+            aria-pressed={showConsolidationLines}
+            aria-label={`${showConsolidationLines ? '隱藏' : '顯示'}盤整切線`}
+            className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition ${
+              showConsolidationLines ? 'bg-amber-600/60 text-amber-100' : 'bg-secondary text-muted-foreground/50 hover:text-muted-foreground'
+            }`}
+            title="顯示/隱藏盤整切線（上頸線+下頸線同時畫，連最近 2 個 swing high/low）｜書本：抓住飆股 p.205-208；寶典 Part 5 切線篇 p.352-369"
+          >盤整切線</button>
         )}
         <button
           onClick={onMarkersToggle}

@@ -96,7 +96,18 @@ export default function HomePage() {
 
   useEffect(() => { initData(); }, [initData]);
 
+  // 大盤指數預設：TW→加權指數 ^TWII，CN→上證指數 000001.SS
+  const market = useBacktestStore(s => s.market);
+  const getMarketIndex = useCallback(
+    (m: 'TW' | 'CN'): { symbol: string; name: string } => m === 'TW'
+      ? { symbol: '^TWII', name: '加權指數' }
+      : { symbol: '000001.SS', name: '上證指數' },
+    [],
+  );
+
   // Handle ?load=SYMBOL&date=YYYY-MM-DD
+  // 同步預設載入大盤指數 — hydrate 前 market='TW' 會先 load ^TWII；
+  // 若 persisted market='CN'，hydrate 完成後 market-change effect 會自動 reload 000001.SS（有短暫閃爍但保證載入）
   const [loadError, setLoadError] = useState<string | null>(null);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -110,9 +121,19 @@ export default function HomePage() {
       });
       window.history.replaceState({}, '', '/');
     } else if (allCandles.length === 0) {
-      loadStock('^TWII', '1d', '2y').catch(() => {});
+      loadStock(getMarketIndex(market).symbol, '1d', '2y').catch(() => {});
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 切換市場時自動切到該市場大盤指數
+  // 用 ref 鎖住「上一次的 market」，hydration 把 market 從 'TW' 改成 'CN' 也會 trigger（這正是我們想要的）
+  const lastMarketRef = useRef<'TW' | 'CN'>(market);
+  useEffect(() => {
+    if (lastMarketRef.current === market) return;
+    lastMarketRef.current = market;
+    const { symbol } = getMarketIndex(market);
+    loadStock(symbol, '1d', '2y').catch(() => {});
+  }, [market, loadStock, getMarketIndex]);
 
   const currentInterval = useReplayStore(s => s.currentInterval);
   // P1-2: remember last tab per interval (declared before handleKey to avoid TDZ errors)
@@ -196,6 +217,9 @@ export default function HomePage() {
   const [showSupportResistance, setShowSupportResistance] = useState(false);
   const [showAscendingTrendline, setShowAscendingTrendline] = useState(false);
   const [showDescendingTrendline, setShowDescendingTrendline] = useState(false);
+  const [showAscendingChannel, setShowAscendingChannel] = useState(false);
+  const [showDescendingChannel, setShowDescendingChannel] = useState(false);
+  const [showConsolidationLines, setShowConsolidationLines] = useState(false);
   const [showNeckline, setShowNeckline] = useState(false);  // 形態頸線 + 目標價 + 結構失效價
   const [showPattern, setShowPattern] = useState(false);    // 形態 ABCDE 關鍵點與連線
   const [maToggles, setMaToggles] = useState({ ma5: true, ma10: true, ma20: true, ma60: true, ma240: false });
@@ -486,6 +510,12 @@ export default function HomePage() {
                 onAscendingTrendlineToggle={() => setShowAscendingTrendline(v => !v)}
                 showDescendingTrendline={showDescendingTrendline}
                 onDescendingTrendlineToggle={() => setShowDescendingTrendline(v => !v)}
+                showAscendingChannel={showAscendingChannel}
+                onAscendingChannelToggle={() => setShowAscendingChannel(v => !v)}
+                showDescendingChannel={showDescendingChannel}
+                onDescendingChannelToggle={() => setShowDescendingChannel(v => !v)}
+                showConsolidationLines={showConsolidationLines}
+                onConsolidationLinesToggle={() => setShowConsolidationLines(v => !v)}
                 avgCost={metrics.avgCost}
                 shares={metrics.shares}
                 onPrev={prevCandle}
@@ -522,6 +552,9 @@ export default function HomePage() {
                   showSupportResistance={showSupportResistance}
                   showAscendingTrendline={showAscendingTrendline}
                   showDescendingTrendline={showDescendingTrendline}
+                  showAscendingChannel={showAscendingChannel}
+                  showDescendingChannel={showDescendingChannel}
+                  showConsolidationLines={showConsolidationLines}
                   showNeckline={showNeckline}
                   showPattern={showPattern}
                   highlightDate={targetDate ?? undefined}
@@ -726,6 +759,12 @@ export default function HomePage() {
                 onAscendingTrendlineToggle={() => setShowAscendingTrendline(v => !v)}
                 showDescendingTrendline={showDescendingTrendline}
                 onDescendingTrendlineToggle={() => setShowDescendingTrendline(v => !v)}
+                showAscendingChannel={showAscendingChannel}
+                onAscendingChannelToggle={() => setShowAscendingChannel(v => !v)}
+                showDescendingChannel={showDescendingChannel}
+                onDescendingChannelToggle={() => setShowDescendingChannel(v => !v)}
+                showConsolidationLines={showConsolidationLines}
+                onConsolidationLinesToggle={() => setShowConsolidationLines(v => !v)}
                 avgCost={metrics.avgCost}
                 shares={metrics.shares}
                 onPrev={prevCandle}
@@ -766,6 +805,9 @@ export default function HomePage() {
                       showSupportResistance={showSupportResistance}
                       showAscendingTrendline={showAscendingTrendline}
                       showDescendingTrendline={showDescendingTrendline}
+                      showAscendingChannel={showAscendingChannel}
+                      showDescendingChannel={showDescendingChannel}
+                      showConsolidationLines={showConsolidationLines}
                       showNeckline={showNeckline}
                       showPattern={showPattern}
                       highlightDate={targetDate ?? undefined}

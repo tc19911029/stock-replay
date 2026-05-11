@@ -154,6 +154,12 @@ interface CandleChartProps {
   showAscendingTrendline?: boolean;
   /** 顯示下降切線（頭頭低），獨立 toggle；若 undefined 則跟 showTrendlines */
   showDescendingTrendline?: boolean;
+  /** 顯示上升軌道線（與上升切線平行，穿過兩底之間的最高點），預設關 */
+  showAscendingChannel?: boolean;
+  /** 顯示下跌軌道線（與下降切線平行，穿過兩頭之間的最低點），預設關 */
+  showDescendingChannel?: boolean;
+  /** 顯示盤整切線（上頸線+下頸線同時畫，《抓住飆股》p.205-208），預設關 */
+  showConsolidationLines?: boolean;
   /** 顯示 MA5 分段頭底標記（寶典 p.21-22），預設關 */
   showPivots?: boolean;
   /** 顯示前高壓/前低撐/大量撐壓線，預設關 */
@@ -175,6 +181,9 @@ export default function CandleChart({
   showTrendlines = true,
   showAscendingTrendline,
   showDescendingTrendline,
+  showAscendingChannel = false,
+  showDescendingChannel = false,
+  showConsolidationLines = false,
   showPivots = false,
   showSupportResistance = false,
   showNeckline = false,
@@ -188,6 +197,8 @@ export default function CandleChart({
   const maRefs         = useRef<Record<string, ISeriesApi<'Line'>>>({});
   const bbRefs         = useRef<{ upper?: ISeriesApi<'Line'>; lower?: ISeriesApi<'Line'> }>({});
   const trendlineRefs  = useRef<{ descending?: ISeriesApi<'Line'>; ascending?: ISeriesApi<'Line'> }>({});
+  const channelRefs    = useRef<{ descending?: ISeriesApi<'Line'>; ascending?: ISeriesApi<'Line'> }>({});
+  const consolidationRefs = useRef<{ upper?: ISeriesApi<'Line'>; lower?: ISeriesApi<'Line'> }>({});
   const markersPlugRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const avgCostLineRef   = useRef<ReturnType<ISeriesApi<'Candlestick'>['createPriceLine']> | null>(null);
   const stopLossLineRef  = useRef<ReturnType<ISeriesApi<'Candlestick'>['createPriceLine']> | null>(null);
@@ -207,6 +218,14 @@ export default function CandleChart({
     ascending: { anchorIndex: number; anchorPrice: number; slope: number } | null;
     descending: { anchorIndex: number; anchorPrice: number; slope: number } | null;
   }>({ ascending: null, descending: null });
+  const [channelStatus, setChannelStatus] = useState<{
+    ascending: { anchorIndex: number; anchorPrice: number; slope: number } | null;
+    descending: { anchorIndex: number; anchorPrice: number; slope: number } | null;
+  }>({ ascending: null, descending: null });
+  const [consolidationStatus, setConsolidationStatus] = useState<{
+    upper: { anchorIndex: number; anchorPrice: number; slope: number } | null;
+    lower: { anchorIndex: number; anchorPrice: number; slope: number } | null;
+  }>({ upper: null, lower: null });
 
   useEffect(() => {
     candlesRef.current = candles;
@@ -317,6 +336,27 @@ export default function CandleChart({
       lineWidth: 1, priceLineVisible: false, lastValueVisible: false, lineStyle: 0,
     });
 
+    // ── 軌道線（書本《抓住飆股》p.205-208，與切線平行）──
+    channelRefs.current.descending = chart.addSeries(LineSeries, {
+      color: '#10b981',  // 綠：下跌軌道線（與下降切線平行，在股價下方）
+      lineWidth: 1, priceLineVisible: false, lastValueVisible: false, lineStyle: 2,  // 虛線：與切線區分
+    });
+    channelRefs.current.ascending = chart.addSeries(LineSeries, {
+      color: '#ef4444',  // 紅：上升軌道線（與上升切線平行，在股價上方）
+      lineWidth: 1, priceLineVisible: false, lastValueVisible: false, lineStyle: 2,
+    });
+
+    // ── 盤整切線（書本《抓住飆股》p.205-208；寶典 Part 5 切線篇 p.352-369）──
+    // 上頸線 + 下頸線同時畫，用 amber 點線區分既有切線/軌道線/形態頸線
+    consolidationRefs.current.upper = chart.addSeries(LineSeries, {
+      color: '#f59e0b',  // amber：盤整上頸線
+      lineWidth: 1, priceLineVisible: false, lastValueVisible: false, lineStyle: 1,  // 點線
+    });
+    consolidationRefs.current.lower = chart.addSeries(LineSeries, {
+      color: '#f59e0b',  // amber：盤整下頸線
+      lineWidth: 1, priceLineVisible: false, lastValueVisible: false, lineStyle: 1,
+    });
+
     // ── 形態頸線 / 目標 / 結構失效 / 形態連線（toggle 控制） ──
     necklineRef.current = chart.addSeries(LineSeries, {
       color: '#22d3ee',   // 青：頸線（實線）
@@ -342,6 +382,9 @@ export default function CandleChart({
     candleRef.current = candleSeries;
     maRefs.current    = newMARef;
     markersPlugRef.current = createSeriesMarkers(candleSeries, []);
+
+    // 暴露 chart instance 給「問朱老師」截圖用（朱老師 session 是多模態，可以讀圖）
+    (window as unknown as { __rockstockChart?: IChartApi }).__rockstockChart = chart;
 
     // ── 主圖廣播 logical range 給指標圖（bar-index 同步，對齊更精確） ──
     chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
@@ -394,6 +437,7 @@ export default function CandleChart({
       ro.disconnect();
       chart.remove();
       chartRef.current = null;
+      delete (window as unknown as { __rockstockChart?: IChartApi }).__rockstockChart;
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -421,14 +465,23 @@ export default function CandleChart({
       candles.filter(c => validNum(c.bbLower)).map(c => ({ time: toTime(c.date), value: c.bbLower! }))
     );
 
-    // ── 切線（書本 p.37/p.38）──
+    // ── 切線（書本 p.37/p.38）+ 軌道線（《抓住飆股》p.205-208）+ 盤整切線（同 p.205）──
     // 實線從 fromIndex 延伸：往前 20 + 往後 20 交易日
     // 上升/下降線可獨立 toggle；fallback 用 showTrendlines 總開關相容舊用法
+    // 軌道線：與對應切線平行，穿過兩 pivot 之間的最高點/最低點
+    // 盤整切線：上頸線（連最近 2 個 high pivot）+ 下頸線（連最近 2 個 low pivot），同時畫
     const showAsc = showAscendingTrendline ?? showTrendlines;
     const showDesc = showDescendingTrendline ?? showTrendlines;
+    const showAscCh = showAscendingChannel;
+    const showDescCh = showDescendingChannel;
+    const showCons = showConsolidationLines;
     let descInfo: { anchorIndex: number; anchorPrice: number; slope: number } | null = null;
     let ascInfo: { anchorIndex: number; anchorPrice: number; slope: number } | null = null;
-    if ((showAsc || showDesc) && candles.length >= 3) {
+    let descChInfo: { anchorIndex: number; anchorPrice: number; slope: number } | null = null;
+    let ascChInfo: { anchorIndex: number; anchorPrice: number; slope: number } | null = null;
+    let consUpperInfo: { anchorIndex: number; anchorPrice: number; slope: number } | null = null;
+    let consLowerInfo: { anchorIndex: number; anchorPrice: number; slope: number } | null = null;
+    if ((showAsc || showDesc || showAscCh || showDescCh || showCons) && candles.length >= 3) {
       const lastIdx = candles.length - 1;
       // UI 規則（非書本嚴格規則）：最近兩個頭連成下降線、最近兩個底連成上升線，不管高低大小
       // 切線只用已確認 pivot，進行中段的 provisional 不拿來畫線
@@ -476,35 +529,130 @@ export default function CandleChart({
 
       // 下降線：連最近兩個頭（findPivots 回傳 newest-first，highs[1]=older, highs[0]=newer）
       // 範圍：older - 10 天 ~ newer + 10 天
-      if (showDesc && recentHighs.length === 2) {
+      let descSlope = 0;
+      let descOlderIdx = -1;
+      let descNewerIdx = -1;
+      if (recentHighs.length === 2) {
         const older = recentHighs[1];
         const newer = recentHighs[0];
-        const slope = (newer.price - older.price) / (newer.index - older.index);
-        trendlineRefs.current.descending?.setData(
-          buildLine(older.index - EDGE_PAD, newer.index + EDGE_PAD, older.index, older.price, slope)
-        );
-        descInfo = { anchorIndex: older.index, anchorPrice: older.price, slope };
+        descSlope = (newer.price - older.price) / (newer.index - older.index);
+        descOlderIdx = older.index;
+        descNewerIdx = newer.index;
+        if (showDesc) {
+          trendlineRefs.current.descending?.setData(
+            buildLine(older.index - EDGE_PAD, newer.index + EDGE_PAD, older.index, older.price, descSlope)
+          );
+          descInfo = { anchorIndex: older.index, anchorPrice: older.price, slope: descSlope };
+        } else {
+          trendlineRefs.current.descending?.setData([]);
+        }
       } else {
         trendlineRefs.current.descending?.setData([]);
       }
       // 上升線：連最近兩個底；範圍：older - 10 天 ~ newer + 10 天
-      if (showAsc && recentLows.length === 2) {
+      let ascSlope = 0;
+      let ascOlderIdx = -1;
+      let ascNewerIdx = -1;
+      if (recentLows.length === 2) {
         const older = recentLows[1];
         const newer = recentLows[0];
-        const slope = (newer.price - older.price) / (newer.index - older.index);
-        trendlineRefs.current.ascending?.setData(
-          buildLine(older.index - EDGE_PAD, newer.index + EDGE_PAD, older.index, older.price, slope)
-        );
-        ascInfo = { anchorIndex: older.index, anchorPrice: older.price, slope };
+        ascSlope = (newer.price - older.price) / (newer.index - older.index);
+        ascOlderIdx = older.index;
+        ascNewerIdx = newer.index;
+        if (showAsc) {
+          trendlineRefs.current.ascending?.setData(
+            buildLine(older.index - EDGE_PAD, newer.index + EDGE_PAD, older.index, older.price, ascSlope)
+          );
+          ascInfo = { anchorIndex: older.index, anchorPrice: older.price, slope: ascSlope };
+        } else {
+          trendlineRefs.current.ascending?.setData([]);
+        }
       } else {
         trendlineRefs.current.ascending?.setData([]);
+      }
+
+      // ── 軌道線：與切線平行，穿過兩 pivot 之間的最高點/最低點（《抓住飆股》p.205-208）──
+      // 上升軌道線：在 ascOlderIdx ~ ascNewerIdx 之間找 candle.high 最大值當錨點，slope = ascSlope
+      if (showAscCh && ascOlderIdx >= 0 && ascNewerIdx > ascOlderIdx) {
+        let anchorIdx = ascOlderIdx;
+        let anchorPrice = candles[ascOlderIdx]?.high ?? 0;
+        for (let i = ascOlderIdx + 1; i < ascNewerIdx; i++) {
+          if (candles[i]?.high != null && candles[i].high > anchorPrice) {
+            anchorPrice = candles[i].high;
+            anchorIdx = i;
+          }
+        }
+        if (anchorIdx > ascOlderIdx) {  // 確實找到中間有更高點
+          channelRefs.current.ascending?.setData(
+            buildLine(ascOlderIdx - EDGE_PAD, ascNewerIdx + EDGE_PAD, anchorIdx, anchorPrice, ascSlope)
+          );
+          ascChInfo = { anchorIndex: anchorIdx, anchorPrice, slope: ascSlope };
+        } else {
+          channelRefs.current.ascending?.setData([]);
+        }
+      } else {
+        channelRefs.current.ascending?.setData([]);
+      }
+      // 下跌軌道線：在 descOlderIdx ~ descNewerIdx 之間找 candle.low 最小值當錨點，slope = descSlope
+      if (showDescCh && descOlderIdx >= 0 && descNewerIdx > descOlderIdx) {
+        let anchorIdx = descOlderIdx;
+        let anchorPrice = candles[descOlderIdx]?.low ?? Number.MAX_VALUE;
+        for (let i = descOlderIdx + 1; i < descNewerIdx; i++) {
+          if (candles[i]?.low != null && candles[i].low < anchorPrice) {
+            anchorPrice = candles[i].low;
+            anchorIdx = i;
+          }
+        }
+        if (anchorIdx > descOlderIdx) {
+          channelRefs.current.descending?.setData(
+            buildLine(descOlderIdx - EDGE_PAD, descNewerIdx + EDGE_PAD, anchorIdx, anchorPrice, descSlope)
+          );
+          descChInfo = { anchorIndex: anchorIdx, anchorPrice, slope: descSlope };
+        } else {
+          channelRefs.current.descending?.setData([]);
+        }
+      } else {
+        channelRefs.current.descending?.setData([]);
+      }
+      // ── 盤整切線：上頸線（連最近 2 個 high pivot）+ 下頸線（連最近 2 個 low pivot）──
+      // 跟上升/下降切線使用同樣的 pivot 來源（recentHighs/recentLows），但獨立 toggle 控制
+      // 視覺上用 amber 點線區分；使用者可單獨開盤整切線而不開上升/下降切線
+      if (showCons && recentHighs.length === 2) {
+        const olderH = recentHighs[1];
+        const newerH = recentHighs[0];
+        const slopeUpper = (newerH.price - olderH.price) / (newerH.index - olderH.index);
+        consolidationRefs.current.upper?.setData(
+          buildLine(olderH.index - EDGE_PAD, newerH.index + EDGE_PAD, olderH.index, olderH.price, slopeUpper)
+        );
+        consUpperInfo = { anchorIndex: olderH.index, anchorPrice: olderH.price, slope: slopeUpper };
+      } else {
+        consolidationRefs.current.upper?.setData([]);
+      }
+      if (showCons && recentLows.length === 2) {
+        const olderL = recentLows[1];
+        const newerL = recentLows[0];
+        const slopeLower = (newerL.price - olderL.price) / (newerL.index - olderL.index);
+        consolidationRefs.current.lower?.setData(
+          buildLine(olderL.index - EDGE_PAD, newerL.index + EDGE_PAD, olderL.index, olderL.price, slopeLower)
+        );
+        consLowerInfo = { anchorIndex: olderL.index, anchorPrice: olderL.price, slope: slopeLower };
+      } else {
+        consolidationRefs.current.lower?.setData([]);
       }
     } else {
       trendlineRefs.current.descending?.setData([]);
       trendlineRefs.current.ascending?.setData([]);
+      channelRefs.current.descending?.setData([]);
+      channelRefs.current.ascending?.setData([]);
+      consolidationRefs.current.upper?.setData([]);
+      consolidationRefs.current.lower?.setData([]);
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 切線狀態同步給 legend
     setTrendlineStatus({ ascending: ascInfo, descending: descInfo });
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 軌道線狀態同步給 legend
+    setChannelStatus({ ascending: ascChInfo, descending: descChInfo });
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 盤整切線狀態同步給 legend
+    setConsolidationStatus({ upper: consUpperInfo, lower: consLowerInfo });
     // scrollToPosition 後稍等一個 tick 再廣播，確保 range 已更新
     const chart = chartRef.current;
     if (chart) {
@@ -538,7 +686,7 @@ export default function CandleChart({
         if (range) broadcastRange(range as { from: number; to: number });
       });
     }
-  }, [candles, centerOnDate, showTrendlines, showAscendingTrendline, showDescendingTrendline]);
+  }, [candles, centerOnDate, showTrendlines, showAscendingTrendline, showDescendingTrendline, showAscendingChannel, showDescendingChannel, showConsolidationLines]);
 
   // ── MA visibility toggle ─────────────────────────────────────────────────
   useEffect(() => {
@@ -772,24 +920,71 @@ export default function CandleChart({
     : candles.length - 1;
   const prevForLegend = candles[idxForLegend - 1];
 
+  // 信號（右上獨立）+ 形態 chip（左側 row 2）預先計算
+  const PRIORITY: Record<string, number> = { SELL: 4, BUY: 3, REDUCE: 2, ADD: 1 };
+  const filteredSignals = signals.filter(s => s.type !== 'WATCH');
+  const bestSignal = filteredSignals.length > 0
+    ? filteredSignals.reduce((a, b) => (PRIORITY[b.type] ?? 0) > (PRIORITY[a.type] ?? 0) ? b : a)
+    : null;
+  const showPatternChip = (showNeckline || showPattern) && activePattern;
+  const hasInfoRow = showPatternChip;  // 信號移到右上，不算左側 row 2
+
   return (
     <div className="relative w-full h-full">
-      {/* MA Legend — 跟著 crosshair 更新 */}
-      <div className="absolute top-2 left-3 z-10 flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-mono pointer-events-none">
-        {(Object.entries(MA_COLORS) as [keyof typeof MA_COLORS, string][]).map(([key, color]) => {
-          const val  = displayForLegend?.[key];
-          const pVal = prevForLegend?.[key];
-          const arrow = val != null && pVal != null ? (val >= pVal ? ' ↑' : ' ↓') : '';
-          return (
-            <span key={key} style={{ color }}>
-              {key.toUpperCase()} {val != null ? val.toFixed(2) : '—'}{arrow}
-            </span>
-          );
-        })}
-      </div>
+      {/* 左上資訊區 — 單一垂直容器：MA → 信號/形態 → 切線圖例 */}
+      <div className="absolute top-2 left-3 z-10 flex flex-col gap-1 pointer-events-none">
+        {/* Row 1: MA Legend + 信號 badge（接在 MA240 之後） */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs font-mono">
+          {(Object.entries(MA_COLORS) as [keyof typeof MA_COLORS, string][]).map(([key, color]) => {
+            const val  = displayForLegend?.[key];
+            const pVal = prevForLegend?.[key];
+            const arrow = val != null && pVal != null ? (val >= pVal ? ' ↑' : ' ↓') : '';
+            return (
+              <span key={key} style={{ color }}>
+                {key.toUpperCase()} {val != null ? val.toFixed(2) : '—'}{arrow}
+              </span>
+            );
+          })}
+          {bestSignal && (
+            <span className={`px-1.5 py-0.5 rounded text-[11px] font-bold ${
+              bestSignal.type === 'BUY'    ? 'bg-bull/20 text-bull border border-bull'  :
+              bestSignal.type === 'ADD'    ? 'bg-orange-500 text-white'  :
+              bestSignal.type === 'SELL'   ? 'bg-bear/20 text-bear border border-bear'  :
+                                              'bg-teal-500 text-white'
+            }`}>{bestSignal.label}</span>
+          )}
+        </div>
 
-      {/* 切線圖例 — 只在有線時顯示 */}
-      {showTrendlines && (trendlineStatus.ascending || trendlineStatus.descending) && (() => {
+        {/* Row 2: 形態 chip + 頸/標/失（一排，存在才顯示；信號 badge 在右上獨立）*/}
+        {hasInfoRow && (
+          <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5 text-[11px] font-mono">
+            {showPatternChip && (
+              <span className="px-1.5 py-0.5 rounded bg-fuchsia-900/80 text-fuchsia-100">
+                {getPatternDisplayName(activePattern.patternType)}
+                {activePattern.achievementRate != null && ` ${activePattern.achievementRate}%`}
+              </span>
+            )}
+            {showPatternChip && showNeckline && (
+              <>
+                <span className="flex items-center gap-1" style={{ color: '#22d3ee' }}>
+                  <span className="inline-block w-3 h-[2px]" style={{ background: '#22d3ee' }} />
+                  頸 {activePattern.necklinePrice.toFixed(2)}
+                </span>
+                <span className="flex items-center gap-1" style={{ color: '#86efac' }}>
+                  <span className="inline-block w-3 h-[2px] border-t border-dashed" style={{ borderColor: '#86efac' }} />
+                  標 {activePattern.targetPrice.toFixed(2)}
+                </span>
+                <span className="flex items-center gap-1" style={{ color: '#fdba74' }}>
+                  <span className="inline-block w-3 h-[2px] border-t border-dashed" style={{ borderColor: '#fdba74' }} />
+                  失 {activePattern.stopPrice.toFixed(2)}
+                </span>
+              </>
+            )}
+          </div>
+        )}
+
+      {/* 切線 / 軌道線 / 盤整切線圖例 — 只在有線時顯示 */}
+      {(trendlineStatus.ascending || trendlineStatus.descending || channelStatus.ascending || channelStatus.descending || consolidationStatus.upper || consolidationStatus.lower) && (() => {
         const refIdx = idxForLegend >= 0 ? idxForLegend : candles.length - 1;
         const ascVal = trendlineStatus.ascending
           ? trendlineStatus.ascending.anchorPrice + trendlineStatus.ascending.slope * (refIdx - trendlineStatus.ascending.anchorIndex)
@@ -797,12 +992,30 @@ export default function CandleChart({
         const descVal = trendlineStatus.descending
           ? trendlineStatus.descending.anchorPrice + trendlineStatus.descending.slope * (refIdx - trendlineStatus.descending.anchorIndex)
           : null;
+        const ascChVal = channelStatus.ascending
+          ? channelStatus.ascending.anchorPrice + channelStatus.ascending.slope * (refIdx - channelStatus.ascending.anchorIndex)
+          : null;
+        const descChVal = channelStatus.descending
+          ? channelStatus.descending.anchorPrice + channelStatus.descending.slope * (refIdx - channelStatus.descending.anchorIndex)
+          : null;
+        const consUpperVal = consolidationStatus.upper
+          ? consolidationStatus.upper.anchorPrice + consolidationStatus.upper.slope * (refIdx - consolidationStatus.upper.anchorIndex)
+          : null;
+        const consLowerVal = consolidationStatus.lower
+          ? consolidationStatus.lower.anchorPrice + consolidationStatus.lower.slope * (refIdx - consolidationStatus.lower.anchorIndex)
+          : null;
         return (
-          <div className="absolute top-7 left-3 z-10 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] font-mono pointer-events-none">
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] font-mono">
             {ascVal != null && (
               <span className="flex items-center gap-1" style={{ color: '#ef4444' }}>
                 <span className="inline-block w-4 h-[3px]" style={{ background: '#ef4444' }} />
                 上升切線 {ascVal.toFixed(2)}
+              </span>
+            )}
+            {ascChVal != null && (
+              <span className="flex items-center gap-1" style={{ color: '#ef4444' }}>
+                <span className="inline-block w-4 h-[2px] border-t border-dashed" style={{ borderColor: '#ef4444' }} />
+                上升軌道線 {ascChVal.toFixed(2)}
               </span>
             )}
             {descVal != null && (
@@ -811,53 +1024,28 @@ export default function CandleChart({
                 下降切線 {descVal.toFixed(2)}
               </span>
             )}
+            {descChVal != null && (
+              <span className="flex items-center gap-1" style={{ color: '#10b981' }}>
+                <span className="inline-block w-4 h-[2px] border-t border-dashed" style={{ borderColor: '#10b981' }} />
+                下跌軌道線 {descChVal.toFixed(2)}
+              </span>
+            )}
+            {consUpperVal != null && (
+              <span className="flex items-center gap-1" style={{ color: '#f59e0b' }}>
+                <span className="inline-block w-4 h-[2px] border-t border-dotted" style={{ borderColor: '#f59e0b' }} />
+                盤整上頸線 {consUpperVal.toFixed(2)}
+              </span>
+            )}
+            {consLowerVal != null && (
+              <span className="flex items-center gap-1" style={{ color: '#f59e0b' }}>
+                <span className="inline-block w-4 h-[2px] border-t border-dotted" style={{ borderColor: '#f59e0b' }} />
+                盤整下頸線 {consLowerVal.toFixed(2)}
+              </span>
+            )}
           </div>
         );
       })()}
-
-      {/* 形態 / 頸線 圖例 — 只在 toggle 開啟且偵測到結構時顯示 */}
-      {(showNeckline || showPattern) && activePattern && (
-        <div className="absolute top-7 right-3 z-10 flex flex-col items-end gap-0.5 text-[11px] font-mono pointer-events-none">
-          <span className="px-1.5 py-0.5 rounded bg-fuchsia-900/80 text-fuchsia-100">
-            {getPatternDisplayName(activePattern.patternType)}
-            {activePattern.achievementRate != null && ` ${activePattern.achievementRate}%`}
-          </span>
-          {showNeckline && (
-            <div className="flex flex-col items-end gap-0.5">
-              <span className="flex items-center gap-1" style={{ color: '#22d3ee' }}>
-                <span className="inline-block w-4 h-[2px]" style={{ background: '#22d3ee' }} />
-                頸線 {activePattern.necklinePrice.toFixed(2)}
-              </span>
-              <span className="flex items-center gap-1" style={{ color: '#86efac' }}>
-                <span className="inline-block w-4 h-[2px] border-t border-dashed" style={{ borderColor: '#86efac' }} />
-                目標 {activePattern.targetPrice.toFixed(2)}
-              </span>
-              <span className="flex items-center gap-1" style={{ color: '#fdba74' }}>
-                <span className="inline-block w-4 h-[2px] border-t border-dashed" style={{ borderColor: '#fdba74' }} />
-                結構失效 {activePattern.stopPrice.toFixed(2)}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Signal badge — only show highest-priority non-WATCH signal */}
-      {(() => {
-        const PRIORITY: Record<string, number> = { SELL: 4, BUY: 3, REDUCE: 2, ADD: 1 };
-        const filtered = signals.filter(s => s.type !== 'WATCH');
-        if (filtered.length === 0) return null;
-        const best = filtered.reduce((a, b) => (PRIORITY[b.type] ?? 0) > (PRIORITY[a.type] ?? 0) ? b : a);
-        return (
-          <div className="absolute top-2 right-3 z-10 pointer-events-none">
-            <span className={`px-2.5 py-1 rounded text-xs font-bold shadow-lg text-white ${
-              best.type === 'BUY'    ? 'bg-bull/20 text-bull border border-bull'  :
-              best.type === 'ADD'    ? 'bg-orange-500'  :
-              best.type === 'SELL'   ? 'bg-bear/20 text-bear border border-bear'  :
-                                       'bg-teal-500'
-            }`}>{best.label}</span>
-          </div>
-        );
-      })()}
+      </div>{/* /左上資訊區 container（含 MA + 信號 badge + 形態 chip + 切線 legend）*/}
 
       <div ref={containerRef} className={fillContainer ? 'w-full h-full' : 'w-full'} style={fillContainer ? undefined : { height }} />
     </div>
