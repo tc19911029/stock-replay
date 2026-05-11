@@ -183,13 +183,17 @@ async function buildNameMap(): Promise<NameMap> {
     }
   } else if (isinOtcRes.status === 'fulfilled' && isinOtcRes.value.ok) {
     // ISIN C_public.jsp 回傳 Big5 HTML
-    // 用 ISIN 欄位區分股票（TW+10位純數字）與權證（含字母Z）
-    const buf  = await isinOtcRes.value.arrayBuffer();
-    const text = new TextDecoder('big5').decode(buf);
-    for (const [, code, name] of text.matchAll(
-      /bgcolor=#FAFAD2>([1-9]\d{3,4})　([^<]+?)<\/td><td bgcolor=#FAFAD2>(TW\d{10})<\/td>/g,
-    )) {
-      map[code] ??= name.trim();
+    // body read 包 try/catch — AbortSignal timeout 可能在 headers 後、body 中阻斷
+    try {
+      const buf = await isinOtcRes.value.arrayBuffer();
+      const text = new TextDecoder('big5').decode(buf);
+      for (const [, code, name] of text.matchAll(
+        /bgcolor=#FAFAD2>([1-9]\d{3,4})　([^<]+?)<\/td><td bgcolor=#FAFAD2>(TW\d{10})<\/td>/g,
+      )) {
+        map[code] ??= name.trim();
+      }
+    } catch {
+      // ISIN body 中途斷線，跳過備援；listed map 仍含 TWSE 部分
     }
   }
 
@@ -201,15 +205,29 @@ async function buildNameMap(): Promise<NameMap> {
  * @param code  純數字代號（不帶 .TW/.TWO），例如 "2330"
  * @returns     中文公司名，若查無則回傳 null
  */
+// Inflight singleflight：多個並行 caller 共享同一個 buildNameMap promise，
+// 避免每次都重新打 TWSE/TPEx openapi（5/11 dev 端實測：page 載入瞬間並行 7+ 次
+// getTWChineseName 各觸發自己的 buildNameMap → 上游 timeout 互相干擾）
+let buildInflight: Promise<NameMap> | null = null;
+
 export async function getTWChineseName(code: string): Promise<string | null> {
   let map = globalCache.get<NameMap>(NAMES_CACHE_KEY);
 
   if (!map) {
+    if (!buildInflight) {
+      buildInflight = buildNameMap()
+        .then((built) => {
+          if (Object.keys(built).length > 0) {
+            globalCache.set(NAMES_CACHE_KEY, built, NAMES_TTL);
+          }
+          return built;
+        })
+        .finally(() => {
+          buildInflight = null;
+        });
+    }
     try {
-      map = await buildNameMap();
-      if (Object.keys(map).length > 0) {
-        globalCache.set(NAMES_CACHE_KEY, map, NAMES_TTL);
-      }
+      map = await buildInflight;
     } catch {
       return null;
     }
