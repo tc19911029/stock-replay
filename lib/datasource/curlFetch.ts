@@ -73,7 +73,10 @@ export async function fetchJsonWithCurlFallback<T>(
 
   // ── 2) curl shell fallback ────────────────────────────────────────
   try {
-    const args = ['-s', '--max-time', String(Math.ceil(timeoutMs / 1000))];
+    // -4 強制 IPv4：dev server child process 環境 IPv6 路由可能撞不同 Cloudflare edge
+    // 被當 bot 擋（0514 實測：tpex_mainboard_quotes 從 shell curl 200，從 Node spawn curl
+    // 回 HTML challenge page）。手動 shell 用 -i 觀察 cf-ray 看 edge 差異可確認。
+    const args = ['-s', '-4', '--max-time', String(Math.ceil(timeoutMs / 1000))];
     for (const [k, v] of Object.entries(headers)) {
       args.push('-H', `${k}: ${v}`);
     }

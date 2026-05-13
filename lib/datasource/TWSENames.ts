@@ -168,27 +168,50 @@ async function buildNameMap(): Promise<NameMap> {
   const CODE_RE = /^\d{4,5}[A-Z]?$/;
 
   // 上市股票（TWSE STOCK_DAY_ALL，僅含當日有成交的股票）
+  let twseAdded = 0;
   if (listedRes.status === 'fulfilled') {
     for (const s of listedRes.value.data) {
-      if (CODE_RE.test(s.Code)) map[s.Code] = s.Name;
+      if (CODE_RE.test(s.Code)) { map[s.Code] = s.Name; twseAdded++; }
     }
+  } else {
+    console.warn('[TWSENames] listedRes rejected:', listedRes.reason);
   }
 
   // 上櫃股票：優先用 TPEx JSON，被 Cloudflare 擋時用 ISIN HTML 備援
+  let tpexAdded = 0;
+  let isinUsed = false;
   if (otcRes.status === 'fulfilled') {
-    for (const s of otcRes.value.data) {
-      if (CODE_RE.test(s.SecuritiesCompanyCode)) {
-        map[s.SecuritiesCompanyCode] ??= s.CompanyName;
+    const arr = otcRes.value.data;
+    if (Array.isArray(arr) && arr.length > 0) {
+      for (const s of arr) {
+        if (CODE_RE.test(s.SecuritiesCompanyCode)) {
+          if (map[s.SecuritiesCompanyCode] == null) {
+            map[s.SecuritiesCompanyCode] = s.CompanyName;
+            tpexAdded++;
+          }
+        }
       }
+    } else {
+      console.warn('[TWSENames] otcRes fulfilled but empty:', typeof arr, Array.isArray(arr) ? arr.length : 'not-array');
     }
-  } else if (isinOtcRes.status === 'fulfilled' && isinOtcRes.value.ok) {
+  } else {
+    console.warn('[TWSENames] otcRes rejected:', otcRes.reason);
+  }
+
+  // 0514 修：otcRes 即使 fulfilled 也可能空陣列（TPEx 維護中），改用「OTC 結果不足」當條件
+  // 而不是「otcRes rejected」，否則 ISIN 備援永遠不會跑到
+  if (tpexAdded === 0 && isinOtcRes.status === 'fulfilled' && isinOtcRes.value.ok) {
+    isinUsed = true;
     // ISIN C_public.jsp 回傳 Big5 HTML
     // body read 包 try/catch — AbortSignal timeout 可能在 headers 後、body 中阻斷
     try {
       const buf = await isinOtcRes.value.arrayBuffer();
       const text = new TextDecoder('big5').decode(buf);
+      // 0514 修：原 regex 只接受 TW\d{10} ISIN → 漏掉 KY 股（雅特力-KY/AMAX-KY 等
+      // 在開曼註冊 ISIN 開頭 KYG...）。改用 [A-Z]{2}\w{10} 接所有 12 字元 ISIN code
+      // 涵蓋 TW 上市 + KY/BMG/VG 等海外註冊股。
       for (const [, code, name] of text.matchAll(
-        /bgcolor=#FAFAD2>([1-9]\d{3,4})　([^<]+?)<\/td><td bgcolor=#FAFAD2>(TW\d{10})<\/td>/g,
+        /bgcolor=#FAFAD2>([1-9]\d{3,4})　([^<]+?)<\/td><td bgcolor=#FAFAD2>([A-Z]{2}\w{10})<\/td>/g,
       )) {
         map[code] ??= name.trim();
       }
@@ -197,6 +220,7 @@ async function buildNameMap(): Promise<NameMap> {
     }
   }
 
+  console.info(`[TWSENames] buildNameMap done — TWSE=${twseAdded} TPEx=${tpexAdded} ISIN${isinUsed ? '=used' : '=skip'} total=${Object.keys(map).length}`);
   return map;
 }
 
