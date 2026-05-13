@@ -196,6 +196,45 @@ export async function GET(req: NextRequest) {
 
     console.log(`[daily-health] 寫入 ${filename} overall=${overall}`);
 
+    // ── Alert webhook（紅燈/黃燈推通知，靠 HEALTH_ALERT_WEBHOOK_URL env）─────
+    // 設計：simple POST，payload 為 markdown-friendly text，幾乎任何 webhook 都可接
+    // （Slack incoming webhook、Discord、IFTTT Maker、ntfy.sh、自建 endpoint…）。
+    // 沒設 env 就 skip；webhook 失敗不擋 cron。
+    // 觸發門檻可透過 HEALTH_ALERT_LEVEL='red' (預設) | 'yellow' 調整。
+    const webhookUrl = process.env.HEALTH_ALERT_WEBHOOK_URL;
+    const alertThreshold = (process.env.HEALTH_ALERT_LEVEL ?? 'red') as 'red' | 'yellow';
+    const shouldAlert =
+      webhookUrl &&
+      (overall === 'red' || (overall === 'yellow' && alertThreshold === 'yellow'));
+    if (shouldAlert) {
+      const lines: string[] = [
+        `🚨 RockStock 資料健康警示 — ${dateKey} ${overall.toUpperCase()}`,
+      ];
+      for (const r of results) {
+        const coverPct = r.coverageRate != null ? `${(r.coverageRate * 100).toFixed(1)}%` : 'n/a';
+        lines.push(
+          `${r.market}: L1=${r.health}/${coverPct} stale=${r.stocksStale ?? '?'} ` +
+            `L2=${r.l2Status}/${r.l2AlertLevel} L4=${r.l4Status} ` +
+            `limitUp=${r.limitUpConsistencyLevel}(${r.limitUpConsistencySuspicious})`,
+        );
+      }
+      const text = lines.join('\n');
+      try {
+        const alertRes = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ text, level: overall, dateKey, markets: results }),
+        });
+        if (alertRes.ok) {
+          console.log(`[daily-health] alert webhook posted (${overall})`);
+        } else {
+          console.warn(`[daily-health] alert webhook HTTP ${alertRes.status}`);
+        }
+      } catch (err) {
+        console.warn(`[daily-health] alert webhook failed:`, err);
+      }
+    }
+
     return apiOk({
       snapshot: {
         dateKey,

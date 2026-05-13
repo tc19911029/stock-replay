@@ -1,9 +1,11 @@
 /**
- * @deprecated 0513 ABCDE E：本 endpoint 已被 /api/cron/scan-bm-batch 取代
- *
- * vercel.json 已全部改用 batch endpoint，本 endpoint 不再有 cron 觸發。
- * 保留是為了 scripts/v12-replay-20days.ts（舊 replay 工具）+ audit scripts
- * 讀檔分析用途。下次清理可整批移除（含 v11 G/H/I 字母）。
+ * 0513 ABCDE E：vercel.json 已全部改用 /api/cron/scan-bm-batch（batch 版省 ~7 倍
+ * 前置時間）。但本 endpoint 仍在使用中：
+ *   - instrumentation.ts 本地 launchd post-close 每個字母獨立觸發
+ *   - scripts/backfill-prohibition-history.ts 歷史回補工具
+ *   - scripts/audit-deep-dig-rounds-*.ts 讀檔靜態分析
+ * 真要砍需先把上述 caller 都搬到 batch 版（local launchd 改 track-based loop）。
+ * 標 plan TODO 不標 @deprecated（避免誤導下次 cleanup 砍掉還在用的東西）。
  *
  * GET /api/cron/scan-bm?market=TW|CN&method=B|C|D|E|F|G|H|I
  *
