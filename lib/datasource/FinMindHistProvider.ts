@@ -144,11 +144,16 @@ async function fetchFinMindPrice(
     console.warn(`[FinMind] JSON 402 quota exhausted (msg: ${json.msg ?? ''}). Circuit open 1h.`);
     throw new Error('FinMind JSON 402 - quota exhausted');
   }
-  if (json.status === 401 || json.status === 403) {
-    // Auth failure — likely expired token, open circuit for 24h
+  // Auth failure — 401/403 是標準，但 FinMind 實測對「Token is illegal」回 status=400
+  // 2026-05-13 觀測：token 過期時每次 call 都 status=400 → 浪費 latency + noisy log
+  // 把這幾種 auth-style status 都當 token 失效 → 24h 熔斷讓 chain 跳過 FinMind
+  const isAuthFail =
+    json.status === 401 || json.status === 403 ||
+    (json.status === 400 && /token|illegal|unauthorized/i.test(json.msg ?? ''));
+  if (isAuthFail) {
     rateLimitedUntil = Date.now() + 24 * 60 * 60 * 1000;
     rateLimiter.reportError('finmind', json.status, `auth error ${json.status}`);
-    console.error(`[FinMind] Auth error ${json.status} (msg: ${json.msg ?? ''}). Check FINMIND_API_TOKEN env var.`);
+    console.error(`[FinMind] Auth error ${json.status} (msg: ${json.msg ?? ''}). Check FINMIND_API_TOKEN env var. Circuit open 24h.`);
     throw new Error(`FinMind auth error ${json.status}`);
   }
   if (json.status !== 200 || !json.data) return [];

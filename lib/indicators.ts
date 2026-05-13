@@ -124,14 +124,25 @@ function sma(closes: number[], end: number, period: number): number | undefined 
 
 /**
  * Compute average volume over last `period` bars (including current).
+ *
+ * 跳過 vol=0 的 K：除權息停牌日 vendor 一致都會回 vol=0（如 1101.TW 2025-08-13），
+ * 這是事實不是 bug。但算進均量會把 avgVol 拉低 ~5% → 量比虛假爆量。
+ * 跳過 vol=0、用實際成交日均量才是正確做法。
+ *
+ * 若窗口內 vol>0 樣本不足（< period/2），回 undefined 避免少數天主導。
  */
 function avgVol(volumes: number[], end: number, period: number): number | undefined {
   if (end < period - 1) return undefined;
   let sum = 0;
+  let nonZeroCount = 0;
   for (let i = end - period + 1; i <= end; i++) {
-    sum += volumes[i];
+    if (volumes[i] > 0) {
+      sum += volumes[i];
+      nonZeroCount++;
+    }
   }
-  return Math.round(sum / period);
+  if (nonZeroCount < Math.ceil(period / 2)) return undefined;
+  return Math.round(sum / nonZeroCount);
 }
 
 // ── RSI ───────────────────────────────────────────────────────────────────────
