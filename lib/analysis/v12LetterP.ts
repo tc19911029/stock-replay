@@ -20,6 +20,7 @@ import type { CandleWithIndicators } from '../../types';
 import { detectTrend, findPivots } from './trendAnalysis';
 import { isValidRedK } from './redKValidator';
 import type { MarketId } from '../scanner/types';
+import { BOOK_VOL_RATIO_MIN } from './bookThresholds';
 
 export interface LetterPResult {
   triggered: boolean;
@@ -70,7 +71,7 @@ export function detectLetterP(
 
   // 3. 量比 ≥ 1.3
   const volumeRatio = c.volume / prev.volume;
-  if (volumeRatio < 1.3) return empty;
+  if (volumeRatio < BOOK_VOL_RATIO_MIN) return empty;
 
   // 4. 過去 N 天內有過明顯上漲（≥ 5%）
   // 找拉回前最高（5-10 天內）

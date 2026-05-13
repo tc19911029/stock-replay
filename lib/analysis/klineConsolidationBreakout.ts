@@ -30,6 +30,11 @@
 
 import type { CandleWithIndicators } from '@/types';
 import { detectTrend } from '@/lib/analysis/trendAnalysis';
+import {
+  BOOK_BODY_PCT_MIN, BOOK_VOL_RATIO_MIN,
+  KLINE_CONSOL_MIN_DAYS, KLINE_CONSOL_MAX_DAYS,
+  KLINE_CONSOL_ANCHOR_BODY_PCT, KLINE_CONSOL_MAX_RANGE_PCT,
+} from './bookThresholds';
 
 export interface KlineConsolidationBreakoutResult {
   isBreakout: boolean;
@@ -46,10 +51,11 @@ export interface KlineConsolidationBreakoutResult {
   detail: string;
 }
 
-const MIN_CONSOL_DAYS = 4;       // 至少 4 根橫盤 K（含今日突破共 ≥ 5 天）
-const MAX_CONSOL_DAYS = 15;      // 最多 15 根（更久就接近位置 1 盤整突破）
-const MIN_ANCHOR_BODY_PCT = 3;   // 中長紅 K：實體 ≥ 3%（寶典 Part 4-1「長紅」）
-const MAX_RANGE_WIDTH_PCT = 5;   // 橫盤狹幅：高低差 / 錨點高 < 5%
+// 書本門檻單一事實來源：lib/analysis/bookThresholds.ts
+const MIN_CONSOL_DAYS = KLINE_CONSOL_MIN_DAYS;       // 至少 4 根橫盤 K（含今日突破共 ≥ 5 天）
+const MAX_CONSOL_DAYS = KLINE_CONSOL_MAX_DAYS;       // 最多 15 根（更久就接近位置 1 盤整突破）
+const MIN_ANCHOR_BODY_PCT = KLINE_CONSOL_ANCHOR_BODY_PCT;   // 中長紅 K：實體 ≥ 3%（寶典 Part 4-1「長紅」）
+const MAX_RANGE_WIDTH_PCT = KLINE_CONSOL_MAX_RANGE_PCT;     // 橫盤狹幅：高低差 / 錨點高 < 5%
 
 interface AnchorCandidate {
   index: number;
@@ -157,11 +163,11 @@ export function detectKlineConsolidationBreakout(
 
   // 4. 今日紅 K 實體 ≥ 2%
   const bodyPct = ((c.close - c.open) / c.open) * 100;
-  if (bodyPct < 2.0) return null;
+  if (bodyPct < BOOK_BODY_PCT_MIN) return null;
 
   // 5. 量比 ≥ 1.3
   const volumeRatio = c.volume / prev.volume;
-  if (volumeRatio < 1.3) return null;
+  if (volumeRatio < BOOK_VOL_RATIO_MIN) return null;
 
   // 6. 收盤突破橫盤期間最高點
   if (c.close <= found.rangeHigh) return null;

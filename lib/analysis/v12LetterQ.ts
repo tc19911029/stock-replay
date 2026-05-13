@@ -28,6 +28,7 @@ import type { CandleWithIndicators } from '../../types';
 import { isMAUp } from './maPivot';
 import { isValidRedK } from './redKValidator';
 import type { MarketId } from '../scanner/types';
+import { Q_MIN_HISTORY } from './historyMinimums';
 
 export interface LetterQResult {
   triggered: boolean;
@@ -63,7 +64,7 @@ export function detectLetterQ(
 ): LetterQResult {
   const empty: LetterQResult = { triggered: false, detail: 'Q 三條均線戰法未觸發' };
 
-  if (idx < 25 || candles.length === 0) return empty;
+  if (idx < Q_MIN_HISTORY || candles.length === 0) return empty;
 
   const c = candles[idx];
   const prev = candles[idx - 1];

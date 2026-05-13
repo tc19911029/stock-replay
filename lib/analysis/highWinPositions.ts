@@ -18,6 +18,10 @@
  */
 import { CandleWithIndicators } from '@/types';
 import { detectTrend, findPivots } from './trendAnalysis';
+import { BOOK_BODY_PCT_MIN, BOOK_VOL_RATIO_MIN } from './bookThresholds';
+
+/** 紅 K 實體 % 門檻（書本 2.0% → ratio 形式 0.02 給內部 ratio 比較用）*/
+const BODY_PCT_RATIO_MIN = BOOK_BODY_PCT_MIN / 100;
 
 /**
  * 位置①：多頭打底趨勢確認（書本 Part 12 p.749-754 高勝率位置 1）
@@ -51,10 +55,10 @@ export function detectBottomTrendConfirmation(
   // 實體紅K ≥ 2%
   if (c.close <= c.open) return false;
   const bodyPct = c.open > 0 ? (c.close - c.open) / c.open : 0;
-  if (bodyPct < 0.02) return false;
+  if (bodyPct < BODY_PCT_RATIO_MIN) return false;
 
   // 大量 ≥ 前日 × 1.3
-  if (prev.volume <= 0 || c.volume < prev.volume * 1.3) return false;
+  if (prev.volume <= 0 || c.volume < prev.volume * BOOK_VOL_RATIO_MIN) return false;
 
   return true;
 }
@@ -83,8 +87,8 @@ export function detectStrongPullbackResume(
   // 今日：實體紅K ≥ 2% + 大量 ≥ 前日 × 1.3
   if (c.close <= c.open) return false;
   const bodyPct = c.open > 0 ? (c.close - c.open) / c.open : 0;
-  if (bodyPct < 0.02) return false;
-  if (prev.volume <= 0 || c.volume < prev.volume * 1.3) return false;
+  if (bodyPct < BODY_PCT_RATIO_MIN) return false;
+  if (prev.volume <= 0 || c.volume < prev.volume * BOOK_VOL_RATIO_MIN) return false;
 
   // 找過去 1~2 日的「下跌黑K」，取其最高點
   const prev2 = index >= 2 ? candles[index - 2] : null;
@@ -153,12 +157,12 @@ export function detectDoubleBottomLeg2(
   // 當日紅K 實體 ≥2%
   if (c.close <= c.open) return false;
   const bodyPct = c.open > 0 ? (c.close - c.open) / c.open : 0;
-  if (bodyPct < 0.02) return false;
+  if (bodyPct < BODY_PCT_RATIO_MIN) return false;
 
   // 當日攻擊量（≥ 前日 × 1.3）
   const prev = candles[index - 1];
   if (!prev || prev.volume <= 0) return false;
-  if (c.volume < prev.volume * 1.3) return false;
+  if (c.volume < prev.volume * BOOK_VOL_RATIO_MIN) return false;
 
   // 過去 30 天內找第 1 腳（爆量低點）
   let leg1Low: number | null = null;
@@ -205,7 +209,7 @@ export function detectMaClusterBreak(
   // 當日紅K 實體 ≥2%
   if (c.close <= c.open) return false;
   const bodyPct = (c.close - c.open) / c.open;
-  if (bodyPct < 0.02) return false;
+  if (bodyPct < BODY_PCT_RATIO_MIN) return false;
 
   // 當日攻擊量（≥ 5 日均量 × 1.3）
   const avgVol5 = c.avgVol5;
@@ -238,9 +242,9 @@ export function detectFalseBreakRebound(
   const isRedK = c.close > c.open;
   if (!isRedK) return false;
   const bodyPct = c.open > 0 ? Math.abs(c.close - c.open) / c.open : 0;
-  if (bodyPct < 0.02) return false;
+  if (bodyPct < BODY_PCT_RATIO_MIN) return false;
   const todayVolRatio = prev.volume > 0 ? c.volume / prev.volume : 0;
-  if (todayVolRatio < 1.3) return false;
+  if (todayVolRatio < BOOK_VOL_RATIO_MIN) return false;
 
   // 今日上頸線（用截至今日 pivots 的最近兩頭連線）
   const allPivots = findPivots(candles, index, 10);
@@ -261,7 +265,7 @@ export function detectFalseBreakRebound(
     const isBlackK = b.close < b.open;
     if (!isBlackK) continue;
     const bVolRatio = bPrev.volume > 0 ? b.volume / bPrev.volume : 0;
-    if (bVolRatio < 1.3) continue;
+    if (bVolRatio < BOOK_VOL_RATIO_MIN) continue;
 
     // 用 i-1 之前的 pivots 算下頸線，避免假跌破本身污染 pivot
     const pivotsBefore = findPivots(candles, i - 1, 10);
@@ -304,7 +308,11 @@ export interface PullbackBuyResult {
   barsSinceReclaim: number; // 站回後第幾日補量突破（0 = 站回當日 = 舊行為）
 }
 
-const RECLAIM_LOOKBACK = 2; // 共 3 根：index, index-1, index-2
+// 共 3 根（含今日）：index, index-1, index-2
+// 對齊 bookThresholds.BOOK_RECLAIM_LOOKBACK = 3；不直接 import 是為了避開
+// trendAnalysis ↔ highWinPositions 循環依賴造成的 module-init TDZ。
+// 改 BOOK_RECLAIM_LOOKBACK 時必須同步改這裡（合約測試 scan-parity 會抓不一致）。
+const RECLAIM_LOOKBACK = 2;
 
 export function detectPullbackBuy(
   candles: CandleWithIndicators[],
@@ -351,14 +359,36 @@ export function detectPullbackBuy(
   // 5. 紅 K + 實體 ≥ 2%
   if (c.close <= c.open) return null;
   const bodyPct = ((c.close - c.open) / c.open) * 100;
-  if (bodyPct < 2.0) return null;
+  if (bodyPct < BOOK_BODY_PCT_MIN) return null;
 
   // 6. 量 ≥ 前日 × 1.3
   const volumeRatio = c.volume / prev.volume;
-  if (volumeRatio < 1.3) return null;
+  if (volumeRatio < BOOK_VOL_RATIO_MIN) return null;
 
   // 7. 收盤 > 前一日 high
   if (c.close <= prev.high) return null;
+
+  // 8. 0512 修：「一次回後對應一次進場」— reclaimDay 到 index-1 之間若已有任何一天
+  //    滿足完整 B 觸發條件（close > prev.high + 紅K ≥ 2% + 量 ≥ 1.3），
+  //    視為「已觸發過」，今日是延續而非新訊號 → 不再標 B
+  //
+  // 例：2610 華航 5/7 close 18.60 已突破 5/6 high + body 2.76% + vol ×2.5（5/5 全過）
+  //     原本 detector 在 5/11 還抓 5/7 reclaim → 重複標 B → 用戶誤以為又是進場點
+  for (let k = reclaimDay; k < index; k++) {
+    const bk = candles[k];
+    const bkPrev = candles[k - 1];
+    if (!bk || !bkPrev || bk.open <= 0 || bkPrev.volume <= 0) continue;
+    if (bk.close <= bk.open) continue; // 黑K 不算觸發
+    const kClosePastPrevHigh = bk.close > bkPrev.high;
+    const kBodyPct = ((bk.close - bk.open) / bk.open) * 100;
+    const kVolRatio = bk.volume / bkPrev.volume;
+    const kBodyOk = kBodyPct >= BOOK_BODY_PCT_MIN;
+    const kVolOk = kVolRatio >= BOOK_VOL_RATIO_MIN;
+    if (kClosePastPrevHigh && kBodyOk && kVolOk) {
+      // 之前那天已完整觸發 → 今日不算新訊號
+      return null;
+    }
+  }
 
   // 回檔天數（info only）— 從 reclaimDay-1 往回數連續 close < MA5 的天數
   let pullbackDays = 0;
@@ -459,9 +489,9 @@ export function detectRangeBreakout(
   // 紅 K + 實體 ≥ 2% + 量 ≥ 1.3x + 收盤 > 上頸線
   if (c.close <= c.open) return null;
   const bodyPct = (c.close - c.open) / c.open;
-  if (bodyPct < 0.02) return null;
+  if (bodyPct < BODY_PCT_RATIO_MIN) return null;
   const volumeRatio = c.volume / prev.volume;
-  if (volumeRatio < 1.3) return null;
+  if (volumeRatio < BOOK_VOL_RATIO_MIN) return null;
   if (c.close <= upperToday) return null;
 
   return {

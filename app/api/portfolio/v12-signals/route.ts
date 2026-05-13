@@ -16,8 +16,14 @@ import { detectTrend, findPivots } from '@/lib/analysis/trendAnalysis';
 import { calcKLineStopLoss, updateStopLossDaily, checkAbsoluteStopLoss, SIGNAL_TO_TRAILING_MA, SIGNAL_TO_FIXED_STOP_PCT } from '@/lib/sell/v12StopLoss';
 import { checkKLineExit, checkMAExit, getOperationMA, canUpgradeToLongTerm } from '@/lib/sell/v12Operation';
 import { checkTakeProfitTargets, detectKBarExitSignal } from '@/lib/sell/v12TakeProfit';
+import { detectSellSignals } from '@/lib/analysis/sellSignals';
+import { HIGH_DEVIATION_PCT } from '@/lib/analysis/bookThresholds';
 import { getTickSize } from '@/lib/utils/tickSize';
 import type { V12Letter } from '@/lib/analysis/v12Signals';
+import { normalizeLetter } from '@/lib/scanner/buyMethodTracks';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('portfolio/v12-signals');
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,7 +34,8 @@ const querySchema = z.object({
   entryPrice: z.coerce.number().positive(),
   buyDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   triggerSignal: z.enum(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q']).optional(),
-  operationMode: z.enum(['short', 'long', 'super-long', 'wave']).default('short'),
+  // 0513 ABCDE E：'wave' 跟 'super-long' 都已砍（書本沒寫、UI 無入口）
+  operationMode: z.enum(['short', 'long']).default('short'),
   patternTargetPrice: z.coerce.number().optional(),
   // v12 議題 13 / S3-3 末升段 trailing
   endPhaseTriggered: z.coerce.boolean().optional(),
@@ -37,12 +44,14 @@ const querySchema = z.object({
   consolidationLow: z.coerce.number().optional(),
   // v12 議題 ⑥-5 F 訊號用：V 底
   vBottom: z.coerce.number().optional(),
+  // 0513 M10：N 訊號型態結構失效價（頸線 × 0.97），用於 supportLevel + 絕對停損
+  patternStopPrice: z.coerce.number().optional(),
 });
 
 export async function GET(req: NextRequest) {
   const parsed = querySchema.safeParse(Object.fromEntries(req.nextUrl.searchParams));
   if (!parsed.success) return apiValidationError(parsed.error);
-  const { symbol, market, entryPrice, buyDate, triggerSignal, operationMode, patternTargetPrice, endPhaseTriggered, recentHigh, consolidationLow, vBottom } = parsed.data;
+  const { symbol, market, entryPrice, buyDate, triggerSignal, operationMode, patternTargetPrice, endPhaseTriggered, recentHigh, consolidationLow, vBottom, patternStopPrice } = parsed.data;
 
   try {
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
@@ -66,10 +75,17 @@ export async function GET(req: NextRequest) {
     const trendState = detectTrend(candles, lastIdx);
 
     // 視為 v11 資料的 holding 沒有 triggerSignal，預設用 'B'（最常見）
-    const letter = (triggerSignal ?? 'B') as V12Letter;
+    // 0513 C1 fix：v11 G/H/I 持倉透過 normalizeLetter 轉成 v12 J/L/K，
+    // 避免 SIGNAL_TO_PRIMARY_STOP / SIGNAL_TO_FIXED_STOP_PCT / SIGNAL_TO_TRAILING_MA 查不到。
+    const rawLetter = triggerSignal ?? 'B';
+    const letter = normalizeLetter(rawLetter) as V12Letter;
 
     // ── Step 3 停損 — 持倉中用 updateStopLossDaily 走完整書本邏輯 ──
     // 含議題 S3-1 單一主方法、S3-3 末升段 trailing 3%、③ 均線跟隨上揚、S3-7 10% 絕對下限
+    // M10：N 字母 supportLevel 用型態 stopPrice（頸線 × 0.97），其他字母用 consolidationLow fallback
+    const supportLevel = letter === 'N' && patternStopPrice != null
+      ? patternStopPrice
+      : (consolidationLow ?? entryKbar.low);
     const slInputs = {
       letter,
       entryPrice,
@@ -78,7 +94,7 @@ export async function GET(req: NextRequest) {
       isEndPhase: endPhaseTriggered,
       recentHigh,
       pivotLow: entryKbar.low,
-      supportLevel: consolidationLow ?? entryKbar.low,
+      supportLevel,
       triggerKLow: entryKbar.low,
     };
     const slResult = updateStopLossDaily(slInputs, today_c);
@@ -88,13 +104,14 @@ export async function GET(req: NextRequest) {
 
     // ── Step 3 ⑥ 5 條絕對停損（議題 Step 3 ⑥）──
     const yesterdayTrend = candles[lastIdx - 1] ? detectTrend(candles, lastIdx - 1) : '盤整';
+    // M10：N 訊號的「型態結構失效」用 patternStopPrice，傳給 consolidationLow（checkAbsoluteStopLoss 統一名）
     const absoluteSL = checkAbsoluteStopLoss({
       entryPrice,
       todayClose: today_c.close,
       trendStateToday: trendState,
       trendStateYesterday: yesterdayTrend,
       letter,
-      consolidationLow,
+      consolidationLow: letter === 'N' && patternStopPrice != null ? patternStopPrice : consolidationLow,
       vBottom,
     });
 
@@ -114,7 +131,7 @@ export async function GET(req: NextRequest) {
       today_c.ma20 > 0
     ) {
       const deviation = (today_c.close - today_c.ma20) / today_c.ma20;
-      if (deviation >= 0.15) {
+      if (deviation >= HIGH_DEVIATION_PCT) {
         operatingMA = 'MA5';
         highDeviationOverride = true;
       }
@@ -155,6 +172,15 @@ export async function GET(req: NextRequest) {
           isEndPhase: endPhaseTriggered ?? false,
         })
       : { triggered: false };
+
+    // ── 議題 C1：書本 9+ 條出場訊號完整清單 ──
+    // 跟 SignalSummaryCard 共用 detectSellSignals，避免兩處邏輯飄移
+    const triggeredSellSignals = detectSellSignals(candles, lastIdx).map((s) => ({
+      type: s.type,
+      label: s.label,
+      detail: s.detail,
+      severity: s.severity,
+    }));
 
     return apiOk({
       symbol,
@@ -200,10 +226,11 @@ export async function GET(req: NextRequest) {
       step5: {
         takeProfit,
         kbarSignal,
+        triggeredSellSignals,
       },
     });
   } catch (err) {
-    console.error('[portfolio/v12-signals]', err);
+    logger.error('failed', err);
     return apiError(`failed: ${String(err).slice(0, 200)}`);
   }
 }

@@ -10,6 +10,7 @@
  * 用法：各函式回傳 boolean，供上層判斷當前 K 棒是否符合該量價型態。
  */
 import type { CandleWithIndicators } from '@/types';
+import { BOOK_VOL_RATIO_MIN } from './bookThresholds';
 
 /** 量分類（書本 p.487-488） */
 export type VolumeType =
@@ -34,17 +35,18 @@ export function classifyVolume(
   const types: VolumeType[] = [];
   const avg5 = c.avgVol5 ?? 0;
 
-  // 攻擊量（前日 × 1.3）
-  if (prev.volume > 0 && c.volume >= prev.volume * 1.3) types.push('attack');
+  // 攻擊量（寶典 p.54 ④ ×1.3，0513 ABCDE D：改 import BOOK_VOL_RATIO_MIN 統一）
+  if (prev.volume > 0 && c.volume >= prev.volume * BOOK_VOL_RATIO_MIN) types.push('attack');
 
-  // 爆大量（5 日均量 × 2）
+  // 爆大量（5 日均量 × 2）— 抓住飆股 / 朱家泓 YouTube #17
   if (avg5 > 0 && c.volume >= avg5 * 2) types.push('blowoff');
 
-  // 止跌量（5 日均量 × 0.5，且當日不破低）
+  // ⚠️ 自創 padding（書本沒明寫量化）— 0513 ABCDE D 標自創
+  // 止跌量（5 日均量 × 0.5，且當日不破低）— 0.5 為工程經驗值，未來搬 bookThresholds
   if (avg5 > 0 && c.volume <= avg5 * 0.5 && c.low >= prev.low) types.push('stopDrop');
 
-  // 進貨量（大量 + 紅K）
-  const isBig = (avg5 > 0 && c.volume >= avg5 * 1.5) || (prev.volume > 0 && c.volume >= prev.volume * 1.3);
+  // 進貨量（大量 + 紅K），1.5 對齊 BASE_HIGH_VOL_RATIO；1.3 對齊 BOOK_VOL_RATIO_MIN
+  const isBig = (avg5 > 0 && c.volume >= avg5 * 1.5) || (prev.volume > 0 && c.volume >= prev.volume * BOOK_VOL_RATIO_MIN);
   if (isBig && c.close > c.open) types.push('accumulate');
 
   // 出貨量（大量 + 黑K）

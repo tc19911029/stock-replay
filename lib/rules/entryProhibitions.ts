@@ -12,6 +12,17 @@
 import type { CandleWithIndicators } from '@/types';
 import { isNearWeeklyResistance } from '@/lib/analysis/multiTimeframeFilter';
 import { detectTrend, findPivots } from '@/lib/analysis/trendAnalysis';
+import {
+  BOOK_BODY_PCT_MIN,
+  HIGH_DEVIATION_PCT,
+  KD_OVERBOUGHT,
+  KD_OVERSOLD,
+} from '@/lib/analysis/bookThresholds';
+
+/** 量價背離「近 3 日漲幅」門檻（自創，書本只說「量價背離」未量化）*/
+const VOL_PRICE_DIVERGENCE_GAIN_PCT = 0.05;
+/** 爆量倍數（朱家泓《抓住飆股》+ 理財達人秀 YouTube #17 明寫 ×2）*/
+const BOOK_HIGH_VOLUME_MULT = 2.0;
 
 export interface ProhibitionResult {
   prohibited: boolean;
@@ -95,13 +106,13 @@ export function checkLongProhibitions(
     const recentGain = bar3Ago && bar3Ago.close > 0
       ? (last.close - bar3Ago.close) / bar3Ago.close
       : 0;
-    const volumeDivergence = recentGain > 0.05 && last.volume < prev.volume;
+    const volumeDivergence = recentGain > VOL_PRICE_DIVERGENCE_GAIN_PCT && last.volume < prev.volume;
 
     // KD 高檔：K > 80（市場通用超買門檻）
-    const kdHigh = kd != null && kd > 80;
+    const kdHigh = kd != null && kd > KD_OVERBOUGHT;
 
     // 乖離過大：距 MA20 > 15%（用戶設定 2026-04-22）
-    const deviationLarge = deviation > 0.15;
+    const deviationLarge = deviation > HIGH_DEVIATION_PCT;
 
     if (volumeDivergence && kdHigh && deviationLarge) {
       reasons.push('戒律3：量價背離+KD高檔+乖離過大同時成立，勿進場做多');
@@ -160,8 +171,8 @@ export function checkLongProhibitions(
         const c = candles[i];
         const pv = candles[i - 1]?.volume ?? 0;
         const bodyPct = c.open > 0 ? (c.close - c.open) / c.open : 0;
-        const isLargeRedCandle = bodyPct >= 0.02 && c.close > c.open;
-        const isHighVolume = pv > 0 && c.volume > pv * 2;
+        const isLargeRedCandle = bodyPct >= BOOK_BODY_PCT_MIN / 100 && c.close > c.open;
+        const isHighVolume = pv > 0 && c.volume > pv * BOOK_HIGH_VOLUME_MULT;
         if (isLargeRedCandle && isHighVolume) bigRedCount++;
       }
       if (bigRedCount >= 3) {
@@ -227,13 +238,13 @@ export function checkShortProhibitions(
     const recentLoss = bar3Ago && bar3Ago.close > 0
       ? (bar3Ago.close - last.close) / bar3Ago.close
       : 0;
-    const volumeDivergence = recentLoss > 0.05 && last.volume < prev.volume;
+    const volumeDivergence = recentLoss > VOL_PRICE_DIVERGENCE_GAIN_PCT && last.volume < prev.volume;
 
     // KD低檔：K值 < 20
-    const kdLow = kd != null && kd < 20;
+    const kdLow = kd != null && kd < KD_OVERSOLD;
 
-    // 乖離過大（做空）：距MA20 < -15%（跌太多，與做多側 0.15 對稱）
-    const deviationLarge = deviation < -0.15;
+    // 乖離過大（做空）：距MA20 < -15%（跌太多，與做多側 HIGH_DEVIATION_PCT 對稱）
+    const deviationLarge = deviation < -HIGH_DEVIATION_PCT;
 
     if (volumeDivergence && kdLow && deviationLarge) {
       reasons.push('戒律3：量價背離+KD低檔+乖離過大同時成立，勿進場做空');
@@ -301,8 +312,8 @@ export function checkShortProhibitions(
         const c = candles[i];
         const pv = candles[i - 1]?.volume ?? 0;
         const bodyPct = c.open > 0 ? (c.open - c.close) / c.open : 0;
-        const isLargeBlackCandle = bodyPct >= 0.02 && c.close < c.open;
-        const isHighVolume = pv > 0 && c.volume > pv * 2;
+        const isLargeBlackCandle = bodyPct >= BOOK_BODY_PCT_MIN / 100 && c.close < c.open;
+        const isHighVolume = pv > 0 && c.volume > pv * BOOK_HIGH_VOLUME_MULT;
         if (isLargeBlackCandle && isHighVolume) bigBlackCount++;
       }
       if (bigBlackCount >= 3) {

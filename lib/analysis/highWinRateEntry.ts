@@ -24,6 +24,8 @@ import {
   detectStrongPullbackResume,
   detectFalseBreakRebound,
 } from '@/lib/analysis/highWinPositions';
+import { BOOK_BODY_PCT_MIN, BOOK_VOL_RATIO_MIN } from './bookThresholds';
+import { FLATBOTTOM_MIN_HISTORY } from './historyMinimums';
 
 /** 高勝率進場位置類型 */
 export type HighWinRateEntryType =
@@ -45,12 +47,12 @@ export interface HighWinRateResult {
 
 /** 紅K實體棒（漲幅 > 2%） */
 function isStrongRedCandle(c: CandleWithIndicators): boolean {
-  return c.close > c.open && ((c.close - c.open) / c.open) >= 0.02;
+  return c.close > c.open && ((c.close - c.open) / c.open) >= BOOK_BODY_PCT_MIN / 100;
 }
 
 /** 大量：量比 > 1.3x 5日均量 */
 function isHighVolume(c: CandleWithIndicators): boolean {
-  return c.avgVol5 != null && c.avgVol5 > 0 && c.volume >= c.avgVol5 * 1.3;
+  return c.avgVol5 != null && c.avgVol5 > 0 && c.volume >= c.avgVol5 * BOOK_VOL_RATIO_MIN;
 }
 
 
@@ -109,7 +111,7 @@ export function detectStrategyE(
   idx: number,
 ): FlatBottomResult | null {
   // 至少需要 60 根K線（40天盤整 + 20天前期參考）
-  if (idx < 60) return null;
+  if (idx < FLATBOTTOM_MIN_HISTORY) return null;
   const c = candles[idx];
 
   // ── 步驟1: 突破K線基本條件 ──
@@ -121,6 +123,10 @@ export function detectStrategyE(
 
   // ── 步驟2: 往前掃描盤整區間 ──
   // 從 idx-1 往前，用滾動20天窗口檢查收盤價高低差 < 8%
+  // ⚠️ 自創常數（書本無明確值）— 0513 ABCDE D 標自創
+  // MAX_LOOKBACK: 一字底盤整最多回看 120 天（合理上界）
+  // MIN_CONSOLIDATION: 至少 40 天盤整才算「打底完成」（對應抓住飆股 25 型態 #9 「長期盤整」精神）
+  // 未來搬到 bookThresholds.ts 集中管理
   const MAX_LOOKBACK = 120;
   const MIN_CONSOLIDATION = 40;
   let consolStart = idx - 1; // 盤整起始索引（往前推）
@@ -137,8 +143,10 @@ export function detectStrategyE(
     if (minC <= 0) break;
     const spread = (maxC - minC) / minC;
 
-    // 窄幅閾值 15%：朱家泓書+網路均無具體值（只寫「狹幅、很小」），
+    // ⚠️ 自創 padding（書本沒明寫量化）— 0513 ABCDE D 標自創
+    // 窄幅閾值 15%：朱家泓書+網路均無具體值（只寫「狹幅、很小」）
     // 2026-05-09 從 8% 放寬到 15%，跟條件 ③ rangeBreakout tightness 統一數字
+    // 未來搬到 bookThresholds.CONSOL_SPREAD_MAX
     if (spread >= 0.15) break;
     consolStart = i;
   }

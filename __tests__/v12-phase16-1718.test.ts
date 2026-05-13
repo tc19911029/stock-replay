@@ -62,16 +62,18 @@ describe('v12 Phase 1.6 — LockWatch 機制', () => {
     expect(record.patternAchievementRate).toBe(95);
   });
 
-  it('建立 N LockWatch close 未過 ×3% → pending-breakout', () => {
+  it('建立 N LockWatch → 統一 observation（0513 對齊書本砍 pending-breakout）', () => {
+    // 0513 對齊書本：寶典 Part 11-1 第 7 位置 p.697「型態確認上漲大量紅 K」
+    // 突破當下就是進場訊號，不再有 pending-breakout 兩段觀察流程
     const record = createLockWatchFromN({
       symbol: '3035',
       market: 'TW',
       triggeredDate: '2026-05-08',
       patternType: 'triple-bottom',
       triggerPrice: 50,
-      currentClose: 50.5,  // 50 × 1.03 = 51.5，close 50.5 未過 → pending-breakout
+      currentClose: 50.5,
     });
-    expect(record.currentStage).toBe('pending-breakout');
+    expect(record.currentStage).toBe('observation');
   });
 
   it('用戶手動移除 LockWatch（議題 17）', () => {

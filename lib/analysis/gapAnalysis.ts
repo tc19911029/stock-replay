@@ -14,6 +14,7 @@
  */
 
 import { CandleWithIndicators } from '@/types';
+import { GAP_ANALYSIS_MIN_HISTORY } from './historyMinimums';
 
 export interface GapInfo {
   date: string;
@@ -54,7 +55,7 @@ export function analyzeGaps(
   candles: CandleWithIndicators[],
   idx: number,
 ): GapAnalysisResult {
-  if (idx < 20) {
+  if (idx < GAP_ANALYSIS_MIN_HISTORY) {
     return { compositeAdjust: 0, unfilledGapUps: 0, pattern: 'none', detail: 'insufficient data' };
   }
 

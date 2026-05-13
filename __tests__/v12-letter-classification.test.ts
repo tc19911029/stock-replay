@@ -47,7 +47,7 @@ describe('v12 字母分類', () => {
   it('Q 戰法軌獨立 — 永遠 MA10', () => {
     expect(getOperationMA('Q', 'short')).toBe('MA10');
     expect(getOperationMA('Q', 'long')).toBe('MA10');
-    expect(getOperationMA('Q', 'wave')).toBe('MA10');
+    // 0513 ABCDE E：wave / super-long mode 都已砍
   });
 
   it('升級長線後所有非 Q 字母統一 MA20（衝突 β）', () => {

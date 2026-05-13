@@ -28,6 +28,8 @@ import type { CandleWithIndicators } from '../../types';
 import { findPivots, type Pivot } from './trendAnalysis';
 import { isValidRedK } from './redKValidator';
 import type { MarketId } from '../scanner/types';
+import { BOOK_BODY_PCT_MIN, BOOK_VOL_RATIO_MIN } from './bookThresholds';
+import { N_MIN_HISTORY } from './historyMinimums';
 
 export type PatternType =
   | 'head-shoulder'        // 頭肩底（達成率 83%）
@@ -100,7 +102,7 @@ export function detectLetterN(
 ): LetterNResult {
   const empty: LetterNResult = { triggered: false, detail: 'N 型態確認未觸發' };
 
-  if (idx < 30 || candles.length === 0) return empty;
+  if (idx < N_MIN_HISTORY || candles.length === 0) return empty;
 
   const c = candles[idx];
   const prev = candles[idx - 1];
@@ -111,7 +113,7 @@ export function detectLetterN(
   if (!isValidRedK(c, prevPrev.close, market, symbol)) return empty;
   const bodyPct = ((c.close - c.open) / c.open) * 100;
   const volumeRatio = c.volume / prev.volume;
-  if (volumeRatio < 1.3) return empty;
+  if (volumeRatio < BOOK_VOL_RATIO_MIN) return empty;
 
   // 依序試 8 個型態（按達成率降序）：
   //   三重底 95% → 下降楔形 90% → 圓弧底 85% → 頭肩底 83% →
@@ -152,7 +154,7 @@ export function detectLetterNStructure(
   candles: CandleWithIndicators[],
   idx: number,
 ): LetterNResult {
-  if (idx < 30 || candles.length === 0) return { triggered: false, detail: '' };
+  if (idx < N_MIN_HISTORY || candles.length === 0) return { triggered: false, detail: '' };
 
   const detectors = [
     detectTripleBottom, detectDescendingWedge, detectRoundingBottom,
@@ -216,16 +218,18 @@ function makeResult(
     return structureOnly('N 型態結構成立但未過 ×3% 真突破');
   }
 
-  // 2026-05-11 補：close 已遠超頸線 ≥ 20% 表示突破已發生很久，detector 偵測到的
-  // 是舊型態的延伸線（如 002788.SZ neckline 10.12 vs close 14.17 = +40%），
-  // 不該算「即將/剛突破」清單。書本本意：突破當下進場，不追過頭。
+  // ⚠️ 自創 padding（書本沒明寫量化）— 2026-05-11
+  // 防 detector 抓到「舊型態延伸線」誤觸發進場（如 002788.SZ neckline 10.12 / close 14.17 = +40%）
+  // 書本本意支持：突破當下進場，不追過頭（《抓飆股》Part 7「突破後追漲不利」原則）
+  // 0513 ABCDE D：標自創 — 改動需 JSDoc 註明理由
   if (closePrice > match.necklinePrice * 1.20) {
     return structureOnly('N 型態 close 已遠超頸線（>+20%），突破已發生很久非進場時機');
   }
 
-  // 2026-05-10 補：close 已超過 patternTargetPrice × 0.97 視為「型態已達目標」，
-  // 不再算進場訊號（避免 4722.TW 這種 close=236 但 target 才 193 的「過晚觸發」雜訊）
-  // 書本《抓飆股》Part 7：型態突破後達目標即啟動停利，不會再被視為新進場機會
+  // ⚠️ 自創 padding（書本沒明寫量化）— 2026-05-10
+  // 防 detector 抓到「已達目標型態」誤觸發進場（如 4722.TW close=236 / target=193）
+  // 書本本意支持：型態突破達目標即啟動停利，不會再被視為新進場（《抓飆股》Part 7）
+  // 0513 ABCDE D：標自創 — ×0.97 是業界慣例緩衝，可未來改用 ATR-based
   if (closePrice >= match.patternTargetPrice * 0.97) {
     return structureOnly('N 型態已接近/超過目標價，視為已達標非進場時機');
   }
@@ -744,7 +748,7 @@ export function detectTopPatterns(
   idx: number,
 ): TopPatternResult {
   const empty: TopPatternResult = { triggered: false, detail: '頂部型態未觸發' };
-  if (idx < 30 || candles.length === 0) return empty;
+  if (idx < N_MIN_HISTORY || candles.length === 0) return empty;
 
   const c = candles[idx];
   const prev = candles[idx - 1];
@@ -754,9 +758,9 @@ export function detectTopPatterns(
   // 與 detectLetterN 對稱（書本《抓飆股》Part 7 要求頂部跌破也需爆量確認）
   if (c.close >= c.open) return empty;
   const bodyPct = ((c.open - c.close) / c.open) * 100;
-  if (bodyPct < 2.0) return empty;
+  if (bodyPct < BOOK_BODY_PCT_MIN) return empty;
   const volumeRatio = c.volume / prev.volume;
-  if (volumeRatio < 1.3) return empty;
+  if (volumeRatio < BOOK_VOL_RATIO_MIN) return empty;
 
   const tripleTop = detectTripleTop(candles, idx);
   if (tripleTop) return makeTopResult(tripleTop, c.close);
@@ -777,7 +781,7 @@ export function detectTopPatternsStructure(
   candles: CandleWithIndicators[],
   idx: number,
 ): TopPatternResult {
-  if (idx < 30 || candles.length === 0) return { triggered: false, detail: '' };
+  if (idx < N_MIN_HISTORY || candles.length === 0) return { triggered: false, detail: '' };
 
   const detectors = [detectTripleTop, detectHeadShoulderTop, detectDoubleTop];
   for (const d of detectors) {
@@ -823,8 +827,10 @@ function makeTopResult(match: TopPatternMatch, closePrice: number): TopPatternRe
     return structureOnly('頂部型態結構成立但未過 ×3% 真跌破');
   }
 
-  // 2026-05-10 補：對稱底部 makeResult — close 已下到 target × 1.03 視為「型態已達目標」
-  // 跌破出場警示「已完成」，再警示沒意義（避免 1301.TW close=48.55 但 target=48.6 已達標仍警示）
+  // ⚠️ 自創 padding（書本沒明寫量化）— 2026-05-10
+  // 對稱底部邏輯：close 已下到 target × 1.03 視為「型態已達目標」，避免重複警示
+  // 案例：1301.TW close=48.55 / target=48.6 已達標仍警示
+  // 0513 ABCDE D：標自創 — ×1.03 對稱 v12LetterN.ts:230 的 ×0.97
   if (closePrice <= match.patternTargetPrice * 1.03) {
     return structureOnly('頂部型態已接近/超過目標價，視為已達標非新警示');
   }

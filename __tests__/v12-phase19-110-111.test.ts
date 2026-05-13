@@ -88,7 +88,8 @@ describe('v12 Phase 1.9 — checkMAExit B/P 寶典 #5/#6（衝突 α）', () => 
       95,
     );
     expect(result.shouldExit).toBe(true);
-    expect(result.reason).toContain('Step 4 ②');
+    // 0513 ABCDE D：「Step 4 ②」技術代號翻譯成人話
+    expect(result.reason).toContain('跌破操作均線');
   });
 });
 

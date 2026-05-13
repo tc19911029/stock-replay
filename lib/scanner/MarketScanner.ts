@@ -8,6 +8,7 @@ import type { StrategyThresholds } from '@/lib/strategy/StrategyConfig';
 import { BASE_THRESHOLDS } from '@/lib/strategy/StrategyConfig';
 import { evaluateHighWinRateEntry } from '@/lib/analysis/highWinRateEntry';
 import { evaluateElimination } from '@/lib/scanner/eliminationFilter';
+import { BULLISH_TRACK_SET_WITH_V11, SYSTEM_TRACK_SET } from '@/lib/scanner/buyMethodTracks';
 import { evaluateWinnerPatterns } from '@/lib/rules/winnerPatternRules';
 import { evaluateMultiTimeframe, MultiTimeframeResult } from '@/lib/analysis/multiTimeframeFilter';
 import { getScannerCache, setScannerCache, getScannerCacheStats } from '@/lib/datasource/ScannerCache';
@@ -547,19 +548,20 @@ export abstract class MarketScanner {
         const { detectVReversal } = await import('@/lib/analysis/vReversalDetector');
         if (detectVReversal(candles, lastIdx)) matchedMethods.push('F');
       } catch { /* non-critical */ }
+      // 2026-05-12 用戶決議：只留 v12，移除 v11 G/H/I push（J/K/L 共用 v11 detector，正名 v12）
       try {
         const { detectABCBreakout } = await import('@/lib/analysis/abcBreakoutEntry');
-        if (detectABCBreakout(candles, lastIdx)?.isABCBreakout) matchedMethods.push('G');
+        if (detectABCBreakout(candles, lastIdx)?.isABCBreakout) matchedMethods.push('J');
       } catch { /* non-critical */ }
       try {
         const { detectBlackKBreakout } = await import('@/lib/analysis/blackKBreakoutEntry');
-        if (detectBlackKBreakout(candles, lastIdx)?.isBlackKBreakout) matchedMethods.push('H');
+        if (detectBlackKBreakout(candles, lastIdx)?.isBlackKBreakout) matchedMethods.push('L');
       } catch { /* non-critical */ }
       try {
         const { detectKlineConsolidationBreakout } = await import('@/lib/analysis/klineConsolidationBreakout');
-        if (detectKlineConsolidationBreakout(candles, lastIdx)?.isBreakout) matchedMethods.push('I');
+        if (detectKlineConsolidationBreakout(candles, lastIdx)?.isBreakout) matchedMethods.push('K');
       } catch { /* non-critical */ }
-      // v12 後補字母 M/N/O/P/Q（J/K/L 是 G/H/I 的 alias，UI 端 dedupe 處理 → 不重複算）
+      // v12 後補字母 M/N/O/P/Q
       try {
         const { detectLetterM } = await import('@/lib/analysis/v12LetterM');
         if (detectLetterM(candles, lastIdx, config.marketId, symbol).triggered) matchedMethods.push('M');
@@ -1322,23 +1324,28 @@ export abstract class MarketScanner {
     //   → 不過 Step 1（自含 MA24 趨勢判定）
     //   → 但仍過戒律（書本 p.262 沒說可以無視戒律）
     //   → 全市場掃描
-    const BULLISH_TRACK = new Set(['B', 'C', 'E', 'J', 'K', 'L', 'M', 'P']);
-    const SYSTEM_TRACK = new Set(['Q']);
+    // 軌道分類讀 lib/scanner/buyMethodTracks.ts 單一事實來源
     // REVERSAL_TRACK = D/F/N/O — 不過 Step 1 + 不過戒律（隱含：fall-through to default behavior）
-    const isBullish = BULLISH_TRACK.has(method);
-    const isSystem = SYSTEM_TRACK.has(method);
+    const isBullish = BULLISH_TRACK_SET_WITH_V11.has(method);  // 含 v11 G/H/I — 跟 J/L/K 用同 detector，Step 1 gate 一致
+    const isSystem = SYSTEM_TRACK_SET.has(method);
 
-    // 多頭軌：拿今日 Step 1 池子當候選
+    // 載入今日 Step 1 池子（兩個用途）：
+    //   1. 多頭軌方法（B/C/E/J/K/L/M/P）：拿池子當候選來源（filter candidates）
+    //   2. 反轉/戰法軌方法（D/F/N/O/Q）：cross-strategy 推**多頭軌字母**時當 gate
+    //      — 用戶 0512 明確：「(600089)他根本不符合回後買上漲 因為他不符合 step1
+    //        所以當然也不會是 step2 裡的回後買上漲 但是他是不是型態確認不一定要過 step1」
+    //      → 多頭軌字母 (B/C/E/J/K/L/M/P) 在 cross-strategy badge 必須過 Step 1
+    //      → 反轉/戰法軌字母 (D/F/N/O/Q) 在 cross-strategy badge 不過 Step 1
     let step1Symbols: Set<string> | null = null;
-    if (isBullish) {
+    {
       const poolDate = asOfDate
         ?? new Intl.DateTimeFormat('en-CA', { timeZone: config.timezone }).format(new Date());
       const { getStep1Symbols } = await import('./step1Pool');
       step1Symbols = await getStep1Symbols(config.marketId, poolDate);
-      if (!step1Symbols) {
-        console.warn(`[scanBuyMethod] ${method} ${config.marketId} ${poolDate} Step 1 池子未準備好 — 多頭軌應等 A 預選池跑完再啟動。本輪結果將為空。`);
-        return [];  // Step 1 池子不存在 → 多頭軌空結果（保守，避免回退到全市場掃繞過 gate）
-      }
+    }
+    if (isBullish && !step1Symbols) {
+      console.warn(`[scanBuyMethod] ${method} ${config.marketId} Step 1 池子未準備好 — 多頭軌應等 A 預選池跑完再啟動。本輪結果將為空。`);
+      return [];  // Step 1 池子不存在 → 多頭軌空結果（保守，避免回退到全市場掃繞過 gate）
     }
 
     let candidates = this.prefilterByL2(stocks, `scanBuyMethod-${method}`);
@@ -1456,14 +1463,16 @@ export abstract class MarketScanner {
             const r = detectLetterM(candles, lastIdx, config.marketId, symbol);
             if (r.triggered) { matched = true; detail = r.detail; }
           } else if (method === 'N') {
-            // N=型態確認（v12 新增；8 種底部型態）
-            // 2026-05-10 Phase C：擴大 LockWatch 寫入條件 — 結構成立但未過 ×3% 真突破也寫入（pending-breakout stage）
-            const { detectLetterN, detectLetterNStructure } = await import('@/lib/analysis/v12LetterN');
+            // N=型態確認（寶典 Part 11-1 第 7 位置「等型態確認」p.697）
+            // 書本原文：「空頭低檔打底型態，型態確認上漲大量紅 K」→ 突破當下就是進場訊號
+            // 2026-05-13 對齊書本：移除 pending-breakout 自創寫入；只在 detectLetterN.triggered=true 時寫 lockwatch
+            const { detectLetterN } = await import('@/lib/analysis/v12LetterN');
             const r = detectLetterN(candles, lastIdx, config.marketId, symbol);
             if (r.triggered) {
               matched = true;
               detail = r.detail;
-              // v12 議題 65：N 頸線價、型態類型、目標價、達成率全寫入 LockWatch
+              // 寫 lockwatch 純為走圖鎖定型態 chip + 持倉進場凍結 entryPattern 用，
+              // 不再走 pending-breakout/observation/entry-signal 多段觀察流程
               if (r.necklinePrice != null && r.patternType) {
                 lockWatchPayload = {
                   triggerPrice: r.necklinePrice,
@@ -1472,32 +1481,6 @@ export abstract class MarketScanner {
                   patternAchievementRate:
                     typeof r.achievementRate === 'number' ? r.achievementRate / 100 : undefined,
                 };
-              }
-            } else {
-              // Phase C：未觸發但結構成立 → 寫 LockWatch pending-breakout
-              // 過濾條件（書本「即將突破」= 結構成立 + 接近突破 + 還沒達標）：
-              //   1. close ≥ neckline × 0.98（距真突破 ≤ 5%，明後天可能突破才鎖）
-              //   2. 達成率 ≥ 80%（只取書本高勝率型態）
-              //   3. close < target × 0.97（型態還沒達標；超過 = 型態已完成不該再算即將突破）
-              //   4. close ≤ neckline × 1.20（突破已發生很久就不該追，如 002788.SZ neckline 10.12 vs close 14.17 = +40% 過頭）
-              const struct = detectLetterNStructure(candles, lastIdx);
-              if (struct.pivots && struct.pivots.length > 0
-                  && struct.necklinePrice != null && struct.patternType) {
-                const closeNearNeckline = last.close >= struct.necklinePrice * 0.98;
-                const highAchievement = (struct.achievementRate ?? 0) >= 80;
-                const notReachedTarget = struct.patternTargetPrice != null
-                  && last.close < struct.patternTargetPrice * 0.97;
-                const notOvershoot = last.close <= struct.necklinePrice * 1.20;
-                if (closeNearNeckline && highAchievement && notReachedTarget && notOvershoot) {
-                  lockWatchPayload = {
-                    triggerPrice: struct.necklinePrice,
-                    patternType: struct.patternType,
-                    patternTargetPrice: struct.patternTargetPrice,
-                    patternAchievementRate:
-                      typeof struct.achievementRate === 'number' ? struct.achievementRate / 100 : undefined,
-                  };
-                  // matched 仍為 false — r 將以 lockWatchOnly 身分通過 filter，不污染 ScanSession
-                }
               }
             }
           } else if (method === 'O') {
@@ -1546,10 +1529,13 @@ export abstract class MarketScanner {
 
           const mtfResult = evaluateMultiTimeframe(candles, BASE_THRESHOLDS);
 
-          // 跨策略命中：A 六條件 + 其他 7 個 detector（B/C/D/E/F/G/H/I 排除 self）
-          // 同時計算 sixConditionsScore + breakdown 供 UI 顯示（不用於 gate；反轉軌不過六條件，
-          // 但 UI 仍應呈現實際分數，否則 ScanResultsCompact / ScanCoachDigest 會永遠顯示 0/6）
-          // Phase C：lockWatchOnly result（matched=false）matchedMethods 為空，不會出現在 ScanSession UI
+          // 跨策略命中：A 六條件 + 其他 detector
+          // 軌道規則（0512 用戶明確）：
+          //   - 多頭軌字母 (B/C/E/J/K/L/M/P)：必須過 Step 1 才推 — 否則 UI 邏輯矛盾
+          //     （不在 Step 1 池怎麼會「在 Step 2 裡命中」？）
+          //   - 反轉/戰法軌字母 (D/F/N/O/Q)：不過 Step 1 — 全市場掃，可以命中
+          //   - A 自己：用六條件 isCoreReady 判定，不用 Step 1 池（池子是六條件的「過濾後」）
+          const inStep1Pool = step1Symbols ? step1Symbols.has(symbol) : false;
           const matchedMethods: string[] = matched ? [method] : [];
           let sixCondsResult: ReturnType<typeof evaluateSixConditions> | null = null;
           try {
@@ -1557,13 +1543,14 @@ export abstract class MarketScanner {
             sixCondsResult = evaluateSixConditions(candles, lastIdx);
             if (sixCondsResult.isCoreReady) matchedMethods.push('A');
           } catch { /* non-critical */ }
-          if (method !== 'B') {
+          // ── 多頭軌字母（過 Step 1 gate）─────────────────────────
+          if (method !== 'B' && inStep1Pool) {
             try {
               const { detectBreakoutEntry } = await import('@/lib/analysis/breakoutEntry');
               if (detectBreakoutEntry(candles, lastIdx)?.isBreakout) matchedMethods.push('B');
             } catch { /* */ }
           }
-          if (method !== 'C') {
+          if (method !== 'C' && inStep1Pool) {
             try {
               const { detectConsolidationBreakout } = await import('@/lib/analysis/breakoutEntry');
               if (detectConsolidationBreakout(candles, lastIdx)?.isBreakout) matchedMethods.push('C');
@@ -1575,39 +1562,42 @@ export abstract class MarketScanner {
               if (detectStrategyE(candles, lastIdx)?.isFlatBottom) matchedMethods.push('D');
             } catch { /* */ }
           }
-          if (method !== 'E') {
+          if (method !== 'E' && inStep1Pool) {
             try {
               const { detectStrategyD } = await import('@/lib/analysis/gapEntry');
               if (detectStrategyD(candles, lastIdx)?.isGapEntry) matchedMethods.push('E');
             } catch { /* */ }
           }
+          // ── 反轉軌字母（不過 Step 1）─────────────────────────────
           if (method !== 'F') {
             try {
               const { detectVReversal } = await import('@/lib/analysis/vReversalDetector');
               if (detectVReversal(candles, lastIdx)?.isVReversal) matchedMethods.push('F');
             } catch { /* */ }
           }
-          if (method !== 'G') {
+          // ── v12 新字母 J-Q 跨策略命中 ─────────────
+          // 2026-05-12：移除 v11 G/H/I cross-strategy push（用戶決議只留 v12）
+          // J(ABC 突破) / K(K 線橫盤) / L(過大量黑 K) 共用 v11 detector 已涵蓋
+          if (method !== 'J' && method !== 'G' && inStep1Pool) {
             try {
               const { detectABCBreakout } = await import('@/lib/analysis/abcBreakoutEntry');
-              if (detectABCBreakout(candles, lastIdx)?.isABCBreakout) matchedMethods.push('G');
+              if (detectABCBreakout(candles, lastIdx)?.isABCBreakout) matchedMethods.push('J');
             } catch { /* */ }
           }
-          if (method !== 'H') {
+          if (method !== 'L' && method !== 'H' && inStep1Pool) {
             try {
               const { detectBlackKBreakout } = await import('@/lib/analysis/blackKBreakoutEntry');
-              if (detectBlackKBreakout(candles, lastIdx)?.isBlackKBreakout) matchedMethods.push('H');
+              if (detectBlackKBreakout(candles, lastIdx)?.isBlackKBreakout) matchedMethods.push('L');
             } catch { /* */ }
           }
-          if (method !== 'I') {
+          if (method !== 'K' && method !== 'I' && inStep1Pool) {
             try {
               const { detectKlineConsolidationBreakout } = await import('@/lib/analysis/klineConsolidationBreakout');
-              if (detectKlineConsolidationBreakout(candles, lastIdx)?.isBreakout) matchedMethods.push('I');
+              if (detectKlineConsolidationBreakout(candles, lastIdx)?.isBreakout) matchedMethods.push('K');
             } catch { /* */ }
           }
-          // v12 新字母 J-Q 跨策略命中（議題 65/93/33）
-          // J=ABC alias of G、K=橫盤 alias of I、L=黑K alias of H — 跳過避免重複
-          if (method !== 'M') {
+          // M 多頭軌（突破軌道線）過 Step 1
+          if (method !== 'M' && inStep1Pool) {
             try {
               const { detectLetterM } = await import('@/lib/analysis/v12LetterM');
               if (detectLetterM(candles, lastIdx, config.marketId, symbol).triggered) matchedMethods.push('M');
@@ -1625,7 +1615,8 @@ export abstract class MarketScanner {
               if (detectLetterO(candles, lastIdx, config.marketId, symbol).triggered) matchedMethods.push('O');
             } catch { /* */ }
           }
-          if (method !== 'P') {
+          // P 多頭軌（高檔拉回）過 Step 1
+          if (method !== 'P' && inStep1Pool) {
             try {
               const { detectLetterP } = await import('@/lib/analysis/v12LetterP');
               if (detectLetterP(candles, lastIdx, config.marketId, symbol).triggered) matchedMethods.push('P');

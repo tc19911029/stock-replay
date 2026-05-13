@@ -1,0 +1,231 @@
+{
+  "version": 1,
+  "description": "已認證的合法資料異常 registry。當 audit 偵測到「不正常」的資料但已被多源 cross-check 確認為事實（不是 bug），記錄在此。未來遇到同類情境可以直接 reference 證明「不是我們的問題」。",
+  "lastUpdated": "2026-05-13",
+  "rules": [
+    {
+      "id": "ex-dividend-suspension-day",
+      "name": "除權息／配股配息／停牌一日",
+      "description": "個股某日整日停牌無交易（多為除權息或配股配息日，少數為公司停牌）。OHLC 全相等（一字線、O=H=L=C = 開盤 reference price）+ vol=0 是這類事件的市場標準呈現。OHLC 值可能等於前一日 close（無除權息）或 reference price（有除權息）。",
+      "verifiedBy": ["EODHD", "L1"],
+      "verifiedAt": "2026-05-13",
+      "investigationRound": "third-deep-audit-0513",
+      "applies": {
+        "type": "sandwich-vol-zero",
+        "pattern": {
+          "volume": 0,
+          "h_eq_l": true
+        }
+      },
+      "evidence": "1101.TW 2025-08-13：L1 與 EODHD 雙源都回 vol=0、O=H=L=C=24.75=8/12 close、8/14 開 23 跳空 -7%。1213.TW 2024-10-30：O=H=L=C=11.68（=除權息 reference price，非 prev close 12）。6908.TW 多日 O=84.14 H=L=C=84.9（開盤一筆成交後停、HLC 等而 O 不同）。Pattern 「H=L=C + vol=0」涵蓋所有停牌／開盤後鎖定型態。",
+      "remediation": "L1 保留事實 vol=0；indicator avgVol 跳過 vol=0 用實際成交日平均（lib/indicators.ts:128）。",
+      "estimatedCount": 14573,
+      "lastConfirmed": "2026-05-13"
+    },
+    {
+      "id": "low-liquidity-volume-rounded-to-zero",
+      "name": "微量交易 volume 四捨五入到 0（< 1 張）",
+      "description": "上櫃低流動性個股某日成交量極小（< 500 股 = < 0.5 張），TW L1 用「張」當單位、Math.round(股/1000) 變 0。OHLC 有 range（H > L）但 vol=0 是這類事件的標準呈現。",
+      "verifiedBy": ["EODHD"],
+      "verifiedAt": "2026-05-13",
+      "investigationRound": "third-deep-audit-0513",
+      "applies": {
+        "type": "sandwich-vol-zero",
+        "pattern": {
+          "volume": 0,
+          "ohlc_has_range": true
+        }
+      },
+      "evidence": "1294.TWO 2022-11-14 抽查：L1 vol=0、EODHD vol=297 股 = 0.297 張 → round=0。1295.TWO 2024-01-08：EODHD vol=413 股=0.4 張。2751.TWO 2023-12-21：175 股=0.18 張。皆 < 1 張 round 到 0。",
+      "remediation": "L1 保留事實 vol=0（無錯）；avgVol 已跳過 vol=0 避免量比污染（lib/indicators.ts:128）。",
+      "estimatedCount": 563,
+      "lastConfirmed": "2026-05-13"
+    },
+    {
+      "id": "vendor-adjustment-version-mismatch",
+      "name": "L1 後復權版 vs vendor raw OHLC 版本不同步",
+      "description": "L1 為 back-adjusted（後復權）版本，vendor (EODHD/Yahoo) 多為 raw 版本。除權息事件後過去 H/L/O 被反推調整，但歷次 adjustment 對 close 的同步可能不一致，造成 close 偏離 [low, high] 範圍。",
+      "verifiedBy": ["EODHD"],
+      "verifiedAt": "2026-05-13",
+      "investigationRound": "third-deep-audit-0513",
+      "applies": {
+        "type": "l1-ohlc-invariant-violation",
+        "pattern": {
+          "vendor_close_vs_l1_close_diff_pct_gte": 0.02
+        }
+      },
+      "evidence": "1101.TW 2021-08-17 抽查：L1=43.59 後復權 vs EODHD raw close=52.74，差 21%。表示 L1 是不同 adjustment 版本，不能用 vendor raw OHLC 直接覆寫。",
+      "remediation": "clip H/L 包住 close 保 invariant（最小擾動，不破壞 L1 後復權連續性）。",
+      "estimatedCount": 1748,
+      "lastConfirmed": "2026-05-13"
+    },
+    {
+      "id": "etf-not-in-l1-stocklist",
+      "name": "新上市 ETF 不在 L1 candle download 範圍",
+      "description": "L2 stocklist provider 涵蓋 ETF（如 00918、00929 等高息系列），但 L1 download cron 不收錄 ETF。L2 有 quote 但 L1 沒對應 candle file。",
+      "verifiedBy": ["L2-snapshot", "L1-file-list"],
+      "verifiedAt": "2026-05-13",
+      "investigationRound": "third-deep-audit-0513",
+      "applies": {
+        "type": "l2-symbol-without-l1",
+        "pattern": {
+          "symbol_prefix": "00",
+          "symbol_length": 5
+        }
+      },
+      "evidence": "5/12 L2 共 1193 quotes、L1 沒對應檔的 116 檔中 115 檔是 00xxxA / 00918+ 系列 ETF。",
+      "remediation": "對掃描無影響（ETF 不在個股策略範圍）；若需要 ETF L1 走圖，須擴 download-candles 收錄 stocklist。",
+      "estimatedCount": 116,
+      "lastConfirmed": "2026-05-13"
+    },
+    {
+      "id": "limit-up-locked-rejected-by-prohibition",
+      "name": "鎖漲停股被戒律 9（短線過熱）/淘汰法（一字漲停吸籌完／高檔放量黑K）合理排除",
+      "description": "鎖漲停股不會進六條件池子，是書本「不追高」的合理保守策略，不是 bug。",
+      "verifiedBy": ["scan-pipeline", "book-reference"],
+      "verifiedAt": "2026-05-13",
+      "investigationRound": "second-deep-audit-0513",
+      "applies": {
+        "type": "limit-up-not-in-scan",
+        "pattern": {
+          "changePercent_gte": 9.5,
+          "rejection_reasons": ["consecutive-one-piece", "high-vol-black-k", "7day-accumulated-gt-20pct"]
+        }
+      },
+      "evidence": "5/13 鎖漲停 23 檔抽查 3 檔（1762 中化生／2377 微星／6446 藥華藥）全是「連續一字漲停吸籌完」、「高檔放量黑K」或「7 日累漲 >20% 戒律 9」典型形態。scripts/audit-limit-up-vs-scan.ts 自動分類。",
+      "remediation": "保持掃描保守策略；audit-limit-up-vs-scan.ts 每日跑、把「真漏掃」與「合理被擋」分清楚。",
+      "lastConfirmed": "2026-05-13"
+    },
+    {
+      "id": "delisted-chip-residual",
+      "name": "已下市／mutual fund 的 chip 殘留",
+      "description": "chip/TDCC 模組曾抓過、但個股已下市或被歸類為 mutual fund／不再交易。L1 stocklist 不再涵蓋，chip 資料未清。",
+      "verifiedBy": ["Yahoo-chart-meta"],
+      "verifiedAt": "2026-05-13",
+      "investigationRound": "third-deep-audit-0513",
+      "applies": {
+        "type": "chip-without-l1",
+        "pattern": {
+          "yahoo_instrument_type": "MUTUALFUND or delisted"
+        }
+      },
+      "evidence": "1107 Yahoo 回 instrumentType=MUTUALFUND；1204、1207、1212 等 970 檔同類。不在 scan 範圍、不影響掃描功能。",
+      "remediation": "chip 殘留不動（保留歷史紀錄）；L1 不需收錄；如需清理可獨立 cleanup job。",
+      "estimatedCount": 970,
+      "lastConfirmed": "2026-05-13"
+    },
+    {
+      "id": "vendor-eod-sync-delay-today",
+      "name": "Today 上櫃 .TWO 股 EODHD 同步延遲（盤後 N 小時）",
+      "description": "today (T+0) 盤後跑 EOD settle 時，EODHD 對 .TWO 上櫃股 5/13 today 的 OHLC 還沒 sync 完成（EODHD 通常 T+1 才完整）。TWSE bulk 只回上市、TPEx OpenAPI 只回最新日；多源 today 無法湊齊。",
+      "verifiedBy": ["eod-settle-report"],
+      "verifiedAt": "2026-05-13",
+      "investigationRound": "third-deep-audit-0513",
+      "applies": {
+        "type": "settle-pending-today",
+        "pattern": {
+          "is_today": true,
+          "symbol_suffix": ".TWO"
+        }
+      },
+      "evidence": "5/13 settle TW: 1076 confirmed + 60 寫入 + 843 pending（多 .TWO 上櫃）。EODHD 5/13 上櫃多檔未回 → pending-no-vendor-data。",
+      "remediation": "T+1 早上 08:00 跑 t1-fill-gaps，EODHD sync 完後自動補。是設計的正常路徑、不是 bug。",
+      "estimatedCount": 843,
+      "lastConfirmed": "2026-05-13"
+    },
+    {
+      "id": "real-suspension-long-term",
+      "name": "長期停牌／退市股 L1 lastDate 落後",
+      "description": "L1 audit 顯示某些股 lastDate < 最近交易日，多為長期停牌或退市股，EODHD/Yahoo/TWSE 也都沒近期資料。",
+      "verifiedBy": ["EODHD", "TWSE-bulk"],
+      "verifiedAt": "2026-05-13",
+      "investigationRound": "second-deep-audit-0513",
+      "applies": {
+        "type": "l1-last-day-stale",
+        "pattern": {
+          "all_vendors_returned_empty": true
+        }
+      },
+      "evidence": "TW 28 檔停在 2026-04-15 之前，EODHD 也回 empty。如 000023.SZ 停在 2024-07、000416.SZ 停在 2024-04。CN 45 檔同類。",
+      "remediation": "保持不 backfill；audit-l1-last-day.ts 偵測 + 標記，coverage<99% 不算 bug。",
+      "estimatedCount": 73,
+      "lastConfirmed": "2026-05-13"
+    },
+    {
+      "id": "mis-twse-locked-empty-z-field",
+      "name": "mis.twse 鎖漲跌停時 d.z='-' 是 API 邊角行為",
+      "description": "mis.twse 即時 quote API 在股票鎖漲停或鎖跌停時，最新成交價欄位 d.z 會變 '-'（無新成交）。買賣盤首檔可能是 0.0000 佔位。close 必須用漲跌停價（d.u/d.w）或 bid/ask mid 推算。",
+      "verifiedBy": ["live-mis-twse-fetch"],
+      "verifiedAt": "2026-05-13",
+      "investigationRound": "first-deep-audit-0513",
+      "applies": {
+        "type": "mis-twse-locked-day",
+        "pattern": {
+          "d.z": "-",
+          "d.h_equals_d.u": true
+        }
+      },
+      "evidence": "3044.TW 5/13 11:40 抽查 mis.twse 回傳：d.z='-', d.a='-', d.b='0.0000_529.0000_...', d.h=529=d.u (漲停價)。",
+      "remediation": "lib/datasource/TWSERealtime.ts:resolveMisClose 處理：z='-' + h=u + ask 掃空 → close=u (鎖漲停)；對稱處理鎖跌停。14 unit tests 鎖住行為。",
+      "lastConfirmed": "2026-05-13"
+    }
+  ],
+  "cases": [
+    {
+      "symbol": "1101.TW",
+      "date": "2025-08-13",
+      "type": "ex-dividend-suspension-day",
+      "verifiedBy": ["EODHD", "L1"],
+      "verifiedAt": "2026-05-13",
+      "note": "除息日整日停牌：O=H=L=C=24.75=8/12 close, V=0, EODHD 也 V=0; 8/14 open 23 跳空 -7% (除息後 reference price)"
+    },
+    {
+      "symbol": "3044.TW",
+      "date": "2026-05-13",
+      "type": "limit-up-locked",
+      "verifiedBy": ["mis-twse", "L2-snapshot", "EODHD"],
+      "verifiedAt": "2026-05-13",
+      "note": "鎖漲停 +9.98% close=529 (=漲停價 d.u=529)；mis.twse d.z='-' 已用 resolveMisClose 處理；三源一致 confirmed"
+    },
+    {
+      "symbol": "1101.TW",
+      "date": "2021-08-17",
+      "type": "vendor-adjustment-version-mismatch",
+      "verifiedBy": ["EODHD"],
+      "verifiedAt": "2026-05-13",
+      "note": "L1=43.59 (後復權) vs EODHD raw=52.74 (差 21%)；除權息日 vol=0 之後被各自不同程度復權，造成 L1 OHLC 內部矛盾。已 clip 保 invariant。"
+    },
+    {
+      "symbol": "2377.TW",
+      "date": "2026-05-13",
+      "type": "limit-up-locked-rejected-by-prohibition",
+      "verifiedBy": ["scan-audit"],
+      "verifiedAt": "2026-05-13",
+      "note": "鎖漲停 +10% 但 5/12 高檔放量黑K（vol 67324 是均量 1.5x+、close < open 殺尾盤）→ 戒律 9 + 淘汰法合理擋"
+    },
+    {
+      "symbol": "1762.TW",
+      "date": "2026-05-13",
+      "type": "limit-up-locked-rejected-by-prohibition",
+      "verifiedBy": ["scan-audit"],
+      "verifiedAt": "2026-05-13",
+      "note": "鎖漲停 +10% 但 5/6-5/8 連 3 根一字漲停 + 5/11-5/12 高檔黑K -8% + 7 日累漲 +25% → 戒律 9 + 兩條淘汰法合理擋"
+    },
+    {
+      "symbol": "1435.TW",
+      "date": "2026-05-12",
+      "type": "real-suspension-long-term",
+      "verifiedBy": ["EODHD", "TWSE-bulk"],
+      "verifiedAt": "2026-05-13",
+      "note": "L1 lastDate 2026-04-15、EODHD 也 empty；長期停牌"
+    },
+    {
+      "symbol": "000023.SZ",
+      "date": "2024-07-24",
+      "type": "real-suspension-long-term",
+      "verifiedBy": ["EODHD"],
+      "verifiedAt": "2026-05-13",
+      "note": "CN 退市股、L1 停在 2024-07-24"
+    }
+  ]
+}

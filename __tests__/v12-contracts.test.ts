@@ -162,7 +162,7 @@ describe('v12 合約測試 — Step 4 操作均線對應', () => {
   it('Q 永遠用 MA10（戰法軌獨立）', () => {
     expect(getOperationMA('Q', 'short')).toBe('MA10');
     expect(getOperationMA('Q', 'long')).toBe('MA10');
-    expect(getOperationMA('Q', 'wave')).toBe('MA10');
+    // 0513 ABCDE E：wave / super-long mode 都已砍，Q 戰法仍永遠 MA10
   });
 
   it('衝突 β：升級長線後所有訊號統一 MA20', () => {

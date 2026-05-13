@@ -24,7 +24,6 @@ import type { CandleWithIndicators } from '../../types';
 
 import { detectTrend } from '../analysis/trendAnalysis';
 import { tradingDaysBetween } from '../utils/tradingDay';
-import { evaluateMarketGate } from './marketTrendGate';
 import type {
   LockWatchDailySnapshot,
   LockWatchEvent,
@@ -33,11 +32,11 @@ import type {
 import type { MarketId } from './types';
 
 /**
- * 觸發 N 訊號 → 寫入 LockWatch
+ * 觸發 N 訊號 → 寫入 LockWatch（書本：型態確認當下就是進場訊號）
  *
- * 2026-05-10 Phase C：依 close 跟頸線×1.03 比較決定初始 stage
- * - close < neckline×1.03 → 'pending-breakout'（結構成立等突破，即將突破清單）
- * - close ≥ neckline×1.03 → 'observation'（已突破，等趨勢確認）
+ * 2026-05-13 對齊書本：寶典 Part 11-1 第 7 位置「等型態確認」p.697 原文是
+ * 「空頭低檔打底型態，型態確認上漲大量紅 K」，書本沒有「等趨勢確認再買」這層。
+ * 因此初始 stage 統一為 'observation'（純為紀錄+走圖鎖定用，已可進場）。
  */
 export function createLockWatchFromN(args: {
   symbol: string;
@@ -45,16 +44,10 @@ export function createLockWatchFromN(args: {
   triggeredDate: string;
   patternType: NonNullable<LockWatchRecord['patternType']>;
   triggerPrice: number;  // 頸線價
-  currentClose: number;  // 觸發當天 close（決定初始 stage）
+  currentClose: number;
   patternTargetPrice?: number;
   patternAchievementRate?: number;
 }): LockWatchRecord {
-  const breakoutThreshold = args.triggerPrice * 1.03;
-  const initialStage: LockWatchRecord['currentStage'] =
-    args.currentClose >= breakoutThreshold ? 'observation' : 'pending-breakout';
-  const eventDetail = initialStage === 'pending-breakout'
-    ? `N 結構成立（${args.patternType}）close=${args.currentClose.toFixed(2)} 等過 ${breakoutThreshold.toFixed(2)} 真突破`
-    : `N 型態突破（${args.patternType}）close=${args.currentClose.toFixed(2)} ≥ ${breakoutThreshold.toFixed(2)}`;
   return {
     symbol: args.symbol,
     market: args.market,
@@ -64,14 +57,14 @@ export function createLockWatchFromN(args: {
     triggerPrice: args.triggerPrice,
     patternTargetPrice: args.patternTargetPrice,
     patternAchievementRate: args.patternAchievementRate,
-    currentStage: initialStage,
+    currentStage: 'observation',
     daysObserved: 0,
-    currentClose: args.currentClose,  // Phase D：UI 顯示用
+    currentClose: args.currentClose,
     history: [
       {
         date: args.triggeredDate,
         event: 'triggered',
-        detail: eventDetail,
+        detail: `N 型態確認（${args.patternType}）突破頸線 ${args.triggerPrice.toFixed(2)}，書本可進場`,
       },
     ],
   };
@@ -131,13 +124,13 @@ export interface LockWatchUpdateResult {
  *
  * @param record 既有觀察名單
  * @param candles 該股票最新 K 線
- * @param indexCandles 大盤指數 K 線（用於 F 升級判定）
+ * @param _indexCandles 大盤指數 K 線（保留 signature 相容呼叫端，2026-05-13 對齊書本後不再使用）
  * @param today ISO 日期
  */
 export function updateLockWatch(
   record: LockWatchRecord,
   candles: ReadonlyArray<CandleWithIndicators>,
-  indexCandles: ReadonlyArray<CandleWithIndicators>,
+  _indexCandles: ReadonlyArray<CandleWithIndicators>,
   today: string,
 ): LockWatchUpdateResult {
   // 跳過已結束的紀錄
@@ -165,19 +158,10 @@ export function updateLockWatch(
     history: [...record.history],
   };
 
-  // ── 0. pending-breakout 升級條件（2026-05-10 Phase C 新增）──
-  // close 過頸線×1.03 真突破 → 升級 observation；未過 → 維持 pending-breakout
-  // 注意：pending-breakout 階段 close < triggerPrice 是正常的（結構成立等突破），
-  // 跳過下方「close < triggerPrice 撤銷」邏輯避免誤撤銷
+  // 2026-05-13 對齊書本：移除 pending-breakout 升級邏輯（書本沒有兩段觀察流程）
+  // 舊資料若仍含 pending-breakout，視同 observation 處理（向下相容，不會誤撤銷）
   if (record.currentStage === 'pending-breakout') {
-    const breakoutThreshold = record.triggerPrice * 1.03;
-    if (c.close >= breakoutThreshold) {
-      updatedRecord.currentStage = 'observation';
-      addEvent(updatedRecord, today, 'breakout-confirmed', `close=${c.close.toFixed(2)} ≥ ${breakoutThreshold.toFixed(2)} 真突破`);
-      return { changed: true, record: updatedRecord };
-    }
-    // 還沒突破，繼續觀察
-    return { changed: false, record: updatedRecord };
+    updatedRecord.currentStage = 'observation';
   }
 
   // ── 1. 撤銷條件：close < triggerPrice ──
@@ -197,28 +181,9 @@ export function updateLockWatch(
     return { changed: true, record: updatedRecord };
   }
 
-  // ── 3. 升級條件：個股趨勢確認 + 進場 SOP 過 ──
-  // 個股趨勢確認 = detectTrend = 多頭
-  if (stockTrend !== '多頭') {
-    return { changed: false, record: updatedRecord };
-  }
-
-  // F 升級需要大盤多頭過 Step 0
-  if (record.triggerSignal === 'F') {
-    const marketGate = evaluateMarketGate(indexCandles);
-    if (!marketGate.passed) {
-      // 個股已多頭但大盤未過 Step 0 → 維持 observation
-      return { changed: false, record: updatedRecord };
-    }
-  }
-
-  // 升級為 entry-signal
-  if (record.currentStage === 'observation') {
-    updatedRecord.currentStage = 'entry-signal';
-    addEvent(updatedRecord, today, 'trend-confirmed', '個股翻多 + 大盤多頭，可考慮進場');
-    return { changed: true, record: updatedRecord };
-  }
-
+  // 2026-05-13 對齊書本：移除「等個股趨勢翻多 + 大盤過 Step 0 才升 entry-signal」自創邏輯
+  // 書本（寶典 Part 11-1 #7、抓住K線 V 反轉戰法）：型態確認/V 反轉成立當天就是進場訊號
+  // 紀錄留為 observation 即可（observation = 已觸發書本進場條件）
   return { changed: false, record: updatedRecord };
 }
 
@@ -339,9 +304,12 @@ export function createDailySnapshot(
 
 /**
  * 篩選 active records（過濾掉已結束的）
+ * 2026-05-13：對齊書本後 entry-signal stage 已 deprecated，仍保留判定以相容舊資料
  */
 export function filterActiveRecords(records: LockWatchRecord[]): LockWatchRecord[] {
   return records.filter(r =>
-    r.currentStage === 'observation' || r.currentStage === 'entry-signal',
+    r.currentStage === 'observation'
+    || r.currentStage === 'entry-signal'  // 舊資料相容
+    || r.currentStage === 'pending-breakout',  // 舊資料相容
   );
 }

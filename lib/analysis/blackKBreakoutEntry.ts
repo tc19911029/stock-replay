@@ -21,6 +21,10 @@
 
 import type { CandleWithIndicators } from '@/types';
 import { detectTrend } from '@/lib/analysis/trendAnalysis';
+import {
+  BOOK_BODY_PCT_MIN, BOOK_VOL_RATIO_MIN,
+  BLACKK_MIN_BODY_PCT, BLACKK_MIN_VOL_RATIO, BLACKK_MAX_DAYS_AFTER,
+} from './bookThresholds';
 
 export interface BlackKBreakoutResult {
   isBlackKBreakout: boolean;
@@ -34,9 +38,10 @@ export interface BlackKBreakoutResult {
   detail: string;
 }
 
-const MAX_DAYS_AFTER_BLACK_K = 3;   // 書本「3 日內」
-const MIN_BLACK_K_BODY_PCT = 1.5;   // 黑 K 至少 1.5% 才算「大」（書本「大量長黑 K」之合理門檻）
-const MIN_BLACK_K_VOL_RATIO = 1.3;  // 黑 K 量 ≥ 前日 × 1.3 才算「大量」
+// 書本門檻單一事實來源：lib/analysis/bookThresholds.ts
+const MAX_DAYS_AFTER_BLACK_K = BLACKK_MAX_DAYS_AFTER;   // 書本「3 日內」
+const MIN_BLACK_K_BODY_PCT = BLACKK_MIN_BODY_PCT;       // 黑 K 至少 1.5% 才算「大」
+const MIN_BLACK_K_VOL_RATIO = BLACKK_MIN_VOL_RATIO;     // 黑 K 量 ≥ 前日 × 1.3 才算「大量」
 
 interface BlackKEvent {
   index: number;
@@ -124,11 +129,11 @@ export function detectBlackKBreakout(
 
   // 4. 今日紅 K 實體 ≥ 2%
   const bodyPct = ((c.close - c.open) / c.open) * 100;
-  if (bodyPct < 2.0) return null;
+  if (bodyPct < BOOK_BODY_PCT_MIN) return null;
 
   // 5. 今日量比 ≥ 1.3
   const volumeRatio = c.volume / prev.volume;
-  if (volumeRatio < 1.3) return null;
+  if (volumeRatio < BOOK_VOL_RATIO_MIN) return null;
 
   // 6. 今日收盤突破大量黑 K 最高點
   if (c.close <= blackK.high) return null;

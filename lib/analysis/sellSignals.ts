@@ -84,6 +84,9 @@ export function detectSellSignals(
   }
 
   // 3. 跌破 MA20（嚴重警訊）
+  // ⚠️ 自創 padding（書本沒明寫 1% 緩衝）— 0513 ABCDE D 標自創
+  // 防止 MA20 接近時的 noise（如 prev.close=100、prev.ma20=100.5，c.close=100.4，c.ma20=100.6 算跌破？）
+  // 0.99 給 1% 緩衝；未來考慮改 ATR-based 或統一搬 bookThresholds
   if (ma20 != null && prev?.ma20 != null) {
     if (prev.close >= prev.ma20 * 0.99 && c.close < ma20 * 0.99) {
       signals.push({

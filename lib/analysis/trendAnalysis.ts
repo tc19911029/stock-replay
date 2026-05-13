@@ -1,5 +1,6 @@
 import { CandleWithIndicators } from '@/types';
 import type { StrategyThresholds } from '@/lib/strategy/StrategyConfig';
+import { BOOK_VOL_RATIO_MIN } from './bookThresholds';
 import { detectExtraHighWinPositions, detectPullbackBuy, detectRangeBreakout } from './highWinPositions';
 import { detectVolumePriceDivergence, detectHighPeakVolume, detectChokingVolume } from './volumePatterns';
 import { detectMacdOsc7, isKdHighSaturated, detectKdPeakDivergence } from './indicatorPatterns';
@@ -476,7 +477,7 @@ export function evaluateSixConditions(
 ): SixConditionsResult {
   const kdMax     = params?.kdMaxEntry      ?? 88;   // 與 BASE_THRESHOLDS 一致
   const devMax    = params?.deviationMax    ?? 0.15; // 與 BASE_THRESHOLDS 一致（15%，2026-04-22 用戶設定）
-  const volMin    = params?.volumeRatioMin  ?? 1.3;  // 書上p.54：前一日×1.3
+  const volMin    = params?.volumeRatioMin  ?? BOOK_VOL_RATIO_MIN;  // 書上p.54：前一日×1.3
   // upperShadowMax 已棄用：書本定義「長上影線 = 上影 > 實體」，不用比例門檻
 
   const c    = candles[index];

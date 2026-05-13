@@ -26,6 +26,7 @@ import { detectTrend } from './trendAnalysis';
 import { isValidRedK } from './redKValidator';
 import { isMAUp } from './maPivot';
 import type { MarketId } from '../scanner/types';
+import { BOOK_VOL_RATIO_MIN } from './bookThresholds';
 
 export interface LetterOResult {
   triggered: boolean;
@@ -91,7 +92,7 @@ export function detectLetterO(
 
   // 6. 量比 ≥ 1.3
   const volumeRatio = c.volume / prev.volume;
-  if (volumeRatio < 1.3) return empty;
+  if (volumeRatio < BOOK_VOL_RATIO_MIN) return empty;
 
   // 7. 找打底盤整期：往回找最近一次「空頭 → 盤整」轉換點
   let baseStartIdx = -1;

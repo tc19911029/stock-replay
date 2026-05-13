@@ -96,7 +96,7 @@ describe('v12 Step 4 — getOperationMA', () => {
   it('Q 戰法 → 永遠 MA10（戰法軌獨立）', () => {
     expect(getOperationMA('Q', 'short')).toBe('MA10');
     expect(getOperationMA('Q', 'long')).toBe('MA10');
-    expect(getOperationMA('Q', 'wave')).toBe('MA10');
+    // 0513 ABCDE E：wave / super-long mode 都已砍
   });
   it('B 升級長線 → MA20（衝突 β）', () => {
     expect(getOperationMA('B', 'long')).toBe('MA20');
@@ -131,12 +131,14 @@ describe('v12 Step 4 — checkMAExit B/P 寶典 #5/#6', () => {
   it('B ≥10% 跌破 MA5 → 停利（寶典 #6）', () => {
     const r = checkMAExit(108, 110, 'B', 95);  // close=108 < MA5=110, 獲利 13.7%
     expect(r.shouldExit).toBe(true);
-    expect(r.reason).toContain('B/P 寶典 #6');
+    // 0513 ABCDE D：技術代號 (Step 5 ①) 已翻人話 (B/P 進階紀律 #6)
+    expect(r.reason).toContain('B/P 進階紀律 #6');
   });
   it('其他訊號跌破 MA → 直接出場（不適用 #5/#6）', () => {
     const r = checkMAExit(95, 100, 'C', 90);
     expect(r.shouldExit).toBe(true);
-    expect(r.reason).toContain('Step 4 ② 跌破均線');
+    // 0513 ABCDE D：技術代號 (Step 4 ②) 已翻人話 (書本短線守則 #6)
+    expect(r.reason).toContain('跌破操作均線');
   });
 });
 

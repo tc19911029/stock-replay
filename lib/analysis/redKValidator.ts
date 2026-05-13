@@ -66,6 +66,8 @@ export function validateRedK(
   }
 
   // 跳空高開例外（議題 89）：跳空 ≥ 3% 且 close > open
+  // ⚠️ 自創 padding（書本沒明寫量化）— 0513 ABCDE D 標自創
+  // 3% 是工程經驗值（≥ 漲停半幅算「強跳空」），未來搬到 bookThresholds.GAP_UP_STRONG_PCT
   if (gapPct >= 0.03) {
     return { valid: true, reason: 'gap-up', bodyPct, gapPct };
   }

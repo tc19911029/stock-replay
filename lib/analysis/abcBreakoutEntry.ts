@@ -23,6 +23,7 @@
 
 import type { CandleWithIndicators } from '@/types';
 import { findPivots, detectTrend } from '@/lib/analysis/trendAnalysis';
+import { BOOK_BODY_PCT_MIN, BOOK_VOL_RATIO_MIN } from './bookThresholds';
 
 export interface ABCBreakoutResult {
   isABCBreakout: boolean;
@@ -172,11 +173,11 @@ export function detectABCBreakout(
 
   // 3. 紅 K 實體 ≥ 2%
   const bodyPct = ((c.close - c.open) / c.open) * 100;
-  if (bodyPct < 2.0) return null;
+  if (bodyPct < BOOK_BODY_PCT_MIN) return null;
 
   // 4. 量比 ≥ 1.3
   const volumeRatio = c.volume / prev.volume;
-  if (volumeRatio < 1.3) return null;
+  if (volumeRatio < BOOK_VOL_RATIO_MIN) return null;
 
   // 5. 收盤突破下降切線在今日的延伸值
   const trendlineValue = trendlineAtIndex(abc, idx);

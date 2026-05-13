@@ -24,6 +24,7 @@
 
 import type { CandleWithIndicators } from '@/types';
 import { classifyGapUp, detectIslandReversal } from './gapPatterns';
+import { BOOK_BODY_PCT_MIN, BOOK_VOL_RATIO_MIN } from './bookThresholds';
 
 export interface GapEntryResult {
   isGapEntry: boolean;
@@ -52,11 +53,11 @@ export function detectStrategyD(
 
   // 條件 3：紅 K 實體 ≥ 2%（寶典對齊）
   const bodyPct = (c.close - c.open) / c.open * 100;
-  if (bodyPct < 2.0) return null;
+  if (bodyPct < BOOK_BODY_PCT_MIN) return null;
 
   // 條件 2：量比 ≥ 1.3
   const volumeRatio = c.volume / prev.volume;
-  if (volumeRatio < 1.3) return null;
+  if (volumeRatio < BOOK_VOL_RATIO_MIN) return null;
 
   // 2026-05-09：壞缺口過濾（避免末升段竭盡 / 空頭反彈 / 高檔島型反轉誤判為進場）
   const gapType = classifyGapUp(candles, idx);

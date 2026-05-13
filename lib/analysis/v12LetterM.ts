@@ -29,6 +29,8 @@ import type { CandleWithIndicators } from '../../types';
 import { detectTrend, findPivots } from './trendAnalysis';
 import { isValidRedK } from './redKValidator';
 import type { MarketId } from '../scanner/types';
+import { BOOK_VOL_RATIO_MIN } from './bookThresholds';
+import { M_MIN_HISTORY } from './historyMinimums';
 
 export interface LetterMResult {
   triggered: boolean;
@@ -63,7 +65,7 @@ export function detectLetterM(
 ): LetterMResult {
   const empty: LetterMResult = { triggered: false, detail: 'M 突破軌道線未觸發' };
 
-  if (idx < 30) return empty;
+  if (idx < M_MIN_HISTORY) return empty;
 
   const c = candles[idx];
   const prev = candles[idx - 1];
@@ -113,7 +115,7 @@ export function detectLetterM(
 
   // 7. 量比 ≥ 1.3
   const volumeRatio = c.volume / prev.volume;
-  if (volumeRatio < 1.3) return empty;
+  if (volumeRatio < BOOK_VOL_RATIO_MIN) return empty;
 
   return {
     triggered: true,

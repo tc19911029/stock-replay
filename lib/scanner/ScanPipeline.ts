@@ -300,6 +300,10 @@ export async function runScanPipeline(options: ScanPipelineOptions): Promise<Sca
   const isLastBatch = !batch || !totalBatches || batch === totalBatches;
   if (options.buyMethods?.length && !timedOut && isLastBatch) {
     const bmStocks = allStocks; // 全量，不受批次切片影響
+    // Step 1 池子狀態（共用一次給整批 method 用）
+    const { loadStep1Pool: loadPool, deriveStep1FilterState } = await import('@/lib/scanner/step1Pool');
+    const step1Pool = await loadPool(market, date);
+    const poolExists = !!step1Pool && step1Pool.symbols.length > 0;
     for (const method of options.buyMethods) {
       if (Date.now() > deadline) {
         console.warn(`[ScanPipeline] ${market} 超時，跳過買法 ${method}`);
@@ -347,6 +351,10 @@ export async function runScanPipeline(options: ScanPipelineOptions): Promise<Sca
           }
         }
 
+        const step1Filter = deriveStep1FilterState(method, poolExists);
+        if (step1Filter === 'missing') {
+          console.error(`[ScanPipeline] ⚠ ${market} ${method} ${date} Step 1 池子缺漏，多頭軌應為空（saveScanSession 寫入空集）`);
+        }
         const bmSession: ScanSession = {
           id: `${market}-long-${method}-${date}-${Date.now()}`,
           market: market as MarketId,
@@ -359,6 +367,7 @@ export async function runScanPipeline(options: ScanPipelineOptions): Promise<Sca
           results: bmResults,
           marketTrend,
           buyMethod: method as 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q',
+          step1Filter,
         };
         await saveScanSession(bmSession, { allowOverwritePostClose: sessionType === 'post_close' });
         counts[`long-${method}`] = bmResults.length;
