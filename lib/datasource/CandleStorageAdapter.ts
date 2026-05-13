@@ -188,9 +188,21 @@ async function _writeCandleFileImpl(
   const existing = await readCandleFile(symbol, market);
   let stripped: Candle[];
   if (existing && existing.candles.length > 0) {
+    // 指數 V=0 防呆（2026-05-13）：Yahoo 對 ^TWII / 000001.SS 等指數的當日 volume
+    // 同步慢（T+0 常回 0），若 incoming V=0 但 existing 同日 V>0 → 保留 existing volume、
+    // 僅覆蓋 OHLC，避免把已有的好值覆寫成 0。個股 V=0 是真實停牌（known-anomalies registry
+    // 認證過），不套用此規則。
+    const isIndex = symbol.startsWith('^') || symbol === '000001.SS' || symbol === '000300.SS';
     const map = new Map<string, Candle>();
     for (const c of existing.candles) map.set(c.date, c);
-    for (const c of incoming) map.set(c.date, c); // incoming 覆蓋同日
+    for (const c of incoming) {
+      const prev = map.get(c.date);
+      if (isIndex && prev && c.volume === 0 && prev.volume > 0) {
+        map.set(c.date, { ...c, volume: prev.volume });
+      } else {
+        map.set(c.date, c); // incoming 覆蓋同日
+      }
+    }
     stripped = [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
   } else {
     // existing === null 或空：可能是真的沒檔案（新股第一次下載），也可能是 race / IO 錯誤
