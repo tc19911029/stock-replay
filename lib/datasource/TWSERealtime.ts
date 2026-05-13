@@ -228,7 +228,7 @@ export async function getTWSESingleIntraday(code: string): Promise<TWSEQuote | n
     const json = await res.json();
     const d = json?.msgArray?.[0];
     if (!d) return null;
-    const close = parseMisPrice(d.z) || parseMisBestPrice(d.b) || parseMisPrice(d.l);
+    const close = resolveMisClose(d);
     if (close <= 0) return null;
     const prevClose = parseMisPrice(d.y);
     // 使用 mis.twse 回傳的實際日期（d.d 格式 "20260416"），避免盤後硬編碼 today 產生假 K 棒
@@ -282,16 +282,62 @@ export async function getTWSERealtimeIntraday(): Promise<Map<string, TWSEQuote>>
   }
 }
 
-function parseMisPrice(s: string | undefined): number {
+export function parseMisPrice(s: string | undefined): number {
   if (!s || s === '-') return 0;
   const v = parseFloat(s);
   return isNaN(v) ? 0 : v;
 }
 
-/** 從 mis.twse b/a 欄位（格式 "4245.0000_4240.0000_..."）取最優一檔價格 */
-function parseMisBestPrice(s: string | undefined): number {
+/**
+ * 從 mis.twse b/a 欄位（格式 "4245.0000_4240.0000_..."）取最優一檔價格
+ * 鎖漲停時 d.b 首檔常為 "0.0000"（佔位），需跳過取首個非零價
+ */
+export function parseMisBestPrice(s: string | undefined): number {
   if (!s) return 0;
-  return parseMisPrice(s.split('_')[0]);
+  for (const tok of s.split('_')) {
+    const v = parseMisPrice(tok);
+    if (v > 0) return v;
+  }
+  return 0;
+}
+
+/**
+ * 從 mis.twse 單檔回傳資料解析「最近成交價」當 close
+ *
+ * 為什麼不能只看 d.z：鎖漲停／鎖跌停時 mis 會把 d.z 寫成 '-'，
+ * 且 d.b/d.a 首檔可能是 '0.0000' 佔位 — 若直接 fallback 到 d.l（今日最低），
+ * 鎖漲停股的 close 會被填成「今日最低」（巧合 = 昨收），整支股票就被誤標 0.00%。
+ * 3044 2026-05-13 11:40 鎖漲停 529 即此 bug。
+ *
+ * 解析優先序：
+ *   1. d.z 最新成交價（盤中正常路徑）
+ *   2. 鎖漲停：d.h >= d.u（漲停價）且 best ask 掃空 → d.u
+ *   3. 鎖跌停：d.l <= d.w（跌停價）且 best bid 掃空 → d.w
+ *   4. best bid / best ask 中價
+ *   5. 退而求其次 best bid 或 best ask
+ *   6. 最後用 d.h（保守選最高，不選 d.l 否則鎖漲停會誤判）
+ */
+export function resolveMisClose(d: Record<string, string | undefined>): number {
+  const z = parseMisPrice(d.z);
+  if (z > 0) return z;
+  const bestBid = parseMisBestPrice(d.b);
+  const bestAsk = parseMisBestPrice(d.a);
+  const high = parseMisPrice(d.h);
+  const low = parseMisPrice(d.l);
+  const upperLimit = parseMisPrice(d.u);
+  const lowerLimit = parseMisPrice(d.w);
+  // 鎖漲停：高點打到漲停 + 賣盤掃空
+  if (upperLimit > 0 && high > 0 && high >= upperLimit && bestAsk <= 0) {
+    return upperLimit;
+  }
+  // 鎖跌停：低點打到跌停 + 買盤掃空
+  if (lowerLimit > 0 && low > 0 && low <= lowerLimit && bestBid <= 0) {
+    return lowerLimit;
+  }
+  if (bestBid > 0 && bestAsk > 0) return (bestBid + bestAsk) / 2;
+  if (bestBid > 0) return bestBid;
+  if (bestAsk > 0) return bestAsk;
+  return high > 0 ? high : 0;
 }
 
 const MIS_BATCH_SIZE = 80;     // 每次查詢的股票數量上限（mis.twse 實測 100 可用、200 失敗）
@@ -368,7 +414,7 @@ async function fetchIntradayQuotes(): Promise<Map<string, TWSEQuote>> {
       for (const d of json?.msgArray ?? []) {
         const code = d.c;
         if (!code) continue;
-        const close = parseMisPrice(d.z) || parseMisBestPrice(d.b) || parseMisPrice(d.l); // 最新成交 or 最優買價 or 最低價 fallback
+        const close = resolveMisClose(d);
         if (close <= 0) continue; // 今日無交易
         const prevClose = parseMisPrice(d.y);
         map.set(code, {

@@ -180,6 +180,22 @@ async function fsGet(filename: string): Promise<string | null> {
  * 由 cron 或掃描前自動觸發
  */
 export async function writeIntradaySnapshot(snapshot: IntradaySnapshot): Promise<void> {
+  // 寫入前自檢：偵測 mis.twse 類「假裝沒漲跌」的 quote。出現代表上游 close
+  // resolver 又踩坑（如新 vendor 或 API schema 異動），不擋寫入但 log 出來，
+  // 讓 ops/audit 立刻看見。
+  try {
+    const { checkLimitUpConsistency } = await import('./limitUpConsistency');
+    const check = checkLimitUpConsistency(snapshot.quotes as unknown as Parameters<typeof checkLimitUpConsistency>[0]);
+    if (check.suspicious > 0) {
+      console.error(
+        `[IntradayCache] ★ ${snapshot.market} ${snapshot.date} 寫入發現 ${check.suspicious} 檔假裝沒漲跌的 quote: ` +
+        check.samples.slice(0, 5).map(s => `${s.symbol}(${s.reason} O=${s.open} H=${s.high} L=${s.low} C=${s.close} prev=${s.prevClose})`).join(', '),
+      );
+    }
+  } catch (err) {
+    console.warn('[IntradayCache] limit-up consistency check failed:', err);
+  }
+
   const json = JSON.stringify(snapshot);
   const key = blobKey(snapshot.market, snapshot.date);
   const filename = localFilename(snapshot.market, snapshot.date);

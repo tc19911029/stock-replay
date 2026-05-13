@@ -282,16 +282,38 @@ export async function getFugleQuote(symbol: string): Promise<FugleQuote | null> 
 
     const json = (await res.json()) as FugleQuoteResponse;
 
+    // close 優先用 lastPrice（即時成交價）；若為 0/缺則用 closePrice（盤後官方收盤）
+    // 注意 closePrice 不是昨收（previousClose / referencePrice 才是），所以 fallback 安全
+    const close =
+      json.lastPrice && json.lastPrice > 0 ? json.lastPrice
+      : json.closePrice && json.closePrice > 0 ? json.closePrice
+      : 0;
+    const prev = json.previousClose ?? json.referencePrice ?? 0;
+
+    // 鎖漲停／鎖跌停防呆：close === previousClose 但 high 已觸漲停（或 low 已觸跌停）
+    // 這種「假裝沒漲跌」的 quote 用了會在下游被當 0% 排除（同 mis.twse 原 bug 模式）
+    // TW 漲跌停 10%（ETF 例外但 Fugle 也會有正確 high/low），用 9.5% 容忍 lower-bound
+    const isLockedFakeZero =
+      prev > 0 && close > 0 &&
+      Math.abs(close - prev) < 0.001 &&
+      ((json.highPrice ?? 0) > prev * 1.095 || (json.lowPrice ?? Infinity) < prev * 0.905);
+    if (isLockedFakeZero) {
+      console.warn(
+        `[Fugle] ${symbol} 可疑 quote 捨棄：close=${close} 等於 prev=${prev} 但 high=${json.highPrice} low=${json.lowPrice} 已觸漲跌停`,
+      );
+      return null;
+    }
+
     const quote: FugleQuote = {
       code: json.symbol,
       name: json.name ?? json.symbol,
       open: json.openPrice ?? 0,
       high: json.highPrice ?? 0,
       low: json.lowPrice ?? 0,
-      close: json.lastPrice ?? json.closePrice ?? 0,
+      close,
       volume: json.total?.tradeVolume ?? 0,
       date: json.date,
-      prevClose: json.previousClose ?? json.referencePrice,
+      prevClose: prev > 0 ? prev : undefined,
       changePercent: json.changePercent,
     };
 

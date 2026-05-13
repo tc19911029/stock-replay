@@ -21,6 +21,7 @@ import {
 import { getLastTradingDay, isMarketOpen, isPostCloseWindow } from '@/lib/datasource/marketHours';
 import { isTradingDay } from '@/lib/utils/tradingDay';
 import { listScanDates } from '@/lib/storage/scanStorage';
+import { checkLimitUpConsistency, type ConsistencySample } from '@/lib/datasource/limitUpConsistency';
 
 export const runtime = 'nodejs';
 
@@ -89,8 +90,19 @@ interface MarketHealth {
   l2Sources: L2SourceInfo;
   /** L4 掃描結果狀態 */
   l4: L4Status;
+  /** L2 quote 一致性檢查（鎖漲停股 close 是否被誤寫成昨收） */
+  limitUpConsistency: LimitUpConsistencyStatus;
   /** 完整報告（可選，?detail=1 時返回） */
   report?: VerifyReport;
+}
+
+interface LimitUpConsistencyStatus {
+  /** 偵測到的「假裝沒漲跌」可疑 quote 數 */
+  suspicious: number;
+  /** 樣本（最多 10 檔） */
+  samples: ConsistencySample[];
+  /** alert 等級 */
+  level: 'ok' | 'warning' | 'critical';
 }
 
 function getTodayDate(market: 'TW' | 'CN'): string {
@@ -221,18 +233,41 @@ async function getL4Status(market: 'TW' | 'CN'): Promise<L4Status> {
   }
 }
 
+async function getLimitUpConsistency(market: 'TW' | 'CN'): Promise<LimitUpConsistencyStatus> {
+  const today = getTodayDate(market);
+  const trading = isTradingDay(today, market);
+  const lookupDate = trading ? today : getLastTradingDay(market);
+  const snapshot = await readIntradaySnapshot(market, lookupDate);
+  if (!snapshot) {
+    return { suspicious: 0, samples: [], level: 'ok' };
+  }
+  const check = checkLimitUpConsistency(snapshot.quotes as unknown as Parameters<typeof checkLimitUpConsistency>[0]);
+  // 任何「假裝沒漲跌」都是嚴重訊號（代表 close resolver 又出包）
+  // 1-2 檔 warning（可能罕見邊角），3+ 為 critical（系統性壞掉）
+  const level: LimitUpConsistencyStatus['level'] =
+    check.suspicious === 0 ? 'ok'
+    : check.suspicious <= 2 ? 'warning'
+    : 'critical';
+  return {
+    suspicious: check.suspicious,
+    samples: check.samples.slice(0, 10),
+    level,
+  };
+}
+
 async function getMarketHealth(
   market: 'TW' | 'CN',
   includeDetail: boolean,
 ): Promise<MarketHealth> {
   const lastTrading = getLastTradingDay(market);
 
-  // L2 + L4 並行讀取
+  // L2 + L4 + 一致性檢查 並行讀取
   const l2Promise = getL2Status(market);
   const l4Promise = getL4Status(market);
+  const consistencyPromise = getLimitUpConsistency(market);
 
   // 嘗試讀取最近 7 天的報告（可能假日/週末沒報告 — 週一要能回看到上週五）
-  let l1Result: Omit<MarketHealth, 'l2' | 'l2Sources' | 'l4'> | null = null;
+  let l1Result: Omit<MarketHealth, 'l2' | 'l2Sources' | 'l4' | 'limitUpConsistency'> | null = null;
   for (let daysBack = 0; daysBack < 7; daysBack++) {
     const d = new Date(lastTrading + 'T12:00:00');
     d.setDate(d.getDate() - daysBack);
@@ -255,7 +290,7 @@ async function getMarketHealth(
     }
   }
 
-  const [l2, l4] = await Promise.all([l2Promise, l4Promise]);
+  const [l2, l4, limitUpConsistency] = await Promise.all([l2Promise, l4Promise, consistencyPromise]);
 
   // L2 數據源狀態
   const today = getTodayDate(market);
@@ -273,7 +308,7 @@ async function getMarketHealth(
   };
 
   if (l1Result) {
-    return { ...l1Result, l2, l2Sources, l4 };
+    return { ...l1Result, l2, l2Sources, l4, limitUpConsistency };
   }
 
   return {
@@ -288,6 +323,7 @@ async function getMarketHealth(
     l2,
     l2Sources,
     l4,
+    limitUpConsistency,
   };
 }
 
