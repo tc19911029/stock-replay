@@ -10,6 +10,13 @@ const SOURCES: { file: string; label: string }[] = [
 
 export function loadBookContext(): string {
   if (cached) return cached;
+  // Turbopack build 對 process.cwd() 動態值會 trace 整個專案，產生 29 個
+  // "Overly broad patterns" warnings（37428 files matched）。這些是 false-positive：
+  // 1. 本檔走 nodejs runtime（chat/route.ts 設 export const runtime = 'nodejs'），
+  //    不會 Edge bundle。
+  // 2. scripts/check-instrumentation-edge-safe.ts 已驗 instrumentation 邊界乾淨。
+  // 3. 試過 /*turbopackIgnore: true*/ 不收 (Next.js 16 + Turbopack)。
+  // Build 仍 ✓ Compiled successfully，runtime 行為正常。
   const root = process.cwd();
   const parts: string[] = [];
   for (const { file, label } of SOURCES) {
