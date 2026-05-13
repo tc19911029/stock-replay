@@ -150,7 +150,7 @@ export default function HomePage() {
     (tab: SideTab) => setSideTabPerInterval(prev => ({ ...prev, [currentInterval]: tab })),
     [currentInterval],
   );
-  // P0-3: hide indicator subcharts by default on mobile
+  // 副圖（成交量/KD/MACD/籌碼）預設展開：成交量是書本核心訊息（量1.5×/過大量黑K），不該被視窗寬度藏起來
   const [showIndicators, setShowIndicators] = useState(true);
   // P1-5: keyboard shortcut help overlay
   const [showHelp, setShowHelp] = useState(false);
@@ -210,12 +210,6 @@ export default function HomePage() {
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [handleKey]);
-
-  // Mobile check for indicators (runs after mount)
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (typeof window !== 'undefined' && window.innerWidth < 768) setShowIndicators(false);
-  }, []);
 
   const [hoverCandle, setHoverCandle] = useState<typeof allCandles[0] | null>(null);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
@@ -538,6 +532,10 @@ export default function HomePage() {
               />
             )}
 
+            {/* Chart area: toolbar 高度可變，這層 flex-1 確保主圖 height: 65% 是「chart 區」而不是「整個 panel」的 65%，
+                避免 toolbar wrap 多行時主圖+分隔條把副圖擠成 0 高度（在窄寬度下成交量/KD/MACD 都會消失） */}
+            <div className="flex-1 flex flex-col min-h-0">
+
             {/* K 線圖 */}
             <div className={showIndicators ? 'shrink-0' : 'flex-1 min-h-0'} style={showIndicators ? { height: `${chartSplit * 100}%` } : undefined}>
               <ErrorBoundary>
@@ -604,6 +602,7 @@ export default function HomePage() {
                 </ErrorBoundary>
               </div>
             )}
+            </div>
           </div>
 
 
