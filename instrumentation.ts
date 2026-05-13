@@ -119,14 +119,14 @@ export async function register() {
     }
   }
 
-  // ── 盤後：買法 post_close 掃描（B/C/D/E/F/G/H/I 各自呼叫 scan-bm） ──
-  // TW：收盤後 14:10 CST（UTC+8 = 06:10 UTC），確保 L1 已下載
-  // CN：收盤後 16:10 CST（UTC+8 = 08:10 UTC），確保 L1 已下載
+  // ── 盤後：買法 post_close 掃描（scan-bm-batch 3 track）──
+  // 0513 ABCDE E：原本一字母一 cron 共 16 次 → 改成一 track 一 cron 共 3 次，
+  // 同 track 內字母共用 stockList / L2 / TurnoverRank / marketTrend / L1 cache，
+  // 比舊版省 ~7 倍前置時間（對應 scan-bm-batch route 設計）。
+  // TW：收盤後 14:10 CST（UTC+8 = 06:10 UTC）；CN：16:10 CST
+  type Track = 'bullish' | 'reversal' | 'system';
   const postCloseBmDone = { TW: '', CN: '' };
-  async function scanBuyMethodPostClose(
-    market: 'TW' | 'CN',
-    method: 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q',
-  ) {
+  async function scanPostCloseBatch(market: 'TW' | 'CN', track: Track) {
     const tz = market === 'TW' ? 'Asia/Taipei' : 'Asia/Shanghai';
     const nowLocal = new Date(new Date().toLocaleString('en-US', { timeZone: tz }));
     const todayLocal = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
@@ -137,22 +137,26 @@ export async function register() {
     const windowEnd = market === 'TW' ? 1700 : 1900;
     if (hhmm < windowStart || hhmm > windowEnd) return;
 
-    const key = `${market}-${method}`;
+    const key = `${market}-${track}`;
     const doneKey = `${todayLocal}-${key}`;
     if ((postCloseBmDone as Record<string, string>)[key] === doneKey) return;
     if (!isTradingDay(todayLocal, market)) return;
 
     (postCloseBmDone as Record<string, string>)[key] = doneKey;
-    console.log(`[local-cron] ${market} scan-bm ${method} post_close 啟動 (${todayLocal})...`);
+    console.log(`[local-cron] ${market} scan-bm-batch ${track} post_close 啟動 (${todayLocal})...`);
     const data = await callRoute(
-      `/api/cron/scan-bm?market=${market}&method=${method}`,
-      `${market} scan-bm ${method}`,
-    ) as { data?: { resultCount?: number; skipped?: boolean; reason?: string } } | null;
+      `/api/cron/scan-bm-batch?market=${market}&track=${track}`,
+      `${market} scan-bm-batch ${track}`,
+    ) as { data?: { results?: Record<string, unknown>; skipped?: boolean; reason?: string } } | null;
     const payload = data?.data ?? data ?? {};
     if ((payload as { skipped?: boolean }).skipped) {
-      console.log(`[local-cron] ${market} scan-bm ${method} 跳過：${(payload as { reason?: string }).reason}`);
+      console.log(`[local-cron] ${market} scan-bm-batch ${track} 跳過：${(payload as { reason?: string }).reason}`);
     } else {
-      console.log(`[local-cron] ${market} scan-bm ${method}: ${(payload as { resultCount?: number }).resultCount ?? -1} 檔`);
+      const results = (payload as { results?: Record<string, { resultCount?: number }> }).results ?? {};
+      const summary = Object.entries(results)
+        .map(([m, r]) => `${m}=${r.resultCount ?? '?'}`)
+        .join(' ');
+      console.log(`[local-cron] ${market} scan-bm-batch ${track}: ${summary}`);
     }
   }
 
@@ -301,12 +305,13 @@ export async function register() {
     appendL1FromSnapshot('CN').catch(err => console.error('[local-cron] CN appendL1FromSnapshot:', err));
   }, 5 * 60 * 1000);
 
-  // 盤後買法掃描：每分鐘檢查，時間窗口內對 B-I + J-Q（v12 字母）各觸發一次
-  // 2026-05-11 加 v12 字母（J/K/L/M/N/O/P/Q）— 之前只有 vercel.json scan-bm-batch 跑，本地 instrumentation 沒同步
+  // 盤後買法掃描：每分鐘檢查，時間窗口內對 3 個 track（bullish/reversal/system）各觸發一次
+  // 0513 ABCDE E：從一字母一 cron（16 calls）改成一 track 一 cron（3 calls），
+  // 跟 vercel.json 對齊（vercel cron 也用 scan-bm-batch）。
   setInterval(() => {
-    for (const method of ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'] as const) {
-      scanBuyMethodPostClose('TW', method).catch(err => console.error(`[local-cron] TW scan-bm ${method}:`, err));
-      scanBuyMethodPostClose('CN', method).catch(err => console.error(`[local-cron] CN scan-bm ${method}:`, err));
+    for (const track of ['bullish', 'reversal', 'system'] as const) {
+      scanPostCloseBatch('TW', track).catch(err => console.error(`[local-cron] TW scan-bm-batch ${track}:`, err));
+      scanPostCloseBatch('CN', track).catch(err => console.error(`[local-cron] CN scan-bm-batch ${track}:`, err));
     }
     scanPostCloseDaily('TW').catch(err => console.error('[local-cron] TW scan post_close:', err));
     scanPostCloseDaily('CN').catch(err => console.error('[local-cron] CN scan post_close:', err));
