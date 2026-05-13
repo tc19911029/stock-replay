@@ -38,6 +38,25 @@ Layer 4: 掃描結果層（複合主鍵，intraday vs post_close）
 精掃: 候選池讀 Blob 歷史K線 → 六條件+戒律+淘汰法（< 30 秒）
 ```
 
+## v12 字母 cron 分軌架構（0513 ABCDE E）
+
+買法掃描走「軌道分批」（不再一字母一 cron）：
+
+```
+盤後 post_close：/api/cron/scan-bm-batch?market=X&track=Y
+盤中 intraday：  /api/cron/update-intraday-bm-batch?market=X&track=Y
+```
+
+三軌（lib/scanner/buyMethodTracks.ts 單一事實來源）：
+- **bullish**: B/C/E/J/K/L/M/P（過 Step 1 池子）
+- **reversal**: D/F/N/O（全市場掃，不過 Step 1）
+- **system**: Q（戰法軌，過 Step 0 大盤但不過 Step 1）
+
+同 track 內字母共用 stockList / L2 / TurnoverRank / marketTrend / Step 1 池子，
+比舊版（一字母一 cron）省 ~5-7 倍前置時間。vercel.json cron 從 ~42 條 → 12 條。
+
+> 加新字母 / 改 track 分流必須同步更新 buyMethodTracks.ts + scan-parity 合約測試。
+
 ## 溝通慣例
 
 - **時區永遠是台灣 (CST, UTC+8)**。對話、log、cron 排程討論一律用 CST，不寫 UTC。
@@ -45,6 +64,30 @@ Layer 4: 掃描結果層（複合主鍵，intraday vs post_close）
   - 注意 `fetchedAt` 等 ISO 字串底層是 UTC，**讀取時務必 +8h** 才是台灣時間（曾因此誤判 0505 凌晨 01:14 抓到的 mislabel snapshot）。
   - `vercel.json` cron 表達式是 UTC（Vercel 平台規定），例如 `"0 10 * * 1-5"` = CST 18:00。
   - 本地 launchd plist 的 Hour 是機器 local time，台灣機器直接寫 CST 數字（18 = 18:00 CST）。
+
+## 健康監控（0513 ABCDE E）
+
+- **資料健康狀態頁**：`/health`（L1 覆蓋率 / L2 fresh / L4 scan / limit-up consistency 紅綠燈）
+- **每日快照 cron**：`/api/cron/daily-health-snapshot`（盤後固化到 `data/health-snapshot/`）
+- **Webhook 警示**：紅燈時 POST 到 `HEALTH_ALERT_WEBHOOK_URL`（env 設定即啟用；
+  Slack/Discord/ntfy.sh 都吃；payload = `{ text, level, dateKey, markets }`）
+- **L1 invariant 每日 audit**：`scripts/audit-l1-invariant.ts` + launchd plist
+  09:00 CST 自動跑（>100 violations 自動 alert）
+
+## 測試金字塔
+
+```
+762 unit tests (Jest)        — detector / SOP / store
+ 17 contract tests           — scan-parity / cross-source
+ 16 e2e tests (Playwright)   — chart locked / lockwatch flow / hydration
+─────────────────────────────
+795 total, tsc clean, 全綠
+```
+
+- `npm test`：跑全部 Jest 單元 + 合約測試
+- `npm run test:contracts`：只跑合約（最快）
+- `npm run test:e2e`：跑 Playwright（需 dev server 已起）
+- `npm run smoke`：server-side smoke test（9 paths）
 
 ## ETF 持股資料規則（避免 mislabel）
 
