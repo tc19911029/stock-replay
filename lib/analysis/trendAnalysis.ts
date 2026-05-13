@@ -1,6 +1,6 @@
 import { CandleWithIndicators } from '@/types';
 import type { StrategyThresholds } from '@/lib/strategy/StrategyConfig';
-import { BOOK_VOL_RATIO_MIN } from './bookThresholds';
+import { BOOK_VOL_RATIO_MIN, MA20_WARN_DEVIATION_PCT } from './bookThresholds';
 import { detectExtraHighWinPositions, detectPullbackBuy, detectRangeBreakout } from './highWinPositions';
 import { detectVolumePriceDivergence, detectHighPeakVolume, detectChokingVolume } from './volumePatterns';
 import { detectMacdOsc7, isKdHighSaturated, detectKdPeakDivergence } from './indicatorPatterns';
@@ -545,8 +545,8 @@ export function evaluateSixConditions(
   // Tier B 書本警示 tag（不擋 gate，僅顯示資訊）—— 讓用戶看到書本其他訊號
   const warnings: string[] = [];
 
-  // MA20 乖離警示（書本 p.568「盡量避免追高」）
-  if (ma20Dev !== null && ma20Dev > 0.12) {
+  // MA20 乖離警示（書本 p.568「盡量避免追高」— 未量化，MA20_WARN_DEVIATION_PCT 自創）
+  if (ma20Dev !== null && ma20Dev > MA20_WARN_DEVIATION_PCT) {
     warnings.push(`⚠️ MA20乖離${(ma20Dev*100).toFixed(1)}%追高警示(書p.568)`);
   }
   // 量價背離（書本 p.500-506）

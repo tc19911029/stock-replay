@@ -18,7 +18,13 @@
  */
 import { CandleWithIndicators } from '@/types';
 import { detectTrend, findPivots } from './trendAnalysis';
-import { BOOK_BODY_PCT_MIN, BOOK_VOL_RATIO_MIN } from './bookThresholds';
+import {
+  BOOK_BODY_PCT_MIN,
+  BOOK_VOL_RATIO_MIN,
+  MA_CLUSTER_MAX_SPREAD,
+  CONSOL_MAX_TIGHTNESS,
+  C_NECKLINE_MAX_UPWARD_RATIO,
+} from './bookThresholds';
 
 /** 紅 K 實體 % 門檻（書本 2.0% → ratio 形式 0.02 給內部 ratio 比較用）*/
 const BODY_PCT_RATIO_MIN = BOOK_BODY_PCT_MIN / 100;
@@ -195,7 +201,7 @@ export function detectMaClusterBreak(
   // 當日三線聚合
   const maMax = Math.max(c.ma5, c.ma10, c.ma20);
   const maMin = Math.min(c.ma5, c.ma10, c.ma20);
-  if ((maMax - maMin) / c.close >= 0.03) return false;
+  if ((maMax - maMin) / c.close >= MA_CLUSTER_MAX_SPREAD) return false;
 
   // 過去 5 天也聚合（確認是盤整糾結，不是瞬間交叉）
   if (index < 5) return false;
@@ -204,7 +210,7 @@ export function detectMaClusterBreak(
   const prevSpread =
     (Math.max(prev5.ma5, prev5.ma10, prev5.ma20) -
       Math.min(prev5.ma5, prev5.ma10, prev5.ma20)) / prev5.close;
-  if (prevSpread >= 0.03) return false;
+  if (prevSpread >= MA_CLUSTER_MAX_SPREAD) return false;
 
   // 當日紅K 實體 ≥2%
   if (c.close <= c.open) return false;
@@ -213,7 +219,7 @@ export function detectMaClusterBreak(
 
   // 當日攻擊量（≥ 5 日均量 × 1.3）
   const avgVol5 = c.avgVol5;
-  if (!avgVol5 || c.volume < avgVol5 * 1.3) return false;
+  if (!avgVol5 || c.volume < avgVol5 * BOOK_VOL_RATIO_MIN) return false;
 
   // 收盤突破糾結帶上緣
   return c.close > maMax;
@@ -460,7 +466,7 @@ export function detectRangeBreakout(
   if (isUptrend) return null;
 
   // 上頸線不大幅上揚
-  if (highs[0].price > highs[1].price * 1.05) return null;
+  if (highs[0].price > highs[1].price * C_NECKLINE_MAX_UPWARD_RATIO) return null;
 
   // 頸線線性插值
   const upperAt = (i: number): number => {
@@ -480,7 +486,7 @@ export function detectRangeBreakout(
   if (upperToday <= lowerToday) return null;
 
   const tightness = (upperToday - lowerToday) / lowerToday;
-  if (tightness > 0.15) return null;
+  if (tightness > CONSOL_MAX_TIGHTNESS) return null;
 
   // 首次突破：昨收 < 上頸線
   const upperYesterday = upperAt(index - 1);

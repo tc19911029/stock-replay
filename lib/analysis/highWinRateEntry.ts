@@ -24,7 +24,13 @@ import {
   detectStrongPullbackResume,
   detectFalseBreakRebound,
 } from '@/lib/analysis/highWinPositions';
-import { BOOK_BODY_PCT_MIN, BOOK_VOL_RATIO_MIN } from './bookThresholds';
+import {
+  BOOK_BODY_PCT_MIN,
+  BOOK_VOL_RATIO_MIN,
+  CONSOL_MAX_TIGHTNESS,
+  FLATBOTTOM_MAX_LOOKBACK,
+  FLATBOTTOM_MIN_CONSOL_DAYS,
+} from './bookThresholds';
 import { FLATBOTTOM_MIN_HISTORY } from './historyMinimums';
 
 /** 高勝率進場位置類型 */
@@ -122,17 +128,12 @@ export function detectStrategyE(
   if (c.close <= ma5 || c.close <= ma10 || c.close <= ma20) return null;
 
   // ── 步驟2: 往前掃描盤整區間 ──
-  // 從 idx-1 往前，用滾動20天窗口檢查收盤價高低差 < 8%
-  // ⚠️ 自創常數（書本無明確值）— 0513 ABCDE D 標自創
-  // MAX_LOOKBACK: 一字底盤整最多回看 120 天（合理上界）
-  // MIN_CONSOLIDATION: 至少 40 天盤整才算「打底完成」（對應抓住飆股 25 型態 #9 「長期盤整」精神）
-  // 未來搬到 bookThresholds.ts 集中管理
-  const MAX_LOOKBACK = 120;
-  const MIN_CONSOLIDATION = 40;
-  let consolStart = idx - 1; // 盤整起始索引（往前推）
+  // 從 idx-1 往前，用滾動 20 天窗口檢查收盤價 spread
+  // FLATBOTTOM_MIN_CONSOL_DAYS / FLATBOTTOM_MAX_LOOKBACK / CONSOL_MAX_TIGHTNESS
+  // 都對齊 bookThresholds 自創區（書本沒給具體 %，集中管理）。
+  let consolStart = idx - 1;
 
-  for (let i = idx - 1; i >= Math.max(1, idx - MAX_LOOKBACK); i--) {
-    // 滾動窗口：從 i 往前看 20 天
+  for (let i = idx - 1; i >= Math.max(1, idx - FLATBOTTOM_MAX_LOOKBACK); i--) {
     const windowStart = Math.max(0, i - 19);
     const window = candles.slice(windowStart, i + 1);
     if (window.length < 10) break;
@@ -143,16 +144,12 @@ export function detectStrategyE(
     if (minC <= 0) break;
     const spread = (maxC - minC) / minC;
 
-    // ⚠️ 自創 padding（書本沒明寫量化）— 0513 ABCDE D 標自創
-    // 窄幅閾值 15%：朱家泓書+網路均無具體值（只寫「狹幅、很小」）
-    // 2026-05-09 從 8% 放寬到 15%，跟條件 ③ rangeBreakout tightness 統一數字
-    // 未來搬到 bookThresholds.CONSOL_SPREAD_MAX
-    if (spread >= 0.15) break;
+    if (spread >= CONSOL_MAX_TIGHTNESS) break;
     consolStart = i;
   }
 
   const consolidationDays = (idx - 1) - consolStart + 1;
-  if (consolidationDays < MIN_CONSOLIDATION) return null;
+  if (consolidationDays < FLATBOTTOM_MIN_CONSOL_DAYS) return null;
 
   // ── 步驟3: 計算上下頸線 ──
   const consolCandles = candles.slice(consolStart, idx);

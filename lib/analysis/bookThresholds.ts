@@ -78,6 +78,25 @@ export const TRUE_BREAKOUT_PCT = 0.03;
 /** 兩 pivot low 之間最少間隔天數（避免軌道線太陡）*/
 export const CHANNEL_MIN_PIVOT_GAP_DAYS = 5;
 
+// ── 均線糾結/盤整 tightness（書本未量化 — 自創）────────────────────────────
+//
+// 朱家泓「均線糾結突破」（Part 4 p.299-303）+「狹幅盤整 5-6 天」（Part 4 p.299）
+// 書本都只用「狹幅 / 糾結 / 緊密」等模糊詞，沒給具體 %。下列常數為實作合理上界，
+// 改動會影響選股鬆緊，但不違反書本本意。
+//
+// ⚠️ 自創 — 0513 ABCDE D-medium 集中管理。
+
+/** 三線聚合最大 spread (max(MA5,10,20)-min) / close 上限（自創 3%）*/
+export const MA_CLUSTER_MAX_SPREAD = 0.03;
+/** 區間盤整（C/E 一字底/range breakout）狹幅 tightness 上限（自創 15%）*/
+export const CONSOL_MAX_TIGHTNESS = 0.15;
+/** C 盤整突破：上頸線不大幅上揚（新高 ≤ 舊高 × ratio，自創 1.05）*/
+export const C_NECKLINE_MAX_UPWARD_RATIO = 1.05;
+/** D 一字底盤整回看最大天數（自創 120）*/
+export const FLATBOTTOM_MAX_LOOKBACK = 120;
+/** MA20 乖離警示 %（自創 12%，書本 p.568「盡量避免追高」未量化）*/
+export const MA20_WARN_DEVIATION_PCT = 0.12;
+
 // ── N：25 型態確認（抓住飆股）─────────────────────────────────────────────
 
 /** 三重底/三重頂價位容差 % */
