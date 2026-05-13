@@ -44,6 +44,18 @@ const INDEX_NAMES: Record<string, string> = {
 
 /** 解析 symbol 並加上交易所後綴 */
 function resolveSymbol(symbol: string): { ticker: string; candidates: string[]; isTW: boolean; isCN: boolean } {
+  // 指數 symbols：走本地檔案路徑（與一般個股共用 loadLocalCandlesWithTolerance）
+  // TW 指數：^TWII（加權指數）
+  // CN 指數：000001.SS（上證指數）、000300.SS（滬深 300）
+  // 注意：000001.SS 必須優先匹配為 CN 指數，避免被 /^\d{6}\.(SZ|SS)$/ 一般 CN 路徑搶走後加錯 fallback
+  if (symbol === '^TWII') {
+    return { ticker: '^TWII', candidates: ['^TWII'], isTW: true, isCN: false };
+  }
+  if (/^\d{6}\.SS$/i.test(symbol) && (symbol.startsWith('000001') || symbol.startsWith('000300'))) {
+    const upper = symbol.toUpperCase();
+    return { ticker: upper, candidates: [upper], isTW: false, isCN: true };
+  }
+
   const isTW = /^\d{4,5}[A-Za-z]?$/.test(symbol) || /^\d{4,5}[A-Za-z]?\.(TW|TWO)$/i.test(symbol);
   const isCN = /^\d{6}$/.test(symbol) || /^\d{6}\.(SZ|SS)$/i.test(symbol);
   const pureCode = symbol.replace(/\.(SZ|SS|TW|TWO)$/i, '');

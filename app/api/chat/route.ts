@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { recordUsage } from '@/lib/ai/costTracker';
+import { loadBookContext } from '@/lib/ai/bookContextLoader';
 
 const chatBodySchema = z.object({
   messages: z.array(z.object({
@@ -178,11 +179,8 @@ export async function POST(req: NextRequest) {
     }
     const { messages, context } = parsed.data;
 
-    const systemWithContext = context
-      ? `${SYSTEM_PROMPT}\n\n## 當前走圖情境：\n${context}`
-      : SYSTEM_PROMPT;
-
-    // 優先使用 MiniMax（Anthropic-compatible endpoint），fallback 回 Anthropic 原生
+    // 後端走 MiniMax（你的 Claude Code Terminal 本來就是 MiniMax 包裝 + Anthropic-compatible endpoint）
+    // 書本 docs 注入 system prompt（MiniMax 不支援 prompt caching，整段每次重送）
     const minimaxKey = process.env.MINIMAX_API_KEY;
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
     const apiKey = minimaxKey || anthropicKey;
@@ -190,14 +188,16 @@ export async function POST(req: NextRequest) {
       return new Response('❌ 伺服器未設定 MINIMAX_API_KEY 或 ANTHROPIC_API_KEY', { status: 500 });
     }
     const useMinimax = !!minimaxKey;
-    // MiniMax 大陸版用 api.minimax.chat（用戶 key 對應大陸版帳號）
-    // 國際版是 api.minimax.io；如未來換國際版 key，可改用環境變數 MINIMAX_BASE_URL 切換
     const minimaxBaseURL = process.env.MINIMAX_BASE_URL ?? 'https://api.minimax.chat/anthropic';
     const client = new Anthropic({
       apiKey,
       ...(useMinimax ? { baseURL: minimaxBaseURL } : {}),
     });
     const model = useMinimax ? 'MiniMax-M2.7' : 'claude-sonnet-4-6';
+
+    const systemWithContext = context
+      ? `${SYSTEM_PROMPT}\n\n${loadBookContext()}\n\n## 當前走圖情境：\n${context}`
+      : `${SYSTEM_PROMPT}\n\n${loadBookContext()}`;
 
     const encoder = new TextEncoder();
 
@@ -220,7 +220,6 @@ export async function POST(req: NextRequest) {
             }
           }
 
-          // COST-01: Record token usage after stream completes
           const final = await stream.finalMessage();
           if (final.usage) {
             recordUsage(
@@ -235,7 +234,7 @@ export async function POST(req: NextRequest) {
           controller.close();
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
-          console.error('Anthropic stream error:', msg);
+          console.error('LLM stream error:', msg);
           controller.enqueue(encoder.encode(`❌ ${msg}`));
           controller.close();
         }
@@ -247,6 +246,7 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'text/plain; charset=utf-8',
         'Cache-Control': 'no-cache, no-transform',
         'X-Accel-Buffering': 'no',
+        'X-Zhu-Backend': useMinimax ? 'minimax' : 'anthropic',
       },
     });
   } catch (err) {

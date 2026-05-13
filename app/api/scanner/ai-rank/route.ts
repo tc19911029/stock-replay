@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
   try {
     const client = new Anthropic({ apiKey });
     const msg = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1024,
       system: systemPrompt,
       messages: [{ role: 'user', content: `以下是今日${market === 'CN' ? '中國A股' : '台灣股市'}掃描結果，請排名飆股潛力：\n\n${stockSummary}` }],
