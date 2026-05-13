@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { getBullBearColors } from '@/lib/chart/colors';
+import { KD_OVERBOUGHT, KD_OVERSOLD } from '@/lib/analysis/bookThresholds';
 import {
   createChart,
   IChartApi,
@@ -265,10 +266,10 @@ function KDChart({ candles, hoverCandle }: { candles: CandleWithIndicators[]; ho
     dRef.current.setData(candles.map(c => ({ time: toTime(c.date), value: safeKD(c.kdD) })));
     if (kMarkRef.current) {
       const dots: SeriesMarker<Time>[] = candles
-        .filter(c => c.kdK != null && (c.kdK >= 80 || c.kdK <= 20))
+        .filter(c => c.kdK != null && (c.kdK >= KD_OVERBOUGHT || c.kdK <= KD_OVERSOLD))
         .map(c => ({
           time: toTime(c.date), position: 'inBar' as const, shape: 'circle' as const,
-          color: c.kdK! >= 80 ? kdBull : kdBear, size: 0.5,
+          color: c.kdK! >= KD_OVERBOUGHT ? kdBull : kdBear, size: 0.5,
         }));
       kMarkRef.current.setMarkers(dots);
     }

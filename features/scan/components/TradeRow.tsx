@@ -3,6 +3,11 @@
 import Link from 'next/link';
 import { BacktestTrade } from '@/lib/backtest/BacktestEngine';
 import { retColor, fmtRet, chipTooltip } from '../utils';
+import {
+  CHIP_SCORE_STRONG, CHIP_SCORE_MEDIUM,
+  CHIP_GRADE_S, CHIP_GRADE_A, CHIP_GRADE_B, CHIP_GRADE_C,
+  COMPOSITE_WEIGHTS,
+} from '@/lib/analysis/bookThresholds';
 
 // ── Pure badge helpers ─────────────────────────────────────────────────────────
 
@@ -39,9 +44,9 @@ export function exitBadge(reason: string) {
 
 export function chipBadge(score: number | undefined, grade: string | undefined, signal: string | undefined, tooltip: string) {
   if (score == null) return <span className="text-[10px] text-muted-foreground/60">—</span>;
-  const colorClass = score >= 70 ? 'bg-green-900/60 text-green-300' : score >= 50 ? 'bg-yellow-900/60 text-yellow-300' : 'bg-red-900/60 text-red-300';
+  const colorClass = score >= CHIP_SCORE_STRONG ? 'bg-green-900/60 text-green-300' : score >= CHIP_SCORE_MEDIUM ? 'bg-yellow-900/60 text-yellow-300' : 'bg-red-900/60 text-red-300';
   const icon = signal === '主力進場' ? '🟢' : signal === '法人偏多' ? '🔵' : signal === '大戶加碼' ? '🟡' : signal === '主力出貨' ? '🔴' : signal === '散戶追高' ? '⚠️' : signal === '法人偏空' ? '🟠' : '';
-  const gradeDesc = grade === 'S' ? 'S(80+)主力強力買超' : grade === 'A' ? 'A(65-79)法人偏多' : grade === 'B' ? 'B(50-64)中性' : grade === 'C' ? 'C(35-49)法人偏空' : 'D(<35)主力出貨';
+  const gradeDesc = grade === 'S' ? `S(${CHIP_GRADE_S}+)主力強力買超` : grade === 'A' ? `A(${CHIP_GRADE_A}-${CHIP_GRADE_S - 1})法人偏多` : grade === 'B' ? `B(${CHIP_GRADE_B}-${CHIP_GRADE_A - 1})中性` : grade === 'C' ? `C(${CHIP_GRADE_C}-${CHIP_GRADE_B - 1})法人偏空` : `D(<${CHIP_GRADE_C})主力出貨`;
   const fullTooltip = `籌碼評分 ${score}分 ${gradeDesc}\n信號：${signal || '中性'}\n\n${tooltip}`;
   return <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${colorClass}`} title={fullTooltip}>{icon}{grade}</span>;
 }
@@ -76,7 +81,14 @@ export function calcTradeComposite(t: BacktestTrade, scanResults?: ScanRow[]): n
       (flags.includes('NEW_60D_HIGH') ? 20 : 0) +
       (flags.includes('VOLUME_CLIMAX') ? 20 : 0)
     );
-    return Math.round((sixCon * 0.30 + surge * 0.20 + winR * 0.25 + posBonus * 0.10 + volBonus * 0.10 + Math.min(100, breakoutBonus) * 0.05) * 10) / 10;
+    return Math.round((
+      sixCon * COMPOSITE_WEIGHTS.sixCon +
+      surge * COMPOSITE_WEIGHTS.surge +
+      winR * COMPOSITE_WEIGHTS.winRate +
+      posBonus * COMPOSITE_WEIGHTS.position +
+      volBonus * COMPOSITE_WEIGHTS.volume +
+      Math.min(100, breakoutBonus) * COMPOSITE_WEIGHTS.breakout
+    ) * 10) / 10;
   }
   const sixCon = (t.signalScore / 6) * 100;
   const winR   = t.histWinRate ?? 50;

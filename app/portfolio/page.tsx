@@ -10,6 +10,11 @@ import { classifyMarket } from '@/lib/market/classify';
 import { calcNetPnL, formatPrice } from '@/lib/portfolio/fees';
 import { formatSharesAsLots, marketFromSymbol } from '@/lib/utils/shareUnits';
 
+/** 取得 CST (Asia/Taipei) 今天日期字串 YYYY-MM-DD — 避免 toISOString() 在 UTC 凌晨回退前一天 */
+function todayCST(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
+}
+
 interface PriceData {
   price: number;
   changePercent: number;
@@ -25,10 +30,10 @@ const EMPTY_FORM = {
   name: '',
   shares: '',
   costPrice: '',
-  buyDate: new Date().toISOString().split('T')[0],
+  buyDate: todayCST(),
   // v12 Step 3-5 訊號計算需要的欄位
   triggerSignal: '' as '' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q',
-  operationMode: 'short' as 'short' | 'long' | 'wave',
+  operationMode: 'short' as 'short' | 'long',
 };
 
 
@@ -39,10 +44,18 @@ export default function PortfolioPage() {
   const [formLoading, setFormLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  // 議題 C2：LockWatchPanel 帶來的 entryPattern 暫存；add() 時寫入 holding
+  const [prefilledEntryPattern, setPrefilledEntryPattern] = useState<{
+    patternType: string;
+    necklinePrice: number;
+    targetPrice: number;
+    stopPrice?: number;
+    kind: 'bottom' | 'top';
+  } | null>(null);
 
-  // ── LockWatch → Portfolio prefill 整合（議題 62）─────────────────────
-  // URL: /portfolio?prefill=2330&trigger=N&price=507.44
-  // 來自 LockWatchPanel 🛒 按鈕，自動帶入 v12 欄位
+  // ── LockWatch → Portfolio prefill 整合（議題 62 + C2）─────────────────
+  // URL: /portfolio?prefill=2330&trigger=N&price=507.44&patternType=...&neckline=...&target=...&stop=...
+  // 來自 LockWatchPanel 進場按鈕，自動帶入 v12 欄位 + 凍結 entryPattern
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const prefill = params.get('prefill');
@@ -55,6 +68,21 @@ export default function PortfolioPage() {
         costPrice: price ?? '',
         triggerSignal: (trigger as typeof EMPTY_FORM.triggerSignal) ?? '',
       });
+      // 議題 C2：撈帶來的型態 4 欄位（patternType/neckline/target/stop）凍結
+      const patternType = params.get('patternType');
+      const neckline = params.get('neckline');
+      const target = params.get('target');
+      const stop = params.get('stop');
+      if (patternType && neckline && target) {
+        const TOP_PATTERNS = new Set(['head-shoulder-top', 'triple-top', 'double-top']);
+        setPrefilledEntryPattern({
+          patternType,
+          necklinePrice: Number(neckline),
+          targetPrice: Number(target),
+          stopPrice: stop ? Number(stop) : undefined,
+          kind: TOP_PATTERNS.has(patternType) ? 'top' : 'bottom',
+        });
+      }
       setShowForm(true);
       // 清除 URL params 避免 refresh 時重填
       const cleanUrl = window.location.pathname;
@@ -121,7 +149,7 @@ export default function PortfolioPage() {
   function cancelForm() {
     setShowForm(false);
     setEditId(null);
-    setForm({ ...EMPTY_FORM, buyDate: new Date().toISOString().split('T')[0] });
+    setForm({ ...EMPTY_FORM, buyDate: todayCST() });
   }
 
   async function autoFillCostPrice() {
@@ -167,7 +195,7 @@ export default function PortfolioPage() {
           operationMode: form.operationMode,
         });
         setEditId(null);
-        setForm({ ...EMPTY_FORM, buyDate: new Date().toISOString().split('T')[0] });
+        setForm({ ...EMPTY_FORM, buyDate: todayCST() });
         setShowForm(false);
         return;
       }
@@ -215,7 +243,10 @@ export default function PortfolioPage() {
         buyDate: form.buyDate,
         triggerSignal: form.triggerSignal === '' ? undefined : form.triggerSignal,
         operationMode: form.operationMode,
+        // 議題 C2：凍結進場時的型態 → Step 5 停利目標日後不重算
+        ...(prefilledEntryPattern ? { entryPattern: prefilledEntryPattern } : {}),
       });
+      setPrefilledEntryPattern(null);
       // v12 議題 62：若進場訊號為 F/N，呼叫 LockWatch mark-purchased 標 stage='purchased'
       if (form.triggerSignal === 'F' || form.triggerSignal === 'N') {
         const market = /\.(SS|SZ)$/i.test(resolvedSymbol) ? 'CN' : 'TW';
@@ -233,7 +264,7 @@ export default function PortfolioPage() {
         } catch { /* non-blocking */ }
       }
       if (resolvedPrice > 0) setPrices(prev => ({ ...prev, [resolvedSymbol]: { price: resolvedPrice, changePercent: resolvedChangePct, loading: false } }));
-      setForm({ ...EMPTY_FORM, buyDate: new Date().toISOString().split('T')[0] });
+      setForm({ ...EMPTY_FORM, buyDate: todayCST() });
       setShowForm(false);
     } finally {
       setFormLoading(false);
@@ -287,7 +318,7 @@ export default function PortfolioPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `portfolio_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `portfolio_${todayCST()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -430,7 +461,6 @@ export default function PortfolioPage() {
                   >
                     <option value="short">短線（依字母對應均線）</option>
                     <option value="long">長線（統一 MA20）</option>
-                    <option value="wave">波段（trailing）</option>
                   </select>
                   <p className="text-[10px] text-muted-foreground/70 mt-1">獲利 ≥10% 後可手動切長線</p>
                 </div>

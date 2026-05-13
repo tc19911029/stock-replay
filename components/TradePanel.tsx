@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useReplayStore } from '@/store/replayStore';
 import { maxBuyShares } from '@/lib/engines/tradeEngine';
 import { formatSharesAsLots, marketFromSymbol } from '@/lib/utils/shareUnits';
+import { SCORE_COLOR_GOLD, SCORE_COLOR_BLUE, STOP_LOSS_PRICE_MULT } from '@/lib/analysis/bookThresholds';
 
 type Mode = 'percent' | 'shares' | 'amount';
 type Confirm = { action: 'buy' | 'sell'; shares: number; price: number } | null;
@@ -25,7 +26,7 @@ export default function TradePanel() {
   const maxBuy = maxBuyShares(metrics.cash, currentPrice);
 
   const ma5StopLoss  = currentCandle?.ma5 ?? null;
-  const costStopLoss = metrics.avgCost > 0 ? +(metrics.avgCost * 0.93).toFixed(2) : null;
+  const costStopLoss = metrics.avgCost > 0 ? +(metrics.avgCost * STOP_LOSS_PRICE_MULT).toFixed(2) : null;
   const stopLossPrice = ma5StopLoss != null && costStopLoss != null
     ? Math.max(ma5StopLoss, costStopLoss)
     : (ma5StopLoss ?? costStopLoss);
@@ -284,8 +285,8 @@ export default function TradePanel() {
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-foreground/80">策略條件</span>
             <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
-              sixConditions.totalScore >= 5 ? 'bg-amber-500/20 text-amber-400' :
-              sixConditions.totalScore >= 4 ? 'bg-emerald-500/20 text-emerald-400' :
+              sixConditions.totalScore >= SCORE_COLOR_GOLD ? 'bg-amber-500/20 text-amber-400' :
+              sixConditions.totalScore >= SCORE_COLOR_BLUE ? 'bg-emerald-500/20 text-emerald-400' :
               sixConditions.totalScore >= 3 ? 'bg-sky-500/20 text-sky-400' :
               'bg-secondary text-muted-foreground'
             }`}>

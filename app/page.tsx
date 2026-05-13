@@ -24,6 +24,7 @@ import { PageShell, EmptyState } from '@/components/shared';
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import SignalSummaryCard from '@/components/SignalSummaryCard';
 import { useV12HistoricalMarkers } from '@/lib/hooks/useV12HistoricalMarkers';
+import { useLockedPattern } from '@/lib/hooks/useLockedPattern';
 import SixConditionsPanel from '@/components/SixConditionsPanel';
 import BuyMethodConditionsPanel from '@/components/BuyMethodConditionsPanel';
 import ChipDetailPanel from '@/components/ChipDetailPanel';
@@ -52,11 +53,13 @@ const IndicatorCharts = dynamic(() => import('@/components/IndicatorCharts'), { 
 
 type SideTab = 'conditions' | 'signals' | 'chip' | 'chat';
 
-/** 根據 activeBuyMethod 切換渲染：A 走六條件，其他走買法條件面板 */
+/** 根據 activeBuyMethod 切換渲染：A 走六條件，其他走買法條件面板。
+ *  v11 G/H/I 自動轉 v12 J/L/K（用戶 0512 決議只留 v12） */
 function ConditionsPanelSwitch() {
   const method = useBacktestStore(s => s.activeBuyMethod);
   if (method === 'A') return <SixConditionsPanel />;
-  return <BuyMethodConditionsPanel method={method} />;
+  const v12Method = method === 'G' ? 'J' : method === 'H' ? 'L' : method === 'I' ? 'K' : method;
+  return <BuyMethodConditionsPanel method={v12Method} />;
 }
 
 export default function HomePage() {
@@ -93,6 +96,9 @@ export default function HomePage() {
     () => allCandles.length > 0 && currentIndex >= 20 ? detectTrend(allCandles, currentIndex) : null,
     [allCandles, currentIndex],
   );
+
+  // 鎖股觀察紀錄 → 走圖型態 chip 穩定來源（hooks/useLockedPattern）
+  const { lockedPattern } = useLockedPattern(currentStock?.ticker);
 
   useEffect(() => { initData(); }, [initData]);
 
@@ -558,6 +564,7 @@ export default function HomePage() {
                   showNeckline={showNeckline}
                   showPattern={showPattern}
                   highlightDate={targetDate ?? undefined}
+                  lockedPattern={lockedPattern}
                 />
               </ErrorBoundary>
             </div>
@@ -811,6 +818,7 @@ export default function HomePage() {
                       showNeckline={showNeckline}
                       showPattern={showPattern}
                       highlightDate={targetDate ?? undefined}
+                      lockedPattern={lockedPattern}
                     />
                   </ErrorBoundary>
                 </div>

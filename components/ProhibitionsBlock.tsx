@@ -34,8 +34,8 @@ export default function ProhibitionsBlock({ showWhenClean = true }: Props) {
       <div className="mt-3 px-3 py-2 border-t border-border">
         <div className="flex items-center gap-1.5 text-[11px] text-emerald-400/80">
           <span>✓</span>
-          <span className="font-semibold">10 大戒律全過</span>
-          <span className="text-muted-foreground/70">— 無禁止進場條件</span>
+          <span className="font-semibold">戒律全過</span>
+          <span className="text-muted-foreground/70">— 無禁止進場條件（書本 10 大戒律：1/5/10 條由六條件 SOP 覆蓋）</span>
         </div>
       </div>
     );

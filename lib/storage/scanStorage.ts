@@ -1,5 +1,11 @@
 import { ScanSession, MarketId, ScanDirection, MtfMode } from '@/lib/scanner/types';
 import { isTradingDay } from '@/lib/utils/tradingDay';
+// 0512: v11 G/H/I 已被 normalizeMatchedMethods 自動轉成 v12 J/L/K
+import {
+  BULLISH_TRACK_LETTERS,
+  V11_TO_V12_LETTER,
+  normalizeMatchedMethods,
+} from '@/lib/scanner/buyMethodTracks';
 
 // ── Storage abstraction for scan sessions ────────────────────────────────────
 // Production (Vercel): uses Vercel Blob for durable persistence
@@ -599,14 +605,55 @@ export async function loadScanSession(
 
   try {
     const session = JSON.parse(raw) as ScanSession;
+    // 0512：載入後先 normalize matchedMethods（v11 G/H/I → v12 J/L/K）— 統一全 UI 只看 v12
+    if (Array.isArray(session.results)) {
+      for (const r of session.results) {
+        if (Array.isArray(r.matchedMethods) && r.matchedMethods.length > 0) {
+          r.matchedMethods = normalizeMatchedMethods(r.matchedMethods);
+        }
+      }
+    }
     // turnover filter 只適用 A（daily）session；B/C/D/E 掃全市場，不限 top500
     if (mtfMode === 'daily') {
       await applyTurnoverFilter(session, market);
+      if (!session.step1Filter) session.step1Filter = 'bypassed'; // daily session 設計上不過 Step 1
     } else if (BULLISH_LETTERS.has(mtfMode)) {
       // 多頭軌字母 (B/C/E/J/K/L/M/P) retro-filter：只保留仍在當日 Step 1 池子內的股票
       // 防 drift：池子被 cron 重跑 / 手動 scan / 回填 覆蓋後，凍結 session 不會 retro-filter
       // 結果：UI 會看到 leak。filter-on-read 是 belt-and-suspenders 防呆。
       await applyStep1Filter(session);
+    } else {
+      // 反轉軌（D/F/N/O）/ 戰法軌（Q）— 設計上不過 Step 1，但 UI 應提示「全市場掃」
+      if (!session.step1Filter) session.step1Filter = 'bypassed';
+      // 0512 修：反轉/戰法軌 session 內的 matchedMethods 若含多頭軌字母（B/C/E/J/K/L/M/P），
+      // 但 symbol 不在當日 Step 1 池子 → 從 matchedMethods 移除該字母
+      // 原因：用戶 600089 反饋「他不符合 step1 所以當然也不會是 step2 裡的回後買上漲」
+      await stripMultiTrackLeakFromMatched(session);
+      // 0512 修 #2：型態確認 (N) / V反轉 (F) / 打底完成 (O) / 一字底 (D) / 三均戰法 (Q) tab
+      // 應該只顯示「完整觸發」的股（matchedMethods 含該 session 字母）
+      // 不顯示 lockwatch-only pending-breakout（結構成立但沒過 ×3% 真突破）
+      // 那些 pending 由「鎖股觀察」panel 獨立顯示（不污染掃描結果 tab）
+      // 用戶反饋：「型態確認不應該是要完成四個型態確認的條件才算嗎」
+      if (mtfMode && session.results && session.results.length > 0) {
+        const before = session.results.length;
+        session.results = session.results.filter(r =>
+          Array.isArray(r.matchedMethods) && r.matchedMethods.includes(mtfMode as string),
+        );
+        session.resultCount = session.results.length;
+        if (session.results.length < before) {
+          console.info(
+            `[scanStorage] 反轉/戰法軌 lockwatch-only 過濾: ${market}/${mtfMode}/${session.date} ${before} → ${session.results.length}`,
+          );
+        }
+      }
+      // 0512 修 #3：sticky-pattern fix
+      // 從 lockwatch 補進「pending 已升級為 observation/entry-signal/purchased」的股
+      // 例：2408 5/5 鎖圓弧底 pending → 5/6 close 282 ≥ 鎖定 neckline×1.03 → lockwatch 升級
+      // 但 fresh N detector 5/6 沒抓到（pivot 重組改判頭肩底），所以 N scan 沒它
+      // sticky fix：lockwatch 升級的股直接補進 N tab（用 locked neckline 而非 fresh re-detect）
+      if (mtfMode === 'N' || mtfMode === 'F') {
+        await augmentReversalWithPromotedLockwatch(session, mtfMode as 'N' | 'F');
+      }
     }
     return session;
   } catch {
@@ -614,24 +661,154 @@ export async function loadScanSession(
   }
 }
 
-/** 多頭軌字母（書本 8 個進場位置）— 必須過 Step 1 池子才能進場 */
-const BULLISH_LETTERS = new Set<MtfMode>(['B', 'C', 'E', 'J', 'K', 'L', 'M', 'P']);
-
 /**
- * 多頭軌 letter session 的 retro-filter：丟掉不在當日 Step 1 池子的結果
+ * 反轉/戰法軌 session 載入時，把每筆 result 的 matchedMethods 中**不在當日 Step 1 池**的
+ * 多頭軌字母剝掉 — 對齊「多頭軌 = Step 1 ∩ detector 觸發」語意。
  *
- * 池子缺漏處理（保守）：
- *   - 池子不存在 → 不過濾（避免 cron 失敗時整版空白誤殺）
- *   - 池子存在但空 → 不過濾（abnormal state，不該讓 UI 全空）
- *
- * 副作用：mutate session.results + session.resultCount。沿用 applyTurnoverFilter pattern。
+ * 不剝反轉/戰法軌字母（D/F/N/O/Q）— 那些 by design 全市場掃。
  */
-async function applyStep1Filter(session: ScanSession): Promise<void> {
+async function stripMultiTrackLeakFromMatched(session: ScanSession): Promise<void> {
   if (!session.results || session.results.length === 0) return;
   try {
     const { loadStep1Pool } = await import('@/lib/scanner/step1Pool');
     const pool = await loadStep1Pool(session.market, session.date);
-    if (!pool || pool.symbols.length === 0) return;
+    if (!pool || pool.symbols.length === 0) return; // 池子缺漏 — 不剝，等池子回來再處理
+    const allowed = new Set(pool.symbols);
+    const bullishSet = new Set<string>([...BULLISH_TRACK_LETTERS, ...Object.keys(V11_TO_V12_LETTER)]);
+    for (const r of session.results) {
+      if (!Array.isArray(r.matchedMethods) || r.matchedMethods.length === 0) continue;
+      if (allowed.has(r.symbol)) continue; // 已在池子裡 — 多頭軌字母合法
+      const before = r.matchedMethods;
+      const filtered = before.filter(m => !bullishSet.has(m));
+      if (filtered.length !== before.length) r.matchedMethods = filtered;
+    }
+  } catch {
+    /* 池子讀失敗 — 保持原樣 */
+  }
+}
+
+/**
+ * 多頭軌字母（書本 8 個進場位置 + v11 alias G/H/I）— 必須過 Step 1 池子才能進場
+ *
+ * 0512 修：含 G/H/I 因為它們是 J/L/K 的 alias 用同 detector
+ * （若不含，舊 I scan 跟新 K scan 對同一檔股會給不同結果）
+ */
+const BULLISH_LETTERS = new Set<MtfMode>([
+  ...BULLISH_TRACK_LETTERS,
+  ...Object.keys(V11_TO_V12_LETTER),
+] as readonly MtfMode[]);
+
+/**
+ * Sticky-pattern fix：從 lockwatch 補進「pending 已升級為 observation/entry-signal/purchased」的股
+ *
+ * 場景：2408 5/5 鎖圓弧底 pending → 5/6 close 282 ≥ 鎖定 neckline × 1.03
+ * → updateLockWatch 升級 stage → 但 fresh N detector 5/6 沒抓到（pivot 重組改判頭肩底）
+ * → N scan 沒它 → 型態確認 tab 看不到
+ *
+ * 修法：載入 N/F session 時，從同日 lockwatch snapshot 撈出「升級紀錄」補進來，
+ * 用鎖定的 neckline/target 而非 fresh re-detect，sticky 對齊用戶心智模型。
+ */
+async function augmentReversalWithPromotedLockwatch(
+  session: ScanSession,
+  letter: 'N' | 'F',
+): Promise<void> {
+  try {
+    const { loadLockWatchSnapshot } = await import('@/lib/storage/lockWatchStorage');
+    const snap = await loadLockWatchSnapshot(session.market, session.date);
+    if (!snap || !Array.isArray(snap.records)) return;
+    const existing = new Set(session.results?.map(r => r.symbol) ?? []);
+    const PROMOTED = new Set(['observation', 'entry-signal', 'purchased']);
+
+    // 候選清單先決定，再 parallel 解中文名（lockwatch 沒存 name 欄位 — 不查會渲染成 code-only 卡片）
+    const candidates = snap.records.filter(r =>
+      r.triggerSignal === letter && PROMOTED.has(r.currentStage) && !existing.has(r.symbol),
+    );
+    if (candidates.length === 0) return;
+
+    const { getCNChineseName, getTWChineseName } = await import('@/lib/datasource/TWSENames');
+    const nameLookups = await Promise.all(candidates.map(async (r) => {
+      try {
+        const m = r.symbol.match(/^(\d+)\.(SS|SZ|TW|TWO)$/i);
+        const code = m?.[1] ?? r.symbol;
+        const market = m?.[2]?.toUpperCase();
+        if (market === 'SS' || market === 'SZ') {
+          return (await getCNChineseName(code, market)) ?? '';
+        }
+        if (market === 'TW' || market === 'TWO') {
+          return (await getTWChineseName(code)) ?? '';
+        }
+        return '';
+      } catch {
+        return '';
+      }
+    }));
+
+    let added = 0;
+    for (let i = 0; i < candidates.length; i++) {
+      const r = candidates[i];
+      session.results.push({
+        symbol: r.symbol,
+        name: nameLookups[i],
+        market: session.market,
+        price: r.currentClose ?? r.triggerPrice,
+        changePercent: 0,
+        volume: 0,
+        triggeredRules: [],
+        matchedMethods: [letter],
+        sixConditionsScore: 0,
+        sixConditionsBreakdown: { trend: false, position: false, kbar: false, ma: false, volume: false, indicator: false },
+        trendState: '多頭',
+        trendPosition: '',
+        scanTime: snap.lastUpdated ?? new Date().toISOString(),
+        lockWatchPayload: {
+          triggerPrice: r.triggerPrice,
+          patternType: r.patternType,
+          patternTargetPrice: r.patternTargetPrice,
+          patternAchievementRate: r.patternAchievementRate,
+        },
+      });
+      added++;
+    }
+    if (added > 0) {
+      session.resultCount = session.results.length;
+      console.info(
+        `[scanStorage] sticky-pattern 補進 ${letter}: ${session.market}/${session.date} +${added} 檔（lockwatch 升級）`,
+      );
+    }
+  } catch (err) {
+    console.warn(`[scanStorage] augmentReversalWithPromotedLockwatch 異常:`, err);
+  }
+}
+
+/**
+ * 多頭軌 letter session 的 retro-filter：丟掉不在當日 Step 1 池子的結果
+ *
+ * 池子缺漏處理（修訂 2026-05-10）：
+ *   - 池子不存在 → 不過濾，但設 session.step1Filter='missing' 讓 UI 顯示警告
+ *   - 池子存在但空 → 視為異常狀態，等同不存在
+ *   - 池子存在且非空 → 過濾掉池子外股票，設 step1Filter='applied'
+ *
+ * 之前的設計：silent fallback 不過濾、不告知 → 用戶看到「漏跑 Step 1」幻覺
+ *
+ * 副作用：mutate session.results + session.resultCount + session.step1Filter
+ */
+async function applyStep1Filter(session: ScanSession): Promise<void> {
+  if (!session.results || session.results.length === 0) {
+    // 空 session 也標記，方便 UI 邏輯
+    if (!session.step1Filter) session.step1Filter = 'applied';
+    return;
+  }
+  try {
+    const { loadStep1Pool } = await import('@/lib/scanner/step1Pool');
+    const pool = await loadStep1Pool(session.market, session.date);
+    if (!pool || pool.symbols.length === 0) {
+      // 池子缺漏 — 不過濾但明確標 'missing' 讓 UI 顯示警告
+      if (!session.step1Filter) session.step1Filter = 'missing';
+      console.warn(
+        `[scanStorage] Step1 池子缺漏: ${session.market}/${session.buyMethod ?? '?'}/${session.date} — UI 應顯示警告`,
+      );
+      return;
+    }
     const allowed = new Set(pool.symbols);
     const before = session.results.length;
     const filtered = session.results.filter((r) => allowed.has(r.symbol));
@@ -642,8 +819,10 @@ async function applyStep1Filter(session: ScanSession): Promise<void> {
         `[scanStorage] Step1 retro-filter: ${session.market}/${session.buyMethod ?? '?'}/${session.date} ${before} → ${filtered.length}`,
       );
     }
-  } catch {
-    /* 池子讀失敗 — 保持原樣 */
+    if (!session.step1Filter) session.step1Filter = 'applied';
+  } catch (err) {
+    console.warn(`[scanStorage] applyStep1Filter 異常 ${session.market}/${session.buyMethod ?? '?'}/${session.date}:`, err);
+    /* 讀檔異常時保留原 session.step1Filter（若為 undefined 不覆寫，不誤導 UI）*/
   }
 }
 

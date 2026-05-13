@@ -14,6 +14,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { LETTER_NAMES } from '@/lib/scanner/buyMethodTracks';
 
 interface EnsembleStat {
   letters: string;
@@ -57,12 +58,6 @@ interface DeepAnalyticsResponse {
   drawdown: DrawdownStat[];
   industry: IndustryStat[];
 }
-
-const LETTER_NAMES: Record<string, string> = {
-  B: '回後買上漲', C: '盤整突破', D: '一字底', E: '缺口進場', F: 'V 反轉',
-  J: 'ABC 突破', K: 'K 線橫盤', L: '突破黑K', M: '軌道線突破',
-  N: '型態確認', O: '打底完成', P: '高檔拉回', Q: '三均線戰法',
-};
 
 const TRACK_BG: Record<string, string> = {
   B: 'bg-red-950/30', P: 'bg-red-950/30', C: 'bg-red-950/30', E: 'bg-red-950/30',

@@ -80,7 +80,16 @@ export const SIGNAL_TO_TRAILING_MA: Record<V12Letter, 'MA5' | 'MA10' | 'MA20' | 
   Q: 'MA10',          // Q 戰法停損點
 };
 
-/** v12 訊號對應的固定停損比例（議題 S3-7）*/
+/**
+ * v12 訊號對應的固定停損比例（議題 S3-7）
+ *
+ * 注意：書本「短線守則」上限 7%（`STOP_LOSS_RULE_PCT` in bookThresholds.ts）。
+ * 下表是「**按軌道分流的設計值**」，**不是 bug**：
+ * - 多頭軌 (B/P/C/E/J/K/L/M/A)：主動更嚴 5%（短線進攻型）
+ * - F V 反轉：7%（書本明寫上限）
+ * - 反轉軌 / 戰法軌 (D/N/O/Q)：10%（書本允許更寬，因為反轉訊號波動大）
+ * 改動前請先看書本 Part 12 p.747-754 「停損 5 法」分流規則。
+ */
 export const SIGNAL_TO_FIXED_STOP_PCT: Record<V12Letter, number> = {
   A: 0.05,            // 多頭軌 5%
   B: 0.05,

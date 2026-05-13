@@ -40,6 +40,7 @@ import {
 } from '../analysis/v12Signals';
 import { evaluateIndicatorV12, evaluateVolumeV12 } from '../analysis/v12Conditions';
 import { evaluateMarketGate, type MarketGateResult } from './marketTrendGate';
+import { REVERSAL_TRACK_LETTERS } from './buyMethodTracks';
 import { detectTrendWithHistory } from '../analysis/detectTrendWithHistory';
 import { checkPivotPairGate } from '../analysis/v12SignalGates';
 import { detectEndPhase, detectSeasonLineResistance } from '../analysis/v12Conditions';
@@ -101,7 +102,7 @@ const ALL_LETTERS: V12Letter[] = [
 ];
 
 const LONG_TREND_LETTERS = new Set<V12Letter>(['B', 'P', 'C', 'E', 'J', 'K', 'L', 'M']);
-const REVERSAL_LETTERS = new Set<V12Letter>(['D', 'F', 'N', 'O']);
+const REVERSAL_LETTERS = new Set<V12Letter>(REVERSAL_TRACK_LETTERS as readonly V12Letter[]);
 const PIVOT_GATE_LETTERS = new Set<V12Letter>(['B', 'P', 'C', 'L', 'M']); // J/K 不套（自帶結構）
 
 /**

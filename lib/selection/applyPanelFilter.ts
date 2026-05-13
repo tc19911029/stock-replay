@@ -38,15 +38,32 @@ export function applyPanelFilter(
     filtered = filtered.filter(r => r.mtfWeeklyPass === true);
   }
 
-  // 排序：漲幅 desc 為主鍵（2026-04-19 回測驗證：漲幅在 Top500 全期冠軍）
-  // 同分以六條件總分次要
-  filtered.sort((a, b) => {
-    const d1 = (b.changePercent ?? 0) - (a.changePercent ?? 0);
-    if (d1 !== 0) return d1;
-    return (b.sixConditionsScore ?? 0) - (a.sixConditionsScore ?? 0);
-  });
+  filtered.sort(panelSortCompare);
 
   return filtered;
+}
+
+/**
+ * 面板排序比較器 — 三方共用（applyPanelFilter / backtest-run / UI BacktestSection）
+ *
+ * 主鍵：漲幅 desc（2026-04-19 回測驗證：漲幅在 Top500 全期冠軍）
+ * 次鍵：六條件總分 desc
+ *
+ * 改這個比較器等於改 UI 顯示 top N + 回測 top N + UI 排序，三方同步動。
+ */
+export function panelSortCompare(a: StockScanResult, b: StockScanResult): number {
+  const d1 = (b.changePercent ?? 0) - (a.changePercent ?? 0);
+  if (d1 !== 0) return d1;
+  return (b.sixConditionsScore ?? 0) - (a.sixConditionsScore ?? 0);
+}
+
+/**
+ * 面板排序 key — 數值型 key 給 backtest-run 的 sortFn 用（越大越優先）。
+ * 與 panelSortCompare 等價：changePercent 為主，六條件總分為次。
+ * 用 changePercent + sixCon/1000 把次鍵壓到尾數，不會影響主鍵排名。
+ */
+export function panelSortKey(r: Pick<StockScanResult, 'changePercent' | 'sixConditionsScore'>): number {
+  return (r.changePercent ?? 0) + (r.sixConditionsScore ?? 0) / 1000;
 }
 
 /**

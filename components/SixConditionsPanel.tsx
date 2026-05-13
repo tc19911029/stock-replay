@@ -6,6 +6,7 @@ import { SixConditionsResult } from '@/lib/analysis/trendAnalysis';
 import { detectSellSignals } from '@/lib/analysis/sellSignals';
 import { EmptyState } from '@/components/shared';
 import ProhibitionsBlock from './ProhibitionsBlock';
+import { CORE_SCORE_MIN, BOOK_VOL_RATIO_MIN, BOOK_BODY_PCT_MIN } from '@/lib/analysis/bookThresholds';
 
 const HIGH_WIN_POS_NUM: Record<string, string> = {
   '🎯 打底趨勢確認': '①',
@@ -20,8 +21,8 @@ const CONDITION_LABELS = [
   { key: 'trend',     icon: '①', name: '趨勢條件', tip: '日線波浪型態符合「頭頭高、底底高」多頭架構', required: true },
   { key: 'ma',        icon: '②', name: '均線條件', tip: 'MA5>MA10>MA20 三線多排，MA10/20 方向向上', required: true },
   { key: 'position',  icon: '③', name: '股價位置', tip: '收盤在 MA10、MA20 之上，判斷初升/主升/末升段', required: true },
-  { key: 'volume',    icon: '④', name: '成交量',   tip: '攻擊量 ≥ 前一日 × 1.3（書本 p.54，2 倍更強）', required: true },
-  { key: 'kbar',      icon: '⑤', name: '進場K線', tip: '價漲、量增、紅K實體棒 > 2%', required: true },
+  { key: 'volume',    icon: '④', name: '成交量',   tip: `攻擊量 ≥ 前一日 × ${BOOK_VOL_RATIO_MIN}（書本 p.54，2 倍更強）`, required: true },
+  { key: 'kbar',      icon: '⑤', name: '進場K線', tip: `價漲、量增、紅K實體棒 > ${BOOK_BODY_PCT_MIN}%`, required: true },
   { key: 'indicator', icon: '⑥', name: '指標參考', tip: 'MACD 綠柱縮短或紅柱延長；KD 黃金交叉向上多排', required: false },
 ] as const;
 
@@ -154,7 +155,7 @@ export default function SixConditionsPanel() {
 
   const scoreColor =
     isCoreReady ? 'text-green-400' :
-    coreScore >= 3 ? 'text-yellow-400' :
+    coreScore >= CORE_SCORE_MIN ? 'text-yellow-400' :
     'text-red-400';
 
   const toggle = (key: ConditionKey) =>
@@ -162,7 +163,7 @@ export default function SixConditionsPanel() {
 
   // Build metric badges and progress bars from numeric data
   const volRatio = sc.volume.ratio;
-  const volThreshold = sc.volume.threshold ?? 1.3;
+  const volThreshold = sc.volume.threshold ?? BOOK_VOL_RATIO_MIN;
   const bodyPct = sc.kbar.bodyPct ?? 0;
   const kdK = sc.indicator.kdK;
   const macdOSC = sc.indicator.macdOSC;
@@ -216,7 +217,7 @@ export default function SixConditionsPanel() {
     {
       key: 'kbar', pass: sc.kbar.pass, detail: sc.kbar.detail,
       metric: `實體${(bodyPct * 100).toFixed(1)}%`,
-      progress: { value: bodyPct, target: 0.02 },
+      progress: { value: bodyPct, target: BOOK_BODY_PCT_MIN / 100 },
       changed: changedKeys.has('kbar') ? (sc.kbar.pass ? 'gained' : 'lost') : undefined,
     },
     {
@@ -259,16 +260,16 @@ export default function SixConditionsPanel() {
 
       {/* Summary */}
       <div className={`px-3 py-3 border-t border-border ${
-        isCoreReady ? 'bg-green-900/40' : coreScore >= 3 ? 'bg-yellow-900/30' : 'bg-secondary/60'
+        isCoreReady ? 'bg-green-900/40' : coreScore >= CORE_SCORE_MIN ? 'bg-yellow-900/30' : 'bg-secondary/60'
       }`}>
         <p className={`text-sm font-bold ${
-          isCoreReady ? 'text-green-300' : coreScore >= 3 ? 'text-yellow-300' : 'text-muted-foreground'
+          isCoreReady ? 'text-green-300' : coreScore >= CORE_SCORE_MIN ? 'text-yellow-300' : 'text-muted-foreground'
         }`}>
           {isCoreReady
             ? sc.indicator.pass
               ? '✅ 六條件全過 — 可考慮進場'
               : '✅ 核心5條件充分 — 指標待確認'
-            : coreScore >= 3
+            : coreScore >= CORE_SCORE_MIN
             ? `⏳ 核心條件 ${coreScore}/5 — 觀察後續`
             : `🚫 核心條件不足 ${coreScore}/5 — 建議觀望`}
         </p>

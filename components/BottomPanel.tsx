@@ -11,6 +11,7 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { useReplayStore } from '@/store/replayStore';
 import { type MarketTab, filterByMarket, classifyMarket } from '@/lib/market/classify';
 import { HoldingV12Signals } from '@/components/HoldingV12Signals';
+import { ChartPracticeLedger } from '@/components/ChartPracticeLedger';
 import { calcNetPnL } from '@/lib/portfolio/fees';
 import { formatPercent, bullBearClass } from '@/lib/format';
 
@@ -325,9 +326,12 @@ function SummaryRow({ label, summary, returnPct, currency }: { label?: string; s
 function PortfolioContent({ holdings, prices, summary, totalReturnPct, marketTab, twSummary, cnSummary, twReturnPct, cnReturnPct }: PortfolioContentProps) {
   if (holdings.length === 0) {
     return (
-      <div className="py-6 text-center text-muted-foreground text-xs space-y-2">
-        <p>尚無持倉</p>
-        <Link href="/portfolio" className="text-sky-400 hover:text-sky-300 underline">前往新增</Link>
+      <div>
+        <div className="py-6 text-center text-muted-foreground text-xs space-y-2">
+          <p>尚無持倉</p>
+          <Link href="/portfolio" className="text-sky-400 hover:text-sky-300 underline">前往新增</Link>
+        </div>
+        <ChartPracticeLedger />
       </div>
     );
   }
@@ -424,11 +428,16 @@ function PortfolioContent({ holdings, prices, summary, totalReturnPct, marketTab
               recentHigh={h.recentHigh}
               consolidationLow={h.consolidationLow}
               vBottom={h.vBottom}
+              patternTargetPrice={h.entryPattern?.targetPrice}
+              patternStopPrice={h.entryPattern?.stopPrice}
             />
             </div>
           );
         })}
       </div>
+
+      {/* 走圖練習簿 — 跟著走圖游標做紙上交易（每檔獨立 ledger） */}
+      <ChartPracticeLedger />
 
       {/* Footer link */}
       <div className="px-3 py-1.5 text-center border-t border-border">

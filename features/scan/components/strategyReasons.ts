@@ -1,4 +1,10 @@
 import type { StockScanResult } from '@/lib/scanner/types';
+import { LETTER_NAMES } from '@/lib/scanner/buyMethodTracks';
+import {
+  BOOK_BODY_PCT_MIN,
+  BOOK_VOL_RATIO_MIN,
+  KLINE_CONSOL_MAX_RANGE_PCT,
+} from '@/lib/analysis/bookThresholds';
 
 export interface StrategyReasonRow {
   /** 用於 A 六條件子條件：true=pass、false=fail；其他策略不填 */
@@ -18,14 +24,8 @@ export interface StrategyReasonBlock {
   rows: StrategyReasonRow[];
 }
 
-const METHOD_NAMES: Record<string, string> = {
-  A: '六條件', B: '回後買上漲', C: '盤整突破',
-  D: '一字底', E: '缺口', F: 'V 反轉',
-  G: 'ABC 突破', H: '突破黑K', I: 'K 線橫盤',
-  J: 'ABC 突破', K: 'K 線橫盤', L: '突破黑K',
-  M: '軌道線突破', N: '型態確認', O: '打底完成',
-  P: '高檔拉回', Q: '三均戰法',
-};
+// 字母→名稱讀 lib/scanner/buyMethodTracks.ts 單一事實來源
+const METHOD_NAMES = LETTER_NAMES;
 
 const PATTERN_LABEL: Record<string, string> = {
   'head-shoulder': '頭肩底',
@@ -61,26 +61,26 @@ const STATIC_BOOK_RULES: Record<string, string[]> = {
   B: [
     '多頭趨勢 + 曾跌破 MA5',
     '收盤站回 MA5（站回當日或隔 1-2 日內補量突破皆可，站回後不再跌破）',
-    '紅 K 實體 ≥ 2%、量 ≥ 前日 × 1.3',
+    `紅 K 實體 ≥ ${BOOK_BODY_PCT_MIN}%、量 ≥ 前日 × ${BOOK_VOL_RATIO_MIN}`,
     '突破前一根 K 線高點',
   ],
   C: [
-    '盤整 N 日（高低差 ≤ 7%）',
+    `盤整 N 日（高低差 ≤ ${KLINE_CONSOL_MAX_RANGE_PCT + 2}%）`,
     '收盤突破盤整高點',
-    '量能放大（≥ 前日 × 1.3）',
+    `量能放大（≥ 前日 × ${BOOK_VOL_RATIO_MIN}）`,
   ],
   E: [
     '今日 low > 昨日 high（向上跳空缺口）',
-    '紅 K + 實體 ≥ 2%',
-    '量能放大（≥ 前日 × 1.3）',
+    `紅 K + 實體 ≥ ${BOOK_BODY_PCT_MIN}%`,
+    `量能放大（≥ 前日 × ${BOOK_VOL_RATIO_MIN}）`,
   ],
   J: [
     'ABC 三段結構（A 高 → B 低 → C）',
     'C 段突破 A 高',
-    'C 段量增（≥ 前段量 × 1.3）',
+    `C 段量增（≥ 前段量 × ${BOOK_VOL_RATIO_MIN}）`,
   ],
   K: [
-    'K 線橫盤 N 日（高低差 ≤ 5%）',
+    `K 線橫盤 N 日（高低差 ≤ ${KLINE_CONSOL_MAX_RANGE_PCT}%）`,
     '突破橫盤區間高點',
     '量能放大',
   ],

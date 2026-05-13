@@ -287,7 +287,7 @@ export function ScanCoachDigest(props: ScanCoachDigestProps) {
     setSavedAt(now);
   }, [data, chat, persistKey]);
 
-  const ask = async () => {
+  const ask = async (opts?: { forceRefresh?: boolean }) => {
     if (loading) return;
     setLoading(true);
     setError(null);
@@ -295,7 +295,7 @@ export function ScanCoachDigest(props: ScanCoachDigestProps) {
       const res = await fetch('/api/coach/scan-digest', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(buildRequestBody(effectiveProps)),
+        body: JSON.stringify({ ...buildRequestBody(effectiveProps), forceRefresh: opts?.forceRefresh ?? false }),
       });
       const body = await res.json();
       if (aborted.current) return;
@@ -362,7 +362,7 @@ export function ScanCoachDigest(props: ScanCoachDigestProps) {
   if (!data && !loading && !error) {
     return (
       <button
-        onClick={ask}
+        onClick={() => ask()}
         className="w-full mb-2 px-3 py-2 rounded-lg border border-purple-500/40 bg-gradient-to-r from-purple-500/15 to-indigo-500/15 hover:from-purple-500/25 hover:to-indigo-500/25 text-[12px] font-semibold text-purple-100 transition-all flex items-center justify-center gap-2"
       >
         <span>💬</span>
@@ -373,8 +373,11 @@ export function ScanCoachDigest(props: ScanCoachDigestProps) {
 
   if (loading) {
     return (
-      <div className="w-full mb-2 px-3 py-3 rounded-lg border border-purple-500/30 bg-purple-500/5 text-center text-[11px] text-purple-200 animate-pulse">
-        💬 老師分析中…（通常 3~6 秒）
+      <div className="w-full mb-2 px-3 py-3 rounded-lg border border-purple-500/30 bg-purple-500/5 text-[11px] text-purple-200 space-y-1.5">
+        <div className="animate-pulse text-center">💬 朱老師正在跨檔比較選股…</div>
+        <div className="text-purple-200/70 leading-relaxed text-center">
+          已自動切到朱老師 Terminal 觸發分析。若一直沒回應，請確認名為 <code className="px-1 rounded bg-purple-500/20 text-purple-100 font-mono">Zhu</code> 的 Terminal 有開著、且 macOS 已授權自動化。
+        </div>
       </div>
     );
   }
@@ -384,7 +387,7 @@ export function ScanCoachDigest(props: ScanCoachDigestProps) {
       <div className="w-full mb-2 px-3 py-2 rounded-lg border border-red-500/30 bg-red-500/5 text-[11px] text-red-300 flex items-center justify-between gap-2">
         <span>💬 老師回覆異常</span>
         <button
-          onClick={ask}
+          onClick={() => ask({ forceRefresh: true })}
           className="text-[11px] text-red-200 hover:text-red-100 px-2 py-0.5 rounded bg-red-500/20 hover:bg-red-500/30"
         >重試</button>
       </div>
@@ -408,9 +411,9 @@ export function ScanCoachDigest(props: ScanCoachDigestProps) {
           )}
         </div>
         <button
-          onClick={ask}
+          onClick={() => ask({ forceRefresh: true })}
           className="text-[10px] text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted shrink-0"
-          title="重新分析（會覆蓋歷史）"
+          title="重新分析（略過 server cache，強制重打朱老師）"
         >🔄</button>
       </div>
 

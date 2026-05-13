@@ -16,6 +16,7 @@
  */
 
 import type { MarketId } from './types';
+import { requiresStep1Pool } from './buyMethodTracks';
 
 const IS_VERCEL = !!process.env.VERCEL;
 
@@ -131,4 +132,19 @@ export async function getStep1Symbols(
   const pool = await loadStep1Pool(market, date);
   if (!pool) return null;
   return new Set(pool.symbols);
+}
+
+/**
+ * 推導 ScanSession.step1Filter 欄位
+ *
+ * @param method 買法字母
+ * @param poolExists 該日 Step 1 池子是否存在（symbols.length > 0）
+ * @returns 'applied' = 多頭軌已過池 / 'bypassed' = 反轉/戰法軌設計上不過 / 'missing' = 多頭軌但池缺漏
+ */
+export function deriveStep1FilterState(
+  method: string,
+  poolExists: boolean,
+): 'applied' | 'bypassed' | 'missing' {
+  if (!requiresStep1Pool(method)) return 'bypassed';
+  return poolExists ? 'applied' : 'missing';
 }

@@ -26,6 +26,7 @@ import { usePortfolioStore } from '@/store/portfolioStore';
 import { classifySignal, SignalSubtype } from '@/lib/rules/signalClassifier';
 import { calcKLineStopLoss } from '@/lib/sell/v12StopLoss';
 import { getOperationMA } from '@/lib/sell/v12Operation';
+import { sopFor } from '@/lib/portfolio/letterSOP';
 import { getTickSize } from '@/lib/utils/tickSize';
 import { marketFromSymbol, formatSharesAsLots } from '@/lib/utils/shareUnits';
 import { detectLetterM } from '@/lib/analysis/v12LetterM';
@@ -33,8 +34,9 @@ import { detectLetterN, detectTopPatterns, type TopPatternType } from '@/lib/ana
 import { detectLetterO } from '@/lib/analysis/v12LetterO';
 import { detectLetterP } from '@/lib/analysis/v12LetterP';
 import { detectLetterQ } from '@/lib/analysis/v12LetterQ';
+import { STOP_LOSS_PRICE_MULT, PROFIT_TARGET_PRICE_MULT } from '@/lib/analysis/bookThresholds';
 import type { V12Letter } from '@/lib/analysis/v12Signals';
-import type { RuleSignal } from '@/types';
+import type { RuleSignal, CandleWithIndicators } from '@/types';
 import ChartCoachAdvice from './ChartCoachAdvice';
 
 // ── 訊號白話說明對照表 ────────────────────────────────────────────────────────
@@ -138,12 +140,27 @@ const STRENGTH_BAR: Record<StrengthLevel, string> = {
   neutral: 'bg-border',
 };
 
+/**
+ * 議題 C3 + M8：判斷哪些戒律持股中也應該露。
+ * 戒律 6 = 回檔底底低（多頭結構已破）
+ * 戒律 7 = 趨勢轉盤整
+ * 戒律 8 = 趨勢轉空頭
+ * 戒律 9 = 連續急漲爆量長紅（高位過熱）— M8 補：持股中觸發 = 該停利
+ * 其他戒律（量價背離/週線壓力等）持股中已不適用，照舊隱藏。
+ *
+ * 0513 ABCDE 整合：唯一定義在這（SignalSummaryCard）；如需跨檔共用搬到 lib/rules/criticalProhibitions.ts。
+ */
+function pickCriticalProhibitions(prohibitions: string[]): string[] {
+  return prohibitions.filter((p) => /戒律[6789]/.test(p));
+}
+
 function getVerdict(
   hasPosition: boolean,
   subtypes: SignalSubtype[],
   signalLabels: { entry: string[]; exit: string[] },
   prohibitionCount: number,
   hasTopPattern: boolean = false,
+  criticalProhibitions: string[] = [],
 ): Verdict {
   const counts: Record<SignalSubtype, number> = {
     entry_strong: 0, entry_soft: 0, exit_strong: 0, exit_soft: 0, trend: 0, warn: 0,
@@ -179,6 +196,14 @@ function getVerdict(
     }
     if (counts.exit_soft === 1) {
       return { level: 'warn', label: '緊盯停損', basis: signalLabels.exit[0] ?? '輕微減碼警示' };
+    }
+    // 議題 C3：結構轉變戒律觸發 → 即使無出場訊號也要警示「持股風險升高」
+    if (criticalProhibitions.length > 0) {
+      return {
+        level: 'warn',
+        label: '風險升高',
+        basis: `結構轉變：${criticalProhibitions[0]}（多頭優勢縮減，緊盯停損）`,
+      };
     }
     return { level: 'good', label: '繼續持有', basis: '多頭延續、無出場訊號，續抱跟均線走' };
   }
@@ -330,12 +355,14 @@ export default function SignalSummaryCard() {
   });
   const warnSigs = currentSignals.filter(s => (s.subtype ?? classifySignal(s)) === 'warn');
 
+  const criticalProhibitions = pickCriticalProhibitions(longProhibitions?.reasons ?? []);
   const verdict = getVerdict(
     hasPosition,
     subtypes,
     { entry: entrySigs.map(s => s.label), exit: exitSigs.map(s => s.label) },
     longProhibitions?.reasons?.length ?? 0,
     topPatternHit !== null,  // 頂部型態觸發（持股 → 該出場；未持倉 → 不要進場）
+    criticalProhibitions,
   );
 
   // 主訊號字母（V12 進場字母優先順序 Q > N > M > P > O；無命中時用持倉觸發字母）
@@ -344,21 +371,33 @@ export default function SignalSummaryCard() {
   const primaryLetter: V12Letter = primaryV12?.letter
     ?? (heldPosition?.triggerSignal as V12Letter | undefined)
     ?? 'B';
-  const operatingMA = getOperationMA(primaryLetter, 'short');
+  // 0513 ABCDE C1：用 letterSOP 取代 getOperationMA 散落定義；對 'short' mode 兩者必須等價
+  // (cross-source consistency test 在 __tests__/letterSOP.test.ts 強制驗)
+  const operatingMA = sopFor(primaryLetter).operatingMA;
+  // 0513 ABCDE E：super-long / wave 已砍；getOperationMA 仍保留處理 'long' upgrade
+  void getOperationMA;
 
   // ── 停損 / 停利 ─────────────────────────────────────────────────────────
-  const entryPrice = heldPosition?.costPrice ?? candle.close;
-  const tickSize = getTickSize(entryPrice, market);
-  const klineStop = calcKLineStopLoss(candle, tickSize);
-  const absoluteFloor = entryPrice * 0.90;
-  const stopLoss = Math.max(klineStop, absoluteFloor);
-  const slPct = ((stopLoss - candle.close) / candle.close) * 100;
-  // 停利優先順序：N 型態目標價（書本明寫）> 成本 ×1.10（書本進階紀律）
+  // 持股中 vs 未持倉 兩條計算徹底分流，不再共用 entryPrice
   // 規避舊 V12SignalAlerts 把型態目標價納入 Step 5 預估的 regression
   const patternTarget = primaryV12?.patternTargetPrice;
-  const profitTarget = patternTarget ?? entryPrice * 1.10;
-  const ptPct = ((profitTarget - candle.close) / candle.close) * 100;
-  const profitTargetSource: 'pattern' | 'rule' = patternTarget != null ? 'pattern' : 'rule';
+
+  // 持倉中（書本：跟著操作均線走 + 10% 紀律停利）
+  const profitLine = hasPosition && heldPosition?.costPrice != null
+    ? (patternTarget ?? heldPosition.costPrice * PROFIT_TARGET_PRICE_MULT)
+    : null;
+  const profitLineReached = profitLine != null && candle.close >= profitLine;
+  const profitLineSource: 'pattern' | 'rule' = patternTarget != null ? 'pattern' : 'rule';
+
+  // 未持倉（若今日進場 試算）：進場=今收、停損=K線最低 vs 7% floor、停利=今收×1.10 或型態目標
+  const projEntry = candle.close;
+  const tickSize = getTickSize(projEntry, market);
+  const projKlineStop = calcKLineStopLoss(candle, tickSize);
+  const projStopLoss = Math.max(projKlineStop, projEntry * STOP_LOSS_PRICE_MULT);  // 書本守則：停損 7% 上限
+  const projSlPct = ((projStopLoss - projEntry) / projEntry) * 100;
+  const projProfit = patternTarget ?? projEntry * PROFIT_TARGET_PRICE_MULT;
+  const projPtPct = ((projProfit - projEntry) / projEntry) * 100;
+  const projProfitSource: 'pattern' | 'rule' = patternTarget != null ? 'pattern' : 'rule';
 
   // ── 走勢偏向（33 圖像 compositeAdjust 抽成一行）────────────────────────────
   const adjust = winnerPatterns?.compositeAdjust ?? 0;
@@ -436,51 +475,29 @@ export default function SignalSummaryCard() {
             )}
           </div>
 
-          {/* ── 3. 金額區（進場 / 停損 / 停利）+ 風向 ── */}
+          {/* ── 3. 金額區 + 風向 ──
+                持股中 → 持倉診斷（動態停損 + 10% 紀律停利）
+                未持倉 → 若今日進場（試算進場/停損/停利）
+                兩種模式互斥，避免持股者誤以為叫他加碼 */}
           <div className="border-t border-border/40 pt-2 space-y-3">
-
-            {/* 金額：自然流動 layout（label + value 同行，內容超過自動 wrap，不固定欄位）*/}
-            <div className="space-y-1 text-xs leading-relaxed">
-              {!hasPosition && (
-                <p className="text-[11px] text-muted-foreground/80">若今日進場：</p>
-              )}
-              {/* 進場 */}
-              <p>
-                <span className="text-foreground/80 font-bold">進場</span>
-                <span className="ml-2 font-mono font-bold text-foreground">{candle.close.toFixed(2)}</span>
-              </p>
-              {/* 停損（綠 = 跌）*/}
-              <p>
-                <span className="text-emerald-300">停損</span>
-                <span className="ml-2 font-mono text-emerald-300 font-bold">{stopLoss.toFixed(2)}</span>
-                <span className="ml-1.5 font-mono text-muted-foreground/70">({slPct.toFixed(1)}%)</span>
-              </p>
-              {/* 持倉時 — 跌破操作均線出場（綠 = 跌）；用戶 PS 喜好：出場放最後 */}
-              {operatingMA && (() => {
-                const maKey = operatingMA.toLowerCase() as 'ma5' | 'ma10' | 'ma20' | 'ma60' | 'ma240';
-                const maVal = (candle as unknown as Record<string, number | undefined>)[maKey];
-                if (maVal == null) return null;
-                const maPct = ((maVal - candle.close) / candle.close) * 100;
-                return (
-                  <p className="text-emerald-300/80">
-                    <span title="進場後持倉期間，跌破此均線才出場（書本：跟著均線走，動態跟蹤停損）">持倉時</span>
-                    <span className="ml-2">跌破 {operatingMA}</span>
-                    <span className="ml-1.5 font-mono font-bold">{maVal.toFixed(2)}</span>
-                    <span className="ml-1.5 font-mono text-muted-foreground/70">({maPct.toFixed(1)}%)</span>
-                    <span className="ml-1.5 text-muted-foreground/70">出場</span>
-                  </p>
-                );
-              })()}
-              {/* 停利（紅 = 漲）*/}
-              <p>
-                <span className="text-rose-300">停利</span>
-                <span className="ml-2 font-mono text-rose-300 font-bold">{profitTarget.toFixed(2)}</span>
-                <span className="ml-1.5 font-mono text-muted-foreground/70">({ptPct >= 0 ? '+' : ''}{ptPct.toFixed(1)}%)</span>
-                <span className="ml-2 text-[11px] text-muted-foreground/60">
-                  {profitTargetSource === 'pattern' ? '型態目標' : '10%紀律'}
-                </span>
-              </p>
-            </div>
+            {hasPosition ? (
+              <HoldingDiscipline
+                candle={candle}
+                operatingMA={operatingMA}
+                profitLine={profitLine}
+                profitLineReached={profitLineReached}
+                profitLineSource={profitLineSource}
+              />
+            ) : (
+              <EntryProjection
+                projEntry={projEntry}
+                projStopLoss={projStopLoss}
+                projSlPct={projSlPct}
+                projProfit={projProfit}
+                projPtPct={projPtPct}
+                projProfitSource={projProfitSource}
+              />
+            )}
 
             {/* 風向（走勢偏向）— 主訊息一行、明細獨立下一行 */}
             <div className="pt-2 border-t border-border/20 space-y-0.5">
@@ -497,14 +514,17 @@ export default function SignalSummaryCard() {
           </div>
 
           {/* ── 4. 為什麼？分組 ───────────────────────────── */}
-          {/* topPatternHit 不論持倉都傳，跟 verdict 邏輯對稱（持股=該出場、未持倉=不要進場）*/}
+          {/* topPatternHit 不論持倉都傳，跟 verdict 邏輯對稱（持股=該出場、未持倉=不要進場）
+              hasPosition 決定要不要顯示「進場依據」（持股中隱藏，避免暗示加碼）*/}
           <Reasons
+            hasPosition={hasPosition}
             v12Hits={v12Hits}
             topPatternHit={topPatternHit}
             entrySigs={entrySigs}
             exitSigs={exitSigs}
             warnSigs={warnSigs}
             prohibitions={longProhibitions?.reasons ?? []}
+            criticalProhibitions={criticalProhibitions}
             todayClose={candle.close}
           />
         </div>
@@ -518,21 +538,132 @@ export default function SignalSummaryCard() {
   );
 }
 
+// ── 子元件：持倉診斷（持股中模式）─────────────────────────────────────────
+// 動態停損（跟著操作均線走）+ 10% 紀律停利線
+// 不顯示「進場價/停損」這兩個試算行 — 持股者不需要被叫去加碼
+
+function HoldingDiscipline({
+  candle, operatingMA, profitLine, profitLineReached, profitLineSource,
+}: {
+  candle: CandleWithIndicators;
+  operatingMA: string | null;
+  profitLine: number | null;
+  profitLineReached: boolean;
+  profitLineSource: 'pattern' | 'rule';
+}) {
+  return (
+    <div className="space-y-1 text-xs leading-relaxed">
+      <p className="text-[11px] text-muted-foreground/80">持倉中守則：</p>
+
+      {/* 動態停損 — 跌破操作均線出場 */}
+      {operatingMA && (() => {
+        const maKey = operatingMA.toLowerCase() as 'ma5' | 'ma10' | 'ma20' | 'ma60' | 'ma240';
+        const maVal = (candle as unknown as Record<string, number | undefined>)[maKey];
+        if (maVal == null) return null;
+        const maPct = ((maVal - candle.close) / candle.close) * 100;
+        return (
+          <p className="text-emerald-300">
+            <span
+              className="font-bold"
+              title="進場後持倉期間，跌破此均線才出場（書本：跟著均線走，動態跟蹤停損）"
+            >動態停損</span>
+            <span className="ml-2">跌破 {operatingMA}</span>
+            <span className="ml-1.5 font-mono font-bold">{maVal.toFixed(2)}</span>
+            <span className="ml-1.5 font-mono text-muted-foreground/70">({maPct.toFixed(1)}%)</span>
+            <span className="ml-1.5 text-muted-foreground/70">出場</span>
+          </p>
+        );
+      })()}
+
+      {/* 10% 紀律停利線（或型態目標）*/}
+      {profitLine != null && (
+        <p className="text-rose-300">
+          <span className="font-bold">停利線</span>
+          <span className="ml-2 font-mono font-bold">{profitLine.toFixed(2)}</span>
+          <span className="ml-1.5 font-mono text-muted-foreground/70">
+            ({((profitLine - candle.close) / candle.close * 100).toFixed(1)}%)
+          </span>
+          <span className="ml-2 text-[11px] text-muted-foreground/60">
+            {profitLineSource === 'pattern' ? '型態目標' : '10%紀律'}
+          </span>
+          {profitLineReached && (
+            <span className="ml-2 text-[11px] font-bold text-amber-300">
+              ✓ 已達 — 緊盯動態停損
+            </span>
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── 子元件：若今日進場（試算，未持倉模式）─────────────────────────────────
+// 試算進場/停損/停利 — 給「該不該進場」的決策用
+
+function EntryProjection({
+  projEntry, projStopLoss, projSlPct, projProfit, projPtPct, projProfitSource,
+}: {
+  projEntry: number;
+  projStopLoss: number;
+  projSlPct: number;
+  projProfit: number;
+  projPtPct: number;
+  projProfitSource: 'pattern' | 'rule';
+}) {
+  return (
+    <div className="space-y-1 text-xs leading-relaxed">
+      <p className="text-[11px] text-muted-foreground/80">若今日進場（試算）：</p>
+
+      {/* 進場 */}
+      <p>
+        <span className="text-foreground/80 font-bold">進場</span>
+        <span className="ml-2 font-mono font-bold text-foreground">{projEntry.toFixed(2)}</span>
+      </p>
+      {/* 停損（綠 = 跌）*/}
+      <p>
+        <span className="text-emerald-300 font-bold">停損</span>
+        <span className="ml-2 font-mono text-emerald-300 font-bold">{projStopLoss.toFixed(2)}</span>
+        <span className="ml-1.5 font-mono text-muted-foreground/70">({projSlPct.toFixed(1)}%)</span>
+      </p>
+      {/* 停利（紅 = 漲）*/}
+      <p>
+        <span className="text-rose-300 font-bold">停利</span>
+        <span className="ml-2 font-mono text-rose-300 font-bold">{projProfit.toFixed(2)}</span>
+        <span className="ml-1.5 font-mono text-muted-foreground/70">
+          ({projPtPct >= 0 ? '+' : ''}{projPtPct.toFixed(1)}%)
+        </span>
+        <span className="ml-2 text-[11px] text-muted-foreground/60">
+          {projProfitSource === 'pattern' ? '型態目標' : '10%紀律'}
+        </span>
+      </p>
+    </div>
+  );
+}
+
 // ── 子元件：為什麼？分組 ──────────────────────────────────────────────────
 
 function Reasons({
-  v12Hits, topPatternHit, entrySigs, exitSigs, warnSigs, prohibitions, todayClose,
+  hasPosition, v12Hits, topPatternHit, entrySigs, exitSigs, warnSigs, prohibitions, criticalProhibitions, todayClose,
 }: {
+  hasPosition: boolean;
   v12Hits: V12Hit[];
   topPatternHit: TopPatternHit | null;
   entrySigs: RuleSignal[];
   exitSigs: RuleSignal[];
   warnSigs: RuleSignal[];
   prohibitions: string[];
+  criticalProhibitions: string[];
   todayClose: number;
 }) {
-  const empty = v12Hits.length === 0 && !topPatternHit && entrySigs.length === 0
-    && exitSigs.length === 0 && warnSigs.length === 0 && prohibitions.length === 0;
+  // 持股中：不顯示「進場依據」（避免暗示加碼）；只顯示出場 + 注意事項 + 結構轉變戒律
+  // 未持倉：不顯示「一般出場訊號」（沒倉位談何出場），但頂部型態仍顯示為「不要進場」依據
+  const showEntry = !hasPosition && (v12Hits.length > 0 || entrySigs.length > 0);
+  const showExit = hasPosition ? (exitSigs.length > 0 || topPatternHit != null) : (topPatternHit != null);
+  const showWarn = warnSigs.length > 0;
+  // 議題 C3：持股中露結構轉變戒律（戒律 6/7/8）— 趨勢已轉，再不謹慎會被套
+  const showCriticalProhibitions = hasPosition && criticalProhibitions.length > 0;
+
+  const empty = !showEntry && !showExit && !showWarn && !showCriticalProhibitions && prohibitions.length === 0;
 
   if (empty) {
     return (
@@ -542,10 +673,8 @@ function Reasons({
     );
   }
 
-  // V12 進場字母 + 進場理由視為同一語意層（都在解釋「為什麼能買」），合併顯示
-  const hasEntry = v12Hits.length > 0 || entrySigs.length > 0;
-  // 出場理由 + 頂部型態視為同一語意層（都在說「為什麼該出場」）
-  const hasExit = exitSigs.length > 0 || topPatternHit != null;
+  const hasEntry = showEntry;
+  const hasExit = showExit;
 
   return (
     <div className="border-t border-border/40 pt-2 space-y-2">
@@ -591,10 +720,12 @@ function Reasons({
         </div>
       )}
 
-      {/* 出場警示（出場理由 + 頂部型態合併）*/}
+      {/* 出場警示（持股中=該出場理由；未持倉=只顯示頂部型態作為「不要進場」依據）*/}
       {hasExit && (
         <div>
-          <p className="text-[11px] font-bold mb-1 text-emerald-300">出場警示</p>
+          <p className="text-[11px] font-bold mb-1 text-emerald-300">
+            {hasPosition ? '出場警示' : '禁止做多依據'}
+          </p>
           <div className="space-y-1.5">
             {/* 頂部型態（持股=該出場、未持倉=不要進場）*/}
             {topPatternHit && (
@@ -627,15 +758,38 @@ function Reasons({
                 <p className="text-[11px] text-muted-foreground/60 mt-1">書本：見頂部型態+跌破頸線即出場</p>
               </div>
             )}
-            {/* 一般出場訊號 */}
-            {exitSigs.slice(0, 4).map((s, i) => (
+            {/* 一般出場訊號 — 只在持股中顯示 */}
+            {hasPosition && exitSigs.slice(0, 4).map((s, i) => (
               <ReasonRow key={`exit-${i}`} signal={s} bgColor="bg-emerald-900/15" />
             ))}
           </div>
         </div>
       )}
 
-      {/* 戒律：訊號分頁不顯示，verdict 已表達且詳情在「條件」分頁 */}
+      {/* 議題 C3：結構轉變戒律 — 持股中才顯示（戒律 6/7/8），其餘戒律詳見「條件」分頁 */}
+      {showCriticalProhibitions && (
+        <div>
+          <p className="text-[11px] font-bold mb-1 text-amber-300">結構轉變警示</p>
+          <div className="space-y-0.5">
+            {criticalProhibitions.slice(0, 3).map((p, i) => (
+              <div
+                key={`crit-${i}`}
+                className="text-[11px] px-2 py-1 rounded bg-amber-900/25 text-amber-200/90 leading-relaxed"
+              >
+                {p}
+              </div>
+            ))}
+            {criticalProhibitions.length > 3 && (
+              <p className="text-[10px] text-muted-foreground/70 italic">
+                （顯示前 3 條，共 {criticalProhibitions.length} 條 — 完整清單見「條件」分頁）
+              </p>
+            )}
+            <p className="text-[10px] text-muted-foreground/60 leading-relaxed pt-0.5">
+              書本：結構轉變（戒律 6/7/8）/ 高位過熱（戒律 9）— 已持股應緊盯停損或考慮停利。
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* 注意事項（非進出場，但需注意）*/}
       {warnSigs.length > 0 && (

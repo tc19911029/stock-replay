@@ -8,6 +8,7 @@ import type { CandleWithIndicators } from '@/types';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { type ScanInterval, MINUTE_INTERVALS, DEFAULT_PERIODS } from '@/lib/datasource/findAnchorIndex';
 import { useScanTimeframe } from '../hooks/useScanTimeframe';
+import { useLockedPattern } from '@/lib/hooks/useLockedPattern';
 import { IntervalSwitcher } from './IntervalSwitcher';
 
 const CandleChart = dynamic(() => import('@/components/CandleChart'), { ssr: false });
@@ -52,6 +53,9 @@ export function ScanChartPanel({ selectedStock, scanDate }: ScanChartPanelProps)
   const prevIntervalRef = useRef<ScanInterval>('1d');
 
   const isMinute = (MINUTE_INTERVALS as readonly string[]).includes(interval);
+
+  // 鎖股觀察紀錄 → 走圖型態 chip 穩定來源（避免拖時間軸時 fresh detector 跳動）
+  const { lockedPattern } = useLockedPattern(selectedStock?.symbol);
 
   // 共用的載入後處理
   const onLoadSuccess = useCallback(() => {
@@ -205,6 +209,7 @@ export function ScanChartPanel({ selectedStock, scanDate }: ScanChartPanelProps)
               fillContainer
               highlightDate={anchorDate ?? undefined}
               centerOnDate={anchorDate ?? undefined}
+              lockedPattern={lockedPattern ?? undefined}
             />
           </div>
           <div className="h-[180px] flex flex-col border-t border-border">

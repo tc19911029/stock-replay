@@ -2,6 +2,7 @@
  * Scan page utility functions — pure, no hooks, no state
  */
 import type { StockScanResult } from '@/lib/scanner/types';
+import { SCORE_COLOR_GOLD, SCORE_COLOR_BLUE } from '@/lib/analysis/bookThresholds';
 
 // ── Color helpers ─────────────────────────────────────────────────────────────
 
@@ -22,8 +23,8 @@ export function fmtRet(v: number | null | undefined): string {
 
 /** Surge score color class */
 export function scoreColor(s: number): string {
-  if (s >= 5) return 'text-amber-400 font-bold';
-  if (s >= 4) return 'text-sky-400 font-semibold';
+  if (s >= SCORE_COLOR_GOLD) return 'text-amber-400 font-bold';
+  if (s >= SCORE_COLOR_BLUE) return 'text-sky-400 font-semibold';
   return 'text-sky-400';
 }
 

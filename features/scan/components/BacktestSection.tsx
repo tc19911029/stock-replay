@@ -10,6 +10,7 @@ import { chipBadge, TradeRow, calcTradeComposite } from './TradeRow';
 import { HorizonCard } from './HorizonCard';
 import { BacktestStatsPanel } from './BacktestStatsPanel';
 import { Button } from '@/components/ui/button';
+import { COMPOSITE_STRONG, COMPOSITE_OK, WIN_RATE_STRONG, WIN_RATE_MEDIUM } from '@/lib/analysis/bookThresholds';
 
 export function BacktestSection() {
   const {
@@ -267,7 +268,7 @@ export function BacktestSection() {
                       </td>
                       <td className="py-1.5 px-1 text-[10px] text-muted-foreground max-w-[60px] truncate" title={r.industry}>{r.industry ?? '—'}</td>
                       <td className="py-1.5 px-1 text-center">
-                        {(() => { const cs = calcComposite(r); return <span className={`font-bold text-[11px] ${cs >= 70 ? 'text-sky-400' : cs >= 55 ? 'text-foreground' : 'text-muted-foreground'}`}>{cs.toFixed(1)}</span>; })()}
+                        {(() => { const cs = calcComposite(r); return <span className={`font-bold text-[11px] ${cs >= COMPOSITE_STRONG ? 'text-sky-400' : cs >= COMPOSITE_OK ? 'text-foreground' : 'text-muted-foreground'}`}>{cs.toFixed(1)}</span>; })()}
                       </td>
                       <td className="py-1.5 px-1 text-center">
                         <span className={`font-bold ${r.sixConditionsScore >= 5 ? 'text-red-400' : r.sixConditionsScore >= 4 ? 'text-orange-400' : 'text-yellow-400'}`}>
@@ -287,7 +288,7 @@ export function BacktestSection() {
                       <td className="py-1.5 px-1 text-center font-mono text-foreground/80">{r.surgeScore ?? '—'}</td>
                       <td className="py-1.5 px-1 text-center">
                         {r.histWinRate != null && (
-                          <span className={`text-[10px] px-1 rounded ${r.histWinRate >= 60 ? 'bg-green-900/60 text-green-300' : r.histWinRate >= 50 ? 'bg-yellow-900/60 text-yellow-300' : 'bg-red-900/60 text-red-300'}`}>
+                          <span className={`text-[10px] px-1 rounded ${r.histWinRate >= WIN_RATE_STRONG ? 'bg-green-900/60 text-green-300' : r.histWinRate >= WIN_RATE_MEDIUM ? 'bg-yellow-900/60 text-yellow-300' : 'bg-red-900/60 text-red-300'}`}>
                             {r.histWinRate}%<span className="text-[8px] opacity-60">({r.histSignalCount ?? '?'})</span>
                           </span>
                         )}

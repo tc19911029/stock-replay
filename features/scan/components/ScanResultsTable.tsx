@@ -8,6 +8,7 @@ import { POLLING } from '@/lib/config';
 // import { fetchInstitutionalBatch } from '@/lib/datasource/useInstitutionalSummary'; // eslint-disable-line @typescript-eslint/no-unused-vars
 import { Button } from '@/components/ui/button';
 import type { StockForwardPerformance } from '@/lib/scanner/types';
+import { MTF_SCORE_STRONG, MTF_SCORE_OK } from '@/lib/analysis/bookThresholds';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -68,7 +69,9 @@ export function ScanResultsTable({ onSelectStock }: ScanResultsTableProps = {}) 
   const [newsCache, setNewsCache] = useState<Record<string, { sentiment: number; summary: string; hasNews: boolean; loading: boolean }>>({});
   const [realtimePrices, setRealtimePrices] = useState<Map<string, { price: number; changePct: number; time: string }>>(new Map());
   const [conceptFilter, setConceptFilter] = useState<string>('all');
-  const [scanSort, setScanSort] = useState<'price' | 'change'>('change');
+  // 排序選項：成交額排名為預設（依 0512 v12 全期間綜合回測，A 級組合幾乎都靠這個排序勝出）
+  // 漲幅排序對齊 panelSortKey（漲幅主鍵 + 六條件次鍵 tie-breaker）
+  const [scanSort, setScanSort] = useState<'price' | 'change' | 'sixCond' | 'turnover' | 'panel'>('turnover');
   const [scanSortDir, setScanSortDir] = useState<'asc' | 'desc'>('desc');
 
   // Build performance lookup map
@@ -144,7 +147,17 @@ export function ScanResultsTable({ onSelectStock }: ScanResultsTableProps = {}) 
     const dir = scanSortDir === 'desc' ? 1 : -1;
     switch (scanSort) {
       case 'price':      return dir * ((b.price ?? 0) - (a.price ?? 0));
-      case 'change':     return dir * ((b.changePercent ?? 0) - (a.changePercent ?? 0));
+      case 'change':     // 對齊 lib/selection/applyPanelFilter.ts panelSortKey：漲幅 × 1000 + 六條件 tie-breaker
+        return dir * ((((b.changePercent ?? 0) - (a.changePercent ?? 0)) * 1000)
+                      + ((b.sixConditionsScore ?? 0) - (a.sixConditionsScore ?? 0)));
+      case 'sixCond':    return dir * (((b.sixConditionsScore ?? 0) - (a.sixConditionsScore ?? 0)) * 100
+                                       + ((b.changePercent ?? 0) - (a.changePercent ?? 0)) / 100);
+      case 'turnover':   // 對齊產線 ScanPipeline 的 turnoverRank：rank 1 = 最大成交額
+        // desc = 大成交額（rank 小）優先 → a.rank - b.rank 為負時 a 在前
+        return dir * ((a.turnoverRank ?? 999_999) - (b.turnoverRank ?? 999_999));
+      case 'panel':      // 對齊 lib/selection/applyPanelFilter.ts panelSortKey：漲幅主鍵 + 六條件次鍵
+        return dir * ((((b.changePercent ?? 0) - (a.changePercent ?? 0)) * 1000)
+                      + ((b.sixConditionsScore ?? 0) - (a.sixConditionsScore ?? 0)));
       default:           return 0;
     }
   });
@@ -216,6 +229,31 @@ export function ScanResultsTable({ onSelectStock }: ScanResultsTableProps = {}) 
         >
           匯出 CSV
         </Button>
+      </div>
+
+      {/* Sort selector pills */}
+      <div className="flex flex-wrap gap-1 items-center">
+        <span className="text-[10px] text-muted-foreground mr-1">排序：</span>
+        {([
+          { key: 'turnover' as const, label: '成交額排名', tip: '當日成交金額大的排前面（回測 A 級組合多靠此排序勝出）' },
+          { key: 'change'   as const, label: '當日漲幅', tip: '當日收盤價相對前日收盤的漲跌幅%' },
+          { key: 'sixCond'  as const, label: '六條件分', tip: '朱家泓五步法六條件通過分數（次鍵：漲幅）' },
+          { key: 'panel'    as const, label: '面板對齊', tip: '對齊 UI 預設排序（主鍵漲幅、次鍵六條件）' },
+          { key: 'price'    as const, label: '股價', tip: '當前股價高低' },
+        ]).map(({ key, label, tip }) => (
+          <Button key={key}
+            onClick={() => {
+              if (scanSort === key) setScanSortDir(d => d === 'desc' ? 'asc' : 'desc');
+              else { setScanSort(key); setScanSortDir('desc'); }
+            }}
+            variant={scanSort === key ? 'default' : 'secondary'}
+            size="sm"
+            title={tip}
+            className={`text-[10px] px-2 py-0.5 h-auto rounded-full ${scanSort === key ? 'bg-sky-700 hover:bg-sky-600' : ''}`}>
+            {label}
+            {scanSort === key && <span className="ml-1 text-[9px]">{scanSortDir === 'desc' ? '▼' : '▲'}</span>}
+          </Button>
+        ))}
       </div>
 
       {/* Concept filter pills */}
@@ -511,8 +549,8 @@ export function ScanResultsTable({ onSelectStock }: ScanResultsTableProps = {}) 
                           <div className="text-muted-foreground font-medium flex items-center gap-2">
                             長線保護短線
                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                              r.mtfScore >= 4 ? 'bg-sky-900/50 text-sky-300' :
-                              r.mtfScore >= 3 ? 'bg-sky-900/50 text-sky-300' :
+                              r.mtfScore >= MTF_SCORE_STRONG ? 'bg-sky-900/50 text-sky-300' :
+                              r.mtfScore >= MTF_SCORE_OK ? 'bg-sky-900/50 text-sky-300' :
                               r.mtfScore >= 2 ? 'bg-amber-900/50 text-amber-300' :
                               'bg-red-900/50 text-red-300'
                             }`}>

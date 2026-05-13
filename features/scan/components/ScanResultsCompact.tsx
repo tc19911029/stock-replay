@@ -6,8 +6,10 @@ import { useWatchlistStore } from '@/store/watchlistStore';
 import type { SelectedStock } from './ScanChartPanel';
 import type { StockForwardPerformance } from '@/lib/scanner/types';
 import type { TrendState } from '@/lib/analysis/trendAnalysis';
-import type { LockWatchRecord, LockWatchDailySnapshot } from '@/lib/scanner/lockWatchTypes';
+import type { LockWatchRecord } from '@/lib/scanner/lockWatchTypes';
+import { LETTER_NAMES } from '@/lib/scanner/buyMethodTracks';
 import { buildAllStrategyReasons, type StrategyReasonRow } from './strategyReasons';
+import { useLockwatchSnapshot } from '@/lib/hooks/useLockwatchSnapshot';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -18,6 +20,9 @@ function fmtRet(val: number | null | undefined): string {
 
 // v11 字母（G/H/I）跟 v12（J/K/L）是 alias，cross-strategy 顯示時去重
 const V11_ALIAS_OF_V12: Record<string, string> = { G: 'J', H: 'L', I: 'K' };
+
+// 2026-05-13 對齊書本：F/N 在書本（寶典 Part 11-1 #7、抓住K線 V 反轉戰法）
+// 觸發即進場訊號，不再用 dashed outline 區分，跟 B/C/E 同等實心填色顯示。
 
 /**
  * Cross-strategy badges 去重：
@@ -88,7 +93,10 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
 
   const [expandedStock, setExpandedStock] = useState<string | null>(null);
   const [conceptFilter, setConceptFilter] = useState<string>('all');
-  const [scanSortDir] = useState<'desc'>('desc');
+  // 排序選項：成交額排名為預設（依 0512 v12 全期間綜合回測，A 級組合多靠此排序勝出）
+  // 漲幅排序對齊 panelSortKey（漲幅主鍵 + 六條件次鍵 tie-breaker）
+  const [scanSort, setScanSort] = useState<'turnover' | 'change' | 'sixCond' | 'price'>('turnover');
+  const [scanSortDir, setScanSortDir] = useState<'asc' | 'desc'>('desc');
 
   // 即時 raw trend（跟 banner 同源）— saved session 的 marketTrend 是舊邏輯（含降級）
   // 不可用，會跟 banner 顯示不一致（「banner 多頭、結果欄盤整」這種）
@@ -107,20 +115,12 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
   const marketTrend = liveTrend ?? storeTrend;
 
   // ── LockWatch records cross-ref（已失效 N / F 訊號標 ✗）──────────────────
-  // 同 LockWatchPanel 的資料來源；ScanResultsCompact 只需要 currentStage 來標失效 row
-  const [lockWatchRecords, setLockWatchRecords] = useState<LockWatchRecord[]>([]);
-  useEffect(() => {
-    let cancelled = false;
-    if (!market) return;
-    fetch(`/api/lockwatch?market=${market}`)
-      .then((r) => r.json())
-      .then((j: { ok?: boolean; snapshot?: LockWatchDailySnapshot | null }) => {
-        if (cancelled || !j.ok || !j.snapshot) return;
-        setLockWatchRecords(j.snapshot.records ?? []);
-      })
-      .catch(() => { /* 拉不到就不顯示失效標記，不影響其他功能 */ });
-    return () => { cancelled = true; };
-  }, [market]);
+  // 共用 useLockwatchSnapshot；LockWatchPanel 也用同一個 hook
+  const { snapshot: lockwatchSnapshot } = useLockwatchSnapshot(market);
+  const lockWatchRecords: LockWatchRecord[] = useMemo(
+    () => lockwatchSnapshot?.records ?? [],
+    [lockwatchSnapshot],
+  );
   // (symbol, triggerSignal, triggeredDate) → record；用 row.scanDate 對齊 record.triggeredDate
   // 解兩個 bug：(a) 同支股多筆 N 不會互蓋；(b) 看歷史 scan 拿到對應日期的 record 而非最新 state
   const lockWatchByKey = useMemo(() => {
@@ -150,7 +150,17 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
 
   const sorted = [...filtered].sort((a, b) => {
     const dir = scanSortDir === 'desc' ? 1 : -1;
-    return dir * ((b.changePercent ?? 0) - (a.changePercent ?? 0));
+    switch (scanSort) {
+      case 'price':      return dir * ((b.price ?? 0) - (a.price ?? 0));
+      case 'change':     // 對齊 lib/selection/applyPanelFilter.ts panelSortKey：漲幅 × 1000 + 六條件 tie-breaker
+        return dir * ((((b.changePercent ?? 0) - (a.changePercent ?? 0)) * 1000)
+                      + ((b.sixConditionsScore ?? 0) - (a.sixConditionsScore ?? 0)));
+      case 'sixCond':    return dir * (((b.sixConditionsScore ?? 0) - (a.sixConditionsScore ?? 0)) * 100
+                                       + ((b.changePercent ?? 0) - (a.changePercent ?? 0)) / 100);
+      case 'turnover':   // rank 1 = 最大成交額；desc → 小 rank 在前
+        return dir * ((a.turnoverRank ?? 999_999) - (b.turnoverRank ?? 999_999));
+      default:           return 0;
+    }
   });
 
   if (!scanOnly) return null;
@@ -183,6 +193,27 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
         )}
       </div>
 
+
+      {/* Sort selector pills */}
+      <div className="flex flex-wrap gap-1 items-center">
+        <span className="text-[9px] text-muted-foreground/70 mr-0.5">排序</span>
+        {([
+          { key: 'turnover' as const, label: '成交額', tip: '當日成交金額大的排前面（回測 A 級組合多靠此排序勝出）' },
+          { key: 'change'   as const, label: '漲幅',   tip: '當日漲跌幅 %（同分用六條件當 tie-breaker，對齊面板預設排序）' },
+          { key: 'sixCond'  as const, label: '六條件', tip: '朱家泓五步法六條件總分（次鍵：漲幅）' },
+          { key: 'price'    as const, label: '股價',   tip: '當前股價高低' },
+        ]).map(({ key, label, tip }) => (
+          <button key={key}
+            onClick={() => {
+              if (scanSort === key) setScanSortDir(d => d === 'desc' ? 'asc' : 'desc');
+              else { setScanSort(key); setScanSortDir('desc'); }
+            }}
+            title={tip}
+            className={`text-[9px] px-1.5 py-0.5 rounded-full whitespace-nowrap ${scanSort === key ? 'bg-sky-700 text-foreground' : 'bg-secondary text-muted-foreground'}`}>
+            {label}{scanSort === key && <span className="ml-0.5">{scanSortDir === 'desc' ? '▼' : '▲'}</span>}
+          </button>
+        ))}
+      </div>
 
       {/* Concept filter pills */}
       {availableConcepts.length > 1 && (
@@ -281,14 +312,8 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                       P: 'bg-pink-800/80 text-pink-300',
                       Q: 'bg-violet-800/80 text-violet-300',
                     };
-                    const methodNames: Record<string, string> = {
-                      A: '六條件', B: '回後買上漲', C: '盤整突破',
-                      D: '一字底', E: '缺口', F: 'V反轉',
-                      G: 'ABC突破', H: '突破黑K', I: 'K線橫盤',
-                      J: 'ABC突破', K: 'K線橫盤', L: '突破黑K',
-                      M: '軌道線突破', N: '型態確認', O: '打底完成',
-                      P: '高檔拉回', Q: '三均戰法',
-                    };
+                    // 字母→名稱讀 lib/scanner/buyMethodTracks.ts 單一事實來源
+                    const methodNames = LETTER_NAMES;
                     const color = methodColors[activeBuyMethod] ?? 'bg-sky-800/80 text-sky-300';
                     const others = dedupeCrossBadges(r.matchedMethods ?? [], activeBuyMethod);
                     return (
@@ -328,13 +353,8 @@ export function ScanResultsCompact({ onSelectStock }: ScanResultsCompactProps) {
                       P: 'bg-pink-800/80 text-pink-300',
                       Q: 'bg-violet-800/80 text-violet-300',
                     };
-                    const methodNames: Record<string, string> = {
-                      B: '回後買上漲', C: '盤整突破', D: '一字底', E: '缺口', F: 'V反轉',
-                      G: 'ABC突破', H: '突破黑K', I: 'K線橫盤',
-                      J: 'ABC突破', K: 'K線橫盤', L: '突破黑K',
-                      M: '軌道線突破', N: '型態確認', O: '打底完成',
-                      P: '高檔拉回', Q: '三均戰法',
-                    };
+                    // 字母→名稱讀 lib/scanner/buyMethodTracks.ts 單一事實來源
+                    const methodNames = LETTER_NAMES;
                     // A tab：所有命中策略都有資訊量（六條件 + 其他進場訊號），只去重 v11 alias
                     const seen = new Set<string>();
                     const others = (r.matchedMethods ?? [])

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useBacktestStore } from '@/store/backtestStore';
 import { usePortfolioStore } from '@/store/portfolioStore';
 import type { SelectedStock } from './ScanChartPanel';
+import { LETTER_NAMES } from '@/lib/scanner/buyMethodTracks';
 
 interface ReentryCandidate {
   symbol: string;
@@ -21,11 +22,8 @@ interface ReentryCandidate {
   matchedMethods?: string[];
 }
 
-const METHOD_NAME: Record<string, string> = {
-  A: '六條件', B: '回後買上漲', C: '盤整突破', D: '一字底', E: '缺口',
-  F: 'V反轉', J: 'ABC突破', K: 'K線橫盤', L: '過大量黑K', M: '軌道線',
-  N: '型態確認', O: '打底完成', P: '高檔拉回', Q: '三均線戰法',
-};
+// 字母→名稱讀 lib/scanner/buyMethodTracks.ts 單一事實來源
+const METHOD_NAME = LETTER_NAMES;
 
 // 多頭軌 = 紅、轉折軌 = 藍、戰法 = 紫、預選池 A = 琥珀
 const METHOD_COLOR: Record<string, string> = {

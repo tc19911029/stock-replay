@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { LETTER_NAMES } from '@/lib/scanner/buyMethodTracks';
 
 interface LetterStats {
   letter: string;
@@ -24,13 +25,6 @@ interface LetterStats {
   sharpeLike: number | null;
   uniqueSymbols: number;
 }
-
-const LETTER_NAMES: Record<string, string> = {
-  B: '回後買上漲', C: '盤整突破', D: '一字底', E: '缺口進場', F: 'V 反轉',
-  G: 'ABC 突破 (v11)', H: '突破黑K (v11)', I: 'K線橫盤 (v11)',
-  J: 'ABC 突破', K: 'K線橫盤', L: '突破黑K', M: '軌道線突破',
-  N: '型態確認', O: '打底完成', P: '高檔拉回', Q: '三均線戰法',
-};
 
 const TRACK_COLOR: Record<string, string> = {
   B: 'border-red-700/60', P: 'border-red-700/60', C: 'border-red-700/60', E: 'border-red-700/60',

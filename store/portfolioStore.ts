@@ -40,10 +40,11 @@ export interface PortfolioHolding {
 
   /**
    * 操作模式（Step 4 ② / ③）
-   * 'short' = 短線（MA5/MA10）；'long' = 長線（MA20）；'wave' = 波段
+   * 'short' = 短線（MA5/MA10）；'long' = 長線（MA20）
    * 用戶手動切換（議題 Step 4 ③ 升級長線）
+   * 0513 ABCDE E：'wave' 已砍（fall-through 跟 short 一樣，誤導用戶）
    */
-  operationMode?: 'short' | 'long' | 'wave';
+  operationMode?: 'short' | 'long';
 
   /**
    * 進階紀律啟用 flag（議題 B 寶典 #5/#6）
@@ -74,6 +75,22 @@ export interface PortfolioHolding {
    * 用於絕對停損 ⑥-5 跌破 V 底
    */
   vBottom?: number;
+
+  /**
+   * 進場時凍結的型態快照（議題 C2，2026-05-13）
+   *
+   * 為什麼存在：持股後 chart 即時偵測的 patternType / target / neckline 會隨 K 棒變動，
+   * 導致 Step 5 停利目標每日跳動。進場當下凍結一份，往後顯示讀這個 snapshot。
+   * 缺值時 backend fallback 到即時計算（向下相容舊持倉）。
+   */
+  entryPattern?: {
+    patternType: string;
+    necklinePrice: number;
+    targetPrice: number;
+    stopPrice?: number;
+    /** 'bottom' = 底部型態（B/C/N/O 進場），'top' = 頂部反向（不常用） */
+    kind: 'bottom' | 'top';
+  };
 }
 
 /** 已賣出（已實現）的一筆交易紀錄 */

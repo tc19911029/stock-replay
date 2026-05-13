@@ -361,7 +361,9 @@ export const ZHU_V_REVERSAL: StrategyConfig = {
   conditions:  ALL_CONDITIONS_ON,
   thresholds:  {
     ...BASE_THRESHOLDS,
-    volumeRatioMin: 2.0,   // 反轉量更嚴，≥ 5 日均量 × 2
+    // 真實判斷由 detectVReversal 內 VREVERSAL_VOL_MULT=1.5 決定（書本：紅K帶量×1.5 vs 5日均量）。
+    // 這裡保持 1.5 以免誤導；fallback 路徑（若有）才會用到。
+    volumeRatioMin: 1.5,
     kbarMinBodyPct: 0.02,
     minScore:       0,
     marketTrendFilter: false,

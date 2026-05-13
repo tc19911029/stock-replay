@@ -107,23 +107,27 @@ export interface LockWatchRecord {
   /**
    * 當前生命週期階段
    *
-   * 議題 23 / 65 / 93 / 17 / 62（2026-05-10 Phase C 新增 pending-breakout）：
-   * - pending-breakout：N 結構成立但 close 未過 ×3% 真突破，等突破（即將突破清單）
-   * - observation：已過 ×3% 真突破 / F V 反彈，等趨勢確認
-   * - entry-signal：趨勢確認 + SOP 過，可進場
-   * - purchased：用戶已買進（同步寫入持倉 watchlist）
-   * - revoked：訊號失效（close < triggerPrice / 翻空 / 結構失效）
+   * 0513 ABCDE E：對齊書本後簡化 — pending-breakout 跟 entry-signal 都 deprecated
+   * 書本（寶典 Part 11-1 第 7 位置 p.697）：型態確認當下就是進場訊號，不分兩段觀察
+   *
+   * - observation：書本進場條件已觸發（N 真突破 / F V 反彈）
+   * - purchased：用戶已買進
+   * - revoked：訊號失效（close < triggerPrice / 翻空）
    * - manually-removed：用戶手動移除
    * - structure-broken：結構失效自動移除
+   * - ⚠️ pending-breakout (deprecated)：舊資料相容，0513 後不再寫入
+   * - ⚠️ entry-signal (deprecated)：舊資料相容，0513 後 updateLockWatch 不再升級
    */
   currentStage:
-    | 'pending-breakout'
     | 'observation'
-    | 'entry-signal'
     | 'purchased'
     | 'revoked'
     | 'manually-removed'
-    | 'structure-broken';
+    | 'structure-broken'
+    /** @deprecated 0513 ABCDE 對齊書本後不再寫入，僅相容舊資料 */
+    | 'pending-breakout'
+    /** @deprecated 0513 ABCDE 對齊書本後不再寫入，僅相容舊資料 */
+    | 'entry-signal';
 
   /**
    * 已觀察天數（資訊用，非過期判定）

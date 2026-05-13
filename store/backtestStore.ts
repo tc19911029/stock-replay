@@ -43,6 +43,8 @@ import {
   WalkForwardResult, WalkForwardSession, runWalkForward as _runWalkForward,
 } from '@/lib/backtest/WalkForwardTest';
 import { useSettingsStore } from './settingsStore';
+import { AI_CONFIDENCE_HIGH, AI_CONFIDENCE_MEDIUM } from '@/lib/analysis/bookThresholds';
+import { REVERSAL_OR_SYSTEM_SET } from '@/lib/scanner/buyMethodTracks';
 
 // Module-level abort controller for scan operations
 let scanAbortController: AbortController | null = null;
@@ -439,8 +441,11 @@ export const useBacktestStore = create<BacktestState>()(
         if (scanResults.length === 0) return;
         set({ aiRanking: { isRanking: true, error: null } });
         try {
+          // 讀 active strategy 的 minScore（不同策略 4/5 不同），不要 hard-code（CLAUDE.md #10）
+          const activeStrategy = useSettingsStore.getState().getActiveStrategy();
+          const minScore = activeStrategy.thresholds.minScore ?? 4;
           const top = scanResults
-            .filter(r => r.sixConditionsScore >= 4)
+            .filter(r => r.sixConditionsScore >= minScore)
             .slice(0, 15)
             .map(r => ({
               symbol: r.symbol, name: r.name, price: r.price,
@@ -461,7 +466,7 @@ export const useBacktestStore = create<BacktestState>()(
           const updatedResults: StockScanResult[] = get().scanResults.map(r => {
             const ai = rankMap.get(r.symbol);
             if (!ai) return r;
-            const conf = ai.confidence >= 80 ? 'high' : ai.confidence >= 50 ? 'medium' : 'low';
+            const conf = ai.confidence >= AI_CONFIDENCE_HIGH ? 'high' : ai.confidence >= AI_CONFIDENCE_MEDIUM ? 'medium' : 'low';
             return { ...r, aiRank: ai.rank, aiConfidence: conf as StockScanResult['aiConfidence'], aiReason: ai.reason };
           });
           set({ scanResults: updatedResults, aiRanking: { isRanking: false, error: null } });
@@ -951,8 +956,7 @@ export const useBacktestStore = create<BacktestState>()(
             // - 反轉軌（D/F/N/O）：書本「抓底/反轉」設計就是不過 Step 1 全市場掃 → 不過濾 A
             // - 戰法軌（Q）：自含 MA24 趨勢判定，不過 Step 1 → 不過濾 A
             // 之前的 bug：所有 method 都加 A filter，導致 N/F/O/D/Q session 內反轉軌訊號被擋（如 3026 跌菱形 80% 沒過 A 但 N matched 應顯示）
-            const REVERSAL_OR_SYSTEM = new Set(['D', 'F', 'N', 'O', 'Q']);
-            const requireA = !REVERSAL_OR_SYSTEM.has(activeBuyMethod);
+            const requireA = !REVERSAL_OR_SYSTEM_SET.has(activeBuyMethod);
             const scanResults = (session?.results ?? []).filter(r =>
               !requireA || r.matchedMethods?.includes('A'),
             );

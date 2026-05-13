@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { fetchWithRetry } from '@/lib/fetchWithRetry';
 import { toast } from 'sonner';
+import { DAY_TRADE_RATIO_HIGH, DAY_TRADE_RATIO_WARN } from '@/lib/analysis/bookThresholds';
 
 interface ChipInfo {
   symbol: string;
@@ -342,7 +343,7 @@ export default function ChipDetailPanel({ symbol, date }: { symbol: string; date
           <span className="float-right text-muted-foreground font-mono">{data.shortBalance.toLocaleString()}張</span>
           <div className="clear-both" />
           <span>當沖比例</span>
-          <span className={`float-right font-mono ${data.dayTradeRatio > 40 ? 'text-bull' : data.dayTradeRatio > 25 ? 'text-yellow-400' : 'text-muted-foreground'}`}>
+          <span className={`float-right font-mono ${data.dayTradeRatio > DAY_TRADE_RATIO_HIGH ? 'text-bull' : data.dayTradeRatio > DAY_TRADE_RATIO_WARN ? 'text-yellow-400' : 'text-muted-foreground'}`}>
             {data.dayTradeRatio}%
           </span>
         </div>

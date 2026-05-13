@@ -21,6 +21,7 @@
 import type { CandleWithIndicators } from '../../types';
 
 import type { V12Letter } from '../analysis/v12Signals';
+import { HIGH_DEVIATION_PCT, PROFIT_TARGET_RULE_PCT, PROFIT_HIGH_TIER_PCT, BOOK_VOL_RATIO_MIN } from '../analysis/bookThresholds';
 
 // ── Step 5 ② 獲利目標停利 ───────────────────────────────────────────────
 
@@ -72,8 +73,10 @@ export function checkTakeProfitTargets(inputs: TakeProfitInputs): TakeProfitResu
   }
 
   // 到達壓力區（書本 5 步驟步驟 5 第 4 章特定條件 #1「做多到達壓力」）
+  // ⚠️ 自創 padding（書本沒明寫「距離 ≤ 2%」）— 0513 ABCDE D 標自創
   // 通用實作：close 達最近 confirmed pivot high 的 ±2% 範圍 → 提示停利
   // 注意：不強制出場（triggered: false），讓使用者判斷是否續抱還是了結
+  // 未來考慮改用 ATR-based 距離（更貼近書本「接近壓力」精神）
   if (recentPivotHigh != null && recentPivotHigh > 0) {
     const distancePct = Math.abs(todayClose - recentPivotHigh) / recentPivotHigh;
     if (distancePct <= 0.02 && todayClose >= recentPivotHigh * 0.98) {
@@ -88,23 +91,23 @@ export function checkTakeProfitTargets(inputs: TakeProfitInputs): TakeProfitResu
   // 乖離 ≥ 15% → 切 MA5（不直接停利，議題 Step 5 ②）
   if (todayMA20 != null && todayMA20 > 0) {
     const deviation = (todayClose - todayMA20) / todayMA20;
-    if (deviation >= 0.15) {
+    if (deviation >= HIGH_DEVIATION_PCT) {
       return {
         triggered: false,
         reason: 'high-deviation',
         modeRecommendation: 'short-bias-MA5',
-        detail: `乖離 ${(deviation * 100).toFixed(2)}% ≥ 15%，建議切 MA5 跟隨`,
+        detail: `乖離 ${(deviation * 100).toFixed(2)}% ≥ ${(HIGH_DEVIATION_PCT * 100).toFixed(0)}%，建議切 MA5 跟隨`,
       };
     }
   }
 
   // 達 10% → 啟用 B/P 進階紀律（議題 Step 5 ② / 衝突 α）
-  if (profitPct >= 0.10) {
+  if (profitPct >= PROFIT_TARGET_RULE_PCT) {
     return {
       triggered: false,
       reason: 'profit-target-10',
       enhancedDisciplineEnabled: letter === 'B' || letter === 'P',
-      detail: `獲利達 10%（${(profitPct * 100).toFixed(2)}%）— ${letter === 'B' || letter === 'P' ? '啟用寶典 #5/#6 進階紀律' : '可考慮升級長線'}`,
+      detail: `獲利達 ${(PROFIT_TARGET_RULE_PCT * 100).toFixed(0)}%（${(profitPct * 100).toFixed(2)}%）— ${letter === 'B' || letter === 'P' ? '啟用寶典 #5/#6 進階紀律' : '可考慮升級長線'}`,
     };
   }
 
@@ -223,11 +226,12 @@ export function detectKBarExitSignal(inputs: KBarSignalInputs): KBarSignalResult
   }
 
   // ── 5. 寶典 #8 急漲後大量長黑跌破前 K 低（≥ 20% 累計獲利）──
+  // 0513 ABCDE D：改 import PROFIT_HIGH_TIER_PCT (20%) + BOOK_VOL_RATIO_MIN (1.3) 統一
   if (
-    cumulativeProfit >= 0.20 &&
+    cumulativeProfit >= PROFIT_HIGH_TIER_PCT &&
     todayCandle.close < todayCandle.open &&          // 今日黑 K
     yesterdayCandle.volume > 0 &&
-    todayCandle.volume / yesterdayCandle.volume >= 1.3 &&  // 大量
+    todayCandle.volume / yesterdayCandle.volume >= BOOK_VOL_RATIO_MIN &&
     todayCandle.close < yesterdayCandle.low           // 跌破前 K 低
   ) {
     return {

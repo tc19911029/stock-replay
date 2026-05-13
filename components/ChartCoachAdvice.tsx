@@ -219,7 +219,7 @@ export default function ChartCoachAdvice({ defaultCollapsed = false }: ChartCoac
     setSavedAt(now);
   }, [data, chat, persistKey]);
 
-  const ask = async () => {
+  const ask = async (opts?: { forceRefresh?: boolean }) => {
     if (loading || !candle || !symbol) return;
     setLoading(true);
     setError(null);
@@ -230,6 +230,33 @@ export default function ChartCoachAdvice({ defaultCollapsed = false }: ChartCoac
         label: s.label,
         description: s.description,
         subtype: s.subtype ?? classifySignal(s),
+      }));
+
+      // 抓走圖視覺截圖 — 朱老師 session 是多模態 LLM，Read PNG 能直接「看」K 線型態
+      let chartScreenshot: string | null = null;
+      try {
+        const w = window as unknown as { __rockstockChart?: { takeScreenshot: () => HTMLCanvasElement } };
+        const canvas = w.__rockstockChart?.takeScreenshot();
+        if (canvas) {
+          // image/png base64，扔掉 data URL prefix（"data:image/png;base64,"）只送 raw base64
+          const dataUrl = canvas.toDataURL('image/png');
+          chartScreenshot = dataUrl.split(',', 2)[1] ?? null;
+        }
+      } catch (err) {
+        console.warn('[ChartCoachAdvice] screenshot failed:', err);
+      }
+
+      // 帶 120 天完整歷史 K 線給朱老師（OHLCV + 所有指標）
+      // 朱老師能從這找出：前波頂底、盤整區間、過往爆量、KD/MACD 背離、均線糾結期等
+      const histStart = Math.max(0, currentIndex - 119);
+      const recentCandles = allCandles.slice(histStart, currentIndex + 1).map(c => ({
+        date: c.date,
+        o: c.open, h: c.high, l: c.low, c: c.close, v: c.volume,
+        ma5: c.ma5 ?? null, ma10: c.ma10 ?? null, ma20: c.ma20 ?? null,
+        ma60: c.ma60 ?? null, ma240: c.ma240 ?? null,
+        avgVol5: c.avgVol5 ?? null,
+        kdK: c.kdK ?? null, kdD: c.kdD ?? null,
+        macdDIF: c.macdDIF ?? null, macdOSC: c.macdOSC ?? null,
       }));
 
       const res = await fetch('/api/coach/chart-digest', {
@@ -267,6 +294,9 @@ export default function ChartCoachAdvice({ defaultCollapsed = false }: ChartCoac
           winnerBearishPatterns: winnerPatterns?.bearishPatterns.map(p => p.name) ?? [],
           hasPosition,
           positionCost: held?.costPrice ?? null,
+          recentCandles,
+          chartScreenshot,
+          forceRefresh: opts?.forceRefresh ?? false,
         }),
       });
       const body = await res.json();
@@ -330,7 +360,7 @@ export default function ChartCoachAdvice({ defaultCollapsed = false }: ChartCoac
   if (!data && !loading && !error) {
     return (
       <button
-        onClick={ask}
+        onClick={() => ask()}
         className="w-full mb-3 px-3 py-2 rounded-lg border border-purple-500/40 bg-gradient-to-r from-purple-500/15 to-indigo-500/15 hover:from-purple-500/25 hover:to-indigo-500/25 text-[12px] font-semibold text-purple-100 transition-all flex items-center justify-center gap-2"
       >
         <span>💬</span>
@@ -341,8 +371,11 @@ export default function ChartCoachAdvice({ defaultCollapsed = false }: ChartCoac
 
   if (loading) {
     return (
-      <div className="w-full mb-3 px-3 py-3 rounded-lg border border-purple-500/30 bg-purple-500/5 text-center text-[11px] text-purple-200 animate-pulse">
-        💬 老師分析中…（通常 3~6 秒）
+      <div className="w-full mb-3 px-3 py-3 rounded-lg border border-purple-500/30 bg-purple-500/5 text-[11px] text-purple-200 space-y-1.5">
+        <div className="animate-pulse text-center">💬 朱老師正在查資料分析…</div>
+        <div className="text-purple-200/70 leading-relaxed text-center">
+          已自動切到朱老師 Terminal 觸發分析。若一直沒回應，請確認名為 <code className="px-1 rounded bg-purple-500/20 text-purple-100 font-mono">Zhu</code> 的 Terminal 有開著、且 macOS 已授權自動化。
+        </div>
       </div>
     );
   }
@@ -352,7 +385,7 @@ export default function ChartCoachAdvice({ defaultCollapsed = false }: ChartCoac
       <div className="w-full mb-3 px-3 py-2 rounded-lg border border-red-500/30 bg-red-500/5 text-[11px] text-red-300 flex items-center justify-between gap-2">
         <span>💬 老師回覆異常：{error}</span>
         <button
-          onClick={ask}
+          onClick={() => ask({ forceRefresh: true })}
           className="text-[11px] text-red-200 hover:text-red-100 px-2 py-0.5 rounded bg-red-500/20 hover:bg-red-500/30"
         >重試</button>
       </div>
@@ -378,9 +411,9 @@ export default function ChartCoachAdvice({ defaultCollapsed = false }: ChartCoac
           )}
         </div>
         <button
-          onClick={ask}
+          onClick={() => ask({ forceRefresh: true })}
           className="text-[10px] text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted shrink-0"
-          title="重新分析（會覆蓋歷史）"
+          title="重新分析（略過 server cache，強制重打朱老師）"
         >🔄</button>
       </div>
 

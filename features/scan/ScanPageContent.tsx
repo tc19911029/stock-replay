@@ -383,8 +383,38 @@ export default function ScanPageContent({ defaultMode: _defaultMode = 'full' }: 
     // daban 模式由 DabanResultsTable 自行載入
   }, [market, scanDirection, scanDate, useMultiTimeframe]);
 
+  // 0512 修：page visibility 切回 + 看今日資料時自動重 fetch
+  // 避免「盤中 Step 1 池子飄移」造成 zustand state 留著早上 cache 跟其他 tab 不同步
+  // 例如 09:43 載入時 4551 在池子，12:23 池子已踢出 4551，但「六條件」tab 還顯示 09:43 cache
+  useEffect(() => {
+    if (scanDirection === 'daban') return;
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!scanDate) return;
+      const todayCST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
+      // 只在看「今日」資料時重 fetch（盤中飄移風險）；看歷史日不重抓
+      if (scanDate !== todayCST) return;
+      useBacktestStore.getState().loadCronSession(market, scanDate, { scanOnly: true, direction: scanDirection, forceRefresh: true });
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [market, scanDate, scanDirection]);
+
   // ── Chart selection state ──
-  const [selectedStock, setSelectedStock] = useState<SelectedStock | null>(null);
+  // 預設載入大盤指數（TW=加權指數 ^TWII / CN=上證指數 000001.SS）
+  // 用戶點個股後切換到個股；切換市場時自動重置為該市場的大盤指數
+  const getDefaultIndex = (m: 'TW' | 'CN'): SelectedStock => m === 'TW'
+    ? { symbol: '^TWII', name: '加權指數', market: 'TW' }
+    : { symbol: '000001.SS', name: '上證指數', market: 'CN' };
+  const [selectedStock, setSelectedStock] = useState<SelectedStock | null>(() => getDefaultIndex(market));
+
+  // 切換市場時，若目前選的股票屬於另一個市場，自動切回該市場大盤指數
+  useEffect(() => {
+    if (!selectedStock || selectedStock.market !== market) {
+      setSelectedStock(getDefaultIndex(market));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [market]);
 
   // ── One-click scan actions ──
   const isBusy = isScanning || isFetchingForward;

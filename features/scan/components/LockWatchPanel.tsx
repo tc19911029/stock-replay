@@ -10,25 +10,21 @@
  */
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import type { LockWatchDailySnapshot, LockWatchRecord } from '@/lib/scanner/lockWatchTypes';
+import type { LockWatchRecord } from '@/lib/scanner/lockWatchTypes';
 import type { SelectedStock } from './ScanChartPanel';
 import { useWatchlistStore } from '@/store/watchlistStore';
+import { LETTER_NAMES } from '@/lib/scanner/buyMethodTracks';
+import { useLockwatchSnapshot } from '@/lib/hooks/useLockwatchSnapshot';
 
 interface LockWatchPanelProps {
   market: 'TW' | 'CN';
   onSelectStock?: (stock: SelectedStock) => void;
 }
 
-interface ApiResponse {
-  ok: boolean;
-  snapshot: LockWatchDailySnapshot | null;
-  dates: string[];
-  error?: string;
-}
-
+// 字母→名稱讀 lib/scanner/buyMethodTracks.ts 單一事實來源
 const SIGNAL_LABEL: Record<'F' | 'N', { name: string; color: string }> = {
-  F: { name: 'V反轉', color: 'bg-rose-800/80 text-rose-300' },
-  N: { name: '型態確認', color: 'bg-indigo-800/80 text-indigo-300' },
+  F: { name: LETTER_NAMES.F, color: 'bg-rose-800/80 text-rose-300' },
+  N: { name: LETTER_NAMES.N, color: 'bg-indigo-800/80 text-indigo-300' },
 };
 
 const PATTERN_NAME: Record<NonNullable<LockWatchRecord['patternType']>, string> = {
@@ -45,10 +41,12 @@ const PATTERN_NAME: Record<NonNullable<LockWatchRecord['patternType']>, string> 
   'double-top': '雙重頂',
 };
 
+// 2026-05-13 對齊書本：observation = 觸發書本進場條件（已可進場）；
+// pending-breakout / entry-signal 為舊資料 stage，向下相容顯示
 const STAGE_STYLE: Record<LockWatchRecord['currentStage'], { label: string; color: string }> = {
-  'pending-breakout': { label: '等突破', color: 'text-cyan-300' },
-  observation: { label: '觀察中', color: 'text-amber-300' },
-  'entry-signal': { label: '可進場', color: 'text-emerald-300 font-bold' },
+  observation: { label: '已觸發', color: 'text-emerald-300 font-bold' },
+  'pending-breakout': { label: '舊資料（已棄）', color: 'text-muted-foreground/60' },
+  'entry-signal': { label: '已觸發', color: 'text-emerald-300 font-bold' },
   purchased: { label: '已買進', color: 'text-sky-300' },
   revoked: { label: '已撤銷', color: 'text-muted-foreground/60 line-through' },
   'manually-removed': { label: '手動移除', color: 'text-muted-foreground/60 line-through' },
@@ -57,9 +55,7 @@ const STAGE_STYLE: Record<LockWatchRecord['currentStage'], { label: string; colo
 
 export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
   const [collapsed, setCollapsed] = useState(true);
-  const [snapshot, setSnapshot] = useState<LockWatchDailySnapshot | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { snapshot, loading, error, reload } = useLockwatchSnapshot(market);
   const [removingKey, setRemovingKey] = useState<string | null>(null);
   // 股票名稱對照（symbol → name），lockwatch record 沒存 name 欄位，UI 端從 stock list API 拉
   const [nameMap, setNameMap] = useState<Record<string, string>>({});
@@ -91,24 +87,6 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
     return () => { cancelled = true; };
   }, [market]);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/lockwatch?market=${market}`);
-      const json = (await res.json()) as ApiResponse;
-      if (!json.ok) {
-        setError(json.error ?? 'load failed');
-      } else {
-        setSnapshot(json.snapshot);
-      }
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [market]);
-
   const removeRecord = useCallback(
     async (symbol: string, triggerSignal: 'F' | 'N') => {
       const key = `${symbol}-${triggerSignal}`;
@@ -123,7 +101,7 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
         if (!json.ok) {
           alert(`移除失敗：${json.error ?? 'unknown'}`);
         } else {
-          await fetchData();
+          await reload();
         }
       } catch (err) {
         alert(`移除失敗：${String(err)}`);
@@ -131,33 +109,26 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
         setRemovingKey(null);
       }
     },
-    [market, fetchData],
+    [market, reload],
   );
 
-  // 進入時就 fetch 一次抓 active count；展開不展開都顯示徽章
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  // Active = 等突破 / 觀察中 / 可進場（已買進、撤銷、移除不在主視圖突出）
-  // Phase C：pending-breakout 是新主力 stage（即將突破清單）
+  // 2026-05-13 對齊書本：書本沒有 pending-breakout 概念，從 active 隱藏
+  // observation = 已觸發書本進場條件；entry-signal 為舊資料 alias
   const activeRecords = (snapshot?.records ?? []).filter(
-    (r) => r.currentStage === 'pending-breakout'
-      || r.currentStage === 'observation'
-      || r.currentStage === 'entry-signal',
+    (r) => r.currentStage === 'observation' || r.currentStage === 'entry-signal',
   );
   const activeCount = activeRecords.length;
   const totalCount = snapshot?.records.length ?? 0;
 
-  // 排序：可進場 > 等突破 > 觀察中 > 已買進 > 撤銷類
+  // 2026-05-13 對齊書本：observation = 已觸發書本進場條件（最高優先）
   const STAGE_ORDER: Record<LockWatchRecord['currentStage'], number> = {
-    'entry-signal': 0,
-    'pending-breakout': 1,
-    observation: 2,
-    purchased: 3,
-    'manually-removed': 4,
-    revoked: 5,
-    'structure-broken': 6,
+    observation: 0,
+    'entry-signal': 0,        // 舊資料 alias
+    'pending-breakout': 1,    // 舊資料：還沒過真突破，排次優
+    purchased: 2,
+    'manually-removed': 3,
+    revoked: 4,
+    'structure-broken': 5,
   };
 
   const sortedRecords = useMemo(() => {
@@ -220,10 +191,10 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
             ? 'bg-amber-900/30 text-amber-200 hover:bg-amber-900/40'
             : 'text-muted-foreground hover:text-foreground'
         }`}
-        title="F V 反轉 / N 型態確認 觸發後自動加入觀察名單，等趨勢確認再進場"
+        title="F/N 訊號觸發紀錄：N=型態突破頸線（書本《寶典》Part 11-1 #7「等型態確認」p.697）、F=V 反轉（書本《抓住K線》V 反轉戰法）。書本明寫觸發當下即進場訊號。本表保留紀錄是為了走圖鎖定型態+頸線+目標價、以及進場按鈕一鍵帶入持倉。"
       >
         <span className="flex items-center gap-1.5">
-          <span className="font-semibold">鎖股觀察</span>
+          <span className="font-semibold">F/N 訊號紀錄</span>
           <span className="text-[10px] font-mono bg-amber-700 text-amber-100 px-1.5 py-px rounded font-bold">
             {activeCount} 檔
           </span>
@@ -236,6 +207,18 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
 
       {!collapsed && (
         <div className="px-2.5 pb-1.5">
+          {/* 對齊書本：F/N 觸發即進場訊號（寶典 Part 11-1 #7 + 抓住K線 V 反轉戰法） */}
+          <div className="text-[10px] text-emerald-200/80 bg-emerald-900/15 border border-emerald-700/30 rounded px-2 py-1 my-1.5 leading-relaxed space-y-1">
+            <div>
+              <span className="font-bold text-emerald-300">這是「已觸發」紀錄</span>：
+              <span className="font-semibold ml-1">N</span>＝型態突破頸線（書本 8 種底部型態，《寶典》Part 11-1 第 7 位置 p.697「型態確認上漲大量紅 K」）；
+              <span className="font-semibold ml-1">F</span>＝V 反轉戰法（《抓住K線》V 反轉 4 條件：連跌+變盤線止跌+紅K帶量+突破前K高）。
+              <span className="font-semibold">書本明寫觸發當下即進場訊號。</span>
+            </div>
+            <div className="text-muted-foreground/80">
+              本表保留紀錄是為了：(1) 點代號開走圖時鎖定型態 chip+頸線+目標價（標「鎖定」不跳動）；(2) 一鍵進場帶入持倉的 entryPattern 凍結。
+            </div>
+          </div>
           {/* 排序選項列 */}
           <div className="flex items-center gap-2 py-1.5 text-[10px]">
             <span className="text-muted-foreground/60">排序：</span>
@@ -261,7 +244,7 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
           )}
           {!loading && !error && totalCount === 0 && (
             <div className="text-[10px] text-muted-foreground/70 py-1">
-              目前無觀察名單（F V 反轉 / N 型態確認觸發後會自動加入）
+              目前無 F/N 觸發紀錄（書本：F V 反轉 / N 型態確認 觸發後會自動加入）
             </div>
           )}
           {!loading && !error && totalCount > 0 && (
@@ -312,7 +295,7 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
                     </th>
                     <th onClick={() => toggleSort('stage')}
                         className="text-center py-1.5 px-2 cursor-pointer hover:text-foreground select-none"
-                        title="可進場 → 等突破 → 觀察中 → 已買進 → 撤銷類。點擊排序">
+                        title="已觸發 / 已買進 / 已撤銷 / 結構失效。點擊排序">
                       階段{sortIndicator('stage')}
                     </th>
                     <th onClick={() => toggleSort('triggeredDate')}
@@ -369,12 +352,9 @@ function LockWatchTableRow({
   const stage = STAGE_STYLE[record.currentStage];
   const patternName = record.patternType ? PATTERN_NAME[record.patternType] : null;
   const inWatchlist = useWatchlistStore((s) => s.has(record.symbol));
-  // 已結束的紀錄（撤銷/移除/結構失效/已買進）不可再移除
-  // Phase C：pending-breakout（等突破）也是 active stage，按鈕同 observation/entry-signal
+  // 2026-05-13 對齊書本：pending-breakout 不再 active，移除按鈕只對 observation/entry-signal 顯示
   const canRemove =
-    record.currentStage === 'pending-breakout'
-    || record.currentStage === 'observation'
-    || record.currentStage === 'entry-signal';
+    record.currentStage === 'observation' || record.currentStage === 'entry-signal';
   const symbolBare = record.symbol.replace(/\.(TW|TWO|SS|SZ)$/i, '');
   // Phase D：用現價算到目標價的爬升空間（從現價買進到目標還能賺多少）
   const refPrice = record.currentClose ?? record.triggerPrice;
@@ -483,8 +463,20 @@ function LockWatchTableRow({
           {canRemove ? (
             <button
               onClick={() => {
-                const url = `/portfolio?prefill=${encodeURIComponent(symbolBare)}&trigger=${record.triggerSignal}&price=${record.triggerPrice}`;
-                window.open(url, '_self');
+                // 帶上鎖股的型態 + 頸線 + 目標價 + 結構失效價 → /portfolio 寫入 holding.entryPattern
+                // 議題 C2：避免 Step 5 停利目標每日重算跳動
+                const ep = new URLSearchParams({
+                  prefill: symbolBare,
+                  trigger: record.triggerSignal,
+                  price: String(record.triggerPrice),
+                });
+                if (record.patternType) ep.set('patternType', record.patternType);
+                // N 訊號：triggerPrice = 頸線價（書本撤銷判定基準）
+                if (record.triggerSignal === 'N') ep.set('neckline', String(record.triggerPrice));
+                if (record.patternTargetPrice != null) ep.set('target', String(record.patternTargetPrice));
+                // F 訊號：vBottom = 結構失效價（跌破即出場）
+                if (record.vBottom != null) ep.set('stop', String(record.vBottom));
+                window.open(`/portfolio?${ep.toString()}`, '_self');
               }}
               className="shrink-0 px-2 py-0.5 rounded border border-emerald-700/50 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-900/30 font-bold"
               title={`進場：跳到持倉表單，自動填入 ${record.triggerSignal} 訊號 + 觸發價 ${record.triggerPrice.toFixed(2)}`}

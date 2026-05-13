@@ -11,6 +11,14 @@ import { LockWatchPanel } from './components/LockWatchPanel';
 // 2026-05-11 ReentryCandidatesPanel 移除：用戶反饋無實質用途（跟 B 回後買上漲重疊高、書本對齊度低）。檔案保留供日後重做
 import { SectionBoundary } from '@/components/ErrorBoundary';
 import type { SelectedStock } from './components/ScanChartPanel';
+import {
+  BULLISH_TRACK_LETTERS,
+  BULLISH_TRACK_SET,
+  REVERSAL_TRACK_LETTERS,
+  REVERSAL_TRACK_SET,
+  SYSTEM_TRACK_SET,
+  LETTER_NAMES,
+} from '@/lib/scanner/buyMethodTracks';
 
 interface ScanPanelVerticalProps {
   onSelectStock?: (stock: SelectedStock) => void;
@@ -185,28 +193,29 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
             └─ 戰法軌 ─ Q（自含 SOP，套戒律）
         */}
         {scanDirection === 'long' && (() => {
+          // META: name 從 LETTER_NAMES 單一事實來源讀；track/ma 是本 panel 特有顯示欄位
           const META: Record<string, { name: string; track: string; ma: string }> = {
-            A: { name: '六條件', track: '預選池', ma: '—' },
-            B: { name: '回後買上漲', track: '多頭軌', ma: 'MA5' },
-            C: { name: '盤整突破', track: '多頭軌', ma: 'MA10' },
-            D: { name: '一字底', track: '轉折軌', ma: 'MA20' },
-            E: { name: '缺口', track: '多頭軌', ma: 'MA10' },
-            F: { name: 'V 型反轉', track: '轉折軌', ma: 'MA3' },
-            J: { name: 'ABC 突破', track: '多頭軌', ma: 'MA20' },
-            K: { name: 'K 線橫盤', track: '多頭軌', ma: 'MA10' },
-            L: { name: '過大量黑 K', track: '多頭軌', ma: 'MA10' },
-            M: { name: '突破軌道線', track: '多頭軌', ma: 'MA10' },
-            N: { name: '型態確認', track: '轉折軌', ma: 'MA10' },
-            O: { name: '打底完成', track: '轉折軌', ma: 'MA20' },
-            P: { name: '高檔拉回', track: '多頭軌', ma: 'MA5' },
-            Q: { name: '三條均線戰法', track: '戰法軌', ma: 'MA10' },
+            A: { name: LETTER_NAMES.A, track: '預選池', ma: '—' },
+            B: { name: LETTER_NAMES.B, track: '多頭軌', ma: 'MA5' },
+            C: { name: LETTER_NAMES.C, track: '多頭軌', ma: 'MA10' },
+            D: { name: LETTER_NAMES.D, track: '轉折軌', ma: 'MA20' },
+            E: { name: LETTER_NAMES.E, track: '多頭軌', ma: 'MA10' },
+            F: { name: LETTER_NAMES.F, track: '轉折軌', ma: 'MA3' },
+            J: { name: LETTER_NAMES.J, track: '多頭軌', ma: 'MA20' },
+            K: { name: LETTER_NAMES.K, track: '多頭軌', ma: 'MA10' },
+            L: { name: LETTER_NAMES.L, track: '多頭軌', ma: 'MA10' },
+            M: { name: LETTER_NAMES.M, track: '多頭軌', ma: 'MA10' },
+            N: { name: LETTER_NAMES.N, track: '轉折軌', ma: 'MA10' },
+            O: { name: LETTER_NAMES.O, track: '轉折軌', ma: 'MA20' },
+            P: { name: LETTER_NAMES.P, track: '多頭軌', ma: 'MA5' },
+            Q: { name: LETTER_NAMES.Q, track: '戰法軌', ma: 'MA10' },
           };
           type M = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q';
           const renderBtn = (method: M, color: string) => {
             const m = META[method];
-            const isBullish = ['B', 'C', 'E', 'J', 'K', 'L', 'M', 'P'].includes(method);
-            const isReversal = ['D', 'F', 'N', 'O'].includes(method);
-            const isSystem = method === 'Q';
+            const isBullish = BULLISH_TRACK_SET.has(method);
+            const isReversal = REVERSAL_TRACK_SET.has(method);
+            const isSystem = SYSTEM_TRACK_SET.has(method);
             const tooltip = method === 'A'
               ? `A · ${m.name}（書本五步法 Step 1 預選池：六條件 + 戒律 + 淘汰法）。多頭軌字母 B/C/E/J/K/L/M/P 都從這個池子挑進場時機。`
               : isBullish
@@ -253,7 +262,7 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
                   <span className="ml-1.5">✓ 從 Step 1 池子挑進場時機 · 書本 8 種多頭位置</span>
                 </div>
                 <div className="flex items-center gap-1 flex-wrap">
-                  {(['B', 'C', 'E', 'J', 'K', 'L', 'M', 'P'] as const).map(m =>
+                  {BULLISH_TRACK_LETTERS.map(m =>
                     renderBtn(m, 'bg-red-700/70 border-red-600 text-red-100'),
                   )}
                 </div>
@@ -267,7 +276,7 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
                   <span className="ml-1.5">⚠ 全市場抓底 / 反轉 · 不過六條件（過了就抓不到底）</span>
                 </div>
                 <div className="flex items-center gap-1 flex-wrap">
-                  {(['D', 'F', 'N', 'O'] as const).map(m =>
+                  {REVERSAL_TRACK_LETTERS.map(m =>
                     renderBtn(m, 'bg-blue-700/70 border-blue-600 text-blue-100'),
                   )}
                 </div>

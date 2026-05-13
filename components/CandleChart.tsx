@@ -172,6 +172,18 @@ interface CandleChartProps {
   highlightDate?: string;
   /** 將指定日期的 K 棒捲動至畫面中央 */
   centerOnDate?: string;
+  /**
+   * 鎖股觀察記錄（若有）— chart 偵測 vs 鎖股紀錄不一致時優先用鎖股
+   * 解 0512 bug：5/5 鎖圓弧底 5/6 chart 卻偵測成頭肩底（pivot 重組）→ 用戶覺得型態跳動怪怪
+   */
+  lockedPattern?: {
+    patternType: string;
+    necklinePrice: number;
+    targetPrice: number;
+    stopPrice?: number;
+    achievementRate?: number;
+    kind: 'bottom' | 'top';
+  } | null;
 }
 
 export default function CandleChart({
@@ -190,6 +202,7 @@ export default function CandleChart({
   showPattern = false,
   highlightDate,
   centerOnDate,
+  lockedPattern,
 }: CandleChartProps) {
   const containerRef   = useRef<HTMLDivElement>(null);
   const chartRef       = useRef<IChartApi | null>(null);
@@ -237,7 +250,10 @@ export default function CandleChart({
   useEffect(() => { onDoubleClickRef.current = onDoubleClick; }, [onDoubleClick]);
 
   // ── 形態結構偵測（最新 K 棒，跳過紅K/量比 gate；toggle 開啟時用） ──
-  // 即使型態未觸發進場訊號，只要結構成立就能視覺化頸線/關鍵點
+  // 優先順序：lockedPattern（鎖股觀察紀錄）> fresh detection
+  //   解 0512 bug：5/5 鎖圓弧底（目標 320）5/6 chart detector 卻偵測成頭肩底（目標 261）
+  //   → 兩個資料源不一致，用戶看到型態跳動 + 目標縮水
+  //   修法：有 lockedPattern 直接用，pivots 仍從 fresh detection 取（避免 marker 對不上 K 線）
   const activePattern = useMemo<{
     kind: 'bottom' | 'top';
     pivots: Pivot[];
@@ -246,11 +262,30 @@ export default function CandleChart({
     stopPrice: number;
     patternType: string;
     achievementRate?: number;
+    isLocked?: boolean;  // 來自鎖股觀察的旗標
   } | null>(() => {
     if (!showNeckline && !showPattern) return null;
     if (candles.length < 30) return null;
     const lastIdx = candles.length - 1;
     const bottom = detectLetterNStructure(candles, lastIdx);
+    const top = detectTopPatternsStructure(candles, lastIdx);
+
+    // 優先用 lockedPattern（穩定 — 跟鎖股觀察一致）
+    if (lockedPattern && lockedPattern.necklinePrice != null && lockedPattern.targetPrice != null) {
+      // 取對應方向的 fresh detection 提供 pivots（marker 對齊 K 線）
+      const freshSource = lockedPattern.kind === 'bottom' ? bottom : top;
+      return {
+        kind: lockedPattern.kind,
+        pivots: freshSource.pivots ?? [],
+        necklinePrice: lockedPattern.necklinePrice,
+        targetPrice: lockedPattern.targetPrice,
+        stopPrice: lockedPattern.stopPrice ?? lockedPattern.necklinePrice * 0.93,
+        patternType: lockedPattern.patternType,
+        achievementRate: lockedPattern.achievementRate ?? freshSource.achievementRate,
+        isLocked: true,
+      };
+    }
+
     if (bottom.pivots && bottom.necklinePrice != null && bottom.patternTargetPrice != null && bottom.structureBrokenPrice != null) {
       return {
         kind: 'bottom',
@@ -262,7 +297,6 @@ export default function CandleChart({
         achievementRate: bottom.achievementRate,
       };
     }
-    const top = detectTopPatternsStructure(candles, lastIdx);
     if (top.pivots && top.necklinePrice != null && top.patternTargetPrice != null && top.structureBrokenPrice != null) {
       return {
         kind: 'top',
@@ -275,7 +309,7 @@ export default function CandleChart({
       };
     }
     return null;
-  }, [candles, showNeckline, showPattern]);
+  }, [candles, showNeckline, showPattern, lockedPattern]);
 
   useEffect(() => {
     const node = containerRef.current;
@@ -929,6 +963,40 @@ export default function CandleChart({
   const showPatternChip = (showNeckline || showPattern) && activePattern;
   const hasInfoRow = showPatternChip;  // 信號移到右上，不算左側 row 2
 
+  /**
+   * 形態狀態判定（顯示用）— 根據目前 K 棒收盤價對照頸線 / 結構失效 / 目標：
+   *   bottom 型態（圓弧底 / 頭肩底 / 雙重底 / 三重底 / 跌菱形 / 下降楔形 / N 字底）：
+   *     - failed：close ≤ stopPrice（跌破結構失效價）
+   *     - target：close ≥ targetPrice
+   *     - success：close ≥ neckline × 1.03（真突破，書本 3% gate）
+   *     - pending：close 在頸線附近，結構成立但未真突破
+   *   top 型態（頭肩頂 / 三重頂 / 雙重頂）：方向反過來
+   */
+  type PatternStatus = 'pending' | 'success' | 'failed' | 'target';
+  const patternStatus = useMemo<PatternStatus | null>(() => {
+    if (!activePattern || candles.length === 0) return null;
+    const last = candles[candles.length - 1];
+    const close = last.close;
+    if (activePattern.kind === 'bottom') {
+      if (close <= activePattern.stopPrice) return 'failed';
+      if (close >= activePattern.targetPrice) return 'target';
+      if (close >= activePattern.necklinePrice * 1.03) return 'success';
+      return 'pending';
+    }
+    // top
+    if (close >= activePattern.stopPrice) return 'failed';
+    if (close <= activePattern.targetPrice) return 'target';
+    if (close <= activePattern.necklinePrice * 0.97) return 'success';
+    return 'pending';
+  }, [activePattern, candles]);
+
+  const statusLabel: Record<PatternStatus, { text: string; cls: string }> = {
+    pending: { text: '待突破',  cls: 'bg-amber-900/80 text-amber-100 border-amber-700' },
+    success: { text: '已突破',  cls: 'bg-emerald-900/80 text-emerald-100 border-emerald-700' },
+    failed:  { text: '結構失效', cls: 'bg-red-900/80 text-red-100 border-red-700' },
+    target:  { text: '目標達成', cls: 'bg-blue-900/80 text-blue-100 border-blue-700' },
+  };
+
   return (
     <div className="relative w-full h-full">
       {/* 左上資訊區 — 單一垂直容器：MA → 信號/形態 → 切線圖例 */}
@@ -964,6 +1032,49 @@ export default function CandleChart({
                 {activePattern.achievementRate != null && ` ${activePattern.achievementRate}%`}
               </span>
             )}
+            {showPatternChip && (
+              activePattern.isLocked ? (
+                <span
+                  className="px-1.5 py-0.5 rounded border border-zinc-500 text-zinc-300 text-[10px] font-normal"
+                  title="型態來自鎖股觀察紀錄，拖時間軸/換週期不會跳動"
+                >
+                  鎖定
+                </span>
+              ) : (
+                <span
+                  className="px-1.5 py-0.5 rounded border border-amber-500/70 text-amber-300 text-[10px] font-normal"
+                  title="此檔尚未鎖股，型態為走圖即時偵測；新增 K 棒後可能重組成不同型態"
+                >
+                  即時
+                </span>
+              )
+            )}
+            {showPatternChip && patternStatus && activePattern && (() => {
+              const close = candles[candles.length - 1]?.close ?? 0;
+              const target = activePattern.targetPrice;
+              const gapPct = close > 0 ? ((target - close) / close * 100) : 0;
+              // 預估目標價：所有狀態都顯示，並標明距現價爬升空間 %
+              // bottom 型態：target > close 為正向（爬升）
+              // top 型態：target < close 為正向（下跌目標）
+              const gapText = activePattern.kind === 'bottom'
+                ? (gapPct > 0 ? `+${gapPct.toFixed(1)}%` : `${gapPct.toFixed(1)}%`)
+                : (gapPct < 0 ? `${gapPct.toFixed(1)}%` : `+${gapPct.toFixed(1)}%`);
+              return (
+                <span className={`px-1.5 py-0.5 rounded border text-[11px] font-bold ${statusLabel[patternStatus].cls}`}>
+                  {statusLabel[patternStatus].text}
+                  {patternStatus !== 'target' && (
+                    <span className="ml-1 opacity-80 font-normal">
+                      目標 {target.toFixed(2)}（{gapText}）
+                    </span>
+                  )}
+                  {patternStatus === 'target' && (
+                    <span className="ml-1 opacity-80 font-normal">
+                      ✓ {target.toFixed(2)}
+                    </span>
+                  )}
+                </span>
+              );
+            })()}
             {showPatternChip && showNeckline && (
               <>
                 <span className="flex items-center gap-1" style={{ color: '#22d3ee' }}>

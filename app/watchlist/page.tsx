@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { useWatchlistStore } from '@/store/watchlistStore';
 import { useSettingsStore } from '@/store/settingsStore';
+import { LETTER_NAMES } from '@/lib/scanner/buyMethodTracks';
 import { PageShell, EmptyState } from '@/components/shared';
 import { Button } from '@/components/ui/button';
 import { formatPrice, formatPercent, formatDate, formatTime, bullBearClass } from '@/lib/format';
@@ -34,17 +35,8 @@ interface ConditionData {
   error?: string;
 }
 
-const METHOD_LABELS: Record<string, string> = {
-  A: '六條件',
-  B: '回後買上漲',
-  C: '盤整突破',
-  D: '一字底',
-  E: '缺口進場',
-  F: 'V形反轉',
-  G: 'ABC 突破',
-  H: '突破大量黑K',
-  I: 'K 線橫盤突破',
-};
+// 字母→名稱讀 lib/scanner/buyMethodTracks.ts 單一事實來源
+const METHOD_LABELS = LETTER_NAMES;
 
 export default function WatchlistPage() {
   const { items, remove, add, updateNote, addTag, removeTag } = useWatchlistStore();

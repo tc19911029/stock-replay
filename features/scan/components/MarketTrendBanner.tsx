@@ -111,7 +111,7 @@ export function MarketTrendBanner({ market, marketTrend: initialTrend, scanDate,
         <span className="opacity-80 truncate">{style.hint}</span>
       </div>
       {scanDate && (
-        <span className="font-mono text-[10px] opacity-70 shrink-0">{scanDate.slice(5)}</span>
+        <span className="font-mono text-[10px] opacity-70 shrink-0" suppressHydrationWarning>{scanDate.slice(5)}</span>
       )}
     </div>
   );
