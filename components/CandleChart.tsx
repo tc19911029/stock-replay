@@ -904,10 +904,13 @@ export default function CandleChart({
     if (!activePattern) return;
     const { pivots, necklinePrice, targetPrice, stopPrice } = activePattern;
 
-    // 頸線/目標/結構失效：從最早 pivot 延伸到最後一根 K 棒（水平線）
-    const sortedByIndex = [...pivots].sort((a, b) => a.index - b.index);
-    const firstIdx = sortedByIndex[0].index;
+    // lockedPattern 路徑 pivots 可能為空（fresh detection 失敗時 pivots = []）
+    // 此時頸線/目標仍用第一根 K → 最後一根 K，避免 undefined.index crash
     const lastIdx = candles.length - 1;
+    if (lastIdx < 0) return;
+    const sortedByIndex = pivots.length > 0 ? [...pivots].sort((a, b) => a.index - b.index) : [];
+    const firstIdx = sortedByIndex.length > 0 ? sortedByIndex[0].index : 0;
+    if (firstIdx < 0 || firstIdx > lastIdx) return;
     const t0 = toTime(candles[firstIdx].date);
     const t1 = toTime(candles[lastIdx].date);
 
