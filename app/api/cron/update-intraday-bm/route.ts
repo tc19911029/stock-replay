@@ -80,6 +80,15 @@ export async function GET(req: NextRequest) {
 
     scanner.setRealtimeQuotes(realtimeQuotes);
     const stocks = await scanner.getStockList();
+
+    // Step 1 池子狀態（同步檢查供 step1Filter 標記）
+    const { loadStep1Pool, deriveStep1FilterState } = await import('@/lib/scanner/step1Pool');
+    const step1Pool = await loadStep1Pool(market, date);
+    const step1Filter = deriveStep1FilterState(method, !!step1Pool && step1Pool.symbols.length > 0);
+    if (step1Filter === 'missing') {
+      console.warn(`[cron/update-intraday-bm] ${market} ${method} ${date} Step 1 池子缺漏（盤中常見：池子 14:02 才生成）`);
+    }
+
     const bmResults = await scanner.scanBuyMethod(method, stocks, date);
 
     // 注入成交額排名（BCDEF 不做 top500 過濾，只拿排名當顯示 tag）
@@ -114,6 +123,7 @@ export async function GET(req: NextRequest) {
       results: bmResults,
       marketTrend,
       buyMethod: method as 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q',
+      step1Filter,
     };
     await saveScanSession(session);
 

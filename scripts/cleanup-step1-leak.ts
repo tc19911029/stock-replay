@@ -30,8 +30,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { loadStep1Pool } from '../lib/scanner/step1Pool';
 import type { MarketId } from '../lib/scanner/types';
-
-const BULLISH_LETTERS = ['B', 'C', 'E', 'J', 'K', 'L', 'M', 'P'] as const;
+import { BULLISH_TRACK_LETTERS as BULLISH_LETTERS } from '../lib/scanner/buyMethodTracks';
 // post_close: scan-{market}-long-{letter}-{date}.json
 const FILE_PATTERN_POST = /^scan-(TW|CN)-long-([BCEJKLMP])-(\d{4}-\d{2}-\d{2})\.json$/;
 // intraday:   scan-{market}-long-{letter}-{date}-intraday-{HHMMSS}.json

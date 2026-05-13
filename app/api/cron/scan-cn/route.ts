@@ -53,12 +53,16 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // 0512 修：post-close 一次寫完所有 v12 買法 session（13 支字母）
+    // 不再依賴 vercel.json update-intraday-bm per-letter cron（本地 launchd 不裝）
+    // v11 G/H/I 已退場 — 不寫入新資料（舊資料 normalize-on-read 處理）
     const result = await runScanPipeline({
       market: 'CN',
       date,
       sessionType: 'post_close',
       directions: ['long', 'short'],
       mtfModes: ['daily', 'mtf'],
+      buyMethods: ['B', 'C', 'D', 'E', 'F', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q'],
       force: true,
       batch,
       totalBatches,

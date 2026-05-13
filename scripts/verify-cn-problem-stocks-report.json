@@ -1,0 +1,2196 @@
+{
+  "generatedAt": "2026-05-10T09:09:06.269Z",
+  "counts": {
+    "delisted": 120,
+    "halted": 0,
+    "recoverable": 0,
+    "inconclusive": 0
+  },
+  "results": [
+    {
+      "symbol": "603435.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Y=DELISTED TC=NO_DATA",
+      "tencent": {
+        "status": "NO_DATA"
+      }
+    },
+    {
+      "symbol": "603407.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=长裕集团 + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "长裕集团",
+        "price": 13.86,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "601299.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=中国北车 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "中国北车",
+        "price": 29.98,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600991.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=广汽长丰 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "广汽长丰",
+        "price": 17.82,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600849.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Y=NO_DATA TC=EMPTY",
+      "tencent": {
+        "status": "EMPTY"
+      }
+    },
+    {
+      "symbol": "600842.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=中西药业 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "中西药业",
+        "price": 13.96,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600840.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=新湖创业 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "新湖创业",
+        "price": 23.8,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600832.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=东方明珠 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "东方明珠",
+        "price": 23.18,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600786.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=东方锅炉 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "东方锅炉",
+        "price": 82.2,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600723.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=首商股份 + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "首商股份",
+        "price": 8.93,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600632.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=华联商厦 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "华联商厦",
+        "price": 9.53,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600631.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=百联股份(已合并) + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "百联股份(已合并)",
+        "price": 15.68,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600627.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=上电股份 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "上电股份",
+        "price": 28.73,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600625.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=PT水仙 + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "PT水仙",
+        "price": 4.8,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600607.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=上实医药 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "上实医药",
+        "price": 23.52,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600553.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=太行水泥 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "太行水泥",
+        "price": 14.98,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600472.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=包头铝业 + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "包头铝业",
+        "price": 51.82,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600357.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=承德钒钛 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "承德钒钛",
+        "price": 7.4,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600317.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=营口港 + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "营口港",
+        "price": 2.6,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600296.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=S兰铝 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "S兰铝",
+        "price": 14.61,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600270.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=外运发展 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "外运发展",
+        "price": 20.99,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600263.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=路桥建设 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "路桥建设",
+        "price": 16.43,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600253.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=天方药业 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "天方药业",
+        "price": 6.26,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600205.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=S山东铝 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "S山东铝",
+        "price": 25.41,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600102.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=莱钢股份 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "莱钢股份",
+        "price": 7.13,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600068.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=葛洲坝 + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "葛洲坝",
+        "price": 9.93,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600005.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=武钢股份 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "武钢股份",
+        "price": 3.71,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600002.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=齐鲁石化 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "齐鲁石化",
+        "price": 10.09,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600001.SS",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=邯郸钢铁 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "邯郸钢铁",
+        "price": 5.29,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002781.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「奇信退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "奇信退",
+        "price": 0.42,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002770.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「科迪退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "科迪退",
+        "price": 0.6,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002751.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「易尚退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "易尚退",
+        "price": 0.86,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002711.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「欧浦退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "欧浦退",
+        "price": 0.32,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002684.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「猛狮退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "猛狮退",
+        "price": 0.69,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002680.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「长生退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "长生退",
+        "price": 0.77,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002618.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「丹邦退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "丹邦退",
+        "price": 1.26,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002604.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「龙力退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "龙力退",
+        "price": 0.25,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002509.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「天茂退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "天茂退",
+        "price": 0.15,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002499.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「科林退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "科林退",
+        "price": 0.86,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002477.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「雏鹰退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "雏鹰退",
+        "price": 0.17,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002473.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「圣莱退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "圣莱退",
+        "price": 0.79,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002464.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「众应退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "众应退",
+        "price": 0.26,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002450.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「康得退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "康得退",
+        "price": 0.2,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002447.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「晨鑫退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "晨鑫退",
+        "price": 0.19,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002417.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「深南退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "深南退",
+        "price": 0.45,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002411.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「必康退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "必康退",
+        "price": 0.62,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002359.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「北讯退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "北讯退",
+        "price": 0.35,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002260.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「德奥退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "德奥退",
+        "price": 0.53,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002220.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「天宝退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "天宝退",
+        "price": 0.26,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002147.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「新光退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "新光退",
+        "price": 0.37,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002143.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「印纪退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "印纪退",
+        "price": 0.25,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002089.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「新海退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "新海退",
+        "price": 0.24,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002071.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「长城退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "长城退",
+        "price": 0.31,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002070.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「众和退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "众和退",
+        "price": 0.71,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002018.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「华信退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "华信退",
+        "price": 0.26,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002013.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=中航机电 + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "中航机电",
+        "price": 10.78,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "001393.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=维通利 + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "维通利",
+        "price": 30.38,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "001365.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=天海电子 + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "天海电子",
+        "price": 27.19,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "001237.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Y=DELISTED TC=NO_DATA",
+      "tencent": {
+        "status": "NO_DATA"
+      }
+    },
+    {
+      "symbol": "000979.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「中弘退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "中弘退",
+        "price": 0.22,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000956.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=中原油气 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "中原油气",
+        "price": 11.91,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000939.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「凯迪退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "凯迪退",
+        "price": 0.15,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000916.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=华北高速 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "华北高速",
+        "price": 8.82,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000866.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=扬子石化 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "扬子石化",
+        "price": 13.84,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000835.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「长动退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "长动退",
+        "price": 0.35,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000817.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=辽河油田 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "辽河油田",
+        "price": 8.75,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000806.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「银河退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "银河退",
+        "price": 0.43,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000763.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=锦州石化 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "锦州石化",
+        "price": 4.22,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000760.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「斯太退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "斯太退",
+        "price": 0.26,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000748.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=长城信息 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "长城信息",
+        "price": 20.31,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000693.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「华泽退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "华泽退",
+        "price": 0.37,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000687.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「华讯退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "华讯退",
+        "price": 0.29,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000673.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「当代退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "当代退",
+        "price": 0.25,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000666.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=经纬纺机 + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "经纬纺机",
+        "price": 8.97,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000662.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「天夏退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "天夏退",
+        "price": 0.25,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000618.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=吉林化工 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "吉林化工",
+        "price": 5.24,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000613.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「东海A退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "东海A退",
+        "price": 0.58,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000611.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「天首退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "天首退",
+        "price": 1.39,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000606.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「顺利退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "顺利退",
+        "price": 0.28,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000602.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=金马集团 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "金马集团",
+        "price": 13.41,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000594.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「国恒退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "国恒退",
+        "price": 1.29,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000588.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=PT粤金曼 + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "PT粤金曼",
+        "price": 4.37,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000585.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「东电退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "东电退",
+        "price": 0.35,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000578.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=盐湖集团 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "盐湖集团",
+        "price": 24.44,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000569.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=长城股份 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "长城股份",
+        "price": 7.05,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000562.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=宏源证券 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "宏源证券",
+        "price": 30.5,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000556.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=PT南洋 + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "PT南洋",
+        "price": 1.5,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000549.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=S湘火炬 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "S湘火炬",
+        "price": 8.9,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000542.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=TCL通讯 + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "TCL通讯",
+        "price": 27.34,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000527.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=美的电器 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "美的电器",
+        "price": 14.02,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000522.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=白云山A + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "白云山A",
+        "price": 23.27,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000515.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=攀渝钛业 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "攀渝钛业",
+        "price": 15.29,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000511.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「烯碳退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "烯碳退",
+        "price": 0.61,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000508.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=琼民源A + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "琼民源A",
+        "price": 23.49,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000502.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「绿景退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "绿景退",
+        "price": 0.59,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000418.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=小天鹅A + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "小天鹅A",
+        "price": 57.39,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000406.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=石油大明 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "石油大明",
+        "price": 10.12,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000038.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「大通退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "大通退",
+        "price": 0.52,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000033.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「新都退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "新都退",
+        "price": 1.7,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000024.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=招商地产 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "招商地产",
+        "price": 40.5,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000018.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「神城A退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "神城A退",
+        "price": 0.27,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000015.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=PT中浩A + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "PT中浩A",
+        "price": 6.85,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000003.SZ",
+      "source": "failed",
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=PT金田A + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "PT金田A",
+        "price": 2.71,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "603056.SS",
+      "source": "stale",
+      "lastDate": "2026-01-20",
+      "daysBehind": 68,
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=德邦股份 + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "德邦股份",
+        "price": 18.85,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "601989.SS",
+      "source": "stale",
+      "lastDate": "2025-08-12",
+      "daysBehind": 176,
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=中国重工 + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "中国重工",
+        "price": 5.1,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "601028.SS",
+      "source": "stale",
+      "lastDate": "2025-03-26",
+      "daysBehind": 270,
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=玉龙股份 + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "玉龙股份",
+        "price": 12.83,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600837.SS",
+      "source": "stale",
+      "lastDate": "2025-02-05",
+      "daysBehind": 305,
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=海通证券 + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "海通证券",
+        "price": 10.41,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600705.SS",
+      "source": "stale",
+      "lastDate": "2025-04-02",
+      "daysBehind": 265,
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=中航产融 + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "中航产融",
+        "price": 3.47,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600321.SS",
+      "source": "stale",
+      "lastDate": "2024-05-30",
+      "daysBehind": 469,
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=正源股份 + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "正源股份",
+        "price": 0.5,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "600297.SS",
+      "source": "stale",
+      "lastDate": "2024-07-17",
+      "daysBehind": 436,
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=广汇汽车 + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "广汇汽车",
+        "price": 0.78,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002750.SZ",
+      "source": "stale",
+      "lastDate": "2025-06-26",
+      "daysBehind": 209,
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「龙津退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "龙津退",
+        "price": 0.59,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002505.SZ",
+      "source": "stale",
+      "lastDate": "2024-07-02",
+      "daysBehind": 447,
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=鹏都农牧 + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "鹏都农牧",
+        "price": 0.36,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002433.SZ",
+      "source": "stale",
+      "lastDate": "2024-07-04",
+      "daysBehind": 445,
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「太安退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "太安退",
+        "price": 0.27,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002336.SZ",
+      "source": "stale",
+      "lastDate": "2025-07-03",
+      "daysBehind": 204,
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「人乐退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "人乐退",
+        "price": 0.36,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "002087.SZ",
+      "source": "stale",
+      "lastDate": "2024-06-27",
+      "daysBehind": 450,
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「新纺退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "新纺退",
+        "price": 0.16,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000996.SZ",
+      "source": "stale",
+      "lastDate": "2024-06-27",
+      "daysBehind": 450,
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「中期退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "中期退",
+        "price": 0.38,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000982.SZ",
+      "source": "stale",
+      "lastDate": "2024-06-21",
+      "daysBehind": 454,
+      "yahoo": {
+        "status": "NO_DATA"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=中银绒业 + Yahoo=NO_DATA",
+      "tencent": {
+        "status": "OK",
+        "name": "中银绒业",
+        "price": 0.18,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000861.SZ",
+      "source": "stale",
+      "lastDate": "2024-08-05",
+      "daysBehind": 423,
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "TC volume=0 名稱=海印股份 + Yahoo=DELISTED",
+      "tencent": {
+        "status": "OK",
+        "name": "海印股份",
+        "price": 0.62,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000622.SZ",
+      "source": "stale",
+      "lastDate": "2025-07-15",
+      "daysBehind": 196,
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「恒立退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "恒立退",
+        "price": 0.15,
+        "volume": 0
+      }
+    },
+    {
+      "symbol": "000584.SZ",
+      "source": "stale",
+      "lastDate": "2025-07-10",
+      "daysBehind": 199,
+      "yahoo": {
+        "status": "DELISTED"
+      },
+      "em": {
+        "status": "HTTP_502"
+      },
+      "verdict": "delisted",
+      "reason": "Tencent 名稱「工智退」含退",
+      "tencent": {
+        "status": "OK",
+        "name": "工智退",
+        "price": 0.29,
+        "volume": 0
+      }
+    }
+  ]
+}

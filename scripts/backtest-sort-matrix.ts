@@ -176,7 +176,8 @@ function buildCandidate(
   // 策略 A / A_MTF：跑六條件 + 戒律 + 淘汰法
   if (strategy === 'A' || strategy === 'A_MTF') {
     const six = evaluateSixConditions(candles, idx, ZHU_PURE_BOOK.thresholds);
-    if (!six.isCoreReady || six.totalScore < 5) return null;
+    const minScore = ZHU_PURE_BOOK.thresholds.minScore ?? 5;
+    if (!six.isCoreReady || six.totalScore < minScore) return null;
     if (checkLongProhibitions(candles, idx).prohibited) return null;
     if (evaluateElimination(candles, idx).eliminated) return null;
     sixScore = six.totalScore;

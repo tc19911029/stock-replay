@@ -17,6 +17,7 @@ import { checkLongProhibitions }      from '@/lib/rules/entryProhibitions';
 import { evaluateElimination }        from '@/lib/scanner/eliminationFilter';
 import type { CandleWithIndicators }  from '@/types';
 import { BASE_THRESHOLDS, ZHU_PURE_BOOK } from '@/lib/strategy/StrategyConfig';
+import { panelSortKey } from '@/lib/selection/applyPanelFilter';
 
 // ══════════════════════════════════════════════════════════════
 // ★ 在這裡修改回測設定 ★
@@ -78,7 +79,7 @@ const CONFIG = {
 
 type SixcondSort =
   | '六條件總分' | '成交額' | '量比' | '動能' | 'K棒實體'
-  | '乖離率低' | '漲幅' | '綜合因子' | '高勝率';
+  | '乖離率低' | '漲幅' | '綜合因子' | '高勝率' | '面板對齊';
 
 type DabanSort =
   | '純成交額' | '封板力度' | '多因子' | '連板優先'
@@ -139,6 +140,8 @@ const CN_COST_PCT   = 0.16;
 const MTF_CFG       = { ...BASE_THRESHOLDS, multiTimeframeFilter: true };
 const LIMIT_UP_PCT  = 9.5;
 const MIN_TURNOVER  = 5_000_000;
+/** 打板策略最低跳空高開 %（非書本門檻，DABAN 實驗性策略 sanity floor）*/
+const DABAN_MIN_GAP_UP_PCT = 2.0;
 
 // ── S1 出場參數 ───────────────────────────────────────────────
 const S1_SL_PCT          = -5;    // 固定止損
@@ -150,7 +153,11 @@ const S1_MAX_HOLD        = 60;    // 最長持有天數
 // ══════════════════════════════════════════════════════════════
 
 const SIXCOND_SORT_DEFS: Record<SixcondSort, (f: SixcondFeatures) => number> = {
-  // 對齊 lib/selection/applyPanelFilter.ts 排序：六條件總分 desc，同分以高勝率次要
+  // 面板對齊：與 lib/selection/applyPanelFilter.ts panelSortKey 完全一致
+  //   主鍵 changePercent，次鍵 sixConditionsScore（壓尾數不影響主鍵）
+  // 這個 option = UI 顯示 top N 跟回測 top N **保證同一支**
+  '面板對齊':     f => panelSortKey({ changePercent: f.changePercent, sixConditionsScore: f.totalScore }),
+  // 六條件加權排序（六條件 > 高勝率 > 漲幅）— 與 panel 不同，僅供研究
   '六條件總分':   f => f.totalScore * 1000 + f.highWinRateScore * 10 + f.changePercent / 100,
   '成交額':       f => Math.log10(Math.max(f.turnover, 1)),
   '量比':         f => Math.min(f.volumeRatio, 5) * 2 + f.changePercent / 10,
@@ -277,9 +284,10 @@ function buildSixcondCandidate(
 ): SixcondFeatures | null {
   if (idx < 60 || idx + 2 >= candles.length) return null;
 
-  // 對齊生產：量比 1.5（ZHU_PURE_BOOK），不是書本 1.3
+  // 對齊生產：讀 ZHU_PURE_BOOK 的 minScore（CLAUDE.md #10：不可 hard-code）
   const six = evaluateSixConditions(candles, idx, ZHU_PURE_BOOK.thresholds);
-  if (!six.isCoreReady || six.totalScore < 5) return null;
+  const minScore = ZHU_PURE_BOOK.thresholds.minScore ?? 5;
+  if (!six.isCoreReady || six.totalScore < minScore) return null;
 
   // 對齊生產：10 大戒律 + 淘汰法 R1-R11
   if (checkLongProhibitions(candles, idx).prohibited) return null;
@@ -370,7 +378,7 @@ function buildDabanCandidate(
   if (yestTurnover < MIN_TURNOVER) return null;
 
   const gapUp = yest.close > 0 ? (today.open - yest.close) / yest.close * 100 : 0;
-  if (gapUp < 2.0) return null; // 基本門檻（實際範圍在主循環過濾）
+  if (gapUp < DABAN_MIN_GAP_UP_PCT) return null; // 基本門檻（實際範圍在主循環過濾）
 
   const boards   = consecutiveLimitUp(candles, idx - 1);
   const vols5    = Array.from({ length: 5 }, (_, i) => candles[idx - 1 - i]?.volume ?? 0);

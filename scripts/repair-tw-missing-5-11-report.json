@@ -1,0 +1,60 @@
+{
+  "generatedAt": "2026-05-11T08:11:20.904Z",
+  "targetDate": "2026-05-11",
+  "tpexBulkWritten": 846,
+  "tpexBulkFailed": 0,
+  "perSymbolResults": [
+    {
+      "symbol": "2645.TW",
+      "status": "no-target-row"
+    },
+    {
+      "symbol": "3593.TW",
+      "status": "no-target-row"
+    },
+    {
+      "symbol": "6116.TW",
+      "status": "no-target-row"
+    },
+    {
+      "symbol": "6431.TW",
+      "status": "no-target-row"
+    },
+    {
+      "symbol": "9103.TW",
+      "status": "no-target-row"
+    },
+    {
+      "symbol": "9136.TW",
+      "status": "no-target-row"
+    },
+    {
+      "symbol": "2073.TWO",
+      "status": "no-target-row"
+    },
+    {
+      "symbol": "3067.TWO",
+      "status": "no-target-row"
+    },
+    {
+      "symbol": "6171.TWO",
+      "status": "no-target-row"
+    },
+    {
+      "symbol": "6236.TWO",
+      "status": "no-target-row"
+    },
+    {
+      "symbol": "7713.TWO",
+      "status": "no-target-row"
+    },
+    {
+      "symbol": "8921.TWO",
+      "status": "no-target-row"
+    },
+    {
+      "symbol": "8923.TWO",
+      "status": "no-target-row"
+    }
+  ]
+}

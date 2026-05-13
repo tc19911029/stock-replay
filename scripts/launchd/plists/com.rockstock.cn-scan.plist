@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.rockstock.cn-scan</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>CRON_SECRET</key>
+    <string>CRON_SECRET</string>
+  </dict>
+
+  <!--
+    CN 盤後 scan：跑 daily + mtf + 13 個 v12 買法（B/C/D/E/F/J/K/L/M/N/O/P/Q）
+    時間：20:00 CST（A 股盤後 15:00 + L1 download 完成 + verify 報告寫入後，CN 資料較慢）
+    取代 vercel.json 的 update-intraday-bm 26 條 per-letter cron — 本地一次跑完
+  -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-c</string>
+    <string>/Users/tzu-chienhsu/Desktop/rockstock/scripts/launchd/_curl-cron.sh cn-scan "/api/cron/scan-cn"</string>
+  </array>
+
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>20</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>20</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>20</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>20</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>20</integer><key>Minute</key><integer>0</integer></dict>
+  </array>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/rockstock-cn-scan.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/rockstock-cn-scan.err.log</string>
+</dict>
+</plist>

@@ -21,7 +21,9 @@ import path from 'path';
 const PORT = 3000;
 const BASE_URL = `http://localhost:${PORT}`;
 const DATA_DIR = path.resolve(__dirname, '..', 'data');
-const METHODS = ['D', 'F', 'N', 'O', 'Q'] as const;
+// 反轉軌 + 戰法軌（不過 Step 1 的字母）— 單一事實來源
+import { REVERSAL_TRACK_LETTERS, SYSTEM_TRACK_LETTERS } from '../lib/scanner/buyMethodTracks';
+const METHODS = [...REVERSAL_TRACK_LETTERS, ...SYSTEM_TRACK_LETTERS] as const;
 const PAST_DAYS = 20;
 const TW_SLEEP_MS = 8_000;
 

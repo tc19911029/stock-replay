@@ -1,0 +1,229 @@
+{
+  "generatedAt": "2026-05-11T08:16:14.081Z",
+  "expectedDate": "2026-05-11",
+  "okCount": 1975,
+  "errCount": 0,
+  "missing": [
+    {
+      "symbol": "2073.TWO",
+      "name": "雄順",
+      "lastDate": "2026-05-08",
+      "daysBehind": 1,
+      "past30Count": 20,
+      "last5Dates": [
+        "2026-05-04",
+        "2026-05-05",
+        "2026-05-06",
+        "2026-05-07",
+        "2026-05-08"
+      ],
+      "inStocklist": true,
+      "updatedAt": "2026-05-11T08:13:15.752Z",
+      "sealedDate": "2026-05-08"
+    },
+    {
+      "symbol": "3067.TWO",
+      "name": "全域",
+      "lastDate": "2026-05-08",
+      "daysBehind": 1,
+      "past30Count": 20,
+      "last5Dates": [
+        "2026-05-04",
+        "2026-05-05",
+        "2026-05-06",
+        "2026-05-07",
+        "2026-05-08"
+      ],
+      "inStocklist": true,
+      "updatedAt": "2026-05-11T08:13:30.313Z",
+      "sealedDate": "2026-05-08"
+    },
+    {
+      "symbol": "6171.TWO",
+      "name": "大城地產",
+      "lastDate": "2026-05-08",
+      "daysBehind": 1,
+      "past30Count": 19,
+      "last5Dates": [
+        "2026-04-30",
+        "2026-05-04",
+        "2026-05-06",
+        "2026-05-07",
+        "2026-05-08"
+      ],
+      "inStocklist": true,
+      "updatedAt": "2026-05-08T05:49:44.634Z",
+      "sealedDate": "2026-05-08"
+    },
+    {
+      "symbol": "6236.TWO",
+      "name": "中湛",
+      "lastDate": "2026-05-08",
+      "daysBehind": 1,
+      "past30Count": 20,
+      "last5Dates": [
+        "2026-05-04",
+        "2026-05-05",
+        "2026-05-06",
+        "2026-05-07",
+        "2026-05-08"
+      ],
+      "inStocklist": true,
+      "updatedAt": "2026-05-11T08:14:40.154Z",
+      "sealedDate": "2026-05-08"
+    },
+    {
+      "symbol": "7713.TWO",
+      "name": "威力德生醫",
+      "lastDate": "2026-05-08",
+      "daysBehind": 1,
+      "past30Count": 20,
+      "last5Dates": [
+        "2026-05-04",
+        "2026-05-05",
+        "2026-05-06",
+        "2026-05-07",
+        "2026-05-08"
+      ],
+      "inStocklist": true,
+      "updatedAt": "2026-05-08T05:49:23.972Z",
+      "sealedDate": "2026-05-08"
+    },
+    {
+      "symbol": "8921.TWO",
+      "name": "沈氏",
+      "lastDate": "2026-05-08",
+      "daysBehind": 1,
+      "past30Count": 20,
+      "last5Dates": [
+        "2026-05-04",
+        "2026-05-05",
+        "2026-05-06",
+        "2026-05-07",
+        "2026-05-08"
+      ],
+      "inStocklist": true,
+      "updatedAt": "2026-05-08T05:50:06.286Z",
+      "sealedDate": "2026-05-08"
+    },
+    {
+      "symbol": "8923.TWO",
+      "name": "時報",
+      "lastDate": "2026-05-08",
+      "daysBehind": 1,
+      "past30Count": 20,
+      "last5Dates": [
+        "2026-05-04",
+        "2026-05-05",
+        "2026-05-06",
+        "2026-05-07",
+        "2026-05-08"
+      ],
+      "inStocklist": true,
+      "updatedAt": "2026-05-10T12:53:41.307Z",
+      "sealedDate": "2026-05-08"
+    },
+    {
+      "symbol": "9136.TW",
+      "name": "巨騰-DR",
+      "lastDate": "2026-05-08",
+      "daysBehind": 1,
+      "past30Count": 20,
+      "last5Dates": [
+        "2026-05-04",
+        "2026-05-05",
+        "2026-05-06",
+        "2026-05-07",
+        "2026-05-08"
+      ],
+      "inStocklist": true,
+      "updatedAt": "2026-05-11T08:13:00.616Z",
+      "sealedDate": "2026-05-08"
+    },
+    {
+      "symbol": "^TWII",
+      "lastDate": "2026-05-08",
+      "daysBehind": 1,
+      "past30Count": 20,
+      "last5Dates": [
+        "2026-05-04",
+        "2026-05-05",
+        "2026-05-06",
+        "2026-05-07",
+        "2026-05-08"
+      ],
+      "inStocklist": false,
+      "updatedAt": "2026-05-09T01:42:46.850Z",
+      "sealedDate": "2026-05-08"
+    },
+    {
+      "symbol": "2924.TWO",
+      "lastDate": "2026-05-08",
+      "daysBehind": 1,
+      "past30Count": 20,
+      "last5Dates": [
+        "2026-05-04",
+        "2026-05-05",
+        "2026-05-06",
+        "2026-05-07",
+        "2026-05-08"
+      ],
+      "inStocklist": false,
+      "updatedAt": "2026-05-08T20:00:12.706Z",
+      "sealedDate": "2026-05-08"
+    },
+    {
+      "symbol": "1435.TW",
+      "lastDate": "2026-04-15",
+      "daysBehind": 18,
+      "past30Count": 4,
+      "last5Dates": [
+        "2026-04-09",
+        "2026-04-10",
+        "2026-04-13",
+        "2026-04-14",
+        "2026-04-15"
+      ],
+      "inStocklist": false,
+      "updatedAt": "2026-04-15T18:42:28.469Z",
+      "sealedDate": "2026-04-15"
+    },
+    {
+      "symbol": "1589.TW",
+      "lastDate": "2026-04-15",
+      "daysBehind": 18,
+      "past30Count": 4,
+      "last5Dates": [
+        "2026-04-09",
+        "2026-04-10",
+        "2026-04-13",
+        "2026-04-14",
+        "2026-04-15"
+      ],
+      "inStocklist": false,
+      "updatedAt": "2026-04-15T18:42:34.063Z",
+      "sealedDate": "2026-04-15"
+    },
+    {
+      "symbol": "4804.TWO",
+      "lastDate": "2026-04-15",
+      "daysBehind": 18,
+      "past30Count": 4,
+      "last5Dates": [
+        "2026-04-09",
+        "2026-04-10",
+        "2026-04-13",
+        "2026-04-14",
+        "2026-04-15"
+      ],
+      "inStocklist": false,
+      "updatedAt": "2026-04-15T18:43:35.543Z",
+      "sealedDate": "2026-04-15"
+    }
+  ],
+  "summary": {
+    "total": 13,
+    "inStocklist": 8,
+    "notInStocklist": 5
+  }
+}

@@ -15,8 +15,10 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 
+import { REVERSAL_TRACK_LETTERS, SYSTEM_TRACK_LETTERS } from '../lib/scanner/buyMethodTracks';
+
 const DATA_DIR = path.resolve(__dirname, '..', 'data');
-const METHODS = ['D', 'F', 'N', 'O', 'Q'] as const;
+const METHODS = [...REVERSAL_TRACK_LETTERS, ...SYSTEM_TRACK_LETTERS] as const;
 const MARKETS = ['TW', 'CN'] as const;
 
 interface ResultRow {

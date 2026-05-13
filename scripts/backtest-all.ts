@@ -21,7 +21,7 @@ import { evaluateSixConditions }      from '@/lib/analysis/trendAnalysis';
 import { evaluateMultiTimeframe }     from '@/lib/analysis/multiTimeframeFilter';
 import { evaluateHighWinRateEntry }   from '@/lib/analysis/highWinRateEntry';
 import type { CandleWithIndicators }  from '@/types';
-import { BASE_THRESHOLDS }            from '@/lib/strategy/StrategyConfig';
+import { BASE_THRESHOLDS, ZHU_PURE_BOOK } from '@/lib/strategy/StrategyConfig';
 
 // ══════════════════════════════════════════════════════════════
 // 全局設定
@@ -254,8 +254,10 @@ function buildCandidate(
 ): SixcondFeatures | null {
   if (idx < 60 || idx + 2 >= candles.length) return null;
 
-  const six = evaluateSixConditions(candles, idx);
-  if (!six.isCoreReady || six.totalScore < 5) return null;
+  // 對齊 backtest-run：讀 ZHU_PURE_BOOK.minScore（CLAUDE.md #10）
+  const six = evaluateSixConditions(candles, idx, ZHU_PURE_BOOK.thresholds);
+  const minScore = ZHU_PURE_BOOK.thresholds.minScore ?? 5;
+  if (!six.isCoreReady || six.totalScore < minScore) return null;
 
   const c    = candles[idx];
   const prev = candles[idx - 1];

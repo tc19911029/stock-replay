@@ -27,14 +27,19 @@ import { apiOk, apiError } from '@/lib/api/response';
 import { checkCronAuth } from '@/lib/api/cronAuth';
 import { isTradingDay } from '@/lib/utils/tradingDay';
 import { getLastTradingDay } from '@/lib/datasource/marketHours';
+import {
+  BULLISH_TRACK_LETTERS,
+  REVERSAL_TRACK_LETTERS,
+  SYSTEM_TRACK_LETTERS,
+} from '@/lib/scanner/buyMethodTracks';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
 const TRACKS = {
-  bullish: ['B', 'C', 'E', 'J', 'K', 'L', 'M', 'P'],   // 多頭軌（書本 8 種進場位置）
-  reversal: ['D', 'F', 'N', 'O'],                      // 反轉軌（抓底/V 反轉）
-  system: ['Q'],                                       // 戰法軌（朱老師三均線）
+  bullish: BULLISH_TRACK_LETTERS,    // 多頭軌（書本 8 種進場位置）
+  reversal: REVERSAL_TRACK_LETTERS,  // 反轉軌（抓底/V 反轉）
+  system: SYSTEM_TRACK_LETTERS,      // 戰法軌（朱老師三均線）
 } as const;
 type TrackName = keyof typeof TRACKS;
 

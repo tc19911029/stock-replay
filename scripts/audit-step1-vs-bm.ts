@@ -13,10 +13,11 @@
 import { loadStep1Pool } from '../lib/scanner/step1Pool';
 import { loadScanSession } from '../lib/storage/scanStorage';
 import type { MarketId } from '../lib/scanner/types';
-
-const BULLISH = ['B', 'C', 'E', 'J', 'K', 'L', 'M', 'P'] as const;
-const REVERSAL = ['D', 'F', 'N', 'O'] as const;
-const SYSTEM = ['Q'] as const;
+import {
+  BULLISH_TRACK_LETTERS as BULLISH,
+  REVERSAL_TRACK_LETTERS as REVERSAL,
+  SYSTEM_TRACK_LETTERS as SYSTEM,
+} from '../lib/scanner/buyMethodTracks';
 type Letter = (typeof BULLISH)[number] | (typeof REVERSAL)[number] | (typeof SYSTEM)[number];
 
 async function main() {

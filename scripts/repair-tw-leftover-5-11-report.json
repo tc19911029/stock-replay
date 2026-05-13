@@ -1,0 +1,114 @@
+{
+  "generatedAt": "2026-05-11T08:12:35.021Z",
+  "targetDate": "2026-05-11",
+  "plan": [
+    {
+      "symbol": "2645.TW",
+      "action": "write",
+      "source": "TWSE MI_INDEX",
+      "ohlcv": {
+        "open": 160,
+        "high": 160,
+        "low": 148,
+        "close": 154.5,
+        "volume": 4530
+      }
+    },
+    {
+      "symbol": "3593.TW",
+      "action": "write",
+      "source": "TWSE MI_INDEX",
+      "ohlcv": {
+        "open": 18.65,
+        "high": 18.75,
+        "low": 17.1,
+        "close": 18.6,
+        "volume": 45
+      }
+    },
+    {
+      "symbol": "6116.TW",
+      "action": "write",
+      "source": "TWSE MI_INDEX",
+      "ohlcv": {
+        "open": 9.55,
+        "high": 10.1,
+        "low": 9.4,
+        "close": 9.71,
+        "volume": 89843
+      }
+    },
+    {
+      "symbol": "6431.TW",
+      "action": "write",
+      "source": "TWSE MI_INDEX",
+      "ohlcv": {
+        "open": 18.9,
+        "high": 21,
+        "low": 18.9,
+        "close": 20.15,
+        "volume": 268
+      }
+    },
+    {
+      "symbol": "9103.TW",
+      "action": "write",
+      "source": "TWSE MI_INDEX",
+      "ohlcv": {
+        "open": 5.34,
+        "high": 5.34,
+        "low": 4.87,
+        "close": 4.91,
+        "volume": 4308
+      }
+    },
+    {
+      "symbol": "9136.TW",
+      "action": "halted",
+      "source": "TWSE MI_INDEX",
+      "reason": "無 OHLC 資料（停牌/未交易）"
+    },
+    {
+      "symbol": "2073.TWO",
+      "action": "halted",
+      "source": "TPEx openapi",
+      "reason": "OHLC=0/0/0/0（停牌）"
+    },
+    {
+      "symbol": "3067.TWO",
+      "action": "halted",
+      "source": "TPEx openapi",
+      "reason": "OHLC=0/0/0/0（停牌）"
+    },
+    {
+      "symbol": "6171.TWO",
+      "action": "halted",
+      "source": "TPEx openapi",
+      "reason": "OHLC=0/0/0/0（停牌）"
+    },
+    {
+      "symbol": "6236.TWO",
+      "action": "halted",
+      "source": "TPEx openapi",
+      "reason": "OHLC=0/0/0/0（停牌）"
+    },
+    {
+      "symbol": "7713.TWO",
+      "action": "halted",
+      "source": "TPEx openapi",
+      "reason": "OHLC=0/0/0/0（停牌）"
+    },
+    {
+      "symbol": "8921.TWO",
+      "action": "halted",
+      "source": "TPEx openapi",
+      "reason": "OHLC=0/0/0/0（停牌）"
+    },
+    {
+      "symbol": "8923.TWO",
+      "action": "halted",
+      "source": "TPEx openapi",
+      "reason": "OHLC=0/0/0/0（停牌）"
+    }
+  ]
+}

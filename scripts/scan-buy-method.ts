@@ -21,6 +21,7 @@
 import fs from 'fs';
 import path from 'path';
 import { computeIndicators } from '@/lib/indicators';
+import { LETTER_NAMES } from '@/lib/scanner/buyMethodTracks';
 import { detectStrategyE } from '@/lib/analysis/highWinRateEntry';
 import { detectStrategyD } from '@/lib/analysis/gapEntry';
 import { detectBreakoutEntry, detectConsolidationBreakout } from '@/lib/analysis/breakoutEntry';
@@ -36,16 +37,8 @@ const method = (process.argv[2] ?? 'D').toUpperCase() as Method;
 const market = (process.argv[3] ?? 'TW').toUpperCase() as 'TW' | 'CN';
 const date   = process.argv[4] ?? '2026-04-17';
 
-const METHOD_NAMES: Record<Method, string> = {
-  B: '回後買上漲',
-  C: '盤整突破',
-  D: '一字底突破',
-  E: '缺口進場',
-  F: 'V 形反轉',
-  G: 'ABC 突破',
-  H: '突破大量黑 K',
-  I: 'K 線橫盤突破',
-};
+// 字母→名稱讀 lib/scanner/buyMethodTracks.ts 單一事實來源
+const METHOD_NAMES = LETTER_NAMES as Record<Method, string>;
 
 interface Hit {
   symbol: string;
