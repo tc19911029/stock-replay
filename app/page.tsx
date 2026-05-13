@@ -117,7 +117,8 @@ export default function HomePage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const sym = params.get('load');
+    // 接受 ?load=2330.TW 或 ?symbol=2330.TW 兩種寫法（symbol 是更直覺的別名）
+    const sym = params.get('load') ?? params.get('symbol');
     const date = params.get('date');
     if (sym) {
       loadStock(sym, '1d', '2y', date ?? undefined).catch((e: Error) => {

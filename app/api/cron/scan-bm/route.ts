@@ -1,4 +1,10 @@
 /**
+ * @deprecated 0513 ABCDE E：本 endpoint 已被 /api/cron/scan-bm-batch 取代
+ *
+ * vercel.json 已全部改用 batch endpoint，本 endpoint 不再有 cron 觸發。
+ * 保留是為了 scripts/v12-replay-20days.ts（舊 replay 工具）+ audit scripts
+ * 讀檔分析用途。下次清理可整批移除（含 v11 G/H/I 字母）。
+ *
  * GET /api/cron/scan-bm?market=TW|CN&method=B|C|D|E|F|G|H|I
  *
  * 盤後買法獨立 cron — 每個買法單獨一個 Vercel cron job，

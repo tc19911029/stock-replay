@@ -10,6 +10,7 @@
     "test": "node --experimental-vm-modules node_modules/.bin/jest --testPathPatterns='__tests__'",
     "test:contracts": "node --experimental-vm-modules node_modules/.bin/jest --testPathPatterns='__tests__/contracts'",
     "test:watch": "node --experimental-vm-modules node_modules/.bin/jest --watch",
+    "smoke": "tsx scripts/smoke-pages.ts",
     "check:edge-safe": "npx tsx scripts/check-instrumentation-edge-safe.ts"
   },
   "dependencies": {
