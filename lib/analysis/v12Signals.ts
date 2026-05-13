@@ -1,11 +1,11 @@
 /**
  * v12 訊號統一介面（v12 Phase 1.4A 字母 mapping）
  *
- * ⚠️ DEAD CODE WARNING（2026-05-10 audit）:
+ * ⚠️ DEAD CODE WARNING（2026-05-10 audit / 2026-05-13 確認）:
  *   detectV12J/K/L/M/N/O/P/Q + detectV12Signal **production 沒人呼叫**。
- *   只有 scripts/v12-replay-comparison.ts 提到（且裡面寫 "TODO 串接 evaluateStockV12"）。
  *   Production 走 lib/scanner/MarketScanner.ts:scanBuyMethod 直接 import
  *   lib/analysis/v12LetterX.ts (detectLetterM/N/O/P/Q) + 各 v11 detector。
+ *   (原本提到的 v12-replay-comparison.ts 已於 0513 ABCDE E 一輪砍除。)
  *
  *   保留原因：本檔 V12Letter type export 仍被多處 import（SignalSummaryCard、
  *   v12StopLoss/Operation/TakeProfit、API routes、tests）。整檔不能刪。

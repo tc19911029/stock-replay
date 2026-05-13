@@ -46,21 +46,23 @@ export async function register() {
   console.log('[local-cron] 本地開發模式：定期呼叫 API route 模擬 Vercel Cron');
   console.log('[local-cron] L2：每 5 分鐘 | 六條件盤中：每 10 分鐘 | 買法 BCDEF：每 10 分鐘 | 盤後：L1+scan 14:10 TW / 16:10 CN | ETF：18:00/23:00 CST 1-5');
 
-  // ── 盤中：買法掃描（B-I + v12 J-Q），輪流觸發 —— 獨立於 A 六條件避免單輪超時 ──
-  async function scanBuyMethodIntraday(
-    market: 'TW' | 'CN',
-    method: 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q',
-  ) {
+  // ── 盤中：買法掃描批次（3 track 取代 16 字母）─────────────────────────
+  // 0513 ABCDE E：scan-bm-batch 之後再批 intraday — 把 16 字母獨立 cron 改成
+  // 3 track 一 cron。同 track 內字母共用 stockList / L2 / TurnoverRank /
+  // marketTrend，比舊版省 ~5 倍前置時間。
+  async function scanIntradayBatchTrack(market: 'TW' | 'CN', track: 'bullish' | 'reversal' | 'system') {
     if (!isMarketOpen(market) && !isPostCloseWindow(market)) return;
     const data = await callRoute(
-      `/api/cron/update-intraday-bm?market=${market}&method=${method}`,
-      `${market} update-intraday-bm ${method}`,
-    ) as { data?: { skipped?: boolean; reason?: string; resultCount?: number } } | null;
+      `/api/cron/update-intraday-bm-batch?market=${market}&track=${track}`,
+      `${market} update-intraday-bm-batch ${track}`,
+    ) as { data?: { skipped?: boolean; reason?: string; results?: Record<string, { count?: number }> } } | null;
     const payload = data?.data ?? data ?? {};
     if ((payload as { skipped?: boolean }).skipped) {
-      console.log(`[local-cron] ${market} 買法 ${method} 跳過：${(payload as { reason?: string }).reason}`);
+      console.log(`[local-cron] ${market} 買法批次 ${track} 跳過：${(payload as { reason?: string }).reason}`);
     } else {
-      console.log(`[local-cron] ${market} 買法 ${method}: ${(payload as { resultCount?: number }).resultCount ?? -1} 檔`);
+      const results = (payload as { results?: Record<string, { count?: number }> }).results ?? {};
+      const summary = Object.entries(results).map(([m, r]) => `${m}=${r.count ?? '?'}`).join(' ');
+      console.log(`[local-cron] ${market} 買法批次 ${track}: ${summary}`);
     }
   }
 
@@ -255,44 +257,21 @@ export async function register() {
     scanIntradayDaily('CN').catch(err => console.error('[local-cron] CN scan-intraday:', err));
   }, 10 * 60 * 1000);
 
-  // 買法 B/C/D/E/F/G/H/I 盤中：每分鐘檢查，每 10 分鐘輪一圈
-  // 對齊 vercel.json 的排程映射：
-  //   :00→F :01→G :02→B :03→H :04→C :05→I :06→D :08→E（:07/:09 留 v12）
-  setInterval(() => {
-    const rem = new Date().getMinutes() % 10;
-    const method =
-      rem === 0 ? 'F' : rem === 1 ? 'G' : rem === 2 ? 'B' :
-      rem === 3 ? 'H' : rem === 4 ? 'C' : rem === 5 ? 'I' :
-      rem === 6 ? 'D' : rem === 8 ? 'E' : null;
-    if (!method) return;
-    scanBuyMethodIntraday('TW', method).catch(err => console.error(`[local-cron] TW bm ${method}:`, err));
-    scanBuyMethodIntraday('CN', method).catch(err => console.error(`[local-cron] CN bm ${method}:`, err));
-  }, 60 * 1000);
-
-  // v12 字母盤中（M/N/O/P/Q + J/K/L alias），2026-05-11 新增
-  // 每 5 分鐘輪一個字母（密度比 v11 低一半，總計 8 字母共 40 分鐘輪完）
-  // 排程映射：rem10 = 7→M, 9→N, 5min:1→O, 5min:2→P, 5min:3→Q
-  // J/K/L 跟 v11 G/H/I 是 alias 同 detector，多輪一次容錯
+  // 盤中買法批次：每 10 分鐘輪一個 track（bullish/reversal/system）
+  // 對齊 vercel.json：
+  //   :02 → bullish（B/C/E/J/K/L/M/P 8 字母共一 call）
+  //   :05 → reversal（D/F/N/O 4 字母共一 call）
+  //   :08 → system（Q 戰法軌，每 30 分鐘）
   setInterval(() => {
     const now = new Date();
-    const rem10 = now.getMinutes() % 10;
-    // 使用 v11 沒用的 :07 和 :09 slot 給 M、N（型態確認最重要）
-    let method: 'M' | 'N' | 'O' | 'P' | 'Q' | 'J' | 'K' | 'L' | null = null;
-    if (rem10 === 7) method = 'M';
-    else if (rem10 === 9) method = 'N';
-    // O/P/Q/J/K/L 用 30 分鐘輪一次（minute mod 30）
-    else {
-      const rem30 = now.getMinutes() % 30;
-      if (rem30 === 0) method = 'O';
-      else if (rem30 === 5) method = 'P';
-      else if (rem30 === 10) method = 'Q';
-      else if (rem30 === 15) method = 'J';
-      else if (rem30 === 20) method = 'K';
-      else if (rem30 === 25) method = 'L';
-    }
-    if (!method) return;
-    scanBuyMethodIntraday('TW', method).catch(err => console.error(`[local-cron] TW bm ${method}:`, err));
-    scanBuyMethodIntraday('CN', method).catch(err => console.error(`[local-cron] CN bm ${method}:`, err));
+    const min = now.getMinutes();
+    let track: 'bullish' | 'reversal' | 'system' | null = null;
+    if (min % 10 === 2) track = 'bullish';
+    else if (min % 10 === 5) track = 'reversal';
+    else if (min % 30 === 8) track = 'system';
+    if (!track) return;
+    scanIntradayBatchTrack('TW', track).catch(err => console.error(`[local-cron] TW bm-batch ${track}:`, err));
+    scanIntradayBatchTrack('CN', track).catch(err => console.error(`[local-cron] CN bm-batch ${track}:`, err));
   }, 60 * 1000);
 
   setInterval(() => { maybeConfirmDabanOpen().catch(err => console.error('[local-cron] confirm-daban-open:', err)); }, 60 * 1000);
