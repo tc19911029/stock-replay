@@ -92,3 +92,6 @@ data/chips/
 /data/reports/
 data/lock-watch/
 data/step1-pool/
+test-results/
+playwright-report/
+playwright/.cache/
