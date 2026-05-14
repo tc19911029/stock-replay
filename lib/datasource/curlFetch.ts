@@ -94,3 +94,51 @@ export async function fetchJsonWithCurlFallback<T>(
     throw new Error(`fetch failed (${fetchMsg}); curl fallback also failed (${curlMsg})`);
   }
 }
+
+/**
+ * 抓 binary（任意 encoding 的 raw bytes），Node fetch 失敗就走 curl。
+ * 用途：Big5 / GBK 編碼的 HTML（ISIN C_public.jsp）— Node fetch 在 dev runtime
+ * 經常被 Cloudflare 阻成 timeout，但 curl 1-2s 內就能回。
+ */
+export async function fetchBufferWithCurlFallback(
+  url: string,
+  options: CurlFetchOptions = {},
+): Promise<{ buffer: Uint8Array; source: CurlFetchSource }> {
+  const timeoutMs = options.timeoutMs ?? 15000;
+  const ua = options.headers?.['User-Agent'] ?? options.userAgent ?? DEFAULT_UA;
+  const headers: Record<string, string> = { 'User-Agent': ua, ...(options.headers ?? {}) };
+  const maxBuffer = options.maxBuffer ?? 50 * 1024 * 1024;
+
+  let lastErr: unknown = null;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs), headers });
+    if (res.ok) {
+      const buf = new Uint8Array(await res.arrayBuffer());
+      return { buffer: buf, source: 'node-fetch' };
+    }
+    lastErr = new Error(`HTTP ${res.status}`);
+  } catch (err) {
+    lastErr = err;
+  }
+
+  // curl binary 走 --output 寫暫存檔再讀（直接 stdout 接 binary 在某些 Node 版會炸）
+  const tmpPath = `/tmp/curl-${Date.now()}-${Math.random().toString(36).slice(2)}.bin`;
+  try {
+    const args = ['-s', '-4', '--max-time', String(Math.ceil(timeoutMs / 1000))];
+    for (const [k, v] of Object.entries(headers)) {
+      args.push('-H', `${k}: ${v}`);
+    }
+    args.push('--output', tmpPath, url);
+    await execFileAsync('curl', args, { maxBuffer });
+    const fs = await import('node:fs');
+    const buf = new Uint8Array(fs.readFileSync(tmpPath));
+    fs.unlinkSync(tmpPath);
+    if (buf.length === 0) throw new Error('curl wrote empty file');
+    return { buffer: buf, source: 'curl' };
+  } catch (err) {
+    try { (await import('node:fs')).unlinkSync(tmpPath); } catch { /* file may not exist */ }
+    const fetchMsg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+    const curlMsg = err instanceof Error ? err.message : String(err);
+    throw new Error(`fetch buffer failed (${fetchMsg}); curl fallback also failed (${curlMsg})`);
+  }
+}

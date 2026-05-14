@@ -67,7 +67,13 @@ export default function WatchlistPage() {
 
   const refreshAll = useCallback(async () => {
     setIsRefreshing(true);
-    await Promise.allSettled(items.map(item => fetchConditions(item.symbol)));
+    // 0514 修：限併發 4 — 14+ 自選股一次 Promise.allSettled 把 60/min rate limit 撞光
+    // 改 batch 4-by-4 sequentially，token bucket 還能慢慢 refill。
+    const CONCURRENCY = 4;
+    for (let i = 0; i < items.length; i += CONCURRENCY) {
+      const batch = items.slice(i, i + CONCURRENCY);
+      await Promise.allSettled(batch.map(item => fetchConditions(item.symbol)));
+    }
     setLastUpdated(formatTime(new Date()));
     setIsRefreshing(false);
   }, [items, fetchConditions]);

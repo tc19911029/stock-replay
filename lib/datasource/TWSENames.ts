@@ -148,9 +148,9 @@ async function buildNameMap(): Promise<NameMap> {
   const map: NameMap = {};
 
   // 三個來源並行抓取
-  // 2026-05-11：TWSE + TPEx JSON 走 fetchJsonWithCurlFallback（Cloudflare TLS 阻 Node fetch）；
-  //            ISIN 是 Big5 HTML，仍走 Node fetch（不同基礎設施，目前未被擋）
-  const { fetchJsonWithCurlFallback } = await import('./curlFetch');
+  // 2026-05-14：ISIN 也走 curl fallback — Cloudflare 連 ISIN 的 Node fetch 都會
+  // timeout（dev runtime 實測 15s 收不到 byte），但 curl 1.9s 回 2.5MB 887 檔上櫃股全有。
+  const { fetchJsonWithCurlFallback, fetchBufferWithCurlFallback } = await import('./curlFetch');
   const [listedRes, otcRes, isinOtcRes] = await Promise.allSettled([
     fetchJsonWithCurlFallback<{ Code: string; Name: string }[]>(
       'https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL',
@@ -160,8 +160,10 @@ async function buildNameMap(): Promise<NameMap> {
       'https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes',
       { timeoutMs: 10000 },
     ),
-    fetch('https://isin.twse.com.tw/isin/C_public.jsp?strMode=4',
-      { signal: AbortSignal.timeout(15000) }),
+    fetchBufferWithCurlFallback(
+      'https://isin.twse.com.tw/isin/C_public.jsp?strMode=4',
+      { timeoutMs: 30000 },
+    ),
   ]);
 
   // 代號 regex：4-5 位數字，允許尾巴帶單一字母（ETF 後綴 A/B/T 等，例如 00981A、00981T）
@@ -200,13 +202,15 @@ async function buildNameMap(): Promise<NameMap> {
 
   // 0514 修：otcRes 即使 fulfilled 也可能空陣列（TPEx 維護中），改用「OTC 結果不足」當條件
   // 而不是「otcRes rejected」，否則 ISIN 備援永遠不會跑到
-  if (tpexAdded === 0 && isinOtcRes.status === 'fulfilled' && isinOtcRes.value.ok) {
+  if (isinOtcRes.status === 'rejected') {
+    console.warn('[TWSENames] isinOtcRes rejected:', isinOtcRes.reason);
+  }
+  if (tpexAdded === 0 && isinOtcRes.status === 'fulfilled') {
     isinUsed = true;
-    // ISIN C_public.jsp 回傳 Big5 HTML
-    // body read 包 try/catch — AbortSignal timeout 可能在 headers 後、body 中阻斷
+    // ISIN C_public.jsp Big5 HTML（fetchBufferWithCurlFallback 已處理 Node fetch
+    // timeout → curl fallback；標準 dev runtime curl 1.9s 回 2.5MB 887 檔）
     try {
-      const buf = await isinOtcRes.value.arrayBuffer();
-      const text = new TextDecoder('big5').decode(buf);
+      const text = new TextDecoder('big5').decode(isinOtcRes.value.buffer);
       // 0514 修：原 regex 只接受 TW\d{10} ISIN → 漏掉 KY 股（雅特力-KY/AMAX-KY 等
       // 在開曼註冊 ISIN 開頭 KYG...）。改用 [A-Z]{2}\w{10} 接所有 12 字元 ISIN code
       // 涵蓋 TW 上市 + KY/BMG/VG 等海外註冊股。
@@ -216,7 +220,7 @@ async function buildNameMap(): Promise<NameMap> {
         map[code] ??= name.trim();
       }
     } catch {
-      // ISIN body 中途斷線，跳過備援；listed map 仍含 TWSE 部分
+      // big5 decode 失敗（罕見）— listed map 仍含 TWSE 部分
     }
   }
 
