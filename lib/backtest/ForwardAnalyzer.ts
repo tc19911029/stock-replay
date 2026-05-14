@@ -1,5 +1,5 @@
 import { loadLocalCandles } from '@/lib/datasource/LocalCandleStore';
-import { fetchCandlesRange } from '@/lib/datasource/YahooFinanceDS';
+import { dataProvider } from '@/lib/datasource/MultiMarketProvider';
 import { rateLimiter } from '@/lib/datasource/UnifiedRateLimiter';
 import { StockForwardPerformance, ForwardCandle } from '@/lib/scanner/types';
 import type { Candle } from '@/types';
@@ -134,17 +134,19 @@ async function analyzeOne(
     if (needSupplement) {
       try {
         const fetchStart = candles.length > 0 ? nextDay(lastLocalDate) : startStr;
+        // 0514 修：原本只走 Yahoo（TW 對 Yahoo Chart Node fetch 經常 403/429），
+        // 改用 dataProvider.getCandlesRange 的多源 fallback chain
+        // (TW: FinMind → EODHD → TWSE → Yahoo / CN: EastMoney → Tencent)。
+        // 解 root cause：4749.TWO 05-13 L1 缺，Yahoo 也撈不到 → forward 顯示 d3=null。
         const provider = market === 'TW' ? 'finmind' : 'eastmoney';
-        // 第一根 API candle 的 prevClose 基準：已有 L1 就用最後一根 close，否則用 scanPrice
         const baseline = candles.length > 0 ? candles[candles.length - 1].close : scanPrice;
         await rateLimiter.acquire(provider);
-        const extraRaw = await fetchCandlesRange(symbol, fetchStart, safeEndStr, 8000);
+        const extraRaw = await dataProvider.getCandlesRange(symbol, fetchStart, safeEndStr);
         const extra = sanitizeCandles(extraRaw, baseline);
         if (extra.length === 0 && candles.length === 0) {
-          // 完全沒數據時 retry 一次
           await new Promise(r => setTimeout(r, 2000));
           await rateLimiter.acquire(provider);
-          const retryRaw = await fetchCandlesRange(symbol, fetchStart, safeEndStr, 8000);
+          const retryRaw = await dataProvider.getCandlesRange(symbol, fetchStart, safeEndStr);
           const retry = sanitizeCandles(retryRaw, baseline);
           if (retry.length > 0) {
             candles = [...candles, ...retry];

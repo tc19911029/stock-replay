@@ -13,10 +13,13 @@ jest.mock('../lib/datasource/LocalCandleStore', () => ({
   loadLocalCandles: (...args: unknown[]) => mockLocalCandles(...args),
 }));
 
-// Mock fetchCandlesRange — 模擬 API 回傳連假後的數據
+// Mock dataProvider.getCandlesRange — 0514 改用 MultiMarketProvider 多源 fallback
+// （原本只走 Yahoo，TW 對 Yahoo Chart Node fetch 不穩 → forward 缺日）
 const mockFetchRange = jest.fn();
-jest.mock('../lib/datasource/YahooFinanceDS', () => ({
-  fetchCandlesRange: (...args: unknown[]) => mockFetchRange(...args),
+jest.mock('../lib/datasource/MultiMarketProvider', () => ({
+  dataProvider: {
+    getCandlesRange: (...args: unknown[]) => mockFetchRange(...args),
+  },
 }));
 
 // Mock rateLimiter
