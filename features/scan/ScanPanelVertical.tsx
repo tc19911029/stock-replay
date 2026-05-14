@@ -271,7 +271,7 @@ export function ScanPanelVertical({ onSelectStock }: ScanPanelVerticalProps) {
               {/* 反轉訊號（不過 Step 1，全市場掃）*/}
               <div className="space-y-0.5">
                 <div className="text-[9px] text-muted-foreground/70 px-0.5"
-                  title="反轉軌字母（D/F/N/O）全市場掃，不過 Step 1；結果可能不在 A 池子裡，這是書本要求（抓底就不能先過六條件）">
+                  title="反轉軌（跳空抓底 / V 反轉 / 型態確認 / 打底完成）全市場掃，不過 Step 1；結果可能不在六條件池子裡，這是書本要求（抓底就不能先過六條件）">
                   <span className="font-bold text-blue-300/80">反轉訊號</span>
                   <span className="ml-1.5">⚠ 全市場抓底 / 反轉 · 不過六條件（過了就抓不到底）</span>
                 </div>

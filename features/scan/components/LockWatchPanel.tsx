@@ -132,7 +132,8 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
   };
 
   const sortedRecords = useMemo(() => {
-    const arr = [...(snapshot?.records ?? [])];
+    // 0514 用戶反饋：結構失效不要顯示（型態已死，留著佔版面）。已撤銷/手動移除留著當「軟失敗」紀錄
+    const arr = (snapshot?.records ?? []).filter(r => r.currentStage !== 'structure-broken');
     arr.sort((a, b) => {
       // 自選優先（toggle 開時）
       if (favFirst) {
@@ -191,10 +192,10 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
             ? 'bg-amber-900/30 text-amber-200 hover:bg-amber-900/40'
             : 'text-muted-foreground hover:text-foreground'
         }`}
-        title="F/N 訊號觸發紀錄：N=型態突破頸線（書本《寶典》Part 11-1 #7「等型態確認」p.697）、F=V 反轉（書本《抓住K線》V 反轉戰法）。書本明寫觸發當下即進場訊號。本表保留紀錄是為了走圖鎖定型態+頸線+目標價、以及進場按鈕一鍵帶入持倉。"
+        title="反轉訊號觸發紀錄：型態確認（突破頸線，書本《寶典》Part 11-1 #7「等型態確認」p.697）、V 反轉（書本《抓住K線》V 反轉戰法）。書本明寫觸發當下即進場訊號。本表保留紀錄是為了走圖鎖定型態+頸線+目標價、以及進場按鈕一鍵帶入持倉。"
       >
         <span className="flex items-center gap-1.5">
-          <span className="font-semibold">F/N 訊號紀錄</span>
+          <span className="font-semibold">反轉訊號紀錄</span>
           <span className="text-[10px] font-mono bg-amber-700 text-amber-100 px-1.5 py-px rounded font-bold">
             {activeCount} 檔
           </span>
@@ -207,12 +208,12 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
 
       {!collapsed && (
         <div className="px-2.5 pb-1.5">
-          {/* 對齊書本：F/N 觸發即進場訊號（寶典 Part 11-1 #7 + 抓住K線 V 反轉戰法） */}
+          {/* 對齊書本：型態確認 / V 反轉 觸發即進場訊號（寶典 Part 11-1 #7 + 抓住K線 V 反轉戰法） */}
           <div className="text-[10px] text-emerald-200/80 bg-emerald-900/15 border border-emerald-700/30 rounded px-2 py-1 my-1.5 leading-relaxed space-y-1">
             <div>
               <span className="font-bold text-emerald-300">這是「已觸發」紀錄</span>：
-              <span className="font-semibold ml-1">N</span>＝型態突破頸線（書本 8 種底部型態，《寶典》Part 11-1 第 7 位置 p.697「型態確認上漲大量紅 K」）；
-              <span className="font-semibold ml-1">F</span>＝V 反轉戰法（《抓住K線》V 反轉 4 條件：連跌+變盤線止跌+紅K帶量+突破前K高）。
+              <span className="font-semibold ml-1">型態確認</span>＝突破頸線（書本 8 種底部型態，《寶典》Part 11-1 第 7 位置 p.697「型態確認上漲大量紅 K」）；
+              <span className="font-semibold ml-1">V 反轉</span>＝反轉戰法（《抓住K線》4 條件：連跌+變盤線止跌+紅K帶量+突破前K高）。
               <span className="font-semibold">書本明寫觸發當下即進場訊號。</span>
             </div>
             <div className="text-muted-foreground/80">
@@ -244,7 +245,7 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
           )}
           {!loading && !error && totalCount === 0 && (
             <div className="text-[10px] text-muted-foreground/70 py-1">
-              目前無 F/N 觸發紀錄（書本：F V 反轉 / N 型態確認 觸發後會自動加入）
+              目前無反轉訊號紀錄（書本：V 反轉 / 型態確認 觸發後會自動加入）
             </div>
           )}
           {!loading && !error && totalCount > 0 && (
@@ -255,7 +256,7 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
                   <tr>
                     <th onClick={() => toggleSort('signal')}
                         className="text-left py-1.5 px-2 cursor-pointer hover:text-foreground select-none"
-                        title="觸發類型：F=V反轉（變盤線止跌+紅K突破），N=型態確認（書本 25 種底部型態）。點擊排序">
+                        title="觸發類型：V 反轉（變盤線止跌+紅K突破）/ 型態確認（書本 25 種底部型態）。點擊排序">
                       訊號{sortIndicator('signal')}
                     </th>
                     <th onClick={() => toggleSort('symbol')}
@@ -270,12 +271,12 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
                     </th>
                     <th onClick={() => toggleSort('pattern')}
                         className="text-left py-1.5 px-2 cursor-pointer hover:text-foreground select-none"
-                        title="N 訊號的具體型態。點擊排序">
+                        title="型態確認訊號的具體型態。點擊排序">
                       型態{sortIndicator('pattern')}
                     </th>
                     <th onClick={() => toggleSort('triggerPrice')}
                         className="text-center py-1.5 px-2 cursor-pointer hover:text-foreground select-none"
-                        title="N 訊號=突破時的型態頸線價；F 訊號=V 反彈起點 close。點擊排序">
+                        title="型態確認=突破時的型態頸線價；V 反轉=反彈起點 close。點擊排序">
                       鎖定價{sortIndicator('triggerPrice')}
                     </th>
                     <th onClick={() => toggleSort('currentClose')}
@@ -295,7 +296,7 @@ export function LockWatchPanel({ market, onSelectStock }: LockWatchPanelProps) {
                     </th>
                     <th onClick={() => toggleSort('stage')}
                         className="text-center py-1.5 px-2 cursor-pointer hover:text-foreground select-none"
-                        title="已觸發 / 已買進 / 已撤銷 / 結構失效。點擊排序">
+                        title="已觸發 / 已買進 / 已撤銷 / 手動移除。結構失效不顯示（型態已死直接濾掉）。點擊排序">
                       階段{sortIndicator('stage')}
                     </th>
                     <th onClick={() => toggleSort('triggeredDate')}
@@ -377,7 +378,7 @@ function LockWatchTableRow({
     <tr className="border-b border-border/30 hover:bg-muted/20">
       <td className="whitespace-nowrap py-1.5 px-2">
         {/* 訊號 badge 跟其他列字體統一 [11px] */}
-        <span className={`inline-block text-[11px] px-1.5 py-0.5 rounded-sm ${sig.color}`} title={`${sig.name} (${record.triggerSignal})`}>
+        <span className={`inline-block text-[11px] px-1.5 py-0.5 rounded-sm ${sig.color}`} title={sig.name}>
           {sig.name}
         </span>
       </td>
@@ -479,7 +480,7 @@ function LockWatchTableRow({
                 window.open(`/portfolio?${ep.toString()}`, '_self');
               }}
               className="shrink-0 px-2 py-0.5 rounded border border-emerald-700/50 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-900/30 font-bold"
-              title={`進場：跳到持倉表單，自動填入 ${record.triggerSignal} 訊號 + 觸發價 ${record.triggerPrice.toFixed(2)}`}
+              title={`進場：跳到持倉表單，自動填入 ${sig.name} 訊號 + 觸發價 ${record.triggerPrice.toFixed(2)}`}
             >
               進場
             </button>
