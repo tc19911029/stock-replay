@@ -218,20 +218,13 @@ export async function GET(req: NextRequest) {
             const safeOpen  = (open > 0 && open > close * 0.5 && open < close * 1.5)  ? open  : close;
             const safeHigh  = (high > 0 && high >= close && high < close * 1.5)        ? high  : Math.max(safeOpen, close);
             const safeLow   = (low > 0  && low <= close && low > close * 0.5)          ? low   : Math.min(safeOpen, close);
-            // 0514 修：TWSE realtime / Fugle 出來的 volume 是「張」(TW) 或「手」(CN)，
-            // 但 L1 canonical unit 是「股」(FinMind/TWSE bulk download 都用股寫入)。
-            // 注入今日 bar 前統一換算成股，避免 L1 unit 混亂（之前 0515 V=155658 張塞進去
-            // 跟 0514 V=177567000 股並列，UI 顯示量比錯亂）。
-            const volInShares = isTW ? todayQuote.volume * 1000
-              : isCN ? todayQuote.volume * 100
-              : todayQuote.volume;
             const todayBar = {
               date: today,
               open: safeOpen,
               high: safeHigh,
               low: safeLow,
               close: todayQuote.close,
-              volume: volInShares,
+              volume: todayQuote.volume,
             };
             if (lastIsToday) {
               result.candles[result.candles.length - 1] = todayBar;

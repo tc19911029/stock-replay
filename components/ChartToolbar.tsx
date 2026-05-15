@@ -166,9 +166,7 @@ export default function ChartToolbar({
           <span className="text-muted-foreground/70">開<span className="text-foreground/90 ml-0.5 tabular-nums">{candle.open.toFixed(2)}</span></span>
           <span className="text-muted-foreground/70">高<span className="text-bull ml-0.5 tabular-nums">{candle.high.toFixed(2)}</span></span>
           <span className="text-muted-foreground/70">低<span className="text-bear ml-0.5 tabular-nums">{candle.low.toFixed(2)}</span></span>
-          <span className="text-muted-foreground/70">量{isTW ? '(張)' : isCN ? '(手)' : ''}<span className="text-foreground/70 ml-0.5 tabular-nums">{
-            (isTW ? Math.round(candle.volume / 1000) : isCN ? Math.round(candle.volume / 100) : candle.volume).toLocaleString()
-          }</span></span>
+          <span className="text-muted-foreground/70">量{isTW ? '(張)' : ''}<span className="text-foreground/70 ml-0.5 tabular-nums">{candle.volume.toLocaleString()}</span></span>
         </div>
         {unrealizedPct !== null && (
           <span className="ml-auto flex items-center gap-2 text-xs">
