@@ -47,15 +47,17 @@ function makeChart(container: HTMLElement, showTimeAxis: boolean): IChartApi {
   });
 }
 
-/** 台股量顯示為「張」(1張=1000股)，其他市場顯示「股」 */
-function formatVolume(vol: number, _isTW: boolean): string {
-  // vol 傳入時已經是張（TW: dataProvider已除1000，CN: EastMoney已是張）
-  // formatVolume 只做千分位格式化，不應再除以1000
+/**
+ * L1 單位：TW=張（vendor 已 ÷1000 入 L1）；CN=股（vendor 「手」×100 入 L1，0422 修復）
+ * UI 顯示：TW 直接顯示張、CN ÷100 顯示手
+ */
+function formatVolume(vol: number, isTW: boolean, isCN?: boolean): string {
+  if (isCN) return Math.round(vol / 100).toLocaleString();
   return vol.toLocaleString();
 }
 
 // ── Volume ────────────────────────────────────────────────────────────────────
-function VolumeChart({ candles, hoverCandle, isTW }: { candles: CandleWithIndicators[]; hoverCandle?: CandleWithIndicators | null; isTW?: boolean }) {
+function VolumeChart({ candles, hoverCandle, isTW, isCN }: { candles: CandleWithIndicators[]; hoverCandle?: CandleWithIndicators | null; isTW?: boolean; isCN?: boolean }) {
   const containerRef  = useRef<HTMLDivElement>(null);
   const chartRef      = useRef<IChartApi | null>(null);
   const volRef        = useRef<ISeriesApi<'Histogram'> | null>(null);
@@ -95,19 +97,20 @@ function VolumeChart({ candles, hoverCandle, isTW }: { candles: CandleWithIndica
   useEffect(() => {
     if (!volRef.current || !mv5Ref.current || !mv20Ref.current || candles.length === 0) return;
     const { bull, bear } = getBullBearColors();
+    const volScale = isCN ? 100 : 1; // CN L1 是「股」，副圖 y-axis 顯示「手」要 ÷100
     volRef.current.setData(candles.map(c => ({
-      time: toTime(c.date), value: c.volume,
+      time: toTime(c.date), value: c.volume / volScale,
       color: c.close >= c.open ? `${bull}99` : `${bear}99`,
     })));
     const mv5Data = candles.map((c, i) => {
       if (i < 4) return null;
       const avg = candles.slice(i - 4, i + 1).reduce((s, x) => s + x.volume, 0) / 5;
-      return { time: toTime(c.date), value: avg };
+      return { time: toTime(c.date), value: avg / volScale };
     }).filter(Boolean) as { time: Time; value: number }[];
     const mv20Data = candles.map((c, i) => {
       if (i < 19) return null;
       const avg = candles.slice(i - 19, i + 1).reduce((s, x) => s + x.volume, 0) / 20;
-      return { time: toTime(c.date), value: avg };
+      return { time: toTime(c.date), value: avg / volScale };
     }).filter(Boolean) as { time: Time; value: number }[];
     mv5Ref.current.setData(mv5Data);
     mv20Ref.current.setData(mv20Data);
@@ -116,7 +119,7 @@ function VolumeChart({ candles, hoverCandle, isTW }: { candles: CandleWithIndica
       const r = getLastRange();
       if (r && chart) chart.timeScale().setVisibleLogicalRange(r);
     });
-  }, [candles]);
+  }, [candles, isCN]);
 
   const last = candles[candles.length - 1];
   const display = hoverCandle ?? last;
@@ -128,9 +131,9 @@ function VolumeChart({ candles, hoverCandle, isTW }: { candles: CandleWithIndica
   return (
     <div className="relative h-full">
       <div className="absolute top-1 left-2 z-10 flex gap-3 text-xs font-mono pointer-events-none">
-        <span className="text-muted-foreground">成交量{isTW ? '(張)' : ''}</span>
-        <span className="text-blue-400">MV5 {display?.avgVol5 ? formatVolume(display.avgVol5, !!isTW) : '—'}</span>
-        <span className={`font-bold ${volColor}`}>量 {display ? formatVolume(display.volume, !!isTW) : '—'} {volArrow}</span>
+        <span className="text-muted-foreground">成交量{isTW ? '(張)' : isCN ? '(手)' : ''}</span>
+        <span className="text-blue-400">MV5 {display?.avgVol5 ? formatVolume(display.avgVol5, !!isTW, !!isCN) : '—'}</span>
+        <span className={`font-bold ${volColor}`}>量 {display ? formatVolume(display.volume, !!isTW, !!isCN) : '—'} {volArrow}</span>
       </div>
       <div ref={containerRef} className="w-full h-full" />
     </div>
@@ -717,7 +720,7 @@ export default function IndicatorCharts({ candles, hoverCandle, indicators, tick
   const isCN = ticker ? (/\.(SS|SZ)$/i.test(ticker) || /^\d{6}$/.test(ticker)) : false;
   const show = indicators ?? { macd: true, kd: true, volume: true, rsi: false };
   const panels = [
-    show.volume && <div key="vol" className="flex-1 min-h-0 bg-card"><VolumeChart candles={candles} hoverCandle={hoverCandle} isTW={isTW} /></div>,
+    show.volume && <div key="vol" className="flex-1 min-h-0 bg-card"><VolumeChart candles={candles} hoverCandle={hoverCandle} isTW={isTW} isCN={isCN} /></div>,
     show.kd && <div key="kd" className="flex-1 min-h-0 bg-card"><KDChart candles={candles} hoverCandle={hoverCandle} /></div>,
     show.rsi && <div key="rsi" className="flex-1 min-h-0 bg-card"><RSIChart candles={candles} hoverCandle={hoverCandle} /></div>,
     show.macd && <div key="macd" className="flex-1 min-h-0 bg-card"><MACDChart candles={candles} hoverCandle={hoverCandle} /></div>,
