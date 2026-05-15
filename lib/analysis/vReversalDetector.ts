@@ -66,31 +66,30 @@ function classifyReversalShape(c: CandleWithIndicators): StopBarShape | null {
   return null;
 }
 
-export function detectVReversal(
+/** V 反轉「結構部分」結果（連跌段 + 變盤線 + 止跌等待），不含進場 K 條件 */
+export interface VReversalStructure {
+  stopBarOffset: number;
+  stopBarShape: StopBarShape;
+  stopBarLow: number;
+  precedingDownDays: number;
+  precedingDrop: number;
+}
+
+/**
+ * 只跑 V 反轉的「結構」三條件（連跌 + 變盤線 + 不破變盤線低），不檢查進場 K（紅K/量/突破）。
+ *
+ * 用途：UI panel 顯示「結構已成立但量未達」的精確狀態。
+ * 例：4/8 量 ×1.15 不到 1.5，detectVReversal 早 return null，但結構部分（連跌+4/7 變盤線+不破）
+ *     都 OK。panel 要顯示 4/5 而非誤導性的 1/5「未偵測到」。
+ *
+ * detectVReversal 內部 reuse 此函式 (DRY)。
+ */
+export function detectVReversalStructure(
   candles: CandleWithIndicators[],
   idx: number,
-): VReversalResult | null {
+): VReversalStructure | null {
   if (idx < LOOKBACK_STOP_BAR + PRE_DROP_WINDOW) return null;
-  const today = candles[idx];
-  const prev = candles[idx - 1];
-  if (!today || !prev || today.open <= 0) return null;
 
-  // ── 進場 K 條件（今日）：紅 K + 實體 ≥ 2% + 帶量 + 收盤 > 前 K 高 ──
-  // 2026-05-10：補書本 SOP ⑤ 紅K實體 ≥2% 門檻（與 B/C/D/E + N/O/P/Q 一致）
-  // 原邏輯只檢查 close > open，連 0.1% 紅K都算 V 反轉「紅K帶量」— 不對齊書本
-  if (today.close <= today.open) return null;
-  const bodyPct = ((today.close - today.open) / today.open) * 100;
-  if (bodyPct < BOOK_BODY_PCT_MIN) return null;
-  if (today.close <= prev.high) return null;
-
-  const vol5seg = candles.slice(idx - 5, idx).map(c => c.volume).filter(v => v > 0);
-  if (vol5seg.length < 3) return null;
-  const avgVol5 = vol5seg.reduce((a, b) => a + b, 0) / vol5seg.length;
-  if (avgVol5 <= 0) return null;
-  const volumeRatio = today.volume / avgVol5;
-  if (volumeRatio < VOLUME_MULT) return null;
-
-  // ── 往前搜尋變盤線（1 ~ 15 根前）──
   for (let k = 1; k <= LOOKBACK_STOP_BAR; k++) {
     const sb = candles[idx - k];
     if (!sb) continue;
@@ -99,7 +98,6 @@ export function detectVReversal(
     if (!shape) continue;
 
     // (a) 連續下跌：變盤線含當天近 N 天下跌 ≥ 3 天 且 段高 → 變盤線低 跌幅 ≥ 門檻
-    //    preSeg 從 stop bar 往前延伸（含 stop bar），才能正確抓到「變盤線之前高點」
     const preSeg = candles.slice(idx - k - PRE_DROP_WINDOW + 1, idx - k + 1);
     if (preSeg.length < PRE_DROP_WINDOW) continue;
     let downDays = 0;
@@ -107,7 +105,6 @@ export function detectVReversal(
       if (preSeg[i].close < preSeg[i - 1].close) downDays++;
     }
     if (downDays < MIN_DOWN_DAYS) continue;
-    // segHigh 取 stop bar 之前整個 window 的最高點（不只是 preSeg 的 high）
     const segHigh = Math.max(...preSeg.map(c => c.high));
     if (segHigh <= 0 || sb.low <= 0) continue;
     const drop = ((segHigh - sb.low) / segHigh) * 100;
@@ -124,22 +121,53 @@ export function detectVReversal(
     if (brokeLow) continue;
 
     return {
-      isVReversal: true,
       stopBarOffset: k,
       stopBarShape: shape,
       stopBarLow: sb.low,
       precedingDownDays: downDays,
       precedingDrop: drop,
-      volumeRatio,
-      bodyPct,
-      prevHigh: prev.high,
-      detail:
-        `V 形反轉（${k} 根前${shape}止跌、之前${downDays}/${PRE_DROP_WINDOW}天跌${drop.toFixed(1)}%、` +
-        `止跌${k - 1}天未破低 ${sb.low.toFixed(2)}、` +
-        `今日紅K +${bodyPct.toFixed(1)}% 量×${volumeRatio.toFixed(2)} ` +
-        `突破前K高 ${prev.high.toFixed(2)}）`,
     };
   }
-
   return null;
+}
+
+export function detectVReversal(
+  candles: CandleWithIndicators[],
+  idx: number,
+): VReversalResult | null {
+  if (idx < LOOKBACK_STOP_BAR + PRE_DROP_WINDOW) return null;
+  const today = candles[idx];
+  const prev = candles[idx - 1];
+  if (!today || !prev || today.open <= 0) return null;
+
+  // ── 進場 K 條件（今日）：紅 K + 實體 ≥ 2% + 帶量 + 收盤 > 前 K 高 ──
+  if (today.close <= today.open) return null;
+  const bodyPct = ((today.close - today.open) / today.open) * 100;
+  if (bodyPct < BOOK_BODY_PCT_MIN) return null;
+  if (today.close <= prev.high) return null;
+
+  const vol5seg = candles.slice(idx - 5, idx).map(c => c.volume).filter(v => v > 0);
+  if (vol5seg.length < 3) return null;
+  const avgVol5 = vol5seg.reduce((a, b) => a + b, 0) / vol5seg.length;
+  if (avgVol5 <= 0) return null;
+  const volumeRatio = today.volume / avgVol5;
+  if (volumeRatio < VOLUME_MULT) return null;
+
+  // ── 結構（連跌 + 變盤線 + 止跌等待）──
+  const structure = detectVReversalStructure(candles, idx);
+  if (!structure) return null;
+
+  return {
+    isVReversal: true,
+    ...structure,
+    volumeRatio,
+    bodyPct,
+    prevHigh: prev.high,
+    detail:
+      `V 形反轉（${structure.stopBarOffset} 根前${structure.stopBarShape}止跌、` +
+      `之前${structure.precedingDownDays}/${PRE_DROP_WINDOW}天跌${structure.precedingDrop.toFixed(1)}%、` +
+      `止跌${structure.stopBarOffset - 1}天未破低 ${structure.stopBarLow.toFixed(2)}、` +
+      `今日紅K +${bodyPct.toFixed(1)}% 量×${volumeRatio.toFixed(2)} ` +
+      `突破前K高 ${prev.high.toFixed(2)}）`,
+  };
 }

@@ -19,7 +19,7 @@ import { detectStrategyE } from '@/lib/analysis/highWinRateEntry';
 import { detectStrategyD } from '@/lib/analysis/gapEntry';
 import { detectBreakoutEntry, detectConsolidationBreakout } from '@/lib/analysis/breakoutEntry';
 import { detectTrend } from '@/lib/analysis/trendAnalysis';
-import { detectVReversal } from '@/lib/analysis/vReversalDetector';
+import { detectVReversal, detectVReversalStructure } from '@/lib/analysis/vReversalDetector';
 import { detectABCBreakout } from '@/lib/analysis/abcBreakoutEntry';
 import { detectBlackKBreakout } from '@/lib/analysis/blackKBreakoutEntry';
 import { detectKlineConsolidationBreakout } from '@/lib/analysis/klineConsolidationBreakout';
@@ -240,6 +240,9 @@ function evaluateMethod(
 
     case 'F': {
       // F=V形反轉
+      // 結構部分（①②③）獨立計算，即使進場 K 量 fail 也顯示結構狀態
+      // 例：4/8 量 ×1.15 不到 1.5，但連跌+變盤線 4/7+不破變盤線 都 OK → 顯示 4/5 而非誤導 1/5
+      const struct = detectVReversalStructure(candles, idx);
       const r = detectVReversal(candles, idx);
       const prev5 = candles.slice(idx - 5, idx);
       const vols = prev5.map(k => k.volume).filter(v => v > 0);
@@ -251,26 +254,26 @@ function evaluateMethod(
       const conditions: ConditionItem[] = [
         {
           icon: '①', name: '連續下跌（5 根 ≥ 3 跌 + 跌幅 ≥ 10%）',
-          detail: r
-            ? `前 ${r.precedingDownDays}/5 天下跌，段跌幅 ${r.precedingDrop.toFixed(1)}%`
+          detail: struct
+            ? `前 ${struct.precedingDownDays}/5 天下跌，段跌幅 ${struct.precedingDrop.toFixed(1)}%`
             : '未偵測到符合的下跌段',
-          pass: !!r,
-          metric: r ? `${r.precedingDownDays}/5 · -${r.precedingDrop.toFixed(1)}%` : '—',
+          pass: !!struct,
+          metric: struct ? `${struct.precedingDownDays}/5 · -${struct.precedingDrop.toFixed(1)}%` : '—',
         },
         {
           icon: '②', name: '變盤線止跌（十字/紡錘/長下影）',
-          detail: r
-            ? `${r.stopBarOffset} 根前出現 [${r.stopBarShape}]`
+          detail: struct
+            ? `${struct.stopBarOffset} 根前出現 [${struct.stopBarShape}]`
             : '過去 15 根內未找到變盤線',
-          pass: !!r,
-          metric: r ? `${r.stopBarShape}·${r.stopBarOffset}根前` : '—',
+          pass: !!struct,
+          metric: struct ? `${struct.stopBarShape}·${struct.stopBarOffset}根前` : '—',
         },
         {
           icon: '③', name: '止跌等待（不破變盤線低）',
-          detail: r
-            ? `變盤線 low ${r.stopBarLow.toFixed(2)} 之後 ${r.stopBarOffset - 1} 天未跌破`
+          detail: struct
+            ? `變盤線 low ${struct.stopBarLow.toFixed(2)} 之後 ${struct.stopBarOffset - 1} 天未跌破`
             : '前提未成立（需先有變盤線）',
-          pass: !!r,
+          pass: !!struct,
         },
         {
           icon: '④', name: `今日紅 K + 帶量（× ${VREVERSAL_VOL_MULT}）`,
