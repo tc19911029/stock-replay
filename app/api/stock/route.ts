@@ -222,7 +222,14 @@ export async function GET(req: NextRequest) {
             // 但 L1 canonical unit 是「股」(FinMind/TWSE bulk download 都用股寫入)。
             // 注入今日 bar 前統一換算成股，避免 L1 unit 混亂（之前 0515 V=155658 張塞進去
             // 跟 0514 V=177567000 股並列，UI 顯示量比錯亂）。
-            const volInShares = isTW ? todayQuote.volume * 1000
+            //
+            // 0515 修：指數（^TWII / 000001.SS / 000300.SS 等）的 volume 來源不同單位
+            // — EastMoney 對指數回的成交量是「成交額萬元」or 已經是「股」，
+            // 直接 ×100 會放大 100 倍 (例 7.3T 股 → UI 顯 73B 手錯誤)。
+            // 指數 inject 跳過單位換算，直接用 raw value。
+            const isIndex = /^\^|^000001\.SS$|^000300\.SS$|^399001\.SZ$/i.test(symbol);
+            const volInShares = isIndex ? todayQuote.volume
+              : isTW ? todayQuote.volume * 1000
               : isCN ? todayQuote.volume * 100
               : todayQuote.volume;
             const todayBar = {
