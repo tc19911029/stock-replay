@@ -27,12 +27,17 @@ async function refresh(market: 'TW' | 'CN') {
       return;
     }
     const out = path.join(REPO_ROOT, 'data', 'candles', market, `${sym}.json`);
+    // INDEX volume=0 守 prev V（Yahoo Chart 對 INDEX 當日 vol 同步慢；對齊 CandleStorageAdapter 0513 防呆）
+    const stripped = candles.map((c, i) => {
+      const v = (c.volume === 0 && i > 0) ? candles[i - 1].volume : c.volume;
+      return { date: c.date, open: c.open, high: c.high, low: c.low, close: c.close, volume: v };
+    });
     const data = {
       symbol: sym,
-      lastDate: candles[candles.length - 1].date,
+      lastDate: stripped[stripped.length - 1].date,
       updatedAt: new Date().toISOString(),
-      candles: candles.map((c) => ({ date: c.date, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume })),
-      sealedDate: candles[candles.length - 1].date,
+      candles: stripped,
+      sealedDate: stripped[stripped.length - 1].date,
     };
     await fs.writeFile(out, JSON.stringify(data));
     console.log(`  ✓ 寫入 ${out}`);
