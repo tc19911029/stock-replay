@@ -47,15 +47,23 @@ function makeChart(container: HTMLElement, showTimeAxis: boolean): IChartApi {
   });
 }
 
-/** 台股量顯示為「張」(1張=1000股)，其他市場顯示「股」 */
-function formatVolume(vol: number, _isTW: boolean): string {
-  // vol 傳入時已經是張（TW: dataProvider已除1000，CN: EastMoney已是張）
-  // formatVolume 只做千分位格式化，不應再除以1000
+/**
+ * 0514 修：L1 統一存「股」(canonical)，UI 顯示時換算：
+ *   TW 市場 → 1 張 = 1000 股 → vol / 1000
+ *   CN 市場 → 1 手 = 100 股 → vol / 100
+ *   其他市場（美股 etc）→ 直接顯示股數
+ *
+ * isMarket: 'TW' | 'CN' | undefined（兼容舊 isTW boolean）
+ */
+function formatVolume(vol: number, isTW?: boolean, market?: 'TW' | 'CN'): string {
+  const m = market ?? (isTW ? 'TW' : undefined);
+  if (m === 'TW') return Math.round(vol / 1000).toLocaleString();
+  if (m === 'CN') return Math.round(vol / 100).toLocaleString();
   return vol.toLocaleString();
 }
 
 // ── Volume ────────────────────────────────────────────────────────────────────
-function VolumeChart({ candles, hoverCandle, isTW }: { candles: CandleWithIndicators[]; hoverCandle?: CandleWithIndicators | null; isTW?: boolean }) {
+function VolumeChart({ candles, hoverCandle, isTW, isCN }: { candles: CandleWithIndicators[]; hoverCandle?: CandleWithIndicators | null; isTW?: boolean; isCN?: boolean }) {
   const containerRef  = useRef<HTMLDivElement>(null);
   const chartRef      = useRef<IChartApi | null>(null);
   const volRef        = useRef<ISeriesApi<'Histogram'> | null>(null);
@@ -128,9 +136,9 @@ function VolumeChart({ candles, hoverCandle, isTW }: { candles: CandleWithIndica
   return (
     <div className="relative h-full">
       <div className="absolute top-1 left-2 z-10 flex gap-3 text-xs font-mono pointer-events-none">
-        <span className="text-muted-foreground">成交量{isTW ? '(張)' : ''}</span>
-        <span className="text-blue-400">MV5 {display?.avgVol5 ? formatVolume(display.avgVol5, !!isTW) : '—'}</span>
-        <span className={`font-bold ${volColor}`}>量 {display ? formatVolume(display.volume, !!isTW) : '—'} {volArrow}</span>
+        <span className="text-muted-foreground">成交量{isTW ? '(張)' : isCN ? '(手)' : ''}</span>
+        <span className="text-blue-400">MV5 {display?.avgVol5 ? formatVolume(display.avgVol5, !!isTW, isTW ? 'TW' : isCN ? 'CN' : undefined) : '—'}</span>
+        <span className={`font-bold ${volColor}`}>量 {display ? formatVolume(display.volume, !!isTW, isTW ? 'TW' : isCN ? 'CN' : undefined) : '—'} {volArrow}</span>
       </div>
       <div ref={containerRef} className="w-full h-full" />
     </div>
@@ -717,7 +725,7 @@ export default function IndicatorCharts({ candles, hoverCandle, indicators, tick
   const isCN = ticker ? (/\.(SS|SZ)$/i.test(ticker) || /^\d{6}$/.test(ticker)) : false;
   const show = indicators ?? { macd: true, kd: true, volume: true, rsi: false };
   const panels = [
-    show.volume && <div key="vol" className="flex-1 min-h-0 bg-card"><VolumeChart candles={candles} hoverCandle={hoverCandle} isTW={isTW} /></div>,
+    show.volume && <div key="vol" className="flex-1 min-h-0 bg-card"><VolumeChart candles={candles} hoverCandle={hoverCandle} isTW={isTW} isCN={isCN} /></div>,
     show.kd && <div key="kd" className="flex-1 min-h-0 bg-card"><KDChart candles={candles} hoverCandle={hoverCandle} /></div>,
     show.rsi && <div key="rsi" className="flex-1 min-h-0 bg-card"><RSIChart candles={candles} hoverCandle={hoverCandle} /></div>,
     show.macd && <div key="macd" className="flex-1 min-h-0 bg-card"><MACDChart candles={candles} hoverCandle={hoverCandle} /></div>,
