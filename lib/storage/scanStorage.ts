@@ -646,14 +646,11 @@ export async function loadScanSession(
           );
         }
       }
-      // 0512 修 #3：sticky-pattern fix
-      // 從 lockwatch 補進「pending 已升級為 observation/entry-signal/purchased」的股
-      // 例：2408 5/5 鎖圓弧底 pending → 5/6 close 282 ≥ 鎖定 neckline×1.03 → lockwatch 升級
-      // 但 fresh N detector 5/6 沒抓到（pivot 重組改判頭肩底），所以 N scan 沒它
-      // sticky fix：lockwatch 升級的股直接補進 N tab（用 locked neckline 而非 fresh re-detect）
-      if (mtfMode === 'N' || mtfMode === 'F') {
-        await augmentReversalWithPromotedLockwatch(session, mtfMode as 'N' | 'F');
-      }
+      // 2026-05-15 移除 sticky-pattern fix：
+      // 原本 lockwatch 中 observation/entry-signal/purchased 紀錄會被推進 N/F scan tab，
+      // 造成「8 天前鎖的股 + 今日 detector 1/5 不符 + 戒律禁止做多 仍出現在清單」誤導。
+      // 新規則：scan 清單只看 fresh detector，不符合策略當日就不出現。
+      // lockwatch 紀錄仍保留，由 LockWatchPanel 獨立顯示。
     }
     return session;
   } catch {
@@ -698,87 +695,6 @@ const BULLISH_LETTERS = new Set<MtfMode>([
   ...Object.keys(V11_TO_V12_LETTER),
 ] as readonly MtfMode[]);
 
-/**
- * Sticky-pattern fix：從 lockwatch 補進「pending 已升級為 observation/entry-signal/purchased」的股
- *
- * 場景：2408 5/5 鎖圓弧底 pending → 5/6 close 282 ≥ 鎖定 neckline × 1.03
- * → updateLockWatch 升級 stage → 但 fresh N detector 5/6 沒抓到（pivot 重組改判頭肩底）
- * → N scan 沒它 → 型態確認 tab 看不到
- *
- * 修法：載入 N/F session 時，從同日 lockwatch snapshot 撈出「升級紀錄」補進來，
- * 用鎖定的 neckline/target 而非 fresh re-detect，sticky 對齊用戶心智模型。
- */
-async function augmentReversalWithPromotedLockwatch(
-  session: ScanSession,
-  letter: 'N' | 'F',
-): Promise<void> {
-  try {
-    const { loadLockWatchSnapshot } = await import('@/lib/storage/lockWatchStorage');
-    const snap = await loadLockWatchSnapshot(session.market, session.date);
-    if (!snap || !Array.isArray(snap.records)) return;
-    const existing = new Set(session.results?.map(r => r.symbol) ?? []);
-    const PROMOTED = new Set(['observation', 'entry-signal', 'purchased']);
-
-    // 候選清單先決定，再 parallel 解中文名（lockwatch 沒存 name 欄位 — 不查會渲染成 code-only 卡片）
-    const candidates = snap.records.filter(r =>
-      r.triggerSignal === letter && PROMOTED.has(r.currentStage) && !existing.has(r.symbol),
-    );
-    if (candidates.length === 0) return;
-
-    const { getCNChineseName, getTWChineseName } = await import('@/lib/datasource/TWSENames');
-    const nameLookups = await Promise.all(candidates.map(async (r) => {
-      try {
-        const m = r.symbol.match(/^(\d+)\.(SS|SZ|TW|TWO)$/i);
-        const code = m?.[1] ?? r.symbol;
-        const market = m?.[2]?.toUpperCase();
-        if (market === 'SS' || market === 'SZ') {
-          return (await getCNChineseName(code, market)) ?? '';
-        }
-        if (market === 'TW' || market === 'TWO') {
-          return (await getTWChineseName(code)) ?? '';
-        }
-        return '';
-      } catch {
-        return '';
-      }
-    }));
-
-    let added = 0;
-    for (let i = 0; i < candidates.length; i++) {
-      const r = candidates[i];
-      session.results.push({
-        symbol: r.symbol,
-        name: nameLookups[i],
-        market: session.market,
-        price: r.currentClose ?? r.triggerPrice,
-        changePercent: 0,
-        volume: 0,
-        triggeredRules: [],
-        matchedMethods: [letter],
-        sixConditionsScore: 0,
-        sixConditionsBreakdown: { trend: false, position: false, kbar: false, ma: false, volume: false, indicator: false },
-        trendState: '多頭',
-        trendPosition: '',
-        scanTime: snap.lastUpdated ?? new Date().toISOString(),
-        lockWatchPayload: {
-          triggerPrice: r.triggerPrice,
-          patternType: r.patternType,
-          patternTargetPrice: r.patternTargetPrice,
-          patternAchievementRate: r.patternAchievementRate,
-        },
-      });
-      added++;
-    }
-    if (added > 0) {
-      session.resultCount = session.results.length;
-      console.info(
-        `[scanStorage] sticky-pattern 補進 ${letter}: ${session.market}/${session.date} +${added} 檔（lockwatch 升級）`,
-      );
-    }
-  } catch (err) {
-    console.warn(`[scanStorage] augmentReversalWithPromotedLockwatch 異常:`, err);
-  }
-}
 
 /**
  * 多頭軌 letter session 的 retro-filter：丟掉不在當日 Step 1 池子的結果
