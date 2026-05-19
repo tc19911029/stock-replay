@@ -570,7 +570,114 @@ async function _fetchTWQuotes(sources: DataSourceStatus[]): Promise<IntradayQuot
   if (staleSkipped > 0) {
     console.warn(`[IntradayCache] TW 丟棄 ${staleSkipped} 筆非 ${todayTW} 資料（多半是 STOCK_DAY_ALL 盤中昨日殘留）`);
   }
+
+  // 大盤指數 ^TWII — 跟個股共用同一個 L2 snapshot，下游 append-from-snapshot 會自動寫 L1。
+  // 0518 修：原本 ^TWII 只能靠 Vercel cron `download-candles-batch?batch=1` 走 Yahoo 抓
+  // (本地 launchd 沒涵蓋、Yahoo 當日 vol 還會回 0)，現在改從 mis.twse t00 一起進 L2。
+  const twIndex = await fetchTWIndexQuote(todayTW);
+  if (twIndex) quotes.push(twIndex);
+
   return quotes;
+}
+
+// ── 大盤指數抓取 (^TWII / 000001.SS) ─────────────────────────────────────────
+// 指數從 vendor 即時 API 抓回後 push 進 L2 snapshot quotes[]，
+// append-from-snapshot 在 indices 處理區塊撈出來寫 L1（symbol 帶 suffix 避免跟個股 code 撞）。
+
+const MIS_HEADERS_INDEX = {
+  Accept: '*/*',
+  'User-Agent': 'Mozilla/5.0',
+  Referer: 'https://mis.twse.com.tw/stock/',
+};
+
+async function fetchTWIndexQuote(todayTW: string): Promise<IntradayQuote | null> {
+  try {
+    const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_t00.tw&json=1&delay=0&_=${Date.now()}`;
+    const res = await fetch(url, { headers: MIS_HEADERS_INDEX, signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+    const json = await res.json() as { msgArray?: Array<Record<string, string>> };
+    const d = json.msgArray?.[0];
+    if (!d) return null;
+    const close = parseFloat(d.z ?? '');
+    if (!(close > 0)) return null; // 盤前/休市 z='-'
+    const open = parseFloat(d.o ?? '') || close;
+    const high = parseFloat(d.h ?? '') || close;
+    const low = parseFloat(d.l ?? '') || close;
+    const prevClose = parseFloat(d.y ?? '') || close;
+    // mis.twse 對 t00 指數**只有 m（累計成交量）沒有 v**（個股用 v）；m 量級對齊既有 L1 (~8M)
+    const volume = parseInt((d.m ?? d.v ?? '0').replace(/,/g, ''), 10) || 0;
+    // 日期守門：mis d.d 是當前報價日期（盤前可能是上一交易日），不是 today 就丟
+    const misDate = d.d ? `${d.d.slice(0, 4)}-${d.d.slice(4, 6)}-${d.d.slice(6, 8)}` : todayTW;
+    if (misDate !== todayTW) {
+      console.warn(`[IntradayCache] ^TWII mis.twse 回 ${misDate} ≠ today ${todayTW}，丟棄`);
+      return null;
+    }
+    const changePercent = prevClose > 0 ? Math.round(((close - prevClose) / prevClose) * 10000) / 100 : 0;
+    return {
+      symbol: '^TWII',
+      name: d.n?.trim() || '發行量加權股價指數',
+      open,
+      high,
+      low,
+      close,
+      volume,
+      prevClose,
+      changePercent,
+    };
+  } catch (err) {
+    console.warn('[IntradayCache] ^TWII fetch 失敗:', err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+async function fetchCNIndexQuote(todayCN: string): Promise<IntradayQuote | null> {
+  try {
+    const url = 'https://qt.gtimg.cn/q=sh000001';
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    // Tencent 回 GBK；指數欄位跟個股結構一致
+    const buf = await res.arrayBuffer();
+    const text = new TextDecoder('gbk').decode(buf);
+    const match = text.match(/="([^"]+)"/);
+    if (!match) return null;
+    const parts = match[1].split('~');
+    if (parts.length < 35) return null;
+    const name = parts[1];
+    const close = parseFloat(parts[3]);
+    if (!(close > 0)) return null;
+    const prevClose = parseFloat(parts[4]) || close;
+    const open = parseFloat(parts[5]) || close;
+    const high = parseFloat(parts[33]) || close;
+    const low = parseFloat(parts[34]) || close;
+    const volume = (parseFloat(parts[6]) || 0) * 100; // 手→股，對齊既有 L1
+    // 日期守門：parts[30] 格式 YYYYMMDDHHMMSS
+    if (parts[30] && parts[30].length >= 8) {
+      const ts = parts[30];
+      const tsDate = `${ts.slice(0, 4)}-${ts.slice(4, 6)}-${ts.slice(6, 8)}`;
+      if (tsDate !== todayCN) {
+        console.warn(`[IntradayCache] 000001.SS tencent 回 ${tsDate} ≠ today ${todayCN}，丟棄`);
+        return null;
+      }
+    }
+    const changePercent = prevClose > 0 ? Math.round(((close - prevClose) / prevClose) * 10000) / 100 : 0;
+    return {
+      symbol: '000001.SS',
+      name: name || '上證指數',
+      open,
+      high,
+      low,
+      close,
+      volume,
+      prevClose,
+      changePercent,
+    };
+  } catch (err) {
+    console.warn('[IntradayCache] 000001.SS fetch 失敗:', err instanceof Error ? err.message : err);
+    return null;
+  }
 }
 
 // ── 內部：CN 報價抓取（EastMoney → Tencent → Sina 三層 failover） ──────────
@@ -727,6 +834,10 @@ async function _fetchCNQuotes(
     const src = sources.find(s => s.success)?.source ?? 'unknown';
     console.info(`[IntradayCache] CN L2 來源: ${src}, ${quotes.length} 筆`);
   }
+
+  // 大盤指數 000001.SS — 跟 ^TWII 同理併入 L2 snapshot；symbol 帶 .SS 避免與深市 000001 撞 key
+  const cnIndex = await fetchCNIndexQuote(today);
+  if (cnIndex) quotes.push(cnIndex);
 
   return quotes;
 }
