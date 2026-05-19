@@ -511,7 +511,17 @@ export async function scanDabanWithPrefilter(date: string): Promise<DabanScanSes
   });
 
   if (candidates.length === 0) {
-    // 無漲停股 → 返回空結果而非全量掃描
+    // 預篩 0 候選有兩種情況：
+    // 1. 「當天且盤中」→ 真的可能 0 漲停，早退避免 5000 檔 L1 全掃
+    // 2. 「過去交易日」→ 快照可能在盤中某瞬被凍結（2026-04-20 案例：
+    //    snapshot.date 對得上但所有 changePercent < 9.5%，但 L1 重算有 73 支漲停）
+    //    → fallback 全量 L1，避免那天的 daban session 永久遺失
+    const { isMarketOpen, getCurrentTradingDay } = await import('@/lib/datasource/marketHours');
+    const isLiveIntraday = date === getCurrentTradingDay('CN') && isMarketOpen('CN');
+    if (!isLiveIntraday) {
+      console.warn(`[DabanScanner] ⚠️ 預篩 0 候選且非當天盤中（date=${date}）→ fallback 全量 L1`);
+      return scanDabanFromLocalCandles(date);
+    }
     return {
       id: `daban-CN-${date}`,
       market: 'CN',
